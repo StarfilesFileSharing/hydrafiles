@@ -39,7 +39,7 @@ Hydrafiles is everywhere. With the goal of being cross-border, we ask people lik
 ```
 git clone https://github.com/StarfilesFileSharing/Hydrafiles
 cd Hydrafiles
-npm install node-fetch
+yarn
 node index.js
 ```
 
