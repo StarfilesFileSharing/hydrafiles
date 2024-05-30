@@ -1,9 +1,10 @@
-const http = require('http');
-const fs = require('fs');
-const path = require('path');
-const fetch = require('node-fetch');
-const crypto = require('crypto');
+import http from 'http';
+import fs from 'fs';
+import path from 'path';
+import fetch from 'node-fetch';
+import crypto from 'crypto';
 
+const __dirname = path.resolve();
 
 // CONFIG /////////////////////////////////////
 let PORT = 3000;
