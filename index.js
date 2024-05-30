@@ -151,6 +151,6 @@ server.listen(PORT, HOSTNAME, async () => {
     }
     console.log(`Files dir size: ${usedStorage} bytes`);
 
-    await fetch(`${isIp(node.host) ? 'http' : 'https'}://${HOSTNAME + (PORT != 80 ? `:${PORT}` : '')}/download/04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f/c8fcb43d6e46`);
+    await fetch(`${isIp(HOSTNAME) ? 'http' : 'https'}://${HOSTNAME + (PORT != 80 ? `:${PORT}` : '')}/download/04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f/c8fcb43d6e46`);
     if(!fs.existsSync(path.join(__dirname, 'files', '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f'))) console.error('Download test failed')
 });
