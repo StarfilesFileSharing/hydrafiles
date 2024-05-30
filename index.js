@@ -6,21 +6,21 @@ const crypto = require('crypto');
 
 
 // CONFIG /////////////////////////////////////
-const PORT = 3000;
-const HOSTNAME = '127.0.0.1';
-const MAX_STORAGE = 100 * 1024 * 1024 * 1024; // 100GB
-const PERMA_FILES = []; // File hashes to never delete when storage limit is reached
-const BURN_RATE = 0.1; // Percentage of files to purge when storage limit is reached
+let PORT = 3000;
+let HOSTNAME = '127.0.0.1';
+let MAX_STORAGE = 100 * 1024 * 1024 * 1024; // 100GB
+let PERMA_FILES = []; // File hashes to never delete when storage limit is reached
+let BURN_RATE = 0.1; // Percentage of files to purge when storage limit is reached
 // CONFIG /////////////////////////////////////
 
 
 // ADVANCED CONFIG ////////////////////////////
-const METADATA_ENDPOINT = 'https://api2.starfiles.co/file/';
-const BOOTSTRAP_NODES = [
+let METADATA_ENDPOINT = 'https://api2.starfiles.co/file/';
+let BOOTSTRAP_NODES = [
 	{"host": "hydrafiles.com", "http": true, "dns": false, "cf": false},
 	{"host": "starfilesdl.com", "http": true, "dns": false, "cf": false},
 ];
-const NODES_PATH = path.join(__dirname, 'nodes.json');
+let NODES_PATH = path.join(__dirname, 'nodes.json');
 // ADVANCED CONFIG ////////////////////////////
 
 
