@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hydrafiles</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #f4f4f4;
+        }
+        header {
+            background-color: #333;
+            color: #fff;
+            width: 100%;
+            padding: 1em 0;
+            text-align: center;
+        }
+        section {
+            width: 80%;
+            margin: 2em 0;
+            padding: 1em;
+            background-color: #fff;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            margin: 0;
+        }
+        h2 {
+            border-bottom: 2px solid #333;
+            padding-bottom: 0.5em;
+        }
+        table {
+            border-collapse: collapse;
+        }
+        pre {
+            word-break: break-all;
+            white-space: pre-wrap;
+        }
+        img {
+            max-width: 100%
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Hydrafiles</h1>
+        <p>The headless storage network.</p>
+        <p>Donate Monero:<br>83BGShZv9hU9P9SRLjhRGJYQ4WatMNazKVFG6eKyHc6HguBzu1vH54R7mQJaZzeXhx4jDxnkNJMizLXrFFN4ARffEwFj82y</p>
+    </header>
+    
+    <section>
+        <h2>What is this site?</h2>
+        <p>This site is part of the Hydrafiles network. It may be a mirror, a cdn, a storage server, just a gui, or all of the above.</p>
+
+        <h2>What is Hydrafiles?</h2>
+        <p>Hydrafiles is the headless storage network. Anyone can be a part of the network. Hydrafiles allows for files to be hosted in the Hydra cloud, where no one knows what's hosted where.</p>
+
+        <h2>Why Hydrafiles?</h2>
+        <p>In a world where information is freedom. We believe that the people have a right to access the world's information. We believe the people of Russia, China, Iran, America, North Korea, and the rest of the world, all deserve access to the same information. Most people don't use anti-censorship tools when they're inconvenient. We can't control the people. I personally wish the whole internet ran on I2P. But that's never going to happen because it's slow and inconvenient for users. Torrents died off because streaming is more convenient. Piracy is back because subscriptions have gotten inconvenient. Hydrafiles realises that the people don't want to trade their convenience for freedom. Unfortunately, not all hosts have the luxury. With global censorship of whistleblowing and propaganda at an all time high, it is, now more than ever, crucial for people to be able to anonymously serve files to the masses.</p>
+        <p>P.s. Censored hosts that need Hydrafiles level security are likely also being censored in other ways. Please consider donating Monero to make this possible:</p>
+        <pre>83BGShZv9hU9P9SRLjhRGJYQ4WatMNazKVFG6eKyHc6HguBzu1vH54R7mQJaZzeXhx4jDxnkNJMizLXrFFN4ARffEwFj82y</pre>
+
+        <h2>How does it work?</h2>
+        <img src="/download/04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f/c8fcb43d6e46" id="hydra-img1">
+        <p>
+        TLDR: This scene ^<br>
+        P.s. This gif was served by Hydrafiles
+        </p>
+        <p>When someone tries to download a file, nodes with the file will serve it directly. Nodes without the file will then ask other nodes for the file, once they find another node with a file, they will respond to all requests saying they have it, each of them forwarding it on, saying they have it, etc. until the original node is reached, with a message from all nodes they connected to, saying they have it. If no one has it, all nodes will end up giving a no response, telling the user that it isn't hosted anywhere. This design allows for better than TOR level security, for serving static files via HTTP. A core improvement over TOR is that all hosts and relays look identical, which they don't when using TOR.</p>
+
+        <h2>What Hydrafiles isn't.</h2>
+        <p>The Hydrafiles network does NOT provide privacy to the end user. The node you initially connected to, can see exactly what you're doing. If you need to download files discretely, use TOR when accessing Hydrafiles. Hydrafiles itself does not protect files. All data on the Hydrafiles network can be seen by all nodes. Sensitive files MUST be encrypted before submission to the network.</p>
+
+        <h2>Who's in charge of Hydrafiles?</h2>
+        <p>No one, anyone, everyone. Hydrafiles doesn't have a head. It's simply an API specification. Anyone can setup a domain, server, or S3 bucket, and add it to the network. The more people that decide to do this, the stronger the network.</p>
+
+        <h2>How can I tell where a file is being hosted?</h2>
+        <p>You can't. If a server in the network is hosting a file, it will look like everyone is hosting that file.</p>
+
+        <h2>How can I take a file off of Hydrafiles?</h2>
+        <p>You can contact the site that is hosting your file.</p>
+
+        <h2>How does Hydrafiles obscure where a file is being hosted?</h2>
+        <p>When you call a Hydrafiles site, if it's not hosting the requested file, it will check with other Hydrafiles sites and pull the file from them. This means no matter what Hydrafiles API you call, as long as one Hydrafiles site is serving a file, they all are.</p>
+
+        <h2>Where is Hydrafiles?</h2>
+        <p>Hydrafiles is everywhere. With the goal of being cross-border, we ask people like you to contribute to the movement, by setting up cross-border domains and servers.</p>
+    </section>
+    
+    <section>
+        <h2>Contribute to Hydrafiles</h2>
+        <p>Because of Hydrafiles' layered approach, it is impossible to prove someones level of involvement in Hydrafiles. Domain providers may either be hosting their own servers, or pointing to other servers. Server providers may be hosting files, or may only be mirroring another providers files.</p>
+        <p>To ensure resiliance, it is crucial to the protocol that servers and domains are evenly distributed between "unfriendly" states. This includes; <a href="https://alibabacloud.com">China</a>, <a href="https://yandex.cloud">Russia</a>, <a href="https://aws.amazon.com/">America</a>, and <a href="https://www.arvancloud.ir">Iran</a>. As well as politically neutral countries such as <a href="https://njal.la">Sweden</a>. Ensure you aren't violating local laws when deciding on a region.</p>
+        <h3>Donate a Domain or Subdomain</h3>
+        <p>If you don't have a domain, you can buy one <a href="https://tld-list.com">here</a>. If you have a spare domain, you can contribute it's subdomain for free. Once you have a domain or subdomain, point it to another Hydrafiles site. <a href="#directory">List of Providers</a></p>
+        <p>We recommend routing your domains through a free <a href="https://cloudflare.com">CDN</a>. If you would like to anonymously buy a domain, <a href="https://njal.la">Njalla</a> is a great choice.</p>
+        <h3>Donate Bandwidth</h3>
+        <p>Rent a server, we recommend <a href="https://sporestack.com">SporeStack</a> or <a href="https://njal.la">Njalla</a> as they don't ask for information. Then reverse proxy to any of <a href="#directory">the Hydrafiles providers</a>. Then <a href="#announce">announce your domain/ip</a>.</p>
+        <h3>Donate Storage</h3>
+        <p>Host an S3 bucket with your chosen S3 provider. Then host a server to hide the bucket. Use <a href="#TODO">this source code (coming soon)</a> to mirror your S3 storage to the Hydrafiles network</p>
+        <h3>I received a takedown notice, what do I do?</h3>
+        <p>Follow the procedure:</p>
+        <ol>
+            <li>Remove the file if you are hosting it and aren't legally allowed to host it.</li>
+            <li>Forward the takedown notice to the Hydrafiles operator you received the file from.</li>
+            <li>Respond to the requesting party with the following template:</li>
+        </ol>
+        <code>Dear Sir/Madam, I hope this message finds you well. We are not hosting any files. We are also unsure who is hosting your file(s). We have forwarded your message to related parties, but are unable to investigate any further. For more information, check http://<span class="hydra-host">example.com</span>. Thanks, your fellow Hydra operator.</code>
+    </section>
+    
+    <section>
+        <h2>Documentation</h2>
+        <p>This API is cross-compatible with all hostnames listed <a href="#directory">here</a> with HTTP enabled.</p>
+        <p>For this example, we will be using a random hostname (<span class="hydra-host">example.com</span>).</p>
+        <h3>Upload</h3>
+        <p>TODO: Documentation coming soon</p>
+        <h3>Download</h3>
+        <p>Because of the distributed nature of Hydrafiles, it is crucial that you validate the sha256 checksum of the file you download.</p>
+        <p>
+        Method: <code>GET</code><br>
+        Endpoint: <code>http(s)://<span class="hydra-host">example.com</span>/download/<span style="background:#ccc;padding:2px 4px;border-radius:8px">sha256_checksum</span></code>
+        </p>
+    </section>
+    
+    <!-- <section>
+        <h2>Planned Improvements</h2>
+        <h3>TOR Browser esque apps and browser extensions</h3>
+        <p>Hydrafiles domain and bandwidth donators are in the same legal territory as tor relay operators. They hide the real file host, while tor relays hide the real webserver. A browser extensionn or app that validates file hashes would be crucial.</p>
+    </section> -->
+    
+    <section id="directory">
+        <h2>Hydrafiles Directory</h2>
+    <table border="1">
+        <thead>
+            <tr>
+                <th>Host Name</th>
+                <th>HTTP Mirror</th>
+                <th>DNS Mirror</th>
+                <th>Requires Cloudflare</th>
+            </tr>
+        </thead>
+        <tbody id="nodes"></tbody>
+    </table>
+    <h2 id="announce">Announce Domain or IP</h2>
+    <p>Donating a domain/subdomain? Donating bandwidth? Donating storage? Enter your domain/ip here, to be added to the network.</p>
+    <form>
+    <input placeholder="Domain/IP">
+    <input type="submit">
+    </form>
+    </section>
+
+    <p style="text-align:center">Free information for the people, by the people.<br>They can't stop us all.</p>
+
+    <script>
+    fetch('/nodes').then(res => res.json()).then(nodes => {
+        const httpNodes = nodes.filter(e => e.http)
+        const randomHttpNode = httpNodes[Math.floor(Math.random()*httpNodes.length)]
+        const hostEls = document.getElementsByClassName('hydra-host')
+        for(const hostEl of hostEls){
+            hostEl.innerHTML = randomHttpNode.host;
+        }
+        document.getElementById('hydra-img1').src = `//${randomHttpNode.host}/download/04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f/c8fcb43d6e46`;
+        for(const node of nodes){
+            console.log(node)
+            document.getElementById('nodes').innerHTML += `<tr><td>${node.host}</td><td>${node.http?'Yes':'No'}</td><td>${node.dns?'Yes':'No'}</td><td>${node.cf?'Yes':'No'}</td></tr>`;
+        }
+    })
+    </script>
+</body>
+</html>
