@@ -36,16 +36,16 @@ const download_count = {};
 const isIp = (host) => host.match(/(?:\d+\.){3}\d+(?::\d+)?/) !== null;
 
 const downloadFromNode = async (host, fileHash, fileId) => {
-    const response = await fetch(`${isIp(host) ? 'http' : 'https'}://${host}/download/${fileHash + (fileId ? `/${fileId}` : '')}`);
-    const arrayBuffer = await response.arrayBuffer();
-    const hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    const hash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-    
-    response.headers.set('content-length', arrayBuffer.byteLength);
+	const response = await fetch(`${isIp(host) ? 'http' : 'https'}://${host}/download/${fileHash + (fileId ? `/${fileId}` : '')}`);
+	const arrayBuffer = await response.arrayBuffer();
+	const hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer);
+	const hashArray = Array.from(new Uint8Array(hashBuffer));
+	const hash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+	
+	response.headers.set('content-length', arrayBuffer.byteLength);
 
-    if(hash !== fileHash) return false;
-    else return { file: Buffer.from(arrayBuffer), headers: response.headers };
+	if(hash !== fileHash) return false;
+	else return { file: Buffer.from(arrayBuffer), headers: response.headers };
 }
 
 const server = http.createServer(async (req, res) => {
@@ -63,12 +63,12 @@ const server = http.createServer(async (req, res) => {
 		const host = params['host'];
 		if(!host) return res.end('Invalid request\n');
 
-        const nodes = JSON.parse(fs.readFileSync(NODES_PATH));
-        if(nodes.find(node => node.host === host)) return res.end('Already known\n');
+		const nodes = JSON.parse(fs.readFileSync(NODES_PATH));
+		if(nodes.find(node => node.host === host)) return res.end('Already known\n');
 
-        if(downloadFromNode(host, '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f', 'c8fcb43d6e46')){
-            nodes.push({host, http: true, dns: false, cf: false});
-            fs.writeFileSync(NODES_PATH, JSON.stringify(nodes));
+		if(downloadFromNode(host, '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f', 'c8fcb43d6e46')){
+			nodes.push({host, http: true, dns: false, cf: false});
+			fs.writeFileSync(NODES_PATH, JSON.stringify(nodes));
 			res.end('Announced\n');
 		}else res.end('Invalid request\n');
 
@@ -103,13 +103,13 @@ const server = http.createServer(async (req, res) => {
 				if(node.http){
 					if(node.host === `${req.headers.host}`) continue;
 
-                    const response = downloadFromNode(node.host, fileHash, fileId);
+					const response = downloadFromNode(node.host, fileHash, fileId);
 					if(response){
 						if(!headers['Content-Length']) headers['Content-Length'] = response.headers.get('content-length');
 						if(!headers['Content-Disposition']) headers['Content-Disposition'] = `attachment; filename="${response.headers.get('content-disposition').split('=')[1].replace(/"/g, '')}"`;
 						
 						res.writeHead(200, headers);
-                        res.end(response.file);
+						res.end(response.file);
 
 						let remainingSpace = MAX_STORAGE - usedStorage;
 						if(headers['Content-Length'] > remainingSpace){
@@ -133,7 +133,7 @@ const server = http.createServer(async (req, res) => {
 								}
 							}
 						}
-                        fs.writeFileSync(filePath, response.file);
+						fs.writeFileSync(filePath, response.file);
 						usedStorage += parseInt(headers['Content-Length']);
 						return;
 					}
@@ -169,8 +169,8 @@ server.listen(PORT, HOSTNAME, async () => {
 				const remoteNodes = await response.json();
 				for(const remoteNode of remoteNodes){
 					if(!nodes.find(node => node.host === remoteNode.host) && downloadFromNode(remoteNode.host, '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f', 'c8fcb43d6e46')){
-                        await fetch(`${isIp(remoteNode.host) ? 'http' : 'https'}://${remoteNode.host}/announce?host=${HOSTNAME + (PORT != 80 ? `:${PORT}` : '')}`);
-                        nodes.push(remoteNode);
+						await fetch(`${isIp(remoteNode.host) ? 'http' : 'https'}://${remoteNode.host}/announce?host=${HOSTNAME + (PORT != 80 ? `:${PORT}` : '')}`);
+						nodes.push(remoteNode);
 					}
 				}
 			}
@@ -187,7 +187,7 @@ server.listen(PORT, HOSTNAME, async () => {
 	}
 	console.log(`Files dir size: ${usedStorage} bytes`);
 
-    downloadFromNode(`${HOSTNAME + (PORT != 80 ? `:${PORT}` : '')}`, '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f', 'c8fcb43d6e46');
+	downloadFromNode(`${HOSTNAME + (PORT != 80 ? `:${PORT}` : '')}`, '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f', 'c8fcb43d6e46');
 	if(!fs.existsSync(path.join(__dirname, 'files', '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f')))
 		console.error('Download test failed')
 	else{
@@ -196,7 +196,7 @@ server.listen(PORT, HOSTNAME, async () => {
 		for(const node of nodes){
 			if(node.http){
 				if(node.host === `${HOSTNAME}:${PORT}` || node.host === HOSTNAME) continue;
-                console.log(node.host)
+				console.log(node.host)
 				await fetch(`${isIp(node.host) ? 'http' : 'https'}://${node.host}/announce?host=${HOSTNAME + (PORT != 80 ? `:${PORT}` : '')}`);
 			}
 		}
