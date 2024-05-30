@@ -7,7 +7,7 @@ const crypto = require('crypto');
 /* TODO ////////////////////////////////////////
 - Node health check
 - File checksum validation
-- File content length validation
+- File content-length validation
 // TODO //////////////////////////////////////*/
 
 
@@ -201,7 +201,7 @@ server.listen(PORT, HOSTNAME, async () => {
         const nodes = JSON.parse(fs.readFileSync(NODES_PATH));
         for(const node of nodes){
             if(node.http){
-                // if(node.host === `${HOSTNAME}:${PORT}`) continue;
+                if(node.host === `${HOSTNAME}:${PORT}` || node.host === HOSTNAME) continue;
                 await fetch(`${isIp(node.host) ? 'http' : 'https'}://${node.host}/announce?host=${HOSTNAME + (PORT != 80 ? `:${PORT}` : '')}`);
             }
         }
