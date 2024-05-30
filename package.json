@@ -1,0 +1,24 @@
+{
+  "name": "hydrafiles",
+  "version": "0.1.0",
+  "description": "The headless storage network.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/StarfilesFileSharing/Hydrafiles.git"
+  },
+  "author": "Starfiles",
+  "license": "Unlicense",
+  "bugs": {
+    "url": "https://github.com/StarfilesFileSharing/Hydrafiles/issues"
+  },
+  "homepage": "https://github.com/StarfilesFileSharing/Hydrafiles#readme",
+  "dependencies": {
+    "crypto": "^1.0.1",
+    "node-fetch": "^3.3.2"
+  },
+  "type": "module"
+}
