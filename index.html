@@ -103,7 +103,7 @@
         <h3>Donate Bandwidth</h3>
         <p>Rent a server, we recommend <a href="https://sporestack.com">SporeStack</a> or <a href="https://njal.la">Njalla</a> as they don't ask for information. Then reverse proxy to any of <a href="#directory">the Hydrafiles providers</a>. Then <a href="#announce">announce your domain/ip</a>.</p>
         <h3>Donate Storage</h3>
-        <p>Host an S3 bucket with your chosen S3 provider. Then host a server to hide the bucket. Use <a href="#TODO">this source code (coming soon)</a> to mirror your S3 storage to the Hydrafiles network</p>
+        <p>Host an S3 bucket with your chosen S3 provider. Then host a server to hide the bucket. Use <a href="https://github.com/StarfilesFileSharing/Hydrafiles">this source code</a> to mirror your S3 storage to the Hydrafiles network</p>
         <h3>I received a takedown notice, what do I do?</h3>
         <p>Follow the procedure:</p>
         <ol>
@@ -118,10 +118,10 @@
         <h2>Documentation</h2>
         <p>This API is cross-compatible with all hostnames listed <a href="#directory">here</a> with HTTP enabled.</p>
         <p>For this example, we will be using a random hostname (<span class="hydra-host">example.com</span>).</p>
-        <h3>Upload</h3>
-        <p>TODO: Documentation coming soon</p>
         <h3>Download</h3>
         <p>Because of the distributed nature of Hydrafiles, it is crucial that you validate the sha256 checksum of the file you download.</p>
+        <h3>Upload</h3>
+        <p>Only storage donators can upload files to the network. To do so, run <a href="https://github.com/StarfilesFileSharing/Hydrafiles">this source code</a>, and add your file to the "files" directory with the filename being the sha256 checksum of the file.</p>
         <p>
         Method: <code>GET</code><br>
         Endpoint: <code>http(s)://<span class="hydra-host">example.com</span>/download/<span style="background:#ccc;padding:2px 4px;border-radius:8px">sha256_checksum</span></code>
