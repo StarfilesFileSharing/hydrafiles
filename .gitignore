@@ -1,3 +1,4 @@
 files/*
 nodes.json
 .DS_Store
+config.json

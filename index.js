@@ -30,6 +30,18 @@ if(!fs.existsSync(path.join(__dirname, 'nodes.json'))) fs.writeFileSync(path.joi
 // INITIALISATION /////////////////////////////
 
 
+// For automated deployments
+if(fs.existsSync(path.join(__dirname, 'config.json'))){
+    const config = JSON.parse(fs.readFileSync(path.join(__dirname, 'config.json')));
+    if(config.port) PORT = config.port;
+    if(config.hostname) HOSTNAME = config.hostname;
+    if(config.max_storage) MAX_STORAGE = config.max_storage;
+    if(config.perma_files) PERMA_FILES = config.perma_files;
+    if(config.burn_rate) BURN_RATE = config.burn_rate;
+    if(config.metadata_endpoint) METADATA_ENDPOINT = config.metadata_endpoint;
+    if(config.bootstrap_nodes) BOOTSTRAP_NODES = config.bootstrap_nodes;
+}
+
 let usedStorage = 0;
 const download_count = {};
 
