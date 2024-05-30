@@ -22,6 +22,7 @@ let BOOTSTRAP_NODES = [
 	{"host": "starfilesdl.com", "http": true, "dns": false, "cf": false},
 ];
 let NODES_PATH = path.join(__dirname, 'nodes.json');
+let PUBLIC_HOSTNAME = HOSTNAME + (PORT !== 80 && PORT !== 443 ? `:${PORT}` : ''); // The hostname that will be used to announce to other nodes
 // ADVANCED CONFIG ////////////////////////////
 
 
@@ -41,6 +42,8 @@ if(fs.existsSync(path.join(__dirname, 'config.json'))){
     if(config.burn_rate) BURN_RATE = config.burn_rate;
     if(config.metadata_endpoint) METADATA_ENDPOINT = config.metadata_endpoint;
     if(config.bootstrap_nodes) BOOTSTRAP_NODES = config.bootstrap_nodes;
+	if(config.nodes_path) NODES_PATH = config.nodes_path;
+	if(config.public_hostname) PUBLIC_HOSTNAME = config.public_hostname;
 }
 
 let usedStorage = 0;
@@ -164,25 +167,25 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, HOSTNAME, async () => {
-	console.log(`Server running at http://${HOSTNAME}:${PORT}/`);
+	console.log(`Server running at http://${PUBLIC_HOSTNAME}/`);
 
 	// Save self to nodes.json
 	const nodes = JSON.parse(fs.readFileSync(NODES_PATH));
-	if(!nodes.find(node => node.host === HOSTNAME || node.host === `${HOSTNAME}:${PORT}`)){
-		nodes.push({host: HOSTNAME + (PORT != 80 ? `:${PORT}` : ''), http: true, dns: false, cf: false});
+	if(!nodes.find(node => node.host === PUBLIC_HOSTNAME)){
+		nodes.push({host: PUBLIC_HOSTNAME, http: true, dns: false, cf: false});
 		fs.writeFileSync(NODES_PATH, JSON.stringify(nodes));
 	}
 
 	// Call all nodes and pull their /nodes
 	for(const node of nodes){
 		if(node.http){
-			if(node.host === `${HOSTNAME}:${PORT}`) continue;
+			if(node.host === PUBLIC_HOSTNAME) continue;
 			const response = await fetch(`${isIp(node.host) ? 'http' : 'https'}://${node.host}/nodes`);
 			if(response.status === 200){
 				const remoteNodes = await response.json();
 				for(const remoteNode of remoteNodes){
 					if(!nodes.find(node => node.host === remoteNode.host) && downloadFromNode(remoteNode.host, '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f', 'c8fcb43d6e46')){
-						await fetch(`${isIp(remoteNode.host) ? 'http' : 'https'}://${remoteNode.host}/announce?host=${HOSTNAME + (PORT != 80 ? `:${PORT}` : '')}`);
+						await fetch(`${isIp(remoteNode.host) ? 'http' : 'https'}://${remoteNode.host}/announce?host=${PUBLIC_HOSTNAME}`);
 						nodes.push(remoteNode);
 					}
 				}
@@ -208,9 +211,9 @@ server.listen(PORT, HOSTNAME, async () => {
 		const nodes = JSON.parse(fs.readFileSync(NODES_PATH));
 		for(const node of nodes){
 			if(node.http){
-				if(node.host === `${HOSTNAME}:${PORT}` || node.host === HOSTNAME) continue;
+				if(node.host === PUBLIC_HOSTNAME) continue;
 				console.log(node.host)
-				await fetch(`${isIp(node.host) ? 'http' : 'https'}://${node.host}/announce?host=${HOSTNAME + (PORT != 80 ? `:${PORT}` : '')}`);
+				await fetch(`${isIp(node.host) ? 'http' : 'https'}://${node.host}/announce?host=${PUBLIC_HOSTNAME}`);
 			}
 		}
 	}
