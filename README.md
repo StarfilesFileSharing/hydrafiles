@@ -14,8 +14,6 @@ In a world where information is freedom. We believe that the people have a right
 
 TLDR: This scene ^
 
-P.s. This gif was served by Hydrafiles
-
 When someone tries to download a file, nodes with the file will serve it directly. Nodes without the file will then ask other nodes for the file, once they find another node with a file, they will respond to all requests saying they have it, each of them forwarding it on, saying they have it, etc. until the original node is reached, with a message from all nodes they connected to, saying they have it. If no one has it, all nodes will end up giving a no response, telling the user that it isn't hosted anywhere. This design allows for better than TOR level security, for serving static files via HTTP. A core improvement over TOR is that all hosts and relays look identical, which they don't when using TOR.
 
 ## What Hydrafiles isn't.
