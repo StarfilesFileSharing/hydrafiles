@@ -9,6 +9,8 @@ const __dirname = path.resolve();
 // CONFIG /////////////////////////////////////
 let PORT = 3000;
 let HOSTNAME = '127.0.0.1';
+let PUBLIC_HOSTNAME = HOSTNAME + (PORT !== 80 && PORT !== 443 ? `:${PORT}` : ''); // The hostname that will be used to announce to other nodes
+
 let MAX_STORAGE = 100 * 1024 * 1024 * 1024; // 100GB
 let PERMA_FILES = []; // File hashes to never delete when storage limit is reached
 let BURN_RATE = 0.1; // Percentage of files to purge when storage limit is reached
@@ -20,9 +22,9 @@ let METADATA_ENDPOINT = 'https://api2.starfiles.co/file/';
 let BOOTSTRAP_NODES = [
 	{"host": "hydrafiles.com", "http": true, "dns": false, "cf": false},
 	{"host": "starfilesdl.com", "http": true, "dns": false, "cf": false},
+	{"host": "hydra.starfiles.co", "http": true, "dns": false, "cf": false},
 ];
 let NODES_PATH = path.join(__dirname, 'nodes.json');
-let PUBLIC_HOSTNAME = HOSTNAME + (PORT !== 80 && PORT !== 443 ? `:${PORT}` : ''); // The hostname that will be used to announce to other nodes
 // ADVANCED CONFIG ////////////////////////////
 
 
@@ -46,10 +48,20 @@ if(fs.existsSync(path.join(__dirname, 'config.json'))){
 	if(config.public_hostname) PUBLIC_HOSTNAME = config.public_hostname;
 }
 
+const isIp = (host) => host.match(/(?:\d+\.){3}\d+(?::\d+)?/) !== null;
+
+function isPrivateIP(ip) {
+	ip = ip.split(':')[0];
+   	var parts = ip.split('.');
+   	return parts[0] === '10' || 
+      	(parts[0] === '172' && (parseInt(parts[1], 10) >= 16 && parseInt(parts[1], 10) <= 31)) || 
+      	(parts[0] === '192' && parts[1] === '168') ||
+	  	(parts[0] === '127');
+}
+
 let usedStorage = 0;
 const download_count = {};
 
-const isIp = (host) => host.match(/(?:\d+\.){3}\d+(?::\d+)?/) !== null;
 
 const downloadFromNode = async (host, fileHash, fileId) => {
 	const response = await fetch(`${isIp(host) ? 'http' : 'https'}://${host}/download/${fileHash + (fileId ? `/${fileId}` : '')}`);
@@ -65,7 +77,7 @@ const downloadFromNode = async (host, fileHash, fileId) => {
 }
 
 const server = http.createServer(async (req, res) => {
-	console.log(req.url)
+	console.log('  ', req.url)
 	if (req.url === '/'){
 		res.writeHead(200, { 'Content-Type': 'text/html', 'Cache-Control': 'public, max-age=604800' });
 		fs.createReadStream('index.html').pipe(res);
@@ -170,30 +182,6 @@ const server = http.createServer(async (req, res) => {
 server.listen(PORT, HOSTNAME, async () => {
 	console.log(`Server running at http://${PUBLIC_HOSTNAME}/`);
 
-	// Save self to nodes.json
-	const nodes = JSON.parse(fs.readFileSync(NODES_PATH));
-	if(!nodes.find(node => node.host === PUBLIC_HOSTNAME)){
-		nodes.push({host: PUBLIC_HOSTNAME, http: true, dns: false, cf: false});
-		fs.writeFileSync(NODES_PATH, JSON.stringify(nodes));
-	}
-
-	// Call all nodes and pull their /nodes
-	for(const node of nodes){
-		if(node.http){
-			if(node.host === PUBLIC_HOSTNAME) continue;
-			const response = await fetch(`${isIp(node.host) ? 'http' : 'https'}://${node.host}/nodes`);
-			if(response.status === 200){
-				const remoteNodes = await response.json();
-				for(const remoteNode of remoteNodes){
-					if(!nodes.find(node => node.host === remoteNode.host) && await downloadFromNode(remoteNode.host, '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f', 'c8fcb43d6e46')){
-						await fetch(`${isIp(remoteNode.host) ? 'http' : 'https'}://${remoteNode.host}/announce?host=${PUBLIC_HOSTNAME}`);
-						nodes.push(remoteNode);
-					}
-				}
-			}
-		}
-	}
-
 	const filesPath = path.join(__dirname, 'files');
 	if(fs.existsSync(filesPath)){
 		const files = fs.readdirSync(filesPath);
@@ -204,16 +192,40 @@ server.listen(PORT, HOSTNAME, async () => {
 	}
 	console.log(`Files dir size: ${usedStorage} bytes`);
 
+	// Call all nodes and pull their /nodes
+	const nodes = JSON.parse(fs.readFileSync(NODES_PATH));
+	for(const node of nodes){
+		if(node.http && node.host !== PUBLIC_HOSTNAME){
+			const response = await fetch(`${isIp(node.host) ? 'http' : 'https'}://${node.host}/nodes`);
+			if(response.status === 200){
+				const remoteNodes = await response.json();
+				for(const remoteNode of remoteNodes){
+					if(!nodes.find(node => node.host === remoteNode.host) && await downloadFromNode(remoteNode.host, '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f', 'c8fcb43d6e46')) nodes.push(remoteNode);
+				}
+			}
+		}
+	}
+	fs.writeFileSync(NODES_PATH, JSON.stringify(nodes));
+
 	await downloadFromNode(`${HOSTNAME + (PORT != 80 ? `:${PORT}` : '')}`, '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f', 'c8fcb43d6e46');
 	if(!fs.existsSync(path.join(__dirname, 'files', '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f')))
-		console.error('Download test failed')
+		console.error('Download test failed, cannot connect to network');
+	else if(isIp(PUBLIC_HOSTNAME) && isPrivateIP(PUBLIC_HOSTNAME))
+		console.error('Public hostname is a private IP address, cannot announce to other nodes');
 	else{
+		console.log(await downloadFromNode(`${PUBLIC_HOSTNAME}`, '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f', 'c8fcb43d6e46'));
+
+		// Save self to nodes.json
+		if(!nodes.find(node => node.host === PUBLIC_HOSTNAME)){
+			nodes.push({host: PUBLIC_HOSTNAME, http: true, dns: false, cf: false});
+			fs.writeFileSync(NODES_PATH, JSON.stringify(nodes));
+		}
+
 		console.log('Announcing to nodes');
-		const nodes = JSON.parse(fs.readFileSync(NODES_PATH));
 		for(const node of nodes){
 			if(node.http){
 				if(node.host === PUBLIC_HOSTNAME) continue;
-				console.log(node.host)
+				console.log('Announcing to', node.host)
 				await fetch(`${isIp(node.host) ? 'http' : 'https'}://${node.host}/announce?host=${PUBLIC_HOSTNAME}`);
 			}
 		}
