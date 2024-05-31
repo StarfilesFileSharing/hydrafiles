@@ -82,7 +82,7 @@ const server = http.createServer(async (req, res) => {
 		const nodes = JSON.parse(fs.readFileSync(NODES_PATH));
 		if(nodes.find(node => node.host === host)) return res.end('Already known\n');
 
-		if(downloadFromNode(host, '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f', 'c8fcb43d6e46')){
+		if(await downloadFromNode(host, '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f', 'c8fcb43d6e46')){
 			nodes.push({host, http: true, dns: false, cf: false});
 			fs.writeFileSync(NODES_PATH, JSON.stringify(nodes));
 			res.end('Announced\n');
@@ -119,7 +119,8 @@ const server = http.createServer(async (req, res) => {
 				if(node.http){
 					if(node.host === `${req.headers.host}`) continue;
 
-					const response = downloadFromNode(node.host, fileHash, fileId);
+					const response = await downloadFromNode(node.host, fileHash, fileId);
+					console.log(response)
 					if(response){
 						if(!headers['Content-Length']) headers['Content-Length'] = response.headers.get('content-length');
 						if(!headers['Content-Disposition']) headers['Content-Disposition'] = `attachment; filename="${response.headers.get('content-disposition').split('=')[1].replace(/"/g, '')}"`;
@@ -184,7 +185,7 @@ server.listen(PORT, HOSTNAME, async () => {
 			if(response.status === 200){
 				const remoteNodes = await response.json();
 				for(const remoteNode of remoteNodes){
-					if(!nodes.find(node => node.host === remoteNode.host) && downloadFromNode(remoteNode.host, '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f', 'c8fcb43d6e46')){
+					if(!nodes.find(node => node.host === remoteNode.host) && await downloadFromNode(remoteNode.host, '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f', 'c8fcb43d6e46')){
 						await fetch(`${isIp(remoteNode.host) ? 'http' : 'https'}://${remoteNode.host}/announce?host=${PUBLIC_HOSTNAME}`);
 						nodes.push(remoteNode);
 					}
@@ -203,7 +204,7 @@ server.listen(PORT, HOSTNAME, async () => {
 	}
 	console.log(`Files dir size: ${usedStorage} bytes`);
 
-	downloadFromNode(`${HOSTNAME + (PORT != 80 ? `:${PORT}` : '')}`, '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f', 'c8fcb43d6e46');
+	await downloadFromNode(`${HOSTNAME + (PORT != 80 ? `:${PORT}` : '')}`, '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f', 'c8fcb43d6e46');
 	if(!fs.existsSync(path.join(__dirname, 'files', '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f')))
 		console.error('Download test failed')
 	else{
