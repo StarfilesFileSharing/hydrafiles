@@ -135,7 +135,6 @@ const server = http.createServer(async (req, res) => {
 					if(node.host === `${req.headers.host}`) continue;
 
 					const response = await downloadFromNode(node.host, fileHash, fileId);
-					console.log(response)
 					if(response){
 						if(!headers['Content-Length']) headers['Content-Length'] = response.headers.get('content-length');
 						if(!headers['Content-Disposition']) headers['Content-Disposition'] = `attachment; filename="${response.headers.get('content-disposition').split('=')[1].replace(/"/g, '')}"`;
