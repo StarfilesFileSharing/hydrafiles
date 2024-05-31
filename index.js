@@ -7,10 +7,8 @@ import crypto from 'crypto';
 const __dirname = path.resolve();
 
 // CONFIG /////////////////////////////////////
-let PORT = 3000;
 let HOSTNAME = '127.0.0.1';
-let PUBLIC_HOSTNAME = HOSTNAME + (PORT !== 80 && PORT !== 443 ? `:${PORT}` : ''); // The hostname that will be used to announce to other nodes
-
+let PORT = 3000;
 let MAX_STORAGE = 100 * 1024 * 1024 * 1024; // 100GB
 let PERMA_FILES = []; // File hashes to never delete when storage limit is reached
 let BURN_RATE = 0.1; // Percentage of files to purge when storage limit is reached
@@ -18,6 +16,7 @@ let BURN_RATE = 0.1; // Percentage of files to purge when storage limit is reach
 
 
 // ADVANCED CONFIG ////////////////////////////
+let PUBLIC_HOSTNAME = HOSTNAME + (PORT !== 80 && PORT !== 443 ? `:${PORT}` : ''); // The hostname that will be used to announce to other nodes
 let METADATA_ENDPOINT = 'https://api2.starfiles.co/file/';
 let BOOTSTRAP_NODES = [
 	{"host": "hydrafiles.com", "http": true, "dns": false, "cf": false},
@@ -64,16 +63,20 @@ const download_count = {};
 
 
 const downloadFromNode = async (host, fileHash, fileId) => {
-	const response = await fetch(`${isIp(host) ? 'http' : 'https'}://${host}/download/${fileHash + (fileId ? `/${fileId}` : '')}`);
-	const arrayBuffer = await response.arrayBuffer();
-	const hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer);
-	const hashArray = Array.from(new Uint8Array(hashBuffer));
-	const hash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-	
-	response.headers.set('content-length', arrayBuffer.byteLength);
+	try{
+		const response = await fetch(`${isIp(host) ? 'http' : 'https'}://${host}/download/${fileHash + (fileId ? `/${fileId}` : '')}`);
+		const arrayBuffer = await response.arrayBuffer();
+		const hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer);
+		const hashArray = Array.from(new Uint8Array(hashBuffer));
+		const hash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+		
+		response.headers.set('content-length', arrayBuffer.byteLength);
 
-	if(hash !== fileHash) return false;
-	else return { file: Buffer.from(arrayBuffer), headers: response.headers };
+		if(hash !== fileHash) return false;
+		else return { file: Buffer.from(arrayBuffer), headers: response.headers };
+	}catch(e){
+		return false;
+	}
 }
 
 const server = http.createServer(async (req, res) => {
