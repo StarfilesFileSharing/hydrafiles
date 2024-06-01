@@ -129,7 +129,7 @@ const server = http.createServer(async (req, res) => {
 			readStream.pipe(res);
 			download_count[fileHash] = download_count[fileHash] ? download_count[fileHash] + 1 : 1;
 		}else{
-			const nodes = JSON.parse(fs.readFileSync(NODES_PATH));
+			const nodes = JSON.parse(fs.readFileSync(NODES_PATH)).sort(() => Math.random() - 0.5);
 			for(const node of nodes){
 				if(node.http){
 					if(node.host === `${req.headers.host}`) continue;
@@ -145,7 +145,7 @@ const server = http.createServer(async (req, res) => {
 						let remainingSpace = MAX_STORAGE - usedStorage;
 						if(headers['Content-Length'] > remainingSpace){
 							const files = fs.readdirSync(path.join(__dirname, 'files'));
-							for (const file of files) {
+							for(const file of files){
 								if(PERMA_FILES.includes(file) || Object.keys(download_count).includes(file)) continue;
 
 								const stats = fs.statSync(path.join(__dirname, 'files', file));
@@ -157,7 +157,7 @@ const server = http.createServer(async (req, res) => {
 							}
 							if(headers['Content-Length'] > remainingSpace){
 								const sorted = Object.entries(download_count).sort(([,a],[,b]) => a-b).filter(([file]) => !PERMA_FILES.includes(file))
-								for (let i = 0; i < sorted.length / (BURN_RATE*100); i++) {
+								for(let i = 0; i < sorted.length / (BURN_RATE*100); i++) {
 									const stats = fs.statSync(path.join(__dirname, 'files', sorted[i][0]));
 									fs.unlinkSync(path.join(__dirname, 'files', sorted[i][0]));
 									usedStorage -= stats.size;
