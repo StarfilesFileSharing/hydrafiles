@@ -29,10 +29,18 @@ let NODES_PATH = path.join(__dirname, 'nodes.json');
 
 
 // TYPES //////////////////////////////////////
-type Host = {host: string, http: boolean, dns: boolean, cf: boolean};
 type Metadata = {name: string, size: string, type: string, hash: string, id: string};
 type ResponseHeaders = { [key: string]: string };
 type File = { file: Buffer, name?: string } | false;
+type Node = {
+	host: string,
+	http: boolean,
+	dns: boolean,
+	cf: boolean,
+	// File download success/fail count
+	hits: number,
+	rejects: number,
+};
 // TYPES //////////////////////////////////////
 
 
@@ -101,7 +109,7 @@ const cacheFile = (filePath: string, file: Buffer) => {
 	usedStorage += size;
 };
 
-const getNodes = (includeSelf = true) => {
+const getNodes = (includeSelf = true): Node[] => {
 	return JSON.parse(fs.readFileSync(NODES_PATH).toString()).sort(() => Math.random() - 0.5).filter((node: { host: string; }) => includeSelf || node.host !== PUBLIC_HOSTNAME);
 };
 
@@ -122,23 +130,46 @@ const downloadFromNode = async (host: string, fileHash: string, fileId: string):
 	}
 }
 
-const getFile = async (fileHash: string, fileId: string): Promise<File> => {
-	const filePath = path.join(__dirname, 'files', fileHash);
+const fetchFile = (filehash: string): File => {
+	const filePath = path.join(__dirname, 'files', filehash);
 	if(fs.existsSync(filePath)){
 		return { file: fs.readFileSync(filePath) };
 	}else{
-		for(const node of getNodes(false)){
-			if(node.http){
-				const file = await downloadFromNode(node.host, fileHash, fileId);
-				if(file){
-					cacheFile(filePath, file.file);
-					return file;
-				}
-			}
-		}
-		
 		return false;
 	}
+};
+
+const updateNode = (node: Node) => {
+	const nodes = getNodes();
+	const index = nodes.findIndex((n: { host: string; }) => n.host === node.host);
+	nodes[index] = node;
+	fs.writeFileSync(NODES_PATH, JSON.stringify(nodes));
+};
+
+const getFile = async (fileHash: string, fileId: string): Promise<File> => {
+	const filePath = path.join(__dirname, 'files', fileHash);
+
+	const localFile = fetchFile(fileHash);
+	if(localFile){
+		return localFile;
+	}
+
+	for(const node of getNodes(false)){
+		if(node.http){
+			const file = await downloadFromNode(node.host, fileHash, fileId);
+			if(file){
+				node.hits++;
+				updateNode(node);
+				cacheFile(filePath, file.file);
+				return file;
+			}else{
+				node.rejects++;
+				updateNode(node);
+			}
+		}
+	}
+
+	return false;
 };
 
 const server = http.createServer(async (req: IncomingMessage, res: ServerResponse) => {
@@ -158,10 +189,10 @@ const server = http.createServer(async (req: IncomingMessage, res: ServerRespons
 		if(!host) return res.end('Invalid request\n');
 
 		const nodes = getNodes();
-		if(nodes.find((node: { host: string; }) => node.host === host)) return res.end('Already known\n');
+		if(nodes.find((node) => node.host === host)) return res.end('Already known\n');
 
 		if(await downloadFromNode(host, '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f', 'c8fcb43d6e46')){
-			nodes.push({host, http: true, dns: false, cf: false});
+			nodes.push({host, http: true, dns: false, cf: false, hits: 0, rejects: 0 });
 			fs.writeFileSync(NODES_PATH, JSON.stringify(nodes));
 			res.end('Announced\n');
 		}else res.end('Invalid request\n');
@@ -224,7 +255,7 @@ server.listen(PORT, HOSTNAME, async () => {
 			if(node.http){
 				const response = await fetch(`${isIp(node.host) ? 'http' : 'https'}://${node.host}/nodes`);
 				if(response.status === 200){
-					const remoteNodes = await response.json() as Host[];
+					const remoteNodes = await response.json() as Node[];
 					for(const remoteNode of remoteNodes){
 						if(!nodes.find((node: { host: string; }) => node.host === remoteNode.host) && await downloadFromNode(remoteNode.host, '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f', 'c8fcb43d6e46')) nodes.push(remoteNode);
 					}
@@ -246,7 +277,7 @@ server.listen(PORT, HOSTNAME, async () => {
 
 		// Save self to nodes.json
 		if(!nodes.find((node: { host: string; }) => node.host === PUBLIC_HOSTNAME)){
-			nodes.push({host: PUBLIC_HOSTNAME, http: true, dns: false, cf: false});
+			nodes.push({host: PUBLIC_HOSTNAME, http: true, dns: false, cf: false, hits: 0, rejects: 0 });
 			fs.writeFileSync(NODES_PATH, JSON.stringify(nodes));
 		}
 
