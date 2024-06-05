@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import fetch from 'node-fetch';
 import crypto from 'crypto';
+import AWS from 'aws-sdk';
 
 const __dirname = path.resolve();
 
@@ -24,8 +25,15 @@ let BOOTSTRAP_NODES = [
 	{"host": "hydra.starfiles.co", "http": true, "dns": false, "cf": false},
 ];
 let NODES_PATH = path.join(__dirname, 'nodes.json');
-// ADVANCED CONFIG ////////////////////////////
 
+const s3 = new AWS.S3({
+//   accessKeyId: '',
+//   secretAccessKey: '',
+//   endpoint: '',
+//   s3ForcePathStyle: false,
+});
+let CACHE_S3 = true; // Cache files fetched from S3
+// ADVANCED CONFIG ////////////////////////////
 
 
 // TYPES //////////////////////////////////////
@@ -42,7 +50,6 @@ type Node = {
 	rejects: number,
 };
 // TYPES //////////////////////////////////////
-
 
 
 // INITIALISATION /////////////////////////////
@@ -78,6 +85,33 @@ function isPrivateIP(ip: string) {
 
 let usedStorage = 0;
 const download_count: { [key: string]: number;} = {};
+
+async function downloadFileFromS3(endpoint: string, key: string, accessToken: string): Promise<void> {
+  const url = `${endpoint}/${key}`;
+
+  try {
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        // Your service may use different authentication methods, adjust accordingly
+        'Authorization': `Bearer ${accessToken}`
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch file: ${response.statusText}`);
+    }
+
+    // Buffer the response data
+    const buffer = await response.buffer();
+
+    // Write file to system (example path could be customized)
+    fs.writeFileSync('./downloadedFile', buffer);
+    console.log('File downloaded successfully.');
+  } catch (error) {
+    console.error('Error downloading file:', error);
+  }
+}
 
 const purgeCache = (requiredSpace: number, remainingSpace: number) => {
 	const files = fs.readdirSync(path.join(__dirname, 'files'));
@@ -116,30 +150,36 @@ const getNodes = (includeSelf = true): Node[] => {
 		.sort((a: { hits: number; rejects: number; }, b: { hits: number; rejects: number; }) => (a.hits - a.rejects) - (b.hits - b.rejects));
 };
 
-const downloadFromNode = async (host: string, fileHash: string, fileId: string): Promise<File> => {
+const downloadFromNode = async (host: string, hash: string, fileId: string): Promise<File> => {
 	try{
-		const response = await fetch(`${isIp(host) ? 'http' : 'https'}://${host}/download/${fileHash + (fileId ? `/${fileId}` : '')}`);
+		const response = await fetch(`${isIp(host) ? 'http' : 'https'}://${host}/download/${hash + (fileId ? `/${fileId}` : '')}`);
 		const arrayBuffer = await response.arrayBuffer();
 		const hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer);
 		const hashArray = Array.from(new Uint8Array(hashBuffer));
-		const hash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+
+		if(hash !== hashArray.map(b => b.toString(16).padStart(2, '0')).join('')) return false;
 
 		const name = response.headers.get('Content-Disposition')?.split('=')[1].replace(/"/g, '');
 
-		if(hash !== fileHash) return false;
-		else return { file: Buffer.from(arrayBuffer), name };
+		return { file: Buffer.from(arrayBuffer), name };
 	}catch(e){
 		return false;
 	}
 }
 
-const fetchFile = (filehash: string): File => {
-	const filePath = path.join(__dirname, 'files', filehash);
-	if(fs.existsSync(filePath)){
-		return { file: fs.readFileSync(filePath) };
-	}else{
+const fetchFromS3 = async (bucket: string, key: string): Promise<File> => {
+	if(!s3) return false;
+	try {
+		const data = await s3?.getObject({ Bucket: bucket, Key: key }).promise();
+		return { file: data.Body as Buffer };
+	} catch (error) {
 		return false;
 	}
+}
+
+const fetchFile = async (hash: string): Promise<File> => {
+	const filePath = path.join(__dirname, 'files', hash);
+	return fs.existsSync(filePath) ? { file: fs.readFileSync(filePath) } : false;
 };
 
 const updateNode = (node: Node) => {
@@ -149,17 +189,22 @@ const updateNode = (node: Node) => {
 	fs.writeFileSync(NODES_PATH, JSON.stringify(nodes));
 };
 
-const getFile = async (fileHash: string, fileId: string): Promise<File> => {
-	const filePath = path.join(__dirname, 'files', fileHash);
+const getFile = async (hash: string, fileId: string): Promise<File> => {
+	const filePath = path.join(__dirname, 'files', hash);
 
-	const localFile = fetchFile(fileHash);
-	if(localFile){
-		return localFile;
+	const localFile = await fetchFile(hash);
+	if(localFile) return localFile;
+
+	const s3File = await fetchFromS3('uploads', `${hash}.stuf`);
+	if(s3File){
+		if(CACHE_S3) cacheFile(filePath, s3File.file);
+		return s3File;
+	
 	}
 
 	for(const node of getNodes(false)){
 		if(node.http){
-			const file = await downloadFromNode(node.host, fileHash, fileId);
+			const file = await downloadFromNode(node.host, hash, fileId);
 			if(file){
 				node.hits++;
 				updateNode(node);
@@ -201,7 +246,7 @@ const server = http.createServer(async (req: IncomingMessage, res: ServerRespons
 		}else res.end('Invalid request\n');
 
 	}else if(req.url?.startsWith('/download/')){
-		const fileHash = req.url.split('/')[2];
+		const hash = req.url.split('/')[2];
 		const fileId = req.url.split('/')[3];
 
 		const headers: ResponseHeaders = {
@@ -209,7 +254,7 @@ const server = http.createServer(async (req: IncomingMessage, res: ServerRespons
 			'Cache-Control': 'public, max-age=31536000',
 		}
 
-		const file = await getFile(fileHash, fileId);
+		const file = await getFile(hash, fileId);
 
 		if(!file){
 			res.writeHead(404, { 'Content-Type': 'text/plain' });
@@ -229,7 +274,7 @@ const server = http.createServer(async (req: IncomingMessage, res: ServerRespons
 
 		res.writeHead(200, headers);
 		res.end(file.file);
-		download_count[fileHash] = download_count[fileHash] ? download_count[fileHash] + 1 : 1;
+		download_count[hash] = download_count[hash] ? download_count[hash] + 1 : 1;
 
 	}else{
 		res.writeHead(404, { 'Content-Type': 'text/plain' });
