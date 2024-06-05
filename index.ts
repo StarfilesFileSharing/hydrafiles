@@ -1,4 +1,4 @@
-import http, { IncomingMessage, ServerResponse } from 'http'
+import http from 'http'
 import fs from 'fs'
 import path from 'path'
 import fetch from 'node-fetch'
@@ -6,13 +6,13 @@ import crypto from 'crypto'
 import { S3 } from '@aws-sdk/client-s3'
 import { Readable } from 'stream'
 
-const __dirname = path.resolve()
+const DIRNAME = path.resolve()
 
 // CONFIG /////////////////////////////////////
 let HOSTNAME = '127.0.0.1'
 let PORT = 3000
 let MAX_STORAGE = 100 * 1024 * 1024 * 1024 // 100GB
-let PERMA_FILES = [] // File hashes to never delete when storage limit is reached
+let PERMA_FILES: string[] = [] // File hashes to never delete when storage limit is reached
 let BURN_RATE = 0.1 // Percentage of files to purge when storage limit is reached
 // CONFIG /////////////////////////////////////
 
@@ -24,7 +24,7 @@ let BOOTSTRAP_NODES = [
   { host: 'starfilesdl.com', http: true, dns: false, cf: false },
   { host: 'hydra.starfiles.co', http: true, dns: false, cf: false }
 ]
-let NODES_PATH = path.join(__dirname, 'nodes.json')
+let NODES_PATH = path.join(DIRNAME, 'nodes.json')
 
 // Define S3 credentials if you want to pull files from S3
 const S3ACCESSKEYID = ''
@@ -49,99 +49,72 @@ interface Node {
 // TYPES //////////////////////////////////////
 
 // INITIALISATION /////////////////////////////
-if (!fs.existsSync(path.join(__dirname, 'files'))) fs.mkdirSync(path.join(__dirname, 'files'))
-if (!fs.existsSync(path.join(__dirname, 'nodes.json'))) fs.writeFileSync(path.join(__dirname, 'nodes.json'), JSON.stringify(BOOTSTRAP_NODES))
+if (!fs.existsSync(path.join(DIRNAME, 'files'))) fs.mkdirSync(path.join(DIRNAME, 'files'))
+if (!fs.existsSync(path.join(DIRNAME, 'nodes.json'))) fs.writeFileSync(path.join(DIRNAME, 'nodes.json'), JSON.stringify(BOOTSTRAP_NODES))
 // INITIALISATION /////////////////////////////
 
 // For automated deployments
-if (fs.existsSync(path.join(__dirname, 'config.json'))) {
-  const config = JSON.parse(fs.readFileSync(path.join(__dirname, 'config.json')).toString())
-  if (config.port) PORT = config.port
-  if (config.hostname) HOSTNAME = config.hostname
-  if (config.max_storage) MAX_STORAGE = config.max_storage
-  if (config.perma_files) PERMA_FILES = config.perma_files
-  if (config.burn_rate) BURN_RATE = config.burn_rate
-  if (config.metadata_endpoint) METADATA_ENDPOINT = config.metadata_endpoint
-  if (config.bootstrap_nodes) BOOTSTRAP_NODES = config.bootstrap_nodes
-  if (config.nodes_path) NODES_PATH = config.nodes_path
-  if (config.public_hostname) PUBLIC_HOSTNAME = config.public_hostname
+if (fs.existsSync(path.join(DIRNAME, 'config.json'))) {
+  const config = JSON.parse(fs.readFileSync(path.join(DIRNAME, 'config.json')).toString())
+  if (config.port !== undefined) PORT = config.port
+  if (config.hostname !== undefined) HOSTNAME = config.hostname
+  if (config.max_storage !== undefined) MAX_STORAGE = config.max_storage
+  if (config.perma_files !== undefined) PERMA_FILES = config.perma_files
+  if (config.burn_rate !== undefined) BURN_RATE = config.burn_rate
+  if (config.metadata_endpoint !== undefined) METADATA_ENDPOINT = config.metadata_endpoint
+  if (config.bootstrap_nodes !== undefined) BOOTSTRAP_NODES = config.bootstrap_nodes
+  if (config.nodes_path !== undefined) NODES_PATH = config.nodes_path
+  if (config.public_hostname !== undefined) PUBLIC_HOSTNAME = config.public_hostname
 }
 
-const isIp = (host: string) => host.match(/(?:\d+\.){3}\d+(?::\d+)?/) !== null
+const isIp = (host: string): boolean => {
+  return /(?:\d+\.){3}\d+(?::\d+)?/.test(host)
+}
 
-function isPrivateIP (ip: string) {
+function isPrivateIP (ip: string): Boolean {
   ip = ip.split(':')[0]
-   	const parts = ip.split('.')
-   	return parts[0] === '10' ||
-	(parts[0] === '172' && (parseInt(parts[1], 10) >= 16 && parseInt(parts[1], 10) <= 31)) ||
-	(parts[0] === '192' && parts[1] === '168') ||
-	  	(parts[0] === '127')
+  const parts = ip.split('.').map(part => Number(part))
+  return parts[0] === 10 ||
+  (parts[0] === 172 && (parts[1] >= 16 && parts[1] <= 31)) ||
+  (parts[0] === 192 && parts[1] === 168) ||
+  (parts[0] === 127)
 }
 
 let usedStorage = 0
-const download_count: { [key: string]: number } = {}
+const downloadCount: { [key: string]: number } = {}
 
-const S3Params = {
+const s3 = new S3({
   region: 'us-east-1',
   credentials: {
     accessKeyId: S3ACCESSKEYID,
     secretAccessKey: S3SECRETACCESSKEY
   },
   endpoint: S3ENDPOINT
+})
 
-}
-const s3 = new S3(S3Params)
-
-async function downloadFileFromS3 (endpoint: string, key: string, accessToken: string): Promise<void> {
-  const url = `${endpoint}/${key}`
-
-  try {
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        // Your service may use different authentication methods, adjust accordingly
-        Authorization: `Bearer ${accessToken}`
-      }
-    })
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch file: ${response.statusText}`)
-    }
-
-    // Buffer the response data
-    const buffer = await response.buffer()
-
-    // Write file to system (example path could be customized)
-    fs.writeFileSync('./downloadedFile', buffer)
-    console.log('File downloaded successfully.')
-  } catch (error) {
-    console.error('Error downloading file:', error)
-  }
-}
-
-const purgeCache = (requiredSpace: number, remainingSpace: number) => {
-  const files = fs.readdirSync(path.join(__dirname, 'files'))
+const purgeCache = (requiredSpace: number, remainingSpace: number): void => {
+  const files = fs.readdirSync(path.join(DIRNAME, 'files'))
   for (const file of files) {
-    if (PERMA_FILES.includes(file) || Object.keys(download_count).includes(file)) continue
+    if (PERMA_FILES.includes(file) || Object.keys(downloadCount).includes(file)) continue
 
-    const size = fs.statSync(path.join(__dirname, 'files', file)).size
-    fs.unlinkSync(path.join(__dirname, 'files', file))
+    const size = fs.statSync(path.join(DIRNAME, 'files', file)).size
+    fs.unlinkSync(path.join(DIRNAME, 'files', file))
     usedStorage -= size
     remainingSpace += size
 
     if (requiredSpace <= remainingSpace) break
   }
   if (requiredSpace > remainingSpace) {
-    const sorted = Object.entries(download_count).sort(([,a], [,b]) => Number(a) - Number(b)).filter(([file]) => !PERMA_FILES.includes(file))
+    const sorted = Object.entries(downloadCount).sort(([,a], [,b]) => Number(a) - Number(b)).filter(([file]) => !PERMA_FILES.includes(file))
     for (let i = 0; i < sorted.length / (BURN_RATE * 100); i++) {
-      const stats = fs.statSync(path.join(__dirname, 'files', sorted[i][0]))
-      fs.unlinkSync(path.join(__dirname, 'files', sorted[i][0]))
+      const stats = fs.statSync(path.join(DIRNAME, 'files', sorted[i][0]))
+      fs.unlinkSync(path.join(DIRNAME, 'files', sorted[i][0]))
       usedStorage -= stats.size
     }
   }
 }
 
-const cacheFile = (filePath: string, file: Buffer) => {
+const cacheFile = (filePath: string, file: Buffer): void => {
   const size = file.length
   const remainingSpace = MAX_STORAGE - usedStorage
   if (size > remainingSpace) purgeCache(size, remainingSpace)
@@ -158,7 +131,7 @@ const getNodes = (includeSelf = true): Node[] => {
 
 const downloadFromNode = async (host: string, hash: string, fileId: string): Promise<File> => {
   try {
-    const response = await fetch(`${isIp(host) ? 'http' : 'https'}://${host}/download/${hash + (fileId ? `/${fileId}` : '')}`)
+    const response = await fetch(`${isIp(host) ? 'http' : 'https'}://${host}/download/${hash + (fileId.length > 0 ? `/${fileId}` : '')}`)
     const arrayBuffer = await response.arrayBuffer()
     const hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer)
     const hashArray = Array.from(new Uint8Array(hashBuffer))
@@ -174,7 +147,7 @@ const downloadFromNode = async (host: string, hash: string, fileId: string): Pro
 }
 
 const fetchFromS3 = async (bucket: string, key: string): Promise<File> => {
-  if (!s3) return false
+  if (S3ENDPOINT.length > 0) return false
   try {
     let buffer: Buffer
     const data = await s3.getObject({ Bucket: bucket, Key: key })
@@ -195,11 +168,11 @@ const fetchFromS3 = async (bucket: string, key: string): Promise<File> => {
 }
 
 const fetchFile = async (hash: string): Promise<File> => {
-  const filePath = path.join(__dirname, 'files', hash)
+  const filePath = path.join(DIRNAME, 'files', hash)
   return fs.existsSync(filePath) ? { file: fs.readFileSync(filePath) } : false
 }
 
-const updateNode = (node: Node) => {
+const updateNode = (node: Node): void => {
   const nodes = getNodes()
   const index = nodes.findIndex((n: { host: string }) => n.host === node.host)
   nodes[index] = node
@@ -207,13 +180,13 @@ const updateNode = (node: Node) => {
 }
 
 const getFile = async (hash: string, fileId: string): Promise<File> => {
-  const filePath = path.join(__dirname, 'files', hash)
+  const filePath = path.join(DIRNAME, 'files', hash)
 
   const localFile = await fetchFile(hash)
-  if (localFile) return localFile
+  if (localFile !== false) return localFile
 
   const s3File = await fetchFromS3('uploads', `${hash}.stuf`)
-  if (s3File) {
+  if (s3File !== false) {
     if (CACHE_S3) cacheFile(filePath, s3File.file)
     return s3File
   }
@@ -221,7 +194,7 @@ const getFile = async (hash: string, fileId: string): Promise<File> => {
   for (const node of getNodes(false)) {
     if (node.http) {
       const file = await downloadFromNode(node.host, hash, fileId)
-      if (file) {
+      if (file !== false) {
         node.hits++
         updateNode(node)
         cacheFile(filePath, file.file)
@@ -236,113 +209,128 @@ const getFile = async (hash: string, fileId: string): Promise<File> => {
   return false
 }
 
-const server = http.createServer(async (req: IncomingMessage, res: ServerResponse) => {
+const server = http.createServer((req, res) => {
   console.log('  ', req.url)
 
-  if (req.url === '/') {
-    res.writeHead(200, { 'Content-Type': 'text/html', 'Cache-Control': 'public, max-age=604800' })
-    fs.createReadStream('index.html').pipe(res)
-  } else if (req.url === '/nodes') {
-    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=3600' })
-    fs.createReadStream(NODES_PATH).pipe(res)
-  } else if (req.url?.startsWith('/announce')) {
-    const params = Object.fromEntries(new URLSearchParams(req.url.split('?')[1]))
-    const host = params.host
-    if (!host) return res.end('Invalid request\n')
+  const handleRequest = async (): Promise<void> => {
+    if (req.url === '/' || req.url === null || typeof req.url === 'undefined') {
+      res.writeHead(200, { 'Content-Type': 'text/html', 'Cache-Control': 'public, max-age=604800' })
+      fs.createReadStream('index.html').pipe(res)
+    } else if (req.url === '/nodes') {
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=3600' })
+      fs.createReadStream(NODES_PATH).pipe(res)
+    } else if (req.url.startsWith('/announce')) {
+      const params = Object.fromEntries(new URLSearchParams(req.url.split('?')[1]))
+      const host = params.host
 
-    const nodes = getNodes()
-    if (nodes.find((node) => node.host === host) != null) return res.end('Already known\n')
+      const nodes = getNodes()
+      if (nodes.find((node) => node.host === host) != null) {
+        res.end('Already known\n')
+        return
+      }
 
-    if (await downloadFromNode(host, '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f', 'c8fcb43d6e46')) {
-      nodes.push({ host, http: true, dns: false, cf: false, hits: 0, rejects: 0 })
-      fs.writeFileSync(NODES_PATH, JSON.stringify(nodes))
-      res.end('Announced\n')
-    } else res.end('Invalid request\n')
-  } else if (req.url?.startsWith('/download/')) {
-    const hash = req.url.split('/')[2]
-    const fileId = req.url.split('/')[3]
+      if (await downloadFromNode(host, '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f', 'c8fcb43d6e46') !== false) {
+        nodes.push({ host, http: true, dns: false, cf: false, hits: 0, rejects: 0 })
+        fs.writeFileSync(NODES_PATH, JSON.stringify(nodes))
+        res.end('Announced\n')
+      } else res.end('Invalid request\n')
+    } else if (req.url?.startsWith('/download/')) {
+      const hash = req.url.split('/')[2]
+      const fileId = req.url.split('/')[3]
 
-    const headers: ResponseHeaders = {
-      'Content-Type': 'application/octet-stream',
-      'Cache-Control': 'public, max-age=31536000'
-    }
+      const headers: ResponseHeaders = {
+        'Content-Type': 'application/octet-stream',
+        'Cache-Control': 'public, max-age=31536000'
+      }
 
-    const file = await getFile(hash, fileId)
+      const file = await getFile(hash, fileId)
 
-    if (!file) {
+      if (file === false) {
+        res.writeHead(404, { 'Content-Type': 'text/plain' })
+        res.end('404 Not Found\n')
+        return
+      }
+
+      let name: string | undefined
+      if (fileId.length > 0) {
+        const response = await fetch(`${METADATA_ENDPOINT}${fileId}`)
+        if (response.status === 200) name = (await response.json() as Metadata).name
+      }
+
+      name = typeof name !== 'undefined' ? name : (file.name ?? 'File')
+      headers['Content-Length'] = file.file.length.toString()
+      headers['Content-Disposition'] = `attachment; filename="${encodeURIComponent(name).replace(/%20/g, ' ')}"`
+
+      res.writeHead(200, headers)
+      res.end(file.file)
+      downloadCount[hash] = typeof downloadCount[hash] === 'undefined' ? downloadCount[hash] + 1 : 1
+    } else {
       res.writeHead(404, { 'Content-Type': 'text/plain' })
       res.end('404 Not Found\n')
-      return
     }
-
-    let name: string = ''
-    if (fileId) {
-      const response = await fetch(`${METADATA_ENDPOINT}${fileId}`)
-      if (response.status === 200) name = (await response.json() as Metadata).name
-    }
-
-    name = name || file.name || 'File'
-    headers['Content-Length'] = file.file.length.toString()
-    headers['Content-Disposition'] = `attachment; filename="${encodeURIComponent(name).replace(/%20/g, ' ')}"`
-
-    res.writeHead(200, headers)
-    res.end(file.file)
-    download_count[hash] = download_count[hash] ? download_count[hash] + 1 : 1
-  } else {
-    res.writeHead(404, { 'Content-Type': 'text/plain' })
-    res.end('404 Not Found\n')
   }
+  handleRequest().catch((e) => {
+    console.error(e)
+    res.writeHead(500, { 'Content-Type': 'text/plain' })
+    res.end('500 Internal Server Error\n')
+  })
 })
 
-server.listen(PORT, HOSTNAME, async () => {
+server.listen(PORT, HOSTNAME, (): void => {
   console.log(`Server running at http://${PUBLIC_HOSTNAME}/`)
 
-  const filesPath = path.join(__dirname, 'files')
-  if (fs.existsSync(filesPath)) {
-    const files = fs.readdirSync(filesPath)
-    for (const file of files) {
-      const stats = fs.statSync(path.join(filesPath, file))
-      usedStorage += stats.size
+  const handleListen = async (): Promise<void> => {
+    const filesPath = path.join(DIRNAME, 'files')
+    if (fs.existsSync(filesPath)) {
+      const files = fs.readdirSync(filesPath)
+      for (const file of files) {
+        const stats = fs.statSync(path.join(filesPath, file))
+        usedStorage += stats.size
+      }
     }
-  }
-  console.log(`Files dir size: ${usedStorage} bytes`)
+    console.log(`Files dir size: ${usedStorage} bytes`)
 
-  // Call all nodes and pull their /nodes
-  const nodes = getNodes(false)
-  for (const node of nodes) {
-    try {
-      if (node.http) {
-        const response = await fetch(`${isIp(node.host) ? 'http' : 'https'}://${node.host}/nodes`)
-        if (response.status === 200) {
-          const remoteNodes = await response.json() as Node[]
-          for (const remoteNode of remoteNodes) {
-            if ((nodes.find((node: { host: string }) => node.host === remoteNode.host) == null) && (await downloadFromNode(remoteNode.host, '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f', 'c8fcb43d6e46'))) nodes.push(remoteNode)
+    // Call all nodes and pull their /nodes
+    const nodes = getNodes(false)
+    for (const node of nodes) {
+      try {
+        if (node.http) {
+          const response = await fetch(`${isIp(node.host) ? 'http' : 'https'}://${node.host}/nodes`)
+          if (response.status === 200) {
+            const remoteNodes = await response.json() as Node[]
+            for (const remoteNode of remoteNodes) {
+              if ((nodes.find((node: { host: string }) => node.host === remoteNode.host) == null) && (await downloadFromNode(remoteNode.host, '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f', 'c8fcb43d6e46') !== false)) nodes.push(remoteNode)
+            }
           }
         }
-      }
-    } catch (e) {
-      console.error('Failed to fetch nodes from', node.host)
-    }
-  }
-  fs.writeFileSync(NODES_PATH, JSON.stringify(nodes))
-
-  await downloadFromNode(`${HOSTNAME + (PORT != 80 ? `:${PORT}` : '')}`, '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f', 'c8fcb43d6e46')
-  if (!fs.existsSync(path.join(__dirname, 'files', '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f'))) { console.error('Download test failed, cannot connect to network') } else if (isIp(PUBLIC_HOSTNAME) && isPrivateIP(PUBLIC_HOSTNAME)) { console.error('Public hostname is a private IP address, cannot announce to other nodes') } else {
-    console.log(await downloadFromNode(`${PUBLIC_HOSTNAME}`, '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f', 'c8fcb43d6e46'))
-
-    // Save self to nodes.json
-    if (nodes.find((node: { host: string }) => node.host === PUBLIC_HOSTNAME) == null) {
-      nodes.push({ host: PUBLIC_HOSTNAME, http: true, dns: false, cf: false, hits: 0, rejects: 0 })
-      fs.writeFileSync(NODES_PATH, JSON.stringify(nodes))
-    }
-
-    console.log('Announcing to nodes')
-    for (const node of nodes) {
-      if (node.http) {
-        if (node.host === PUBLIC_HOSTNAME) continue
-        console.log('Announcing to', node.host)
-        await fetch(`${isIp(node.host) ? 'http' : 'https'}://${node.host}/announce?host=${PUBLIC_HOSTNAME}`)
+      } catch (e) {
+        console.error('Failed to fetch nodes from', node.host)
       }
     }
+
+    fs.writeFileSync(NODES_PATH, JSON.stringify(nodes))
+
+    await downloadFromNode(`${HOSTNAME + (PORT !== 80 && PORT !== 443 ? `:${PORT}` : '')}`, '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f', 'c8fcb43d6e46')
+    if (!fs.existsSync(path.join(DIRNAME, 'files', '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f'))) console.error('Download test failed, cannot connect to network')
+    else if (isIp(PUBLIC_HOSTNAME) && isPrivateIP(PUBLIC_HOSTNAME)) console.error('Public hostname is a private IP address, cannot announce to other nodes')
+    else {
+      console.log(await downloadFromNode(`${PUBLIC_HOSTNAME}`, '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f', 'c8fcb43d6e46'))
+
+      // Save self to nodes.json
+      if (nodes.find((node: { host: string }) => node.host === PUBLIC_HOSTNAME) == null) {
+        nodes.push({ host: PUBLIC_HOSTNAME, http: true, dns: false, cf: false, hits: 0, rejects: 0 })
+        fs.writeFileSync(NODES_PATH, JSON.stringify(nodes))
+      }
+
+      console.log('Announcing to nodes')
+      for (const node of nodes) {
+        if (node.http) {
+          if (node.host === PUBLIC_HOSTNAME) continue
+          console.log('Announcing to', node.host)
+          await fetch(`${isIp(node.host) ? 'http' : 'https'}://${node.host}/announce?host=${PUBLIC_HOSTNAME}`)
+        }
+      }
+    }
   }
+  handleListen().catch((e) => console.error(e))
 })
