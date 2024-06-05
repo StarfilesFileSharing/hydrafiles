@@ -77,10 +77,9 @@ const isPrivateIP = (ip: string): boolean => {
 
   const isInRange = (start: number, end: number, value: number): boolean => value >= start && value <= end
 
-  return parts[0] === 10 ||
+  return parts[0] === 10 || parts[0] === 127 ||
     (parts[0] === 172 && isInRange(16, 31, parts[1])) ||
-    (parts[0] === 192 && parts[1] === 168) ||
-    (parts[0] === 127)
+    (parts[0] === 192 && parts[1] === 168)
 }
 
 let usedStorage = 0
