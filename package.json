@@ -17,7 +17,7 @@
   },
   "homepage": "https://github.com/StarfilesFileSharing/Hydrafiles#readme",
   "dependencies": {
-    "aws-sdk": "^2.1635.0",
+    "@aws-sdk/client-s3": "^3.591.0",
     "crypto": "^1.0.1",
     "node-fetch": "^3.3.2"
   },

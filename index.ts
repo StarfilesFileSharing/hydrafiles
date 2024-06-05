@@ -3,7 +3,8 @@ import fs from 'fs';
 import path from 'path';
 import fetch from 'node-fetch';
 import crypto from 'crypto';
-import AWS from 'aws-sdk';
+import { S3 } from '@aws-sdk/client-s3';
+import { Readable } from 'stream';
 
 const __dirname = path.resolve();
 
@@ -27,9 +28,9 @@ let BOOTSTRAP_NODES = [
 let NODES_PATH = path.join(__dirname, 'nodes.json');
 
 // Define S3 credentials if you want to pull files from S3
-let S3ACCESSKEYID;
-let S3SECRETACCESSKEY;
-let S3ENDPOINT;
+let S3ACCESSKEYID = "";
+let S3SECRETACCESSKEY = "";
+let S3ENDPOINT = "";
 let CACHE_S3 = true; // Cache files fetched from S3
 // ADVANCED CONFIG ////////////////////////////
 
@@ -58,14 +59,14 @@ if(!fs.existsSync(path.join(__dirname, 'nodes.json'))) fs.writeFileSync(path.joi
 
 // For automated deployments
 if(fs.existsSync(path.join(__dirname, 'config.json'))){
-    const config = JSON.parse(fs.readFileSync(path.join(__dirname, 'config.json')).toString());
-    if(config.port) PORT = config.port;
-    if(config.hostname) HOSTNAME = config.hostname;
-    if(config.max_storage) MAX_STORAGE = config.max_storage;
-    if(config.perma_files) PERMA_FILES = config.perma_files;
-    if(config.burn_rate) BURN_RATE = config.burn_rate;
-    if(config.metadata_endpoint) METADATA_ENDPOINT = config.metadata_endpoint;
-    if(config.bootstrap_nodes) BOOTSTRAP_NODES = config.bootstrap_nodes;
+	const config = JSON.parse(fs.readFileSync(path.join(__dirname, 'config.json')).toString());
+	if(config.port) PORT = config.port;
+	if(config.hostname) HOSTNAME = config.hostname;
+	if(config.max_storage) MAX_STORAGE = config.max_storage;
+	if(config.perma_files) PERMA_FILES = config.perma_files;
+	if(config.burn_rate) BURN_RATE = config.burn_rate;
+	if(config.metadata_endpoint) METADATA_ENDPOINT = config.metadata_endpoint;
+	if(config.bootstrap_nodes) BOOTSTRAP_NODES = config.bootstrap_nodes;
 	if(config.nodes_path) NODES_PATH = config.nodes_path;
 	if(config.public_hostname) PUBLIC_HOSTNAME = config.public_hostname;
 }
@@ -76,45 +77,50 @@ function isPrivateIP(ip: string) {
 	ip = ip.split(':')[0];
    	var parts = ip.split('.');
    	return parts[0] === '10' || 
-      	(parts[0] === '172' && (parseInt(parts[1], 10) >= 16 && parseInt(parts[1], 10) <= 31)) || 
-      	(parts[0] === '192' && parts[1] === '168') ||
+	(parts[0] === '172' && (parseInt(parts[1], 10) >= 16 && parseInt(parts[1], 10) <= 31)) || 
+	(parts[0] === '192' && parts[1] === '168') ||
 	  	(parts[0] === '127');
 }
 
 let usedStorage = 0;
 const download_count: { [key: string]: number;} = {};
 
-const s3 = new AWS.S3({
-  accessKeyId: S3ACCESSKEYID,
-  secretAccessKey: S3SECRETACCESSKEY,
-  endpoint: S3ENDPOINT,
-  s3ForcePathStyle: false,
-});
+
+const S3Params = {
+	region: 'us-east-1',
+	credentials: {
+		accessKeyId: S3ACCESSKEYID,
+		secretAccessKey: S3SECRETACCESSKEY
+	},
+	endpoint: S3ENDPOINT,
+
+};
+const s3 = new S3(S3Params);
 
 async function downloadFileFromS3(endpoint: string, key: string, accessToken: string): Promise<void> {
   const url = `${endpoint}/${key}`;
 
   try {
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        // Your service may use different authentication methods, adjust accordingly
-        'Authorization': `Bearer ${accessToken}`
-      }
-    });
+	const response = await fetch(url, {
+	method: 'GET',
+	headers: {
+	// Your service may use different authentication methods, adjust accordingly
+	'Authorization': `Bearer ${accessToken}`
+	}
+	});
 
-    if (!response.ok) {
-      throw new Error(`Failed to fetch file: ${response.statusText}`);
-    }
+	if (!response.ok) {
+	throw new Error(`Failed to fetch file: ${response.statusText}`);
+	}
 
-    // Buffer the response data
-    const buffer = await response.buffer();
+	// Buffer the response data
+	const buffer = await response.buffer();
 
-    // Write file to system (example path could be customized)
-    fs.writeFileSync('./downloadedFile', buffer);
-    console.log('File downloaded successfully.');
+	// Write file to system (example path could be customized)
+	fs.writeFileSync('./downloadedFile', buffer);
+	console.log('File downloaded successfully.');
   } catch (error) {
-    console.error('Error downloading file:', error);
+	console.error('Error downloading file:', error);
   }
 }
 
@@ -173,13 +179,27 @@ const downloadFromNode = async (host: string, hash: string, fileId: string): Pro
 }
 
 const fetchFromS3 = async (bucket: string, key: string): Promise<File> => {
-	if(!s3) return false;
-	try {
-		const data = await s3?.getObject({ Bucket: bucket, Key: key }).promise();
-		return { file: data.Body as Buffer };
-	} catch (error) {
-		return false;
-	}
+    if (!s3) return false;
+    try {
+        let buffer: Buffer;
+        const data = await s3.getObject({ Bucket: bucket, Key: key });
+
+        if (data.Body instanceof Readable) {
+            const chunks: any[] = [];
+            for await (const chunk of data.Body) {
+                chunks.push(chunk);
+            }
+            buffer = Buffer.concat(chunks);
+        } else if (data.Body instanceof Buffer)
+            buffer = data.Body;
+        else
+            return false;
+
+        return { file: buffer };
+    } catch (error) {
+        console.error(error);
+        return false;
+    }
 }
 
 const fetchFile = async (hash: string): Promise<File> => {
@@ -310,7 +330,7 @@ server.listen(PORT, HOSTNAME, async () => {
 				if(response.status === 200){
 					const remoteNodes = await response.json() as Node[];
 					for(const remoteNode of remoteNodes){
-						if(!nodes.find((node: { host: string; }) => node.host === remoteNode.host) && await downloadFromNode(remoteNode.host, '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f', 'c8fcb43d6e46')) nodes.push(remoteNode);
+						if(!nodes.find((node: { host: string; }) => node.host === remoteNode.host) && (await downloadFromNode(remoteNode.host, '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f', 'c8fcb43d6e46'))) nodes.push(remoteNode);
 					}
 				}
 			}
