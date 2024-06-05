@@ -1,4 +1,4 @@
-import http from 'http';
+import http, { IncomingMessage, ServerResponse }from 'http';
 import fs from 'fs';
 import path from 'path';
 import fetch from 'node-fetch';
@@ -27,6 +27,16 @@ let NODES_PATH = path.join(__dirname, 'nodes.json');
 // ADVANCED CONFIG ////////////////////////////
 
 
+
+// TYPES //////////////////////////////////////
+type Host = {host: string, http: boolean, dns: boolean, cf: boolean};
+type Metadata = {name: string, size: string, type: string, hash: string, id: string};
+type ResponseHeaders = { [key: string]: string };
+type File = { file: Buffer, name?: string } | false;
+// TYPES //////////////////////////////////////
+
+
+
 // INITIALISATION /////////////////////////////
 if(!fs.existsSync(path.join(__dirname, 'files'))) fs.mkdirSync(path.join(__dirname, 'files'));
 if(!fs.existsSync(path.join(__dirname, 'nodes.json'))) fs.writeFileSync(path.join(__dirname, 'nodes.json'), JSON.stringify(BOOTSTRAP_NODES));
@@ -35,7 +45,7 @@ if(!fs.existsSync(path.join(__dirname, 'nodes.json'))) fs.writeFileSync(path.joi
 
 // For automated deployments
 if(fs.existsSync(path.join(__dirname, 'config.json'))){
-    const config = JSON.parse(fs.readFileSync(path.join(__dirname, 'config.json')));
+    const config = JSON.parse(fs.readFileSync(path.join(__dirname, 'config.json')).toString());
     if(config.port) PORT = config.port;
     if(config.hostname) HOSTNAME = config.hostname;
     if(config.max_storage) MAX_STORAGE = config.max_storage;
@@ -47,9 +57,9 @@ if(fs.existsSync(path.join(__dirname, 'config.json'))){
 	if(config.public_hostname) PUBLIC_HOSTNAME = config.public_hostname;
 }
 
-const isIp = (host) => host.match(/(?:\d+\.){3}\d+(?::\d+)?/) !== null;
+const isIp = (host: string) => host.match(/(?:\d+\.){3}\d+(?::\d+)?/) !== null;
 
-function isPrivateIP(ip) {
+function isPrivateIP(ip: string) {
 	ip = ip.split(':')[0];
    	var parts = ip.split('.');
    	return parts[0] === '10' || 
@@ -59,28 +69,81 @@ function isPrivateIP(ip) {
 }
 
 let usedStorage = 0;
-const download_count = {};
+const download_count: { [key: string]: number;} = {};
 
+const purgeCache = (requiredSpace: number, remainingSpace: number) => {
+	const files = fs.readdirSync(path.join(__dirname, 'files'));
+	for(const file of files){
+		if(PERMA_FILES.includes(file) || Object.keys(download_count).includes(file)) continue;
 
-const downloadFromNode = async (host, fileHash, fileId) => {
+		const size = fs.statSync(path.join(__dirname, 'files', file)).size;
+		fs.unlinkSync(path.join(__dirname, 'files', file));
+		usedStorage -= size;
+		remainingSpace += size;
+
+		if (requiredSpace <= remainingSpace) break;
+	}
+	if(requiredSpace > remainingSpace){
+		const sorted = Object.entries(download_count).sort(([,a],[,b]) => Number(a) - Number(b)).filter(([file]) =>!PERMA_FILES.includes(file))
+		for(let i = 0; i < sorted.length / (BURN_RATE*100); i++) {
+			const stats = fs.statSync(path.join(__dirname, 'files', sorted[i][0]));
+			fs.unlinkSync(path.join(__dirname, 'files', sorted[i][0]));
+			usedStorage -= stats.size;
+		}
+	}
+};
+
+const cacheFile = (filePath: string, file: Buffer) => {
+	const size = file.length;
+	let remainingSpace = MAX_STORAGE - usedStorage;
+	if(size > remainingSpace) purgeCache(size, remainingSpace);
+	fs.writeFileSync(filePath, file);
+	usedStorage += size;
+};
+
+const getNodes = (includeSelf = true) => {
+	return JSON.parse(fs.readFileSync(NODES_PATH).toString()).sort(() => Math.random() - 0.5).filter((node: { host: string; }) => includeSelf || node.host !== PUBLIC_HOSTNAME);
+};
+
+const downloadFromNode = async (host: string, fileHash: string, fileId: string): Promise<File> => {
 	try{
 		const response = await fetch(`${isIp(host) ? 'http' : 'https'}://${host}/download/${fileHash + (fileId ? `/${fileId}` : '')}`);
 		const arrayBuffer = await response.arrayBuffer();
 		const hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer);
 		const hashArray = Array.from(new Uint8Array(hashBuffer));
 		const hash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-		
-		response.headers.set('content-length', arrayBuffer.byteLength);
+
+		const name = response.headers.get('Content-Disposition')?.split('=')[1].replace(/"/g, '');
 
 		if(hash !== fileHash) return false;
-		else return { file: Buffer.from(arrayBuffer), headers: response.headers };
+		else return { file: Buffer.from(arrayBuffer), name };
 	}catch(e){
 		return false;
 	}
 }
 
-const server = http.createServer(async (req, res) => {
+const getFile = async (fileHash: string, fileId: string): Promise<File> => {
+	const filePath = path.join(__dirname, 'files', fileHash);
+	if(fs.existsSync(filePath)){
+		return { file: fs.readFileSync(filePath) };
+	}else{
+		for(const node of getNodes(false)){
+			if(node.http){
+				const file = await downloadFromNode(node.host, fileHash, fileId);
+				if(file){
+					cacheFile(filePath, file.file);
+					return file;
+				}
+			}
+		}
+		
+		return false;
+	}
+};
+
+const server = http.createServer(async (req: IncomingMessage, res: ServerResponse) => {
 	console.log('  ', req.url)
+
 	if (req.url === '/'){
 		res.writeHead(200, { 'Content-Type': 'text/html', 'Cache-Control': 'public, max-age=604800' });
 		fs.createReadStream('index.html').pipe(res);
@@ -89,13 +152,13 @@ const server = http.createServer(async (req, res) => {
 		res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=3600'});
 		fs.createReadStream(NODES_PATH).pipe(res);
 
-	}else if(req.url.startsWith('/announce')){
+	}else if(req.url?.startsWith('/announce')){
 		const params = Object.fromEntries(new URLSearchParams(req.url.split('?')[1]));
 		const host = params['host'];
 		if(!host) return res.end('Invalid request\n');
 
-		const nodes = JSON.parse(fs.readFileSync(NODES_PATH));
-		if(nodes.find(node => node.host === host)) return res.end('Already known\n');
+		const nodes = getNodes();
+		if(nodes.find((node: { host: string; }) => node.host === host)) return res.end('Already known\n');
 
 		if(await downloadFromNode(host, '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f', 'c8fcb43d6e46')){
 			nodes.push({host, http: true, dns: false, cf: false});
@@ -103,82 +166,42 @@ const server = http.createServer(async (req, res) => {
 			res.end('Announced\n');
 		}else res.end('Invalid request\n');
 
-	}else if(req.url.startsWith('/download/')){
+	}else if(req.url?.startsWith('/download/')){
 		const fileHash = req.url.split('/')[2];
 		const fileId = req.url.split('/')[3];
-		
-		const filePath = path.join(__dirname, 'files', fileHash);
 
-		const headers = {
+		const headers: ResponseHeaders = {
 			'Content-Type': 'application/octet-stream',
 			'Cache-Control': 'public, max-age=31536000',
 		}
 
+		const file = await getFile(fileHash, fileId);
+
+		if(!file){
+			res.writeHead(404, { 'Content-Type': 'text/plain' });
+			res.end('404 Not Found\n');
+			return;
+		}
+
+		let name: string = "";
 		if(fileId){
 			const response = await fetch(`${METADATA_ENDPOINT}${fileId}`);
-			if(response.status === 200){
-				const metadata = await response.json();
-				headers['Content-Disposition'] = `attachment; filename="${encodeURIComponent(metadata.name).replace(/%20/g, ' ')}"`;
-				headers['Content-Length'] = metadata.size;
-			}
+			if(response.status === 200) name = (await response.json() as Metadata).name;
 		}
 
-		if(fs.existsSync(filePath)){
-			res.writeHead(200, headers);
-			const readStream = fs.createReadStream(filePath);
-			readStream.pipe(res);
-			download_count[fileHash] = download_count[fileHash] ? download_count[fileHash] + 1 : 1;
-		}else{
-			const nodes = JSON.parse(fs.readFileSync(NODES_PATH)).sort(() => Math.random() - 0.5);
-			for(const node of nodes){
-				if(node.http){
-					if(node.host === `${req.headers.host}`) continue;
+		name = name || file.name || "File";
+		headers['Content-Length'] = file.file.length.toString();
+		headers['Content-Disposition'] = `attachment; filename="${encodeURIComponent(name).replace(/%20/g, ' ')}"`;
 
-					const response = await downloadFromNode(node.host, fileHash, fileId);
-					if(response){
-						if(!headers['Content-Length']) headers['Content-Length'] = response.headers.get('content-length');
-						if(!headers['Content-Disposition']) headers['Content-Disposition'] = `attachment; filename="${response.headers.get('content-disposition').split('=')[1].replace(/"/g, '')}"`;
-						
-						res.writeHead(200, headers);
-						res.end(response.file);
-
-						let remainingSpace = MAX_STORAGE - usedStorage;
-						if(headers['Content-Length'] > remainingSpace){
-							const files = fs.readdirSync(path.join(__dirname, 'files'));
-							for(const file of files){
-								if(PERMA_FILES.includes(file) || Object.keys(download_count).includes(file)) continue;
-
-								const stats = fs.statSync(path.join(__dirname, 'files', file));
-								fs.unlinkSync(path.join(__dirname, 'files', file));
-								usedStorage -= stats.size;
-								remainingSpace += stats.size;
-
-								if (headers['Content-Length'] <= remainingSpace) break;
-							}
-							if(headers['Content-Length'] > remainingSpace){
-								const sorted = Object.entries(download_count).sort(([,a],[,b]) => a-b).filter(([file]) => !PERMA_FILES.includes(file))
-								for(let i = 0; i < sorted.length / (BURN_RATE*100); i++) {
-									const stats = fs.statSync(path.join(__dirname, 'files', sorted[i][0]));
-									fs.unlinkSync(path.join(__dirname, 'files', sorted[i][0]));
-									usedStorage -= stats.size;
-								}
-							}
-						}
-						fs.writeFileSync(filePath, response.file);
-						usedStorage += parseInt(headers['Content-Length']);
-						return;
-					}
-				}
-			}
-			
-			res.writeHead(404, { 'Content-Type': 'text/plain' });
-			res.end('File not found\n');
-		}
+		res.writeHead(200, headers);
+		res.end(file.file);
+		download_count[fileHash] = download_count[fileHash] ? download_count[fileHash] + 1 : 1;
 
 	}else{
 		res.writeHead(404, { 'Content-Type': 'text/plain' });
 		res.end('404 Not Found\n');
 	}
+	return;
 });
 
 server.listen(PORT, HOSTNAME, async () => {
@@ -195,16 +218,20 @@ server.listen(PORT, HOSTNAME, async () => {
 	console.log(`Files dir size: ${usedStorage} bytes`);
 
 	// Call all nodes and pull their /nodes
-	const nodes = JSON.parse(fs.readFileSync(NODES_PATH));
+	const nodes = getNodes(false);
 	for(const node of nodes){
-		if(node.http && node.host !== PUBLIC_HOSTNAME){
-			const response = await fetch(`${isIp(node.host) ? 'http' : 'https'}://${node.host}/nodes`);
-			if(response.status === 200){
-				const remoteNodes = await response.json();
-				for(const remoteNode of remoteNodes){
-					if(!nodes.find(node => node.host === remoteNode.host) && await downloadFromNode(remoteNode.host, '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f', 'c8fcb43d6e46')) nodes.push(remoteNode);
+		try{
+			if(node.http){
+				const response = await fetch(`${isIp(node.host) ? 'http' : 'https'}://${node.host}/nodes`);
+				if(response.status === 200){
+					const remoteNodes = await response.json() as Host[];
+					for(const remoteNode of remoteNodes){
+						if(!nodes.find((node: { host: string; }) => node.host === remoteNode.host) && await downloadFromNode(remoteNode.host, '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f', 'c8fcb43d6e46')) nodes.push(remoteNode);
+					}
 				}
 			}
+		}catch(e){
+			console.error('Failed to fetch nodes from', node.host);
 		}
 	}
 	fs.writeFileSync(NODES_PATH, JSON.stringify(nodes));
@@ -218,7 +245,7 @@ server.listen(PORT, HOSTNAME, async () => {
 		console.log(await downloadFromNode(`${PUBLIC_HOSTNAME}`, '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f', 'c8fcb43d6e46'));
 
 		// Save self to nodes.json
-		if(!nodes.find(node => node.host === PUBLIC_HOSTNAME)){
+		if(!nodes.find((node: { host: string; }) => node.host === PUBLIC_HOSTNAME)){
 			nodes.push({host: PUBLIC_HOSTNAME, http: true, dns: false, cf: false});
 			fs.writeFileSync(NODES_PATH, JSON.stringify(nodes));
 		}
