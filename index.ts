@@ -7,6 +7,7 @@ import { S3 } from '@aws-sdk/client-s3'
 import { Readable } from 'stream'
 
 const DIRNAME = path.resolve()
+enum PreferNode { FASTEST, LEAST_USED, RANDOM, HIGHEST_HITRATE }
 
 // CONFIG /////////////////////////////////////
 let HOSTNAME = '127.0.0.1'
@@ -14,15 +15,16 @@ let PORT = 3000
 let MAX_STORAGE = 100 * 1024 * 1024 * 1024 // 100GB
 let PERMA_FILES: string[] = [] // File hashes to never delete when storage limit is reached
 let BURN_RATE = 0.1 // Percentage of files to purge when storage limit is reached
+let PREFER_NODE: PreferNode = PreferNode.FASTEST // 'FASTEST' or 'LEAST_USED' or 'RANDOM' or 'HIGHEST_HITRATE'
 // CONFIG /////////////////////////////////////
 
 // ADVANCED CONFIG ////////////////////////////
 let PUBLIC_HOSTNAME = HOSTNAME + (PORT !== 80 && PORT !== 443 ? `:${PORT}` : '') // The hostname that will be used to announce to other nodes
 let METADATA_ENDPOINT = 'https://api2.starfiles.co/file/'
 let BOOTSTRAP_NODES = [
-  { host: 'hydrafiles.com', http: true, dns: false, cf: false },
-  { host: 'starfilesdl.com', http: true, dns: false, cf: false },
-  { host: 'hydra.starfiles.co', http: true, dns: false, cf: false }
+  { host: 'hydrafiles.com', http: true, dns: false, cf: false, hits: 0, rejects: 0, bytes: 0, duration: 0 },
+  { host: 'starfilesdl.com', http: true, dns: false, cf: false, hits: 0, rejects: 0, bytes: 0, duration: 0 },
+  { host: 'hydra.starfiles.co', http: true, dns: false, cf: false, hits: 0, rejects: 0, bytes: 0, duration: 0 }
 ]
 let NODES_PATH = path.join(DIRNAME, 'nodes.json')
 
@@ -37,15 +39,7 @@ const CACHE_S3 = true // Cache files fetched from S3
 interface Metadata {name: string, size: string, type: string, hash: string, id: string}
 interface ResponseHeaders { [key: string]: string }
 type File = { file: Buffer, name?: string } | false
-interface Node {
-  host: string
-  http: boolean
-  dns: boolean
-  cf: boolean
-  // File download success/fail count
-  hits: number
-  rejects: number
-}
+interface Node { host: string, http: boolean, dns: boolean, cf: boolean, hits: number, rejects: number, bytes: number, duration: number }
 // TYPES //////////////////////////////////////
 
 // INITIALISATION /////////////////////////////
@@ -114,10 +108,13 @@ const cacheFile = (filePath: string, file: Buffer): void => {
 }
 
 const getNodes = (includeSelf = true): Node[] => {
-  return JSON.parse(fs.readFileSync(NODES_PATH).toString())
+  const nodes = JSON.parse(fs.readFileSync(NODES_PATH).toString())
     .filter((node: { host: string }) => includeSelf || node.host !== PUBLIC_HOSTNAME)
-    .sort(() => Math.random() - 0.5)
-    .sort((a: { hits: number, rejects: number }, b: { hits: number, rejects: number }) => (a.hits - a.rejects) - (b.hits - b.rejects))
+    .sort(() => Math.random() - 0.5);
+  if (PREFER_NODE === PreferNode.FASTEST) return nodes.sort((a: { bytes: number, duration: number }, b: { bytes: number, duration: number }) => a.bytes / a.duration - b.bytes / b.duration)
+  else if (PREFER_NODE === PreferNode.LEAST_USED) return nodes.sort((a: { hits: number, rejects: number }, b: { hits: number, rejects: number }) => a.hits - a.rejects - (b.hits - b.rejects))
+  else if (PREFER_NODE === PreferNode.HIGHEST_HITRATE) return nodes.sort((a: { hits: number, rejects: number }, b: { hits: number, rejects: number }) => (a.hits - a.rejects) - (b.hits - b.rejects))
+  else return nodes
 }
 
 const downloadFromNode = async (host: string, hash: string): Promise<File> => {
@@ -184,9 +181,14 @@ const getFile = async (hash: string): Promise<File> => {
 
   for (const node of getNodes(false)) {
     if (node.http) {
+      const startTime = Date.now()
       const file = await downloadFromNode(node.host, hash)
       if (file !== false) {
+        node.duration += Date.now() - startTime
+        node.bytes += file.file.length
+
         node.hits++
+
         updateNode(node)
         cacheFile(filePath, file.file)
         return file
@@ -221,7 +223,7 @@ const server = http.createServer((req, res) => {
       }
 
       if (await downloadFromNode(host, '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f') !== false) {
-        nodes.push({ host, http: true, dns: false, cf: false, hits: 0, rejects: 0 })
+        nodes.push({ host, http: true, dns: false, cf: false, hits: 0, rejects: 0, bytes: 0, duration: 0 })
         fs.writeFileSync(NODES_PATH, JSON.stringify(nodes))
         res.end('Announced\n')
       } else res.end('Invalid request\n')
@@ -243,7 +245,7 @@ const server = http.createServer((req, res) => {
       }
 
       let name: string | undefined
-      if (fileId.length > 0) {
+      if (fileId) {
         const response = await fetch(`${METADATA_ENDPOINT}${fileId}`)
         if (response.status === 200) name = (await response.json() as Metadata).name
       }
@@ -260,11 +262,7 @@ const server = http.createServer((req, res) => {
       res.end('404 Not Found\n')
     }
   }
-  handleRequest().catch((e) => {
-    console.error(e)
-    res.writeHead(500, { 'Content-Type': 'text/plain' })
-    res.end('500 Internal Server Error\n')
-  })
+  handleRequest().catch((e) => console.error(e))
 })
 
 server.listen(PORT, HOSTNAME, (): void => {
@@ -309,7 +307,7 @@ server.listen(PORT, HOSTNAME, (): void => {
 
       // Save self to nodes.json
       if (nodes.find((node: { host: string }) => node.host === PUBLIC_HOSTNAME) == null) {
-        nodes.push({ host: PUBLIC_HOSTNAME, http: true, dns: false, cf: false, hits: 0, rejects: 0 })
+        nodes.push({ host: PUBLIC_HOSTNAME, http: true, dns: false, cf: false, hits: 0, rejects: 0, bytes: 0, duration: 0 })
         fs.writeFileSync(NODES_PATH, JSON.stringify(nodes))
       }
 
