@@ -15,7 +15,7 @@ let PORT = 3000
 let MAX_STORAGE = 100 * 1024 * 1024 * 1024 // 100GB
 let PERMA_FILES: string[] = [] // File hashes to never delete when storage limit is reached
 let BURN_RATE = 0.1 // Percentage of files to purge when storage limit is reached
-let PREFER_NODE: PreferNode = PreferNode.FASTEST // 'FASTEST' or 'LEAST_USED' or 'RANDOM' or 'HIGHEST_HITRATE'
+let PREFER_NODE = 'FASTEST' // 'FASTEST' or 'LEAST_USED' or 'RANDOM' or 'HIGHEST_HITRATE'
 // CONFIG /////////////////////////////////////
 
 // ADVANCED CONFIG ////////////////////////////
@@ -67,6 +67,7 @@ const isPrivateIP = (ip: string): boolean => /^(?:10\.|(?:172\.(?:1[6-9]|2\d|3[0
 
 let usedStorage = 0
 const downloadCount: { [key: string]: number } = {}
+const preferNode = PreferNode[PREFER_NODE as keyof typeof PreferNode] || PreferNode.FASTEST
 
 const s3 = new S3({
   region: 'us-east-1',
@@ -111,9 +112,9 @@ const getNodes = (includeSelf = true): Node[] => {
   const nodes = JSON.parse(fs.readFileSync(NODES_PATH).toString())
     .filter((node: { host: string }) => includeSelf || node.host !== PUBLIC_HOSTNAME)
     .sort(() => Math.random() - 0.5);
-  if (PREFER_NODE === PreferNode.FASTEST) return nodes.sort((a: { bytes: number, duration: number }, b: { bytes: number, duration: number }) => a.bytes / a.duration - b.bytes / b.duration)
-  else if (PREFER_NODE === PreferNode.LEAST_USED) return nodes.sort((a: { hits: number, rejects: number }, b: { hits: number, rejects: number }) => a.hits - a.rejects - (b.hits - b.rejects))
-  else if (PREFER_NODE === PreferNode.HIGHEST_HITRATE) return nodes.sort((a: { hits: number, rejects: number }, b: { hits: number, rejects: number }) => (a.hits - a.rejects) - (b.hits - b.rejects))
+  if (preferNode === PreferNode.FASTEST) return nodes.sort((a: { bytes: number, duration: number }, b: { bytes: number, duration: number }) => a.bytes / a.duration - b.bytes / b.duration)
+  else if (preferNode === PreferNode.LEAST_USED) return nodes.sort((a: { hits: number, rejects: number }, b: { hits: number, rejects: number }) => a.hits - a.rejects - (b.hits - b.rejects))
+  else if (preferNode === PreferNode.HIGHEST_HITRATE) return nodes.sort((a: { hits: number, rejects: number }, b: { hits: number, rejects: number }) => (a.hits - a.rejects) - (b.hits - b.rejects))
   else return nodes
 }
 
