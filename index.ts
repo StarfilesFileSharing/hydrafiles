@@ -26,12 +26,10 @@ let BOOTSTRAP_NODES = [
 ];
 let NODES_PATH = path.join(__dirname, 'nodes.json');
 
-const s3 = new AWS.S3({
-//   accessKeyId: '',
-//   secretAccessKey: '',
-//   endpoint: '',
-//   s3ForcePathStyle: false,
-});
+// Define S3 credentials if you want to pull files from S3
+let S3ACCESSKEYID;
+let S3SECRETACCESSKEY;
+let S3ENDPOINT;
 let CACHE_S3 = true; // Cache files fetched from S3
 // ADVANCED CONFIG ////////////////////////////
 
@@ -85,6 +83,13 @@ function isPrivateIP(ip: string) {
 
 let usedStorage = 0;
 const download_count: { [key: string]: number;} = {};
+
+const s3 = new AWS.S3({
+  accessKeyId: S3ACCESSKEYID,
+  secretAccessKey: S3SECRETACCESSKEY,
+  endpoint: S3ENDPOINT,
+  s3ForcePathStyle: false,
+});
 
 async function downloadFileFromS3(endpoint: string, key: string, accessToken: string): Promise<void> {
   const url = `${endpoint}/${key}`;
