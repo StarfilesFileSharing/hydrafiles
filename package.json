@@ -4,7 +4,9 @@
   "description": "The headless storage network.",
   "main": "index.js",
   "scripts": {
-    "format": "ts-standard --fix"
+    "format": "npx ts-standard --fix",
+    "test": "npx ts-standard && npx tsx index.ts",
+    "start": "npx tsx index.ts"
   },
   "repository": {
     "type": "git",
