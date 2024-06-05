@@ -67,9 +67,7 @@ if (fs.existsSync(path.join(DIRNAME, 'config.json'))) {
   if (config.public_hostname !== undefined) PUBLIC_HOSTNAME = config.public_hostname
 }
 
-const isIp = (host: string): boolean => {
-  return /(?:\d+\.){3}\d+(?::\d+)?/.test(host)
-}
+const isIp = (host: string): boolean => /(?:\d+\.){3}\d+(?::\d+)?/.test(host)
 
 const isPrivateIP = (ip: string): boolean => {
   const ipAddress = ip.split(':')[0]
