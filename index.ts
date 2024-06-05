@@ -71,13 +71,16 @@ const isIp = (host: string): boolean => {
   return /(?:\d+\.){3}\d+(?::\d+)?/.test(host)
 }
 
-function isPrivateIP (ip: string): Boolean {
-  ip = ip.split(':')[0]
-  const parts = ip.split('.').map(part => Number(part))
+const isPrivateIP = (ip: string): boolean => {
+  const ipAddress = ip.split(':')[0]
+  const parts = ipAddress.split('.').map(part => parseInt(part, 10))
+
+  const isInRange = (start: number, end: number, value: number): boolean => value >= start && value <= end
+
   return parts[0] === 10 ||
-  (parts[0] === 172 && (parts[1] >= 16 && parts[1] <= 31)) ||
-  (parts[0] === 192 && parts[1] === 168) ||
-  (parts[0] === 127)
+    (parts[0] === 172 && isInRange(16, 31, parts[1])) ||
+    (parts[0] === 192 && parts[1] === 168) ||
+    (parts[0] === 127)
 }
 
 let usedStorage = 0
