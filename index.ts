@@ -110,7 +110,10 @@ const cacheFile = (filePath: string, file: Buffer) => {
 };
 
 const getNodes = (includeSelf = true): Node[] => {
-	return JSON.parse(fs.readFileSync(NODES_PATH).toString()).sort(() => Math.random() - 0.5).filter((node: { host: string; }) => includeSelf || node.host !== PUBLIC_HOSTNAME);
+	return JSON.parse(fs.readFileSync(NODES_PATH).toString())
+		.filter((node: { host: string; }) => includeSelf || node.host !== PUBLIC_HOSTNAME)
+		.sort(() => Math.random() - 0.5)
+		.sort((a: { hits: number; rejects: number; }, b: { hits: number; rejects: number; }) => (a.hits - a.rejects) - (b.hits - b.rejects));
 };
 
 const downloadFromNode = async (host: string, fileHash: string, fileId: string): Promise<File> => {
