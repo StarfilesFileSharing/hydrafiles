@@ -120,9 +120,9 @@ const getNodes = (includeSelf = true): Node[] => {
     .sort((a: { hits: number, rejects: number }, b: { hits: number, rejects: number }) => (a.hits - a.rejects) - (b.hits - b.rejects))
 }
 
-const downloadFromNode = async (host: string, hash: string, fileId: string): Promise<File> => {
+const downloadFromNode = async (host: string, hash: string): Promise<File> => {
   try {
-    const response = await fetch(`${isIp(host) ? 'http' : 'https'}://${host}/download/${hash + (fileId.length > 0 ? `/${fileId}` : '')}`)
+    const response = await fetch(`${isIp(host) ? 'http' : 'https'}://${host}/download/${hash}`)
     const arrayBuffer = await response.arrayBuffer()
     const hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer)
     const hashArray = Array.from(new Uint8Array(hashBuffer))
@@ -170,7 +170,7 @@ const updateNode = (node: Node): void => {
   fs.writeFileSync(NODES_PATH, JSON.stringify(nodes))
 }
 
-const getFile = async (hash: string, fileId: string): Promise<File> => {
+const getFile = async (hash: string): Promise<File> => {
   const filePath = path.join(DIRNAME, 'files', hash)
 
   const localFile = await fetchFile(hash)
@@ -184,7 +184,7 @@ const getFile = async (hash: string, fileId: string): Promise<File> => {
 
   for (const node of getNodes(false)) {
     if (node.http) {
-      const file = await downloadFromNode(node.host, hash, fileId)
+      const file = await downloadFromNode(node.host, hash)
       if (file !== false) {
         node.hits++
         updateNode(node)
@@ -220,7 +220,7 @@ const server = http.createServer((req, res) => {
         return
       }
 
-      if (await downloadFromNode(host, '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f', 'c8fcb43d6e46') !== false) {
+      if (await downloadFromNode(host, '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f') !== false) {
         nodes.push({ host, http: true, dns: false, cf: false, hits: 0, rejects: 0 })
         fs.writeFileSync(NODES_PATH, JSON.stringify(nodes))
         res.end('Announced\n')
@@ -234,7 +234,7 @@ const server = http.createServer((req, res) => {
         'Cache-Control': 'public, max-age=31536000'
       }
 
-      const file = await getFile(hash, fileId)
+      const file = await getFile(hash)
 
       if (file === false) {
         res.writeHead(404, { 'Content-Type': 'text/plain' })
@@ -290,7 +290,7 @@ server.listen(PORT, HOSTNAME, (): void => {
           if (response.status === 200) {
             const remoteNodes = await response.json() as Node[]
             for (const remoteNode of remoteNodes) {
-              if ((nodes.find((node: { host: string }) => node.host === remoteNode.host) == null) && (await downloadFromNode(remoteNode.host, '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f', 'c8fcb43d6e46') !== false)) nodes.push(remoteNode)
+              if ((nodes.find((node: { host: string }) => node.host === remoteNode.host) == null) && (await downloadFromNode(remoteNode.host, '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f') !== false)) nodes.push(remoteNode)
             }
           }
         }
@@ -301,11 +301,11 @@ server.listen(PORT, HOSTNAME, (): void => {
 
     fs.writeFileSync(NODES_PATH, JSON.stringify(nodes))
 
-    await downloadFromNode(`${HOSTNAME + (PORT !== 80 && PORT !== 443 ? `:${PORT}` : '')}`, '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f', 'c8fcb43d6e46')
+    await downloadFromNode(`${HOSTNAME + (PORT !== 80 && PORT !== 443 ? `:${PORT}` : '')}`, '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f')
     if (!fs.existsSync(path.join(DIRNAME, 'files', '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f'))) console.error('Download test failed, cannot connect to network')
     else if (isIp(PUBLIC_HOSTNAME) && isPrivateIP(PUBLIC_HOSTNAME)) console.error('Public hostname is a private IP address, cannot announce to other nodes')
     else {
-      console.log(await downloadFromNode(`${PUBLIC_HOSTNAME}`, '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f', 'c8fcb43d6e46'))
+      console.log(await downloadFromNode(`${PUBLIC_HOSTNAME}`, '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f'))
 
       // Save self to nodes.json
       if (nodes.find((node: { host: string }) => node.host === PUBLIC_HOSTNAME) == null) {
