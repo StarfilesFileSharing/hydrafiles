@@ -7,25 +7,8 @@ import { S3 } from '@aws-sdk/client-s3'
 import { Readable } from 'stream'
 
 const DIRNAME = path.resolve()
-enum PreferNode { FASTEST, LEAST_USED, RANDOM, HIGHEST_HITRATE }
-
-// CONFIG /////////////////////////////////////
-let HOSTNAME = '127.0.0.1'
-let PORT = 3000
-let MAX_STORAGE = 100 * 1024 * 1024 * 1024 // 100GB
-let PERMA_FILES: string[] = [] // File hashes to never delete when storage limit is reached
-let BURN_RATE = 0.1 // Percentage of files to purge when storage limit is reached
-let PREFER_NODE = 'FASTEST' // 'FASTEST' or 'LEAST_USED' or 'RANDOM' or 'HIGHEST_HITRATE'
-// CONFIG /////////////////////////////////////
 
 // ADVANCED CONFIG ////////////////////////////
-let PUBLIC_HOSTNAME = HOSTNAME + (PORT !== 80 && PORT !== 443 ? `:${PORT}` : '') // The hostname that will be used to announce to other nodes
-let METADATA_ENDPOINT = 'https://api2.starfiles.co/file/'
-let BOOTSTRAP_NODES = [
-  { host: 'hydrafiles.com', http: true, dns: false, cf: false, hits: 0, rejects: 0, bytes: 0, duration: 0 },
-  { host: 'starfilesdl.com', http: true, dns: false, cf: false, hits: 0, rejects: 0, bytes: 0, duration: 0 },
-  { host: 'hydra.starfiles.co', http: true, dns: false, cf: false, hits: 0, rejects: 0, bytes: 0, duration: 0 }
-]
 let NODES_PATH = path.join(DIRNAME, 'nodes.json')
 
 // Define S3 credentials if you want to pull files from S3
@@ -40,26 +23,27 @@ interface Metadata {name: string, size: string, type: string, hash: string, id: 
 interface ResponseHeaders { [key: string]: string }
 type File = { file: Buffer, name?: string } | false
 interface Node { host: string, http: boolean, dns: boolean, cf: boolean, hits: number, rejects: number, bytes: number, duration: number }
+enum PreferNode { FASTEST, LEAST_USED, RANDOM, HIGHEST_HITRATE }
 // TYPES //////////////////////////////////////
+
+// CONFIG /////////////////////////////////////
+const config = JSON.parse(fs.readFileSync(path.join(DIRNAME, 'config.json')).toString())
+const PORT = config.port;
+const HOSTNAME = config.hostname
+const MAX_STORAGE = config.max_storage
+const PERMA_FILES = config.perma_files
+const BURN_RATE = config.burn_rate
+const METADATA_ENDPOINT = config.metadata_endpoint
+const BOOTSTRAP_NODES = config.bootstrap_nodes
+const PUBLIC_HOSTNAME = config.public_hostname
+const PREFER_NODE = config.prefer_node
+if (config.nodes_path !== undefined) NODES_PATH = config.nodes_path
+// CONFIG /////////////////////////////////////
 
 // INITIALISATION /////////////////////////////
 if (!fs.existsSync(path.join(DIRNAME, 'files'))) fs.mkdirSync(path.join(DIRNAME, 'files'))
 if (!fs.existsSync(path.join(DIRNAME, 'nodes.json'))) fs.writeFileSync(path.join(DIRNAME, 'nodes.json'), JSON.stringify(BOOTSTRAP_NODES))
 // INITIALISATION /////////////////////////////
-
-// For automated deployments
-if (fs.existsSync(path.join(DIRNAME, 'config.json'))) {
-  const config = JSON.parse(fs.readFileSync(path.join(DIRNAME, 'config.json')).toString())
-  if (config.port !== undefined) PORT = config.port
-  if (config.hostname !== undefined) HOSTNAME = config.hostname
-  if (config.max_storage !== undefined) MAX_STORAGE = config.max_storage
-  if (config.perma_files !== undefined) PERMA_FILES = config.perma_files
-  if (config.burn_rate !== undefined) BURN_RATE = config.burn_rate
-  if (config.metadata_endpoint !== undefined) METADATA_ENDPOINT = config.metadata_endpoint
-  if (config.bootstrap_nodes !== undefined) BOOTSTRAP_NODES = config.bootstrap_nodes
-  if (config.nodes_path !== undefined) NODES_PATH = config.nodes_path
-  if (config.public_hostname !== undefined) PUBLIC_HOSTNAME = config.public_hostname
-}
 
 const isIp = (host: string): boolean => /(?:\d+\.){3}\d+(?::\d+)?/.test(host)
 

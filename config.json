@@ -1,0 +1,15 @@
+{
+	"hostname": "127.0.0.1",
+	"port": 3000,
+	"public_hostname": "127.0.0.1:3000",
+	"max_storage": 107374182400,
+	"perma_files": [],
+	"prefer_node": "FASTEST",
+	"metadata_endpoint": "https://api2.starfiles.co/file/",
+	"bootstrap_nodes": [
+		{"host": "hydrafiles.com", "http": true, "dns": false, "cf": false, "hits": 0, "rejects": 0, "bytes": 0, "duration": 0},
+		{"host": "starfilesdl.com", "http": true, "dns": false, "cf": false, "hits": 0, "rejects": 0, "bytes": 0, "duration": 0},
+		{"host": "hydra.starfiles.co", "http": true, "dns": false, "cf": false, "hits": 0, "rejects": 0, "bytes": 0, "duration": 0}
+	],
+	"burn_rate": 0.1
+}
