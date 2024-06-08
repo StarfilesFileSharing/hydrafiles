@@ -2,11 +2,54 @@
 <html>
   <head>
     <meta charset="UTF-8" />
-    <title>Hello World!</title>
+    <title>Hydrafiles</title>
     <link rel="stylesheet" href="index.css" />
   </head>
   <body>
-    <h1>💖 Hello World!</h1>
-    <p>Welcome to your Electron application.</p>
+    <h1>Hydrafiles</h1>
+    <h2>Files</h2>
+    <div>
+      <input type="text" id="hash" placeholder="Hash" />
+      <button id="download">Download</button>
+    </div>
+    <table id="files">
+      <tr>
+        <th>Hash</th>
+        <th>Size</th>
+      </tr>
+    </table>
+    <script>
+    window.addEventListener('DOMContentLoaded', () => {
+      window.electronAPI.receive('config', (message) => {
+          console.log('Received config:', message);
+      });
+      window.electronAPI.receive('files', (files) => {
+        const table = document.getElementById('files');
+        for(const file of files) {
+          const row = table.insertRow();
+          const hashCell = row.insertCell(0);
+          const sizeCell = row.insertCell(1);
+          hashCell.textContent = file.hash;
+          sizeCell.textContent = file.size + ' bytes';
+        };
+      });
+
+      document.getElementById('download').addEventListener('click', () => {
+        const hash = document.getElementById('hash').value;
+        fetch('http://localhost:3000/download/' + hash)
+          .then(response => response.blob())
+          .then(blob => {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = hash;
+            a.click();
+            URL.revokeObjectURL(url);
+          });
+      });
+      
+      // window.electronAPI.send('message', 'Hello from renderer');
+    });
+  </script>
   </body>
 </html>
