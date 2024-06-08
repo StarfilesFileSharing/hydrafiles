@@ -85,7 +85,7 @@ if (!gotTheLock) {
       if (glob.mainWindow.isMinimized()) glob.mainWindow.restore()
       glob.mainWindow.focus()
     }
-    mainWindow.webContents.send('url-scheme', commandLine.pop());
+    glob.mainWindow.webContents.send('url-scheme', commandLine.pop());
   })
 }
 
