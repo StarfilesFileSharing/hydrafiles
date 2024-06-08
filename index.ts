@@ -5,6 +5,7 @@ import fetch from 'node-fetch'
 import crypto from 'crypto'
 import { S3 } from '@aws-sdk/client-s3'
 import { Readable } from 'stream'
+import formidable from 'formidable'
 
 const DIRNAME = path.resolve()
 
@@ -37,12 +38,17 @@ const METADATA_ENDPOINT = config.metadata_endpoint
 const BOOTSTRAP_NODES = config.bootstrap_nodes
 const PUBLIC_HOSTNAME = config.public_hostname
 const PREFER_NODE = config.prefer_node
+let UPLOAD_SECRET = config.upload_secret || Math.random().toString(36).substring(2, 15)
 if (config.nodes_path !== undefined) NODES_PATH = config.nodes_path
 // CONFIG /////////////////////////////////////
 
 // INITIALISATION /////////////////////////////
 if (!fs.existsSync(path.join(DIRNAME, 'files'))) fs.mkdirSync(path.join(DIRNAME, 'files'))
 if (!fs.existsSync(path.join(DIRNAME, 'nodes.json'))) fs.writeFileSync(path.join(DIRNAME, 'nodes.json'), JSON.stringify(BOOTSTRAP_NODES))
+if (config.upload_secret === undefined) {
+  config.upload_secret = UPLOAD_SECRET;
+  fs.writeFileSync(path.join(DIRNAME, 'config.json'), JSON.stringify(config, null, 2));
+}
 // INITIALISATION /////////////////////////////
 
 const isIp = (host: string): boolean => /(?:\d+\.){3}\d+(?::\d+)?/.test(host)
@@ -104,6 +110,7 @@ const getNodes = (includeSelf = true): Node[] => {
 
 const downloadFromNode = async (host: string, hash: string): Promise<File> => {
   try {
+    console.log(`${isIp(host) ? 'http' : 'https'}://${host}/download/${hash}`)
     const response = await fetch(`${isIp(host) ? 'http' : 'https'}://${host}/download/${hash}`)
     const arrayBuffer = await response.arrayBuffer()
     const hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer)
@@ -245,6 +252,45 @@ const server = http.createServer((req, res) => {
       res.writeHead(200, headers)
       res.end(file.file)
       downloadCount[hash] = typeof downloadCount[hash] === 'undefined' ? downloadCount[hash] + 1 : 1
+    } else if(req.url === '/upload') {
+      const uploadSecret = req.headers['x-hydra-upload-secret']
+      if (uploadSecret !== UPLOAD_SECRET) {
+        res.writeHead(401, { 'Content-Type': 'text/plain' })
+        res.end('401 Unauthorized\n')
+        return
+      }
+      
+      const form = formidable({});
+      form.parse(req, async (err: unknown, fields: formidable.Fields, files: formidable.Files) => {
+        if (err) {
+          res.writeHead(500, { 'Content-Type': 'text/plain' })
+          res.end('500 Internal Server Error\n')
+          return
+        }
+
+        const hash = fields.hash[0]
+        const file = files.file[0] as formidable.File
+        console.log('Uploading', hash)
+
+        const filePath = path.join(DIRNAME, 'files', hash)
+        if (fs.existsSync(filePath)) {
+          res.writeHead(200, { 'Content-Type': 'text/plain' })
+          res.end('200 OK\n')
+          return
+        }
+
+        if(!PERMA_FILES.includes(hash)) {
+          PERMA_FILES.push(hash)
+          config.perma_files = PERMA_FILES
+        }
+
+        fs.writeFileSync(path.join(DIRNAME, 'config.json'), JSON.stringify(config, null, 2))
+
+        cacheFile(filePath, fs.readFileSync(file.filepath))
+
+        res.writeHead(201, { 'Content-Type': 'text/plain' })
+        res.end('200 OK\n')
+      })
     } else {
       res.writeHead(404, { 'Content-Type': 'text/plain' })
       res.end('404 Not Found\n')

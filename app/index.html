@@ -11,6 +11,8 @@
     <div>
       <input type="text" id="hash" placeholder="Hash" />
       <button id="download">Download</button>
+      <br>
+      <input type="file" id="file" />
     </div>
     <h2>Files</h2>
     <table id="files"></table>
@@ -65,6 +67,32 @@
             a.download = hash;
             a.click();
             URL.revokeObjectURL(url);
+          });
+      });
+
+      document.getElementById('file').addEventListener('change', async () => {
+        console.log('File changed')
+        const file = document.getElementById('file').files[0];
+
+        const arrayBuffer = await file.arrayBuffer();
+        const hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        const hash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('hash', hash);
+
+        const headers = new Headers();
+        headers.append('x-hydra-upload-secret', window.config.upload_secret);
+        
+        fetch(`http://${window.config.public_hostname}/upload`, {
+          method: 'POST',
+          body: formData,
+          headers: headers
+        }).then(response => response.json())
+          .then(data => {
+            console.log(data);
           });
       });
       
