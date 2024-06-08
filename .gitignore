@@ -1,6 +1,6 @@
 files/*
 nodes.json
-index.js
+/index.js
 
 # Logs
 logs
