@@ -5,7 +5,17 @@ import fs from 'fs';
 
 const DIRNAME = path.resolve('app/')
 
+const glob = {}
+
 if (squirrelStartup) app.quit();
+
+if (process.defaultApp) {
+  if (process.argv.length >= 2) {
+    app.setAsDefaultProtocolClient('hydra', process.execPath, [path.resolve(process.argv[1])])
+  }
+} else {
+  app.setAsDefaultProtocolClient('hydra')
+}
 
 const createWindow = () => {
   const mainWindow = new BrowserWindow({
@@ -15,6 +25,7 @@ const createWindow = () => {
       preload: path.join(DIRNAME, 'preload.js'),
     },
   });
+  glob.mainWindow = mainWindow;
   mainWindow.loadFile(path.join(DIRNAME, 'index.html'));
   mainWindow.webContents.openDevTools();
 
@@ -66,3 +77,16 @@ app.whenReady().then(() => {
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });
+
+
+app.on('second-instance', (event, commandLine, workingDirectory) => {
+  if (glob.mainWindow) {
+    if (glob.mainWindow.isMinimized()) glob.mainWindow.restore()
+    glob.mainWindow.focus()
+  }
+  mainWindow.webContents.send('url-scheme', commandLine.pop());
+})
+
+app.on('open-url', (event, url) => {
+  glob.mainWindow.webContents.send('url-scheme', url);
+})

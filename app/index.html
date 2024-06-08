@@ -56,8 +56,11 @@
         };
       });
 
-      document.getElementById('download').addEventListener('click', () => {
-        const hash = document.getElementById('hash').value;
+      window.electronAPI.receive('url-scheme', (urlScheme) => {
+        download(urlScheme.split('://')[1]);
+      });
+
+      const download = (hash) => {
         fetch(`http://${window.config.public_hostname}/download/${hash}`)
           .then(response => response.blob())
           .then(blob => {
@@ -68,7 +71,9 @@
             a.click();
             URL.revokeObjectURL(url);
           });
-      });
+      };
+
+      document.getElementById('download').addEventListener('click', () => download(document.getElementById('hash').value));
 
       document.getElementById('file').addEventListener('change', async () => {
         console.log('File changed')
