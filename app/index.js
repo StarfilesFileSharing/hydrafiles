@@ -10,9 +10,7 @@ const glob = {}
 if (squirrelStartup) app.quit();
 
 if (process.defaultApp) {
-  if (process.argv.length >= 2) {
-    app.setAsDefaultProtocolClient('hydra', process.execPath, [path.resolve(process.argv[1])])
-  }
+  if (process.argv.length >= 2) app.setAsDefaultProtocolClient('hydra', process.execPath, [path.resolve(process.argv[1])])
 } else {
   app.setAsDefaultProtocolClient('hydra')
 }
@@ -78,14 +76,18 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });
 
-
-app.on('second-instance', (event, commandLine, workingDirectory) => {
-  if (glob.mainWindow) {
-    if (glob.mainWindow.isMinimized()) glob.mainWindow.restore()
-    glob.mainWindow.focus()
-  }
-  mainWindow.webContents.send('url-scheme', commandLine.pop());
-})
+const gotTheLock = app.requestSingleInstanceLock();
+if (!gotTheLock) {
+  app.quit()
+} else {
+  app.on('second-instance', (event, commandLine, workingDirectory) => {
+    if (glob.mainWindow) {
+      if (glob.mainWindow.isMinimized()) glob.mainWindow.restore()
+      glob.mainWindow.focus()
+    }
+    mainWindow.webContents.send('url-scheme', commandLine.pop());
+  })
+}
 
 app.on('open-url', (event, url) => {
   glob.mainWindow.webContents.send('url-scheme', url);
