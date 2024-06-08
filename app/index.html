@@ -16,26 +16,31 @@
     </div>
     <h2>Files</h2>
     <table id="files"></table>
+    <h2>Config</h2>
+    <textarea id="config"></textarea>
+    <button id="saveConfig">Save</button>
     <script>
     window.addEventListener('DOMContentLoaded', () => {
       window.electronAPI.receive('config', (config) => {
-          window.config = config
+        if(JSON.stringify(config) === JSON.stringify(window.config)) return;
+        window.config = config;
+        document.getElementById('config').value = JSON.stringify(config, null, 2);
 
-          const status = document.getElementById('status');
-          fetch(`http://${window.config.public_hostname}/status`)
-            .then(response => response.json())
-            .then(data => {
-              if(data.status) {
-                status.innerHTML = 'Online';
-                status.style.color = 'green';
-              } else {
-                status.innerHTML = 'Offline';
-                status.style.color = 'red';
-              }
-            }).catch(() => {
+        const status = document.getElementById('status');
+        fetch(`http://${window.config.public_hostname}/status`)
+          .then(response => response.json())
+          .then(data => {
+            if(data.status) {
+              status.innerHTML = 'Online';
+              status.style.color = 'green';
+            } else {
               status.innerHTML = 'Offline';
               status.style.color = 'red';
-            });
+            }
+          }).catch(() => {
+            status.innerHTML = 'Offline';
+            status.style.color = 'red';
+          });
       });
       window.electronAPI.receive('files', (files) => {
         if(JSON.stringify(files) === JSON.stringify(window.files)) return;
@@ -74,6 +79,10 @@
       };
 
       document.getElementById('download').addEventListener('click', () => download(document.getElementById('hash').value));
+      document.getElementById('saveConfig').addEventListener('click', () => {
+        const config = JSON.parse(document.getElementById('config').value);
+        window.electronAPI.send('config', config);
+      });
 
       document.getElementById('file').addEventListener('change', async () => {
         console.log('File changed')

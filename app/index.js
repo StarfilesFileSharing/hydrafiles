@@ -28,9 +28,8 @@ const createWindow = () => {
   mainWindow.webContents.openDevTools();
 
   mainWindow.webContents.on('did-finish-load', () => {
-    const configFile = path.join(DIRNAME, '../config.json');
-    const configContents = fs.readFileSync(configFile, 'utf8');
-    mainWindow.webContents.send('config', JSON.parse(configContents));
+    mainWindow.webContents.send('config', JSON.parse(fs.readFileSync(path.join(DIRNAME, '../config.json'), 'utf8')));
+    setInterval(() => mainWindow.webContents.send('config', JSON.parse(fs.readFileSync(path.join(DIRNAME, '../config.json'), 'utf8'))), 5000);
 
     fs.readdir(path.join(DIRNAME, '../files/'), (err, files) => {
       if (err) {
@@ -61,6 +60,13 @@ const createWindow = () => {
         });
       }, 5000);
     });
+  });
+
+  // on message
+  mainWindow.webContents.on('ipc-message', (event, channel, ...args) => {
+    if(channel === 'config'){
+      fs.writeFileSync(path.join(DIRNAME, '../config.json'), JSON.stringify(args[0]));
+    }
   });
 };
 
