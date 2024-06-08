@@ -30,6 +30,8 @@ const createWindow = () => {
   mainWindow.webContents.on('did-finish-load', () => {
     mainWindow.webContents.send('config', JSON.parse(fs.readFileSync(path.join(DIRNAME, '../config.json'), 'utf8')));
     setInterval(() => mainWindow.webContents.send('config', JSON.parse(fs.readFileSync(path.join(DIRNAME, '../config.json'), 'utf8'))), 5000);
+    mainWindow.webContents.send('nodes', JSON.parse(fs.readFileSync(path.join(DIRNAME, '../nodes.json'), 'utf8')));
+    setInterval(() => mainWindow.webContents.send('nodes', JSON.parse(fs.readFileSync(path.join(DIRNAME, '../nodes.json'), 'utf8'))), 5000);
 
     fs.readdir(path.join(DIRNAME, '../files/'), (err, files) => {
       if (err) {
@@ -64,9 +66,8 @@ const createWindow = () => {
 
   // on message
   mainWindow.webContents.on('ipc-message', (event, channel, ...args) => {
-    if(channel === 'config'){
-      fs.writeFileSync(path.join(DIRNAME, '../config.json'), JSON.stringify(args[0]));
-    }
+    if(channel === 'config') fs.writeFileSync(path.join(DIRNAME, '../config.json'), JSON.stringify(args[0]));
+    if(channel === 'nodes') fs.writeFileSync(path.join(DIRNAME, '../nodes.json'), JSON.stringify(args[0]));
   });
 };
 

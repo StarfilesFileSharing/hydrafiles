@@ -17,10 +17,19 @@
     <h2>Files</h2>
     <table id="files"></table>
     <h2>Config</h2>
-    <textarea id="config"></textarea>
+    <textarea id="config" style="width: 100%; height: 50vh"></textarea>
     <button id="saveConfig">Save</button>
+    <h2>Nodes</h2>
+    <textarea id="nodes" style="width: 100%; height: 50vh"></textarea>
+    <button id="saveNodes">Save</button>
     <script>
     window.addEventListener('DOMContentLoaded', () => {
+      window.electronAPI.receive('nodes', (nodes) => {
+        if(JSON.stringify(nodes) === JSON.stringify(window.nodes)) return;
+        window.nodes = nodes;
+        document.getElementById('nodes').value = JSON.stringify(nodes, null, 2);
+      });
+
       window.electronAPI.receive('config', (config) => {
         if(JSON.stringify(config) === JSON.stringify(window.config)) return;
         window.config = config;
@@ -82,6 +91,10 @@
       document.getElementById('saveConfig').addEventListener('click', () => {
         const config = JSON.parse(document.getElementById('config').value);
         window.electronAPI.send('config', config);
+      });
+      document.getElementById('saveNodes').addEventListener('click', () => {
+        const nodes = JSON.parse(document.getElementById('nodes').value);
+        window.electronAPI.send('nodes', nodes);
       });
 
       document.getElementById('file').addEventListener('change', async () => {
