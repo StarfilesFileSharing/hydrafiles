@@ -194,6 +194,9 @@ const server = http.createServer((req, res) => {
     if (req.url === '/' || req.url === null || typeof req.url === 'undefined') {
       res.writeHead(200, { 'Content-Type': 'text/html', 'Cache-Control': 'public, max-age=604800' })
       fs.createReadStream('index.html').pipe(res)
+    } else if (req.url === '/status') {
+      res.writeHead(200, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ status: true }));
     } else if (req.url === '/nodes') {
       res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=3600' })
       fs.createReadStream(NODES_PATH).pipe(res)

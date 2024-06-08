@@ -7,16 +7,33 @@
   </head>
   <body>
     <h1>Hydrafiles</h1>
-    <h2>Files</h2>
+    <h2>Node Status: <span id="status">N/A</span></h2>
     <div>
       <input type="text" id="hash" placeholder="Hash" />
       <button id="download">Download</button>
     </div>
+    <h2>Files</h2>
     <table id="files"></table>
     <script>
     window.addEventListener('DOMContentLoaded', () => {
       window.electronAPI.receive('config', (config) => {
           window.config = config
+
+          const status = document.getElementById('status');
+          fetch(`http://${window.config.public_hostname}/status`)
+            .then(response => response.json())
+            .then(data => {
+              if(data.status) {
+                status.innerHTML = 'Online';
+                status.style.color = 'green';
+              } else {
+                status.innerHTML = 'Offline';
+                status.style.color = 'red';
+              }
+            }).catch(() => {
+              status.innerHTML = 'Offline';
+              status.style.color = 'red';
+            });
       });
       window.electronAPI.receive('files', (files) => {
         if(JSON.stringify(files) === JSON.stringify(window.files)) return;
