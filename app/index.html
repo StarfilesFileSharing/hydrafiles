@@ -59,32 +59,28 @@
           <tr>
             <th>Hash</th>
             <th>Size</th>
+            <th>Download</th>
           </tr>
         `;
         for(const file of files) {
           const row = table.insertRow();
           const hashCell = row.insertCell(0);
           const sizeCell = row.insertCell(1);
+          const downloadCell = row.insertCell(2);
           hashCell.textContent = file.hash;
           sizeCell.textContent = file.size + ' bytes';
+          downloadCell.innerHTML = `<a href="hydra://${file.hash}">Download</a>`;
         };
       });
 
       window.electronAPI.receive('url-scheme', (urlScheme) => {
-        download(urlScheme.split('://')[1]);
+        const split = urlScheme.split('://')[1].split('/');
+
+        download(split[0], split[1]);
       });
 
-      const download = (hash) => {
-        fetch(`http://${window.config.public_hostname}/download/${hash}`)
-          .then(response => response.blob())
-          .then(blob => {
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = hash;
-            a.click();
-            URL.revokeObjectURL(url);
-          });
+      const download = (hash, id) => {
+        window.location.href = `http://${window.config.public_hostname}/download/${hash}` + (id ? `/${id}` : '');
       };
 
       document.getElementById('download').addEventListener('click', () => download(document.getElementById('hash').value));

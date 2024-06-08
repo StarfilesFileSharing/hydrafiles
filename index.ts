@@ -45,6 +45,7 @@ if (config.nodes_path !== undefined) NODES_PATH = config.nodes_path
 // INITIALISATION /////////////////////////////
 if (!fs.existsSync(path.join(DIRNAME, 'files'))) fs.mkdirSync(path.join(DIRNAME, 'files'))
 if (!fs.existsSync(path.join(DIRNAME, 'nodes.json'))) fs.writeFileSync(path.join(DIRNAME, 'nodes.json'), JSON.stringify(BOOTSTRAP_NODES))
+if (!fs.existsSync(path.join(DIRNAME, 'filetable.json'))) fs.writeFileSync(path.join(DIRNAME, 'filetable.json'), JSON.stringify({}))
 if (config.upload_secret === undefined) {
   config.upload_secret = UPLOAD_SECRET;
   fs.writeFileSync(path.join(DIRNAME, 'config.json'), JSON.stringify(config, null, 2));
@@ -52,12 +53,12 @@ if (config.upload_secret === undefined) {
 // INITIALISATION /////////////////////////////
 
 const isIp = (host: string): boolean => /(?:\d+\.){3}\d+(?::\d+)?/.test(host)
-
 const isPrivateIP = (ip: string): boolean => /^(?:10\.|(?:172\.(?:1[6-9]|2\d|3[0-1]))\.|192\.168\.|169\.254\.|127\.|224\.0\.0\.|255\.255\.255\.255)/.test(ip)
 
 let usedStorage = 0
 const downloadCount: { [key: string]: number } = {}
 const preferNode = PreferNode[PREFER_NODE as keyof typeof PreferNode] || PreferNode.FASTEST
+const fileTable = JSON.parse(fs.readFileSync(path.join(DIRNAME, 'filetable.json')).toString())
 
 const s3 = new S3({
   region: 'us-east-1',
@@ -245,9 +246,16 @@ const server = http.createServer((req, res) => {
         if (response.status === 200) name = (await response.json() as Metadata).name
       }
 
-      name = typeof name !== 'undefined' ? name : (file.name ?? 'File')
+      name = typeof name !== 'undefined' ? name : (file.name ?? fileTable[hash]?.name)
       headers['Content-Length'] = file.file.length.toString()
-      headers['Content-Disposition'] = `attachment; filename="${encodeURIComponent(name).replace(/%20/g, ' ')}"`
+      headers['Content-Disposition'] = `attachment; filename="${encodeURIComponent(name ?? 'File').replace(/%20/g, ' ')}"`
+
+      if(name || fileId) {
+        if(!fileTable[hash]) fileTable[hash] = {}
+        if(fileId && !fileTable[hash].id) fileTable[hash].id = fileId
+        if(name && !fileTable[hash].name) fileTable[hash].name = name
+        fs.writeFileSync(path.join(DIRNAME, 'filetable.json'), JSON.stringify(fileTable, null, 2))
+      }
 
       res.writeHead(200, headers)
       res.end(file.file)
@@ -270,6 +278,11 @@ const server = http.createServer((req, res) => {
 
         const hash = fields.hash[0]
         const file = files.file[0] as formidable.File
+
+        if(!fileTable[hash]) fileTable[hash] = {}
+        if(file.originalFilename && !fileTable[hash].name) fileTable[hash].name = file.originalFilename
+        fs.writeFileSync(path.join(DIRNAME, 'filetable.json'), JSON.stringify(fileTable, null, 2))
+    
         console.log('Uploading', hash)
 
         const filePath = path.join(DIRNAME, 'files', hash)

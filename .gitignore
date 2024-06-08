@@ -1,5 +1,6 @@
 files/*
 nodes.json
+filetable.json
 /index.js
 
 # Logs
