@@ -49,8 +49,8 @@ if (!fs.existsSync(path.join(DIRNAME, 'files'))) fs.mkdirSync(path.join(DIRNAME,
 if (!fs.existsSync(path.join(DIRNAME, 'nodes.json'))) fs.writeFileSync(path.join(DIRNAME, 'nodes.json'), JSON.stringify(BOOTSTRAP_NODES))
 if (!fs.existsSync(path.join(DIRNAME, 'filetable.json'))) fs.writeFileSync(path.join(DIRNAME, 'filetable.json'), JSON.stringify({}))
 if (config.upload_secret === undefined) {
-  config.upload_secret = UPLOAD_SECRET;
-  fs.writeFileSync(path.join(DIRNAME, 'config.json'), JSON.stringify(config, null, 2));
+  config.upload_secret = UPLOAD_SECRET
+  fs.writeFileSync(path.join(DIRNAME, 'config.json'), JSON.stringify(config, null, 2))
 }
 // INITIALISATION /////////////////////////////
 
@@ -101,14 +101,22 @@ const cacheFile = (filePath: string, file: Buffer): void => {
   usedStorage += size
 }
 
-const getNodes = (includeSelf = true): Node[] => {
+const getNodes = (opts = { includeSelf: true }): Node[] => {
+  if (opts.includeSelf === undefined) opts.includeSelf = true
+
   const nodes = JSON.parse(fs.readFileSync(NODES_PATH).toString())
-    .filter((node: { host: string }) => includeSelf || node.host !== PUBLIC_HOSTNAME)
-    .sort(() => Math.random() - 0.5);
+    .filter((node: { host: string }) => opts.includeSelf || node.host !== PUBLIC_HOSTNAME)
+    .sort(() => Math.random() - 0.5)
+
   if (preferNode === PreferNode.FASTEST) return nodes.sort((a: { bytes: number, duration: number }, b: { bytes: number, duration: number }) => a.bytes / a.duration - b.bytes / b.duration)
   else if (preferNode === PreferNode.LEAST_USED) return nodes.sort((a: { hits: number, rejects: number }, b: { hits: number, rejects: number }) => a.hits - a.rejects - (b.hits - b.rejects))
   else if (preferNode === PreferNode.HIGHEST_HITRATE) return nodes.sort((a: { hits: number, rejects: number }, b: { hits: number, rejects: number }) => (a.hits - a.rejects) - (b.hits - b.rejects))
   else return nodes
+}
+
+const getValidNodes = async (opts = { includeSelf: true }): Promise<Node[]> => {
+  const nodes = getNodes(opts)
+  return nodes.filter(async node => await downloadFromNode(node.host, '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f') !== false)
 }
 
 const downloadFromNode = async (host: string, hash: string): Promise<File> => {
@@ -174,7 +182,7 @@ const getFile = async (hash: string): Promise<File> => {
     return s3File
   }
 
-  for (const node of getNodes(false)) {
+  for (const node of getNodes({ includeSelf: false })) {
     if (node.http) {
       const startTime = Date.now()
       const file = await downloadFromNode(node.host, hash)
@@ -206,10 +214,12 @@ const server = http.createServer((req, res) => {
       fs.createReadStream('index.html').pipe(res)
     } else if (req.url === '/status') {
       res.writeHead(200, { 'Content-Type': 'application/json' })
-      res.end(JSON.stringify({ status: true }));
+      res.end(JSON.stringify({ status: true }))
     } else if (req.url === '/nodes') {
       res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=3600' })
-      fs.createReadStream(NODES_PATH).pipe(res)
+
+      const nodes = await getValidNodes()
+      res.end(JSON.stringify(nodes))
     } else if (req.url.startsWith('/announce')) {
       const params = Object.fromEntries(new URLSearchParams(req.url.split('?')[1]))
       const host = params.host
@@ -243,7 +253,7 @@ const server = http.createServer((req, res) => {
       }
 
       let name: string | undefined
-      if (fileId) {
+      if (typeof fileId !== 'undefined') {
         const response = await fetch(`${METADATA_ENDPOINT}${fileId}`)
         if (response.status === 200) name = (await response.json() as Metadata).name
       }
@@ -252,25 +262,25 @@ const server = http.createServer((req, res) => {
       headers['Content-Length'] = file.file.length.toString()
       headers['Content-Disposition'] = `attachment; filename="${encodeURIComponent(name ?? 'File').replace(/%20/g, ' ')}"`
 
-      if(name || fileId) {
-        if(!fileTable[hash]) fileTable[hash] = {}
-        if(fileId && !fileTable[hash].id) fileTable[hash].id = fileId
-        if(name && !fileTable[hash].name) fileTable[hash].name = name
+      if (typeof name !== 'undefined' || typeof fileId !== 'undefined') {
+        if (!fileTable[hash]) fileTable[hash] = {}
+        if (fileId && !fileTable[hash].id) fileTable[hash].id = fileId
+        if (name && !fileTable[hash].name) fileTable[hash].name = name
         fs.writeFileSync(path.join(DIRNAME, 'filetable.json'), JSON.stringify(fileTable, null, 2))
       }
 
       res.writeHead(200, headers)
       res.end(file.file)
       downloadCount[hash] = typeof downloadCount[hash] === 'undefined' ? downloadCount[hash] + 1 : 1
-    } else if(req.url === '/upload') {
+    } else if (req.url === '/upload') {
       const uploadSecret = req.headers['x-hydra-upload-secret']
       if (uploadSecret !== UPLOAD_SECRET) {
         res.writeHead(401, { 'Content-Type': 'text/plain' })
         res.end('401 Unauthorized\n')
         return
       }
-      
-      const form = formidable({});
+
+      const form = formidable({})
       form.parse(req, async (err: unknown, fields: formidable.Fields, files: formidable.Files) => {
         if (err) {
           res.writeHead(500, { 'Content-Type': 'text/plain' })
@@ -329,7 +339,7 @@ server.listen(PORT, HOSTNAME, (): void => {
     console.log(`Files dir size: ${usedStorage} bytes`)
 
     // Call all nodes and pull their /nodes
-    const nodes = getNodes(false)
+    const nodes = getNodes({ includeSelf: false })
     for (const node of nodes) {
       try {
         if (node.http) {
