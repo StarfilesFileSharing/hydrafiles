@@ -28,8 +28,10 @@ enum PreferNode { FASTEST, LEAST_USED, RANDOM, HIGHEST_HITRATE }
 // TYPES //////////////////////////////////////
 
 // CONFIG /////////////////////////////////////
+if (!fs.existsSync(path.join(DIRNAME, 'config.json'))) fs.copyFileSync(path.join(DIRNAME, 'config.default.json'), path.join(DIRNAME, 'config.json'))
+
 const config = JSON.parse(fs.readFileSync(path.join(DIRNAME, 'config.json')).toString())
-const PORT = config.port;
+const PORT = config.port
 const HOSTNAME = config.hostname
 const MAX_STORAGE = config.max_storage
 const PERMA_FILES = config.perma_files
