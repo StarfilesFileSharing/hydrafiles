@@ -216,7 +216,7 @@ const server = http.createServer((req, res) => {
     } else if (req.url === '/status') {
       res.writeHead(200, { 'Content-Type': 'application/json' })
       res.end(JSON.stringify({ status: true }))
-    } else if (req.url === '/nodes') {
+    } else if (req.url === '/nodes' || req.url.startsWith('/nodes?')) {
       res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=3600' })
 
       const nodes = await getValidNodes()
