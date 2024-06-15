@@ -1,4 +1,5 @@
 files/*
+config.json
 nodes.json
 filetable.json
 /index.js
