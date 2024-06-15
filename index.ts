@@ -35,7 +35,7 @@ const config = JSON.parse(fs.readFileSync(path.join(DIRNAME, 'config.json')).toS
 const PORT: number = config.port
 const HOSTNAME: string = config.hostname
 const MAX_STORAGE = config.max_storage
-const PERMA_FILES = config.perma_files
+const PERMA_FILES: string[] = config.perma_files
 const BURN_RATE = config.burn_rate
 const METADATA_ENDPOINT: string = config.metadata_endpoint
 const BOOTSTRAP_NODES = config.bootstrap_nodes
@@ -206,6 +206,13 @@ const getFile = async (hash: string): Promise<File> => {
   return false
 }
 
+const setFiletable = (hash: string, id: string | undefined, name: string | undefined): void => {
+  if (typeof fileTable[hash] === 'undefined') fileTable[hash] = {}
+  if (typeof id !== 'undefined') fileTable[hash].id = id
+  if (typeof name !== 'undefined') fileTable[hash].name = name
+  fs.writeFileSync(path.join(DIRNAME, 'filetable.json'), JSON.stringify(fileTable, null, 2))
+}
+
 const server = http.createServer((req, res) => {
   console.log('  ', req.url)
 
@@ -263,12 +270,7 @@ const server = http.createServer((req, res) => {
       headers['Content-Length'] = file.file.length.toString()
       headers['Content-Disposition'] = `attachment; filename="${encodeURIComponent(name ?? 'File').replace(/%20/g, ' ')}"`
 
-      if (typeof name !== 'undefined' || typeof fileId !== 'undefined') {
-        if (typeof fileTable[hash] === 'undefined') fileTable[hash] = {}
-        if (typeof fileId !== 'undefined' && typeof fileTable[hash].id === 'undefined') fileTable[hash].id = fileId
-        if (typeof name !== 'undefined' && typeof fileTable[hash].name === 'undefined') fileTable[hash].name = name
-        fs.writeFileSync(path.join(DIRNAME, 'filetable.json'), JSON.stringify(fileTable, null, 2))
-      }
+      setFiletable(hash, fileId, name)
 
       res.writeHead(200, headers)
       res.end(file.file)
@@ -282,20 +284,24 @@ const server = http.createServer((req, res) => {
       }
 
       const form = formidable({})
-      form.parse(req, async (err: unknown, fields: formidable.Fields, files: formidable.Files) => {
+      form.parse(req, (err: unknown, fields: formidable.Fields, files: formidable.Files) => {
         if (err) {
           res.writeHead(500, { 'Content-Type': 'text/plain' })
           res.end('500 Internal Server Error\n')
           return
         }
 
-        const hash = fields.hash[0]
-        const file = files.file[0] as formidable.File
+        if (typeof fields.hash === 'undefined' || typeof files.file === 'undefined') {
+          res.writeHead(400, { 'Content-Type': 'text/plain' })
+          res.end('400 Bad Request\n')
+          return
+        }
 
-        if(!fileTable[hash]) fileTable[hash] = {}
-        if(file.originalFilename && !fileTable[hash].name) fileTable[hash].name = file.originalFilename
-        fs.writeFileSync(path.join(DIRNAME, 'filetable.json'), JSON.stringify(fileTable, null, 2))
-    
+        const hash = fields.hash[0]
+        const file = files.file[0]
+
+        setFiletable(hash, undefined, file.originalFilename as string)
+
         console.log('Uploading', hash)
 
         const filePath = path.join(DIRNAME, 'files', hash)
@@ -305,7 +311,7 @@ const server = http.createServer((req, res) => {
           return
         }
 
-        if(!PERMA_FILES.includes(hash)) {
+        if (!PERMA_FILES.includes(hash)) {
           PERMA_FILES.push(hash)
           config.perma_files = PERMA_FILES
         }
