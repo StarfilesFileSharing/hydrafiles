@@ -25,22 +25,23 @@ interface ResponseHeaders { [key: string]: string }
 type File = { file: Buffer, name?: string } | false
 interface Node { host: string, http: boolean, dns: boolean, cf: boolean, hits: number, rejects: number, bytes: number, duration: number }
 enum PreferNode { FASTEST, LEAST_USED, RANDOM, HIGHEST_HITRATE }
+interface FileTable { [key: string]: { id?: string, name?: string } }
 // TYPES //////////////////////////////////////
 
 // CONFIG /////////////////////////////////////
 if (!fs.existsSync(path.join(DIRNAME, 'config.json'))) fs.copyFileSync(path.join(DIRNAME, 'config.default.json'), path.join(DIRNAME, 'config.json'))
 
 const config = JSON.parse(fs.readFileSync(path.join(DIRNAME, 'config.json')).toString())
-const PORT = config.port
-const HOSTNAME = config.hostname
+const PORT: number = config.port
+const HOSTNAME: string = config.hostname
 const MAX_STORAGE = config.max_storage
 const PERMA_FILES = config.perma_files
 const BURN_RATE = config.burn_rate
-const METADATA_ENDPOINT = config.metadata_endpoint
+const METADATA_ENDPOINT: string = config.metadata_endpoint
 const BOOTSTRAP_NODES = config.bootstrap_nodes
-const PUBLIC_HOSTNAME = config.public_hostname
+const PUBLIC_HOSTNAME: string = config.public_hostname
 const PREFER_NODE = config.prefer_node
-let UPLOAD_SECRET = config.upload_secret || Math.random().toString(36).substring(2, 15)
+const UPLOAD_SECRET = config.upload_secret || Math.random().toString(36).substring(2, 15)
 if (config.nodes_path !== undefined) NODES_PATH = config.nodes_path
 // CONFIG /////////////////////////////////////
 
@@ -60,7 +61,7 @@ const isPrivateIP = (ip: string): boolean => /^(?:10\.|(?:172\.(?:1[6-9]|2\d|3[0
 let usedStorage = 0
 const downloadCount: { [key: string]: number } = {}
 const preferNode = PreferNode[PREFER_NODE as keyof typeof PreferNode] || PreferNode.FASTEST
-const fileTable = JSON.parse(fs.readFileSync(path.join(DIRNAME, 'filetable.json')).toString())
+const fileTable: FileTable = JSON.parse(fs.readFileSync(path.join(DIRNAME, 'filetable.json')).toString())
 
 const s3 = new S3({
   region: 'us-east-1',
@@ -263,9 +264,9 @@ const server = http.createServer((req, res) => {
       headers['Content-Disposition'] = `attachment; filename="${encodeURIComponent(name ?? 'File').replace(/%20/g, ' ')}"`
 
       if (typeof name !== 'undefined' || typeof fileId !== 'undefined') {
-        if (!fileTable[hash]) fileTable[hash] = {}
-        if (fileId && !fileTable[hash].id) fileTable[hash].id = fileId
-        if (name && !fileTable[hash].name) fileTable[hash].name = name
+        if (typeof fileTable[hash] === 'undefined') fileTable[hash] = {}
+        if (typeof fileId !== 'undefined' && typeof fileTable[hash].id === 'undefined') fileTable[hash].id = fileId
+        if (typeof name !== 'undefined' && typeof fileTable[hash].name === 'undefined') fileTable[hash].name = name
         fs.writeFileSync(path.join(DIRNAME, 'filetable.json'), JSON.stringify(fileTable, null, 2))
       }
 
