@@ -1,6 +1,6 @@
 {
-	"hostname": "127.0.0.1",
-	"port": 3000,
+	"hostname": "0.0.0.0",
+	"port": 80,
 	"public_hostname": "127.0.0.1:3000",
 	"max_storage": 107374182400,
 	"perma_files": [],
