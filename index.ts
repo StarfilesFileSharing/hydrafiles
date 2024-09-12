@@ -184,7 +184,7 @@ const getFile = async (hash: string): Promise<File> => {
   }
 
   for (const node of getNodes({ includeSelf: false })) {
-    if (node.http) {
+    if (node.http && node.host.length > 0) {
       const startTime = Date.now()
       const file = await downloadFromNode(node.host, hash)
       if (file !== false) {
