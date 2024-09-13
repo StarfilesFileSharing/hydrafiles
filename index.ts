@@ -177,10 +177,12 @@ const getFile = async (hash: string): Promise<File> => {
   const localFile = await fetchFile(hash)
   if (localFile !== false) return localFile
 
-  const s3File = await fetchFromS3('uploads', `${hash}.stuf`)
-  if (s3File !== false) {
-    if (CACHE_S3) cacheFile(filePath, s3File.file)
-    return s3File
+  if (S3ENDPOINT.length > 0) {
+    const s3File = await fetchFromS3('uploads', `${hash}.stuf`)
+    if (s3File !== false) {
+      if (CACHE_S3) cacheFile(filePath, s3File.file)
+      return s3File
+    }
   }
 
   for (const node of getNodes({ includeSelf: false })) {
