@@ -216,7 +216,7 @@ const setFiletable = (hash: string, id: string | undefined, name: string | undef
 }
 
 const server = http.createServer((req, res) => {
-  console.log('  ', req.url)
+  console.log('  Request Received:', req.url)
 
   const handleRequest = async (): Promise<void> => {
     if (req.url === '/' || req.url === null || typeof req.url === 'undefined') {
