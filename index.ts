@@ -97,7 +97,11 @@ const cacheFile = (filePath: string, file: Buffer): void => {
   const size = file.length
   const remainingSpace = MAX_STORAGE - usedStorage
   if (size > remainingSpace) purgeCache(size, remainingSpace)
-  fs.writeFileSync(filePath, file)
+
+  const writeStream = fs.createWriteStream(filePath)
+  const readStream = Readable.from(file)
+
+  readStream.pipe(writeStream)
   usedStorage += size
 }
 
