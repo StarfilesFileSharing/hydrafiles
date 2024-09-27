@@ -1,7 +1,7 @@
 import http from 'http'
 import fs from 'fs'
 import path from 'path'
-import fetch from 'node-fetch'
+// import fetch from 'node-fetch'
 import crypto from 'crypto'
 import { S3 } from '@aws-sdk/client-s3'
 import { Readable } from 'stream'
@@ -11,12 +11,6 @@ const DIRNAME = path.resolve()
 
 // ADVANCED CONFIG ////////////////////////////
 let NODES_PATH = path.join(DIRNAME, 'nodes.json')
-
-// Define S3 credentials if you want to pull files from S3
-const S3ACCESSKEYID = ''
-const S3SECRETACCESSKEY = ''
-const S3ENDPOINT = ''
-const CACHE_S3 = true // Cache files fetched from S3
 // ADVANCED CONFIG ////////////////////////////
 
 // TYPES //////////////////////////////////////
@@ -43,6 +37,11 @@ const PUBLIC_HOSTNAME: string = config.public_hostname
 const PREFER_NODE = config.prefer_node
 const UPLOAD_SECRET = config.upload_secret || Math.random().toString(36).substring(2, 15)
 if (config.nodes_path !== undefined) NODES_PATH = config.nodes_path
+
+const S3ACCESSKEYID = config.s3_access_key_id
+const S3SECRETACCESSKEY = config.s3_secret_access_key
+const S3ENDPOINT = config.s3_endpoint
+const CACHE_S3 = config.cache_s3
 // CONFIG /////////////////////////////////////
 
 // INITIALISATION /////////////////////////////

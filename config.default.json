@@ -11,5 +11,9 @@
 		{"host": "starfilesdl.com", "http": true, "dns": false, "cf": false, "hits": 0, "rejects": 0, "bytes": 0, "duration": 0},
 		{"host": "hydra.starfiles.co", "http": true, "dns": false, "cf": false, "hits": 0, "rejects": 0, "bytes": 0, "duration": 0}
 	],
-	"burn_rate": 0.1
+	"burn_rate": 0.1,
+	"s3_access_key_id": "",
+	"s3_secret_access_key": "",
+	"s3_endpoint": "",
+	"cache_s3": true
 }
