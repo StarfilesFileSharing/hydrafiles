@@ -157,7 +157,8 @@ const fetchFromS3 = async (bucket: string, key: string): Promise<File> => {
 
     return { file: buffer }
   } catch (error) {
-    console.error(error)
+    if (error.name !== 'NoSuchKey')
+      console.error(error)
     return false
   }
 }
