@@ -1,7 +1,7 @@
 {
 	"hostname": "0.0.0.0",
 	"port": 80,
-	"public_hostname": "127.0.0.1:3000",
+	"public_hostname": "127.0.0.1:80",
 	"max_storage": 107374182400,
 	"perma_files": [],
 	"prefer_node": "FASTEST",
