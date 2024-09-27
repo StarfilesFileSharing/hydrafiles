@@ -142,7 +142,7 @@ const downloadFromNode = async (host: string, hash: string): Promise<File> => {
 }
 
 const fetchFromS3 = async (bucket: string, key: string): Promise<File> => {
-  if (S3ENDPOINT.length > 0) return false
+  if (S3ENDPOINT.length === 0) return false
   try {
     let buffer: Buffer
     const data = await s3.getObject({ Bucket: bucket, Key: key })
