@@ -183,7 +183,7 @@ const getFile = async (hash: string): Promise<File> => {
   if (S3ENDPOINT.length > 0) {
     const s3File = await fetchFromS3('uploads', `${hash}.stuf`)
     if (s3File !== false) {
-      if (CACHE_S3) cacheFile(filePath, s3File.file)
+      if (CACHE_S3 !== false) cacheFile(filePath, s3File.file)
       return s3File
     }
   }
