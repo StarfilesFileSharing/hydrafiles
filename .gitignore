@@ -96,3 +96,7 @@ typings/
 
 # Electron-Forge
 out/
+
+pnpm-lock.yaml
+
+yarn.lock
