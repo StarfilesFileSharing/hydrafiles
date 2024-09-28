@@ -176,15 +176,34 @@ const updateNode = (node: Node): void => {
 }
 
 const getFile = async (hash: string): Promise<File> => {
+  if (pendingFiles.includes(hash)) {
+    // Hash is already pending, wait for it to be processed
+    return await new Promise((resolve) => {
+      const intervalId = setInterval(() => {
+        if (!pendingFiles.includes(hash)) {
+          clearInterval(intervalId)
+          resolve({ file: Buffer.from([]), name: '' })
+        }
+      }, 100)
+    })
+  }
+  pendingFiles.push(hash)
+
   const filePath = path.join(DIRNAME, 'files', hash)
 
   const localFile = await fetchFile(hash)
-  if (localFile !== false) return localFile
+  if (localFile !== false) {
+    const index = pendingFiles.indexOf(hash)
+    if (index > -1) pendingFiles.splice(index, 1)
+    return localFile
+  }
 
   if (S3ENDPOINT.length > 0) {
     const s3File = await fetchFromS3('uploads', `${hash}.stuf`)
     if (s3File !== false) {
       if (CACHE_S3 !== false) cacheFile(filePath, s3File.file)
+      const index = pendingFiles.indexOf(hash)
+      if (index > -1) pendingFiles.splice(index, 1)
       return s3File
     }
   }
@@ -201,6 +220,8 @@ const getFile = async (hash: string): Promise<File> => {
 
         updateNode(node)
         cacheFile(filePath, file.file)
+        const index = pendingFiles.indexOf(hash)
+        if (index > -1) pendingFiles.splice(index, 1)
         return file
       } else {
         node.rejects++
@@ -219,6 +240,7 @@ const setFiletable = (hash: string, id: string | undefined, name: string | undef
   fs.writeFileSync(path.join(DIRNAME, 'filetable.json'), JSON.stringify(fileTable, null, 2))
 }
 
+const pendingFiles: string[] = []
 const server = http.createServer((req, res) => {
   console.log('  Request Received:', req.url)
 
