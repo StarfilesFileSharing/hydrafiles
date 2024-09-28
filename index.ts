@@ -193,6 +193,7 @@ const getFile = async (hash: string): Promise<File> => {
 
   const localFile = await fetchFile(hash)
   if (localFile !== false) {
+    console.log('    Serving from cache')
     const index = pendingFiles.indexOf(hash)
     if (index > -1) pendingFiles.splice(index, 1)
     return localFile
@@ -202,6 +203,7 @@ const getFile = async (hash: string): Promise<File> => {
     const s3File = await fetchFromS3('uploads', `${hash}.stuf`)
     if (s3File !== false) {
       if (CACHE_S3 !== false) cacheFile(filePath, s3File.file)
+      console.log('    Serving from S3')
       const index = pendingFiles.indexOf(hash)
       if (index > -1) pendingFiles.splice(index, 1)
       return s3File
