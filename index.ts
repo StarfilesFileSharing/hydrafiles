@@ -125,7 +125,7 @@ const getValidNodes = async (opts = { includeSelf: true }): Promise<Node[]> => {
 
 const downloadFromNode = async (host: string, hash: string): Promise<File> => {
   try {
-    console.log(`${isIp(host) ? 'http' : 'https'}://${host}/download/${hash}`)
+    console.log(`    Downloading from ${isIp(host) ? 'http' : 'https'}://${host}/download/${hash}`)
     const response = await fetch(`${isIp(host) ? 'http' : 'https'}://${host}/download/${hash}`)
     const arrayBuffer = await response.arrayBuffer()
     const hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer)
@@ -244,7 +244,7 @@ const setFiletable = (hash: string, id: string | undefined, name: string | undef
 
 const pendingFiles: string[] = []
 const server = http.createServer((req, res) => {
-  console.log('  Request Received:', req.url)
+  console.log('Request Received:', req.url)
 
   const handleRequest = async (): Promise<void> => {
     if (req.url === '/' || req.url === null || typeof req.url === 'undefined') {
