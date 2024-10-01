@@ -50,7 +50,7 @@ const ASSUMED_SIZE = 1024 * 1024 * 1024 // 1GB
 
 // INITIALISATION /////////////////////////////
 if (!fs.existsSync(path.join(DIRNAME, 'files'))) fs.mkdirSync(path.join(DIRNAME, 'files'))
-if (!fs.existsSync(path.join(DIRNAME, 'nodes.json'))) fs.writeFileSync(path.join(DIRNAME, 'nodes.json'), JSON.stringify(BOOTSTRAP_NODES))
+if (!fs.existsSync(NODES_PATH)) fs.writeFileSync(NODES_PATH, JSON.stringify(BOOTSTRAP_NODES))
 if (!fs.existsSync(path.join(DIRNAME, 'filetable.json'))) fs.writeFileSync(path.join(DIRNAME, 'filetable.json'), JSON.stringify({}))
 if (config.upload_secret === undefined) {
   config.upload_secret = UPLOAD_SECRET
