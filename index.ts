@@ -44,8 +44,8 @@ const S3SECRETACCESSKEY = config.s3_secret_access_key
 const S3ENDPOINT = config.s3_endpoint
 const CACHE_S3 = config.cache_s3
 
-const MEMORY_THRESHOLD = 100 * 1024 * 1024 // 100MB
-const ASSUMED_SIZE = 1024 * 1024 * 1024 // 1GB
+const MEMORY_THRESHOLD = config.memory_threshold
+const ASSUMED_SIZE = config.assumed_size
 // CONFIG /////////////////////////////////////
 
 // INITIALISATION /////////////////////////////

@@ -15,5 +15,7 @@
 	"s3_access_key_id": "",
 	"s3_secret_access_key": "",
 	"s3_endpoint": "",
-	"cache_s3": true
+	"cache_s3": true,
+	"memory_threshold": 104857600,
+	"assumed_size": 1073741824
 }
