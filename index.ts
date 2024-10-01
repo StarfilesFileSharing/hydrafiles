@@ -111,8 +111,13 @@ const cacheFile = (filePath: string, file: Buffer): void => {
   const writeStream = fs.createWriteStream(filePath)
   const readStream = Readable.from(file)
 
+  readStream.on('error', (err) => console.error('Error reading from the buffer:', err))
+  writeStream.on('error', (err) => console.error('Error writing to the file:', err))
+  writeStream.on('finish', () => {
+    usedStorage += size
+    console.log(`Successfully cached file. Used storage: ${usedStorage}`)
+  })
   readStream.pipe(writeStream)
-  usedStorage += size
 }
 
 const getNodes = (opts = { includeSelf: true }): Node[] => {
