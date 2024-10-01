@@ -140,8 +140,8 @@ const getValidNodes = async (opts = { includeSelf: true }): Promise<Node[]> => {
 
 const downloadFromNode = async (host: string, hash: string): Promise<File> => {
   try {
-    console.log(`    Downloading from ${isIp(host) ? 'http' : 'https'}://${host}/download/${hash}`)
-    const response = await fetch(`${isIp(host) ? 'http' : 'https'}://${host}/download/${hash}`)
+    console.log(`    Downloading from ${host}/download/${hash}`)
+    const response = await fetch(`${host}/download/${hash}`)
     const arrayBuffer = await response.arrayBuffer()
     const hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer)
     const hashArray = Array.from(new Uint8Array(hashBuffer))
@@ -412,7 +412,7 @@ const server = http.createServer((req, res) => {
 })
 
 server.listen(PORT, HOSTNAME, (): void => {
-  console.log(`Server running at http://${PUBLIC_HOSTNAME}/`)
+  console.log(`Server running at ${PUBLIC_HOSTNAME}/`)
 
   const handleListen = async (): Promise<void> => {
     const filesPath = path.join(DIRNAME, 'files')
@@ -430,7 +430,7 @@ server.listen(PORT, HOSTNAME, (): void => {
     for (const node of nodes) {
       try {
         if (node.http) {
-          const response = await fetch(`${isIp(node.host) ? 'http' : 'https'}://${node.host}/nodes`)
+          const response = await fetch(`${node.host}/nodes`)
           if (response.status === 200) {
             const remoteNodes = await response.json() as Node[]
             for (const remoteNode of remoteNodes) {
@@ -462,7 +462,7 @@ server.listen(PORT, HOSTNAME, (): void => {
         if (node.http) {
           if (node.host === PUBLIC_HOSTNAME) continue
           console.log('Announcing to', node.host)
-          await fetch(`${isIp(node.host) ? 'http' : 'https'}://${node.host}/announce?host=${PUBLIC_HOSTNAME}`)
+          await fetch(`${node.host}/announce?host=${PUBLIC_HOSTNAME}`)
         }
       }
     }

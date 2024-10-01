@@ -54,7 +54,7 @@
         <p>Donate Monero:<br>83BGShZv9hU9P9SRLjhRGJYQ4WatMNazKVFG6eKyHc6HguBzu1vH54R7mQJaZzeXhx4jDxnkNJMizLXrFFN4ARffEwFj82y</p>
     </header>
     
-    <div style="border: 1px solid rgb(33, 150, 243); border-radius: 0.5rem; padding: 1.25rem; max-width: 37.5rem; margin: 1.25rem auto 0; text-align: center; font-family: Arial, sans-serif;"></div>
+    <div style="border: 1px solid rgb(33, 150, 243); border-radius: 0.5rem; padding: 1.25rem; max-width: 37.5rem; margin: 1.25rem auto 0; text-align: center; font-family: Arial, sans-serif;">
         <h2 style="color: rgb(33, 150, 243);margin-top:0">🚀 Join the Hydrafiles Movement!</h2>
         <p style="font-size: 1.125rem; color: rgb(51, 51, 51);">
             🌐 Open Source!<br>
@@ -122,20 +122,20 @@
             <li>Forward the takedown notice to the Hydrafiles operator you received the file from.</li>
             <li>Respond to the requesting party with the following template:</li>
         </ol>
-        <code>Dear Sir/Madam, I hope this message finds you well. We are not hosting any files. We are also unsure who is hosting your file(s). We have forwarded your message to related parties, but are unable to investigate any further. For more information, check http://<span class="hydra-host">example.com</span>. Thanks, your fellow Hydra operator.</code>
+        <code>Dear Sir/Madam, I hope this message finds you well. We are not hosting any files. We are also unsure who is hosting your file(s). We have forwarded your message to related parties, but are unable to investigate any further. For more information, check <span class="hydra-host">example.com</span>. Thanks, your fellow Hydra operator.</code>
     </section>
     
     <section>
         <h2>Documentation</h2>
         <p>This API is cross-compatible with all hostnames listed <a href="#directory">here</a> with HTTP enabled.</p>
-        <p>For this example, we will be using a random hostname (<span class="hydra-host">example.com</span>).</p>
+        <p>For this example, we will be using a random hostname (<span class="hydra-host">https://hydrafiles.com</span>).</p>
         <h3>Download</h3>
         <p>Because of the distributed nature of Hydrafiles, it is crucial that you validate the sha256 checksum of the file you download.</p>
         <h3>Upload</h3>
         <p>Only storage donators can upload files to the network. To do so, run <a href="https://github.com/StarfilesFileSharing/Hydrafiles">this source code</a>, and add your file to the "files" directory with the filename being the sha256 checksum of the file.</p>
         <p>
         Method: <code>GET</code><br>
-        Endpoint: <code>http(s)://<span class="hydra-host">example.com</span>/download/<span style="background:#ccc;padding:2px 4px;border-radius:8px">sha256_checksum</span></code>
+        Endpoint: <code><span class="hydra-host">https://hydrafiles.com</span>/download/<span style="background:#ccc;padding:2px 4px;border-radius:8px">sha256_checksum</span></code>
         </p>
     </section>
     
@@ -161,7 +161,7 @@
     <h2 id="announce">Announce Domain or IP</h2>
     <p>Donating a domain/subdomain? Donating bandwidth? Donating storage? Enter your domain/ip here, to be added to the network.</p>
     <form action="/announce">
-        <input name="host" placeholder="Domain/IP">
+        <input name="host" placeholder="http://localhost">
         <input type="submit">
     </form>
     <p>Check the directory an hour after announcing to ensure other nodes have accepted your hostname.</p>
@@ -177,7 +177,7 @@
         for(const hostEl of hostEls){
             hostEl.innerHTML = randomHttpNode.host;
         }
-        document.getElementById('hydra-img1').src = `//${randomHttpNode.host}/download/04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f/c8fcb43d6e46`;
+        document.getElementById('hydra-img1').src = `${randomHttpNode.host}/download/04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f/c8fcb43d6e46`;
         for(const node of nodes){
             console.log(node)
             document.getElementById('nodes').innerHTML += `<tr><td>${node.host}</td><td>${node.http?'Yes':'No'}</td><td>${node.dns?'Yes':'No'}</td><td>${node.cf?'Yes':'No'}</td></tr>`;
