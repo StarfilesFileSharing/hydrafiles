@@ -171,27 +171,26 @@
 
     <script>
     function getBestNode(nodes) {
-        const validNodes = nodes.filter(node => node.hits > 0);
+        const validNodes = nodes
 
         return validNodes.reduce((bestNode, currentNode) => {
-            const currentRatio = currentNode.rejects === 0 ? Infinity : currentNode.hits / currentNode.rejects;
-            const bestRatio = bestNode.rejects === 0 ? Infinity : bestNode.hits / bestNode.rejects;
-            return currentRatio > bestRatio ? currentNode : bestNode;
-        });
+            const currentRatio = currentNode.rejects === 0 ? Infinity : currentNode.hits / currentNode.rejects
+            const bestRatio = bestNode.rejects === 0 ? Infinity : bestNode.hits / bestNode.rejects
+            return currentRatio > bestRatio ? currentNode : bestNode
+        })
     }
 
     fetch('/nodes').then(res => res.json()).then(nodes => {
-        const httpNodes = nodes.filter(e => e.http)
-        const bestHttpNode = getBestNode(httpNodes);
-        const randomHttpNode = httpNodes[Math.floor(Math.random()*httpNodes.length)]
+        const goodHttpNodes = nodes.filter(e => e.http).filter(node => node.hits > 0).filter(node => node.host.startsWith('https://'))
+        const bestHttpNode = getBestNode(goodHttpNodes)
+        const randomHttpNode = goodHttpNodes[Math.floor(Math.random()*goodHttpNodes.length)]
         const hostEls = document.getElementsByClassName('hydra-host')
         for(const hostEl of hostEls){
-            console.log('a', bestHttpNode);
-            hostEl.innerHTML = bestHttpNode.host;
+            hostEl.innerHTML = bestHttpNode.host
         }
-        document.getElementById('hydra-img1').src = `${randomHttpNode.host}/download/04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f/c8fcb43d6e46`;
+        document.getElementById('hydra-img1').src = `${randomHttpNode.host}/download/04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f/c8fcb43d6e46`
         for(const node of nodes){
-            document.getElementById('nodes').innerHTML += `<tr><td>${node.host}</td><td>${node.http?'Yes':'No'}</td><td>${node.dns?'Yes':'No'}</td><td>${node.cf?'Yes':'No'}</td></tr>`;
+            document.getElementById('nodes').innerHTML += `<tr><td>${node.host}</td><td>${node.http?'Yes':'No'}</td><td>${node.dns?'Yes':'No'}</td><td>${node.cf?'Yes':'No'}</td></tr>`
         }
     })
     </script>
