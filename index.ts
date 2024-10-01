@@ -6,6 +6,7 @@ import crypto from 'crypto'
 import { S3 } from '@aws-sdk/client-s3'
 import { Readable } from 'stream'
 import formidable from 'formidable'
+import os from 'os'
 
 const DIRNAME = path.resolve()
 
@@ -42,6 +43,9 @@ const S3ACCESSKEYID = config.s3_access_key_id
 const S3SECRETACCESSKEY = config.s3_secret_access_key
 const S3ENDPOINT = config.s3_endpoint
 const CACHE_S3 = config.cache_s3
+
+const MEMORY_THRESHOLD = 100 * 1024 * 1024 // 100MB
+const ASSUMED_SIZE = 1024 * 1024 * 1024 // 1GB
 // CONFIG /////////////////////////////////////
 
 // INITIALISATION /////////////////////////////
@@ -70,6 +74,12 @@ const s3 = new S3({
   },
   endpoint: S3ENDPOINT
 })
+
+const hasSufficientMemory = (fileSize: number | false): boolean => {
+  if (fileSize === false) fileSize = ASSUMED_SIZE
+  const freeMemory = os.freemem()
+  return freeMemory > (fileSize + MEMORY_THRESHOLD)
+}
 
 const purgeCache = (requiredSpace: number, remainingSpace: number): void => {
   const files = fs.readdirSync(path.join(DIRNAME, 'files'))
@@ -157,8 +167,7 @@ const fetchFromS3 = async (bucket: string, key: string): Promise<File> => {
 
     return { file: buffer }
   } catch (error) {
-    if (error.name !== 'NoSuchKey')
-      console.error(error)
+    if (error.name !== 'NoSuchKey') { console.error(error) }
     return false
   }
 }
@@ -175,12 +184,42 @@ const updateNode = (node: Node): void => {
   fs.writeFileSync(NODES_PATH, JSON.stringify(nodes))
 }
 
-const getFile = async (hash: string): Promise<File> => {
+const getFileSize = async (hash: string, id: string = ''): Promise<number | false> => {
+  const filePath = path.join(DIRNAME, 'files', hash)
+
+  if (fs.existsSync(filePath)) {
+    const stats = fs.statSync(filePath)
+    return stats.size
+  }
+
+  try {
+    const data = await s3.headObject({ Bucket: 'uploads', Key: `${hash}.stuf` })
+
+    if (typeof data.ContentLength !== 'undefined') return data.ContentLength
+  } catch (error) {
+    if (id.length !== 0) {
+      const response = await fetch(`${METADATA_ENDPOINT}${id}`)
+      if (response.status === 200) return Number((await response.json() as Metadata).size)
+    }
+  }
+  return false
+}
+
+const getFile = async (hash: string, id: string = ''): Promise<File> => {
   if (pendingFiles.includes(hash)) {
     console.log('Hash is already pending, waiting for it to be processed')
     await new Promise(() => {
       const intervalId = setInterval(() => {
         if (!pendingFiles.includes(hash)) clearInterval(intervalId)
+      }, 100)
+    })
+  }
+  const size = await getFileSize(hash, id)
+  if (!hasSufficientMemory(size)) {
+    console.log('Reached memory limit, waiting')
+    await new Promise(() => {
+      const intervalId = setInterval(() => {
+        if (hasSufficientMemory(size)) clearInterval(intervalId)
       }, 100)
     })
   }
@@ -242,7 +281,7 @@ const setFiletable = (hash: string, id: string | undefined, name: string | undef
 }
 
 const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse<http.IncomingMessage>): Promise<void> => {
-  try{
+  try {
     if (req.url === '/' || req.url === null || typeof req.url === 'undefined') {
       res.writeHead(200, { 'Content-Type': 'text/html', 'Cache-Control': 'public, max-age=604800' })
       fs.createReadStream('index.html').pipe(res)
@@ -278,7 +317,7 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
         'Cache-Control': 'public, max-age=31536000'
       }
 
-      const file = await getFile(hash)
+      const file = await getFile(hash, fileId)
 
       if (file === false) {
         res.writeHead(404, { 'Content-Type': 'text/plain' })
