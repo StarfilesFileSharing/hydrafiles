@@ -404,12 +404,21 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
     res.end('Internal Server Error')
   }
 }
+const timeoutPromise = new Promise((resolve, reject) => {
+  setTimeout(() => {
+    reject(new Error('Request timed out after 60 seconds'))
+  }, 60000)
+})
 
 const pendingFiles: string[] = []
 const server = http.createServer((req, res) => {
   console.log('Request Received:', req.url)
 
-  void handleRequest(req, res)
+  void Promise.race([handleRequest(req, res), timeoutPromise]).catch((error) => {
+    console.error('Request handling failed:', error)
+    res.writeHead(500)
+    res.end('Internal Server Error')
+  })
 })
 
 server.listen(PORT, HOSTNAME, (): void => {
