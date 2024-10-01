@@ -17,5 +17,6 @@
 	"s3_endpoint": "",
 	"cache_s3": true,
 	"memory_threshold": 104857600,
-	"assumed_size": 1073741824
+	"assumed_size": 1073741824,
+	"memory_threshold_reached_wait": 100
 }

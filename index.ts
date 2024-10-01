@@ -46,6 +46,7 @@ const CACHE_S3 = config.cache_s3
 
 const MEMORY_THRESHOLD = config.memory_threshold
 const ASSUMED_SIZE = config.assumed_size
+const MEMORY_THRESHOLD_ASSUMED_WAIT: number = config.memory_threshold_reached_wait
 // CONFIG /////////////////////////////////////
 
 // INITIALISATION /////////////////////////////
@@ -225,7 +226,7 @@ const getFile = async (hash: string, id: string = ''): Promise<File> => {
     await new Promise(() => {
       const intervalId = setInterval(() => {
         if (hasSufficientMemory(size)) clearInterval(intervalId)
-      }, 100)
+      }, MEMORY_THRESHOLD_ASSUMED_WAIT)
     })
   }
   pendingFiles.push(hash)
