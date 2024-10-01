@@ -323,7 +323,7 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
         'Cache-Control': 'public, max-age=31536000'
       }
 
-      const file = await getFile(hash, fileId)
+      const file = await Promise.race([getFile(hash, fileId), timeoutPromise])
 
       if (file === false) {
         res.writeHead(404, { 'Content-Type': 'text/plain' })
@@ -414,7 +414,7 @@ const pendingFiles: string[] = []
 const server = http.createServer((req, res) => {
   console.log('Request Received:', req.url)
 
-  void Promise.race([handleRequest(req, res), timeoutPromise])
+  void handleRequest(req, res)
 })
 
 server.listen(PORT, HOSTNAME, (): void => {
