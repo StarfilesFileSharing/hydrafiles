@@ -3,6 +3,11 @@ The headless storage network.
 
 [Skip To Deploy Instructions](#how-do-i-setup-a-node)
 
+## Popular Nodes / Live Demos
+Please send a Pull Request to get your node listed here
+- https://hydrafiles.com
+- https://hydra.starfles.co
+
 ## What is Hydrafiles?
 Hydrafiles is the headless storage network. Anyone can be a part of the network. Hydrafiles allows for files to be hosted in the Hydra cloud, where no one knows what's hosted where.
 
