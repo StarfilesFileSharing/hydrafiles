@@ -35,7 +35,7 @@ const BURN_RATE = config.burn_rate
 const METADATA_ENDPOINT: string = config.metadata_endpoint
 const BOOTSTRAP_NODES = config.bootstrap_nodes
 const PUBLIC_HOSTNAME: string = config.public_hostname
-const PREFER_NODE = config.prefer_node
+const PREFER_NODE: string = config.prefer_node
 const UPLOAD_SECRET = config.upload_secret.strlen !== 0 ? config.upload_secret : Math.random().toString(36).substring(2, 15)
 if (config.nodes_path !== undefined) NODES_PATH = config.nodes_path
 
@@ -47,6 +47,8 @@ const CACHE_S3 = config.cache_s3
 const MEMORY_THRESHOLD: number = config.memory_threshold
 const ASSUMED_SIZE: number = config.assumed_size
 const MEMORY_THRESHOLD_ASSUMED_WAIT: number = config.memory_threshold_reached_wait
+
+const TIMEOUT = 60000
 // CONFIG /////////////////////////////////////
 
 // INITIALISATION /////////////////////////////
@@ -63,8 +65,8 @@ const isIp = (host: string): boolean => /^https?:\/\/(?:\d+\.){3}\d+(?::\d+)?$/.
 const isPrivateIP = (ip: string): boolean => /^https?:\/\/(?:10\.|(?:172\.(?:1[6-9]|2\d|3[0-1]))\.|192\.168\.|169\.254\.|127\.|224\.0\.0\.|255\.255\.255\.255)/.test(ip)
 
 let usedStorage = 0
-const downloadCount: { [key: string]: number } = {}
-const preferNode = PreferNode[PREFER_NODE as keyof typeof PreferNode] || PreferNode.FASTEST
+const downloadCount: Record<string, number> = {}
+const preferNode = PreferNode[PREFER_NODE as keyof typeof PreferNode] ?? PreferNode.FASTEST
 const fileTable: FileTable = JSON.parse(fs.readFileSync(path.join(DIRNAME, 'filetable.json')).toString())
 
 const s3 = new S3({
@@ -173,7 +175,7 @@ const fetchFromS3 = async (bucket: string, key: string): Promise<File> => {
 
     return { file: buffer }
   } catch (error) {
-    if (error.name !== 'NoSuchKey') { console.error(error) }
+    if (error instanceof Error && error.name !== 'NoSuchKey') { console.error(error) }
     return false
   }
 }
@@ -286,8 +288,8 @@ const setFiletable = (hash: string, id: string | undefined, name: string | undef
   fs.writeFileSync(path.join(DIRNAME, 'filetable.json'), JSON.stringify(fileTable, null, 2))
 }
 
-function promiseWithTimeout(promise, timeoutDuration) {
-  return new Promise((resolve, reject) => {
+const promiseWithTimeout = async (promise: Promise<any>, timeoutDuration: number): Promise<any> => {
+  return await new Promise((resolve, reject) => {
     const timeout = setTimeout(() => {
       reject(new Error('Promise timed out'))
     }, timeoutDuration)
@@ -341,7 +343,7 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
         'Cache-Control': 'public, max-age=31536000'
       }
 
-      const file = await promiseWithTimeout(getFile(hash, fileId), 120000)
+      const file = await promiseWithTimeout(getFile(hash, fileId), TIMEOUT)
 
       if (file === false) {
         res.writeHead(404, { 'Content-Type': 'text/plain' })
@@ -363,7 +365,7 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
 
       res.writeHead(200, headers)
       res.end(file.file)
-      downloadCount[hash] = typeof downloadCount[hash] === 'undefined' ? downloadCount[hash] + 1 : 1
+      downloadCount[hash] = typeof downloadCount[hash] === 'undefined' ? Number(downloadCount[hash]) + 1 : 1
     } else if (req.url === '/upload') {
       const uploadSecret = req.headers['x-hydra-upload-secret']
       if (uploadSecret !== UPLOAD_SECRET) {
@@ -374,7 +376,7 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
 
       const form = formidable({})
       form.parse(req, (err: unknown, fields: formidable.Fields, files: formidable.Files) => {
-        if (err) {
+        if (err !== undefined && err !== null) {
           res.writeHead(500, { 'Content-Type': 'text/plain' })
           res.end('500 Internal Server Error\n')
           return
