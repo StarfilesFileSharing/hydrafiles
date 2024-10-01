@@ -286,6 +286,24 @@ const setFiletable = (hash: string, id: string | undefined, name: string | undef
   fs.writeFileSync(path.join(DIRNAME, 'filetable.json'), JSON.stringify(fileTable, null, 2))
 }
 
+function promiseWithTimeout(promise, timeoutDuration) {
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      reject(new Error('Promise timed out'))
+    }, timeoutDuration)
+
+    promise
+      .then((result) => {
+        clearTimeout(timeout)
+        resolve(result)
+      })
+      .catch((error) => {
+        clearTimeout(timeout)
+        reject(error)
+      })
+  })
+}
+
 const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse<http.IncomingMessage>): Promise<void> => {
   try {
     if (req.url === '/' || req.url === null || typeof req.url === 'undefined') {
@@ -323,7 +341,7 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
         'Cache-Control': 'public, max-age=31536000'
       }
 
-      const file = await Promise.race([getFile(hash, fileId), timeoutPromise])
+      const file = await promiseWithTimeout(getFile(hash, fileId), 120000)
 
       if (file === false) {
         res.writeHead(404, { 'Content-Type': 'text/plain' })
@@ -404,11 +422,6 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
     res.end('Internal Server Error')
   }
 }
-const timeoutPromise = new Promise((resolve, reject) => {
-  setTimeout(() => {
-    reject(new Error('Request timed out after 120 seconds'))
-  }, 120000)
-})
 
 const pendingFiles: string[] = []
 const server = http.createServer((req, res) => {
