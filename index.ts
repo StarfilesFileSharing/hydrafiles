@@ -244,11 +244,8 @@ const setFiletable = (hash: string, id: string | undefined, name: string | undef
   fs.writeFileSync(path.join(DIRNAME, 'filetable.json'), JSON.stringify(fileTable, null, 2))
 }
 
-const pendingFiles: string[] = []
-const server = http.createServer((req, res) => {
-  console.log('Request Received:', req.url)
-
-  const handleRequest = async (): Promise<void> => {
+const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse<http.IncomingMessage>): Promise<void> => {
+  try{
     if (req.url === '/' || req.url === null || typeof req.url === 'undefined') {
       res.writeHead(200, { 'Content-Type': 'text/html', 'Cache-Control': 'public, max-age=604800' })
       fs.createReadStream('index.html').pipe(res)
@@ -359,8 +356,18 @@ const server = http.createServer((req, res) => {
       res.writeHead(404, { 'Content-Type': 'text/plain' })
       res.end('404 Not Found\n')
     }
+  } catch (e) {
+    console.error(e)
+    res.writeHead(500, { 'Content-Type': 'text/plain' })
+    res.end('Internal Server Error')
   }
-  handleRequest().catch((e) => console.error(e))
+}
+
+const pendingFiles: string[] = []
+const server = http.createServer((req, res) => {
+  console.log('Request Received:', req.url)
+
+  void handleRequest(req, res)
 })
 
 server.listen(PORT, HOSTNAME, (): void => {
