@@ -177,13 +177,10 @@ const updateNode = (node: Node): void => {
 
 const getFile = async (hash: string): Promise<File> => {
   if (pendingFiles.includes(hash)) {
-    // Hash is already pending, wait for it to be processed
-    return await new Promise((resolve) => {
+    console.log('Hash is already pending, waiting for it to be processed')
+    await new Promise(() => {
       const intervalId = setInterval(() => {
-        if (!pendingFiles.includes(hash)) {
-          clearInterval(intervalId)
-          resolve({ file: Buffer.from([]), name: '' })
-        }
+        if (!pendingFiles.includes(hash)) clearInterval(intervalId)
       }, 100)
     })
   }
