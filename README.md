@@ -4,7 +4,7 @@ The headless storage network.
 [Skip To Deploy Instructions](#how-do-i-setup-a-node)
 
 ## Popular Nodes / Live Demos
-Please send a Pull Request to get your node listed here
+Please send a Pull Request to get your node listed here.
 - https://hydrafiles.com
 - https://hydra.starfles.co
 
