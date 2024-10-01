@@ -36,7 +36,7 @@ const METADATA_ENDPOINT: string = config.metadata_endpoint
 const BOOTSTRAP_NODES = config.bootstrap_nodes
 const PUBLIC_HOSTNAME: string = config.public_hostname
 const PREFER_NODE = config.prefer_node
-const UPLOAD_SECRET = config.upload_secret || Math.random().toString(36).substring(2, 15)
+const UPLOAD_SECRET = config.upload_secret.strlen !== 0 ? config.upload_secret : Math.random().toString(36).substring(2, 15)
 if (config.nodes_path !== undefined) NODES_PATH = config.nodes_path
 
 const S3ACCESSKEYID = config.s3_access_key_id
