@@ -45,6 +45,11 @@
         img {
             max-width: 100%
         }
+        code {
+            padding: 0.2rem 0.5rem;
+            border-radius:0.5rem;
+            background: rgb(181, 181, 181)
+        }
     </style>
 </head>
 <body>
@@ -103,18 +108,39 @@
         <h2>Where is Hydrafiles?</h2>
         <p>Hydrafiles is everywhere. With the goal of being cross-border, we ask people like you to contribute to the movement, by setting up cross-border domains and servers.</p>
     </section>
-    
+    <!-- IDEA: Instead of using SHA256 hash, use torrent infohash, turning Hydrafiles into a torrent->http proxy & allowing torrent clients to seed -->
     <section>
         <h2>Contribute to Hydrafiles</h2>
         <p>Because of Hydrafiles' layered approach, it is impossible to prove someones level of involvement in Hydrafiles. Domain providers may either be hosting their own servers, or pointing to other servers. Server providers may be hosting files, or may only be mirroring another providers files.</p>
         <p>To ensure resiliance, it is crucial to the protocol that servers and domains are evenly distributed between "unfriendly" states. This includes; <a href="https://alibabacloud.com">China</a>, <a href="https://yandex.cloud">Russia</a>, <a href="https://aws.amazon.com/">America</a>, and <a href="https://www.arvancloud.ir">Iran</a>. As well as politically neutral countries such as <a href="https://njal.la">Sweden</a>. Ensure you aren't violating local laws when deciding on a region.</p>
-        <h3>Donate a Domain or Subdomain</h3>
-        <p>If you don't have a domain, you can buy one <a href="https://tld-list.com">here</a>. If you have a spare domain, you can contribute it's subdomain for free. Once you have a domain or subdomain, point it to another Hydrafiles site. <a href="#directory">List of Providers</a></p>
-        <p>We recommend routing your domains through a free <a href="https://cloudflare.com">CDN</a>. If you would like to anonymously buy a domain, <a href="https://njal.la">Njalla</a> is a great choice.</p>
-        <h3>Donate Bandwidth</h3>
-        <p>Rent a server, we recommend <a href="https://sporestack.com">SporeStack</a> or <a href="https://njal.la">Njalla</a> as they don't ask for information. Then reverse proxy to any of <a href="#directory">the Hydrafiles providers</a>. Then <a href="#announce">announce your domain/ip</a>.</p>
+        <h3 id="donate-domain">Donate a Domain or Subdomain (~$10/y or Free)</h3>
+        <h4>1. Get a Domain</h4>
+        <p>If you don't own a domain, you can use <a href="https://tld-list.com">TLD List</a> to find the sellers with the best price. If you'd like to buy the domain anonymously use <a href="https://njal.la">Njalla</a>. If you already have a domain, you can use it's subdomain for free</p>
+        <h4>2. Configure Domain (Set DNS Record)</h4>
+        <p>Once you have a domain or subdomain, find a reliable IP <a href="#directory">here</a>. Then set the following DNS record, replacing xxxx with the IP:</p>
+        <code>A or AAAA = xxxx</code><br>
+        <h4>2. Use CDN (Optional & Free)</h4>
+        <p>We recommend using a CDN such as <a href="https://cloudflare.com">Cloudflare</a>.</p>
+        <p>CDNs cache files which makes download times faster and lowers server load. CDNs also add a layer between the Hydrafiles node you use and the public internet, forcing organisations to send requests to the CDN to find the IP.</p>
+        <p><strong>If using Cloudflare</strong>, be sure to enable the "Cache Everything" rule.</p>
+        <h3 id="donate-bandwidth">Donate Bandwidth (~$10/m+ or Free+Electricity)</h3>
+        <h4>1. Get a Server</h4>
+        <p><strong>Option A: Rent a server</strong>, we recommend <a href="https://sporestack.com">SporeStack</a> or <a href="https://njal.la">Njalla</a> as they don't ask for information.</p>
+        <p><strong>Option B: Running your own server</strong> requires more maintenance, but improves decentralisation. To do this, get an old Mac, Windows, or Linux machine, even an RPI.</p>
+        <h4>2. Connect to Hydrafiles</h4>
+        <p><strong>Option A: Running a Node</strong> improves availability as your node talks to all nodes in the network instead of relying on just one. Your node also verifies that files haven't been tampered with before forwarding it.</p>
+        <p>To run a full node, go to the <a href="https://github.com/StarfilesFileSharing/Hydrafiles">GitHub Repo</a> and follow the deploy instructions.</p>
+        <p><strong>Option B: Running a Reverse Proxy</strong> is cheaper, but less safe as file integrity can't be verified. It is not recommended to rely on a reverse proxied node as exit points.</p><p>To setup the reverse proxy, first choose a <a href="#directory">Hydrafiles IP</a>. Then configure <a href="https://www.digitalocean.com/community/tutorials/how-to-configure-nginx-as-a-reverse-proxy-on-ubuntu-22-04">Nginx</a>, <a href="https://caddyserver.com/docs/quick-starts/reverse-proxy">Caddy</a>, or a similar software to point port 80 to the IP.</p>
+        <h4>3. Announce Node (Optional)</h4>
+        <p>When your node first starts, it attempts to announce your node to all known nodes. A few hours after the node first starts, check with other nodes to ensure your node is known. If your node isn't known by other nodes (or this one), you can announce your node <a href="#announce">here</a>.</p>
         <h3>Donate Storage</h3>
-        <p>Host an S3 bucket with your chosen S3 provider. Then host a server to hide the bucket. Use <a href="https://github.com/StarfilesFileSharing/Hydrafiles">this source code</a> to mirror your S3 storage to the Hydrafiles network</p>
+        <p>To donate storage, you must first run a full node (see <a href="#donate-bandwidth">Donate Bandwidth</a>). This is crucial so storage providers and proxies can't be differentiated.</p>
+        <h4>1. Local Caching (Optional)</h4>
+        <p>When local caching is enabled, your node automatically stores a copy of the most popular files.</p>
+        <p>In your <code>config.json</code> file, set the amount of storage you would like to donate. Whenever this limit is reached, unpopular files will be deleted.</p>
+        <h4>2. S3 Bucket (Optional)</h4>
+        <p>You can optionally configure an S3 bucket with your chosen S3 (compatible) provider.</p>
+        <p>In your <code>config.json</code> file, set your S3 credentials. Ensure your S3 bucket is only accessible by your server for additional privacy.</p>
         <h3>I received a takedown notice, what do I do?</h3>
         <p>Follow the procedure:</p>
         <ol>
@@ -122,9 +148,9 @@
             <li>Forward the takedown notice to the Hydrafiles operator you received the file from.</li>
             <li>Respond to the requesting party with the following template:</li>
         </ol>
-        <code>Dear Sir/Madam, I hope this message finds you well. We are not hosting any files. We are also unsure who is hosting your file(s). We have forwarded your message to related parties, but are unable to investigate any further. For more information, check <span class="hydra-host">example.com</span>. Thanks, your fellow Hydra operator.</code>
+        <code style="background: none;">Dear Sir/Madam, I hope this message finds you well. We are not hosting any files. We are also unsure who is hosting your file(s). We have forwarded your message to related parties, but are unable to investigate any further. For more information, check <span class="hydra-host">example.com</span>. Thanks, your fellow Hydra operator.</code>
     </section>
-    
+
     <section>
         <h2>Documentation</h2>
         <p>This API is cross-compatible with all hostnames listed <a href="#directory">here</a> with HTTP enabled.</p>
