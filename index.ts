@@ -36,7 +36,7 @@ const METADATA_ENDPOINT: string = config.metadata_endpoint
 const BOOTSTRAP_NODES = config.bootstrap_nodes
 const PUBLIC_HOSTNAME: string = config.public_hostname
 const PREFER_NODE: string = config.prefer_node
-const UPLOAD_SECRET = config.upload_secret.strlen !== 0 ? config.upload_secret : Math.random().toString(36).substring(2, 15)
+const UPLOAD_SECRET = config.upload_secret?.strlen !== 0 ? config.upload_secret : Math.random().toString(36).substring(2, 15)
 if (config.nodes_path !== undefined) NODES_PATH = config.nodes_path
 
 const S3ACCESSKEYID = config.s3_access_key_id
@@ -136,11 +136,6 @@ const getNodes = (opts = { includeSelf: true }): Node[] => {
   else return nodes
 }
 
-const getValidNodes = async (opts = { includeSelf: true }): Promise<Node[]> => {
-  const nodes = getNodes(opts)
-  return nodes.filter(async node => await downloadFromNode(node.host, '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f') !== false)
-}
-
 const downloadFromNode = async (host: string, hash: string): Promise<File> => {
   try {
     console.log(`    Downloading from ${host}/download/${hash}`)
@@ -157,6 +152,11 @@ const downloadFromNode = async (host: string, hash: string): Promise<File> => {
   } catch (e) {
     return false
   }
+}
+
+const getValidNodes = async (opts = { includeSelf: true }): Promise<Node[]> => {
+  const nodes = getNodes(opts)
+  return nodes.filter(async node => await downloadFromNode(node.host, '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f') !== false)
 }
 
 const fetchFromS3 = async (bucket: string, key: string): Promise<File> => {
