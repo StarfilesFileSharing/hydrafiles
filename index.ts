@@ -17,7 +17,7 @@ let NODES_PATH = path.join(DIRNAME, 'nodes.json')
 // TYPES //////////////////////////////////////
 interface Metadata {name: string, size: string, type: string, hash: string, id: string}
 interface ResponseHeaders { [key: string]: string }
-type File = { file: Buffer, name?: string } | false
+type File = { file: Buffer, name?: string, signal: number } | false
 interface Node { host: string, http: boolean, dns: boolean, cf: boolean, hits: number, rejects: number, bytes: number, duration: number }
 enum PreferNode { FASTEST, LEAST_USED, RANDOM, HIGHEST_HITRATE }
 interface FileTable { [key: string]: { id?: string, name?: string } }
@@ -81,8 +81,10 @@ const s3 = new S3({
 const hasSufficientMemory = (fileSize: number | false): boolean => {
   if (fileSize === false) fileSize = ASSUMED_SIZE
   const freeMemory = os.freemem()
-  console.log('Free Memory', os.freemem())
-  return freeMemory > (fileSize + MEMORY_THRESHOLD)
+  const neededMemory = fileSize + MEMORY_THRESHOLD
+  console.log('Needed Memory', neededMemory)
+  console.log('Free Memory', freeMemory)
+  return freeMemory > neededMemory
 }
 
 const purgeCache = (requiredSpace: number, remainingSpace: number): void => {
@@ -148,8 +150,9 @@ const downloadFromNode = async (host: string, hash: string): Promise<File> => {
     if (hash !== hashArray.map(b => b.toString(16).padStart(2, '0')).join('')) return false
 
     const name = response.headers.get('Content-Disposition')?.split('=')[1].replace(/"/g, '')
+    const signalStrength = Number(response.headers.get('Signal-Strength')?.split('=')[1])
 
-    return { file: Buffer.from(arrayBuffer), name }
+    return { file: Buffer.from(arrayBuffer), name, signal: interfere(signalStrength) }
   } catch (e) {
     return false
   }
@@ -174,7 +177,7 @@ const fetchFromS3 = async (bucket: string, key: string): Promise<File> => {
       buffer = Buffer.concat(chunks)
     } else if (data.Body instanceof Buffer) { buffer = data.Body } else { return false }
 
-    return { file: buffer }
+    return { file: buffer, signal: interfere(90) }
   } catch (error) {
     if (error instanceof Error && error.name !== 'NoSuchKey') { console.error(error) }
     return false
@@ -183,7 +186,7 @@ const fetchFromS3 = async (bucket: string, key: string): Promise<File> => {
 
 const fetchFile = async (hash: string): Promise<File> => {
   const filePath = path.join(DIRNAME, 'files', hash)
-  return fs.existsSync(filePath) ? { file: fs.readFileSync(filePath) } : false
+  return fs.existsSync(filePath) ? { file: fs.readFileSync(filePath), signal: interfere(90) } : false
 }
 
 const updateNode = (node: Node): void => {
@@ -212,6 +215,16 @@ const getFileSize = async (hash: string, id: string = ''): Promise<number | fals
     }
   }
   return false
+}
+
+const getRandomNumber = (min: number, max: number): number => Math.floor(Math.random() * (max - min + 1)) + min
+
+const interfere = (signalStrength: number): number => {
+  if (signalStrength >= 90) return getRandomNumber(80, 100)
+  else {
+    const interference = getRandomNumber(0, 10)
+    return signalStrength * (interference / 100)
+  }
 }
 
 const getFile = async (hash: string, id: string = ''): Promise<File> => {
@@ -345,6 +358,7 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
       }
 
       const file = await promiseWithTimeout(getFile(hash, fileId), TIMEOUT)
+      headers['Signal-Strength'] = file.signal
 
       if (file === false) {
         res.writeHead(404, { 'Content-Type': 'text/plain' })
