@@ -79,7 +79,7 @@ const s3 = new S3({
 })
 
 const hasSufficientMemory = (fileSize: number | false): boolean => {
-  if (fileSize === false) fileSize = ASSUMED_SIZE
+  if (!fileSize) fileSize = ASSUMED_SIZE
   const freeMemory = os.freemem()
   const neededMemory = fileSize + MEMORY_THRESHOLD
   console.log('Needed Memory', neededMemory)
@@ -139,7 +139,7 @@ const getNodes = (opts = { includeSelf: true }): Node[] => {
   else return nodes
 }
 
-const downloadFromNode = async (host: string, hash: string): Promise<File> => {
+const downloadFromNode = async (host: string, hash: string): Promise<File | false> => {
   try {
     console.log(`    Downloading from ${host}/download/${hash}`)
     const response = await fetch(`${host}/download/${hash}`)
@@ -182,6 +182,31 @@ const fetchFromS3 = async (bucket: string, key: string): Promise<File> => {
     if (error instanceof Error && error.name !== 'NoSuchKey') { console.error(error) }
     return false
   }
+}
+
+const getFileFromNodes = async (hash: string): Promise<File | false> => {
+  for (const node of getNodes({ includeSelf: false })) {
+    if (node.http && node.host.length > 0) {
+      const startTime = Date.now()
+      const file = await downloadFromNode(node.host, hash)
+      if (file !== false) {
+        node.duration += Date.now() - startTime
+        node.bytes += file.file.length
+
+        node.hits++
+
+        updateNode(node)
+        cacheFile(path.join(DIRNAME, 'files', hash), file.file)
+        const index = pendingFiles.indexOf(hash)
+        if (index > -1) pendingFiles.splice(index, 1)
+        return file
+      } else {
+        node.rejects++
+        updateNode(node)
+      }
+    }
+  }
+  return false
 }
 
 const fetchFile = async (hash: string): Promise<File> => {
@@ -247,8 +272,6 @@ const getFile = async (hash: string, id: string = ''): Promise<File> => {
   }
   pendingFiles.push(hash)
 
-  const filePath = path.join(DIRNAME, 'files', hash)
-
   const localFile = await fetchFile(hash)
   if (localFile !== false) {
     console.log(`    Serving ${size !== false ? Math.round(size / 1024 / 1024) : 0}MB from cache`)
@@ -260,7 +283,7 @@ const getFile = async (hash: string, id: string = ''): Promise<File> => {
   if (S3ENDPOINT.length > 0) {
     const s3File = await fetchFromS3('uploads', `${hash}.stuf`)
     if (s3File !== false) {
-      if (CACHE_S3 !== false) cacheFile(filePath, s3File.file)
+      if (CACHE_S3 !== false) cacheFile(path.join(DIRNAME, 'files', hash), s3File.file)
       console.log(`    Serving ${size !== false ? Math.round(size / 1024 / 1024) : 0}MB from S3`)
       const index = pendingFiles.indexOf(hash)
       if (index > -1) pendingFiles.splice(index, 1)
@@ -268,31 +291,9 @@ const getFile = async (hash: string, id: string = ''): Promise<File> => {
     }
   }
 
-  for (const node of getNodes({ includeSelf: false })) {
-    if (node.http && node.host.length > 0) {
-      const startTime = Date.now()
-      const file = await downloadFromNode(node.host, hash)
-      if (file !== false) {
-        node.duration += Date.now() - startTime
-        node.bytes += file.file.length
-
-        node.hits++
-
-        updateNode(node)
-        cacheFile(filePath, file.file)
-        const index = pendingFiles.indexOf(hash)
-        if (index > -1) pendingFiles.splice(index, 1)
-        return file
-      } else {
-        node.rejects++
-        updateNode(node)
-      }
-    }
-  }
-
   const index = pendingFiles.indexOf(hash)
   if (index > -1) pendingFiles.splice(index, 1)
-  return false
+  return await getFileFromNodes(hash)
 }
 
 const setFiletable = (hash: string, id: string | undefined, name: string | undefined): void => {
@@ -483,13 +484,14 @@ server.listen(PORT, HOSTNAME, (): void => {
     fs.writeFileSync(NODES_PATH, JSON.stringify(nodes))
 
     console.log('Testing network connection')
-    const testPath = path.join(DIRNAME, 'files', '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f');
-    if (fs.existsSync(testPath)) fs.rmSync(testPath)
-    await downloadFromNode(`${PUBLIC_HOSTNAME}`, '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f')
-    if (!fs.existsSync(testPath)) console.error('Download test failed, cannot connect to network')
+    const file = await getFileFromNodes('04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f')
+    if (!file) console.error('Download test failed, cannot connect to network')
     else if (isIp(PUBLIC_HOSTNAME) && isPrivateIP(PUBLIC_HOSTNAME)) console.error('Public hostname is a private IP address, cannot announce to other nodes')
     else {
-      console.log(await downloadFromNode(`${PUBLIC_HOSTNAME}`, '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f'))
+      console.log(`Testing downloads ${PUBLIC_HOSTNAME}/download/04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f`)
+
+      const response = await downloadFromNode(`${PUBLIC_HOSTNAME}`, '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f')
+      console.log(`Download ${!response ? 'Failed' : 'Succeeded'}`)
 
       // Save self to nodes.json
       if (nodes.find((node: { host: string }) => node.host === PUBLIC_HOSTNAME) == null) {
