@@ -36,6 +36,7 @@ const METADATA_ENDPOINT: string = config.metadata_endpoint
 const BOOTSTRAP_NODES = config.bootstrap_nodes
 const PUBLIC_HOSTNAME: string = config.public_hostname
 const PREFER_NODE: string = config.prefer_node
+const MAX_CONCURRENT_NODES: number = config.max_concurrent_nodes
 const UPLOAD_SECRET = config.upload_secret?.strlen !== 0 ? config.upload_secret : Math.random().toString(36).substring(2, 15)
 if (config.nodes_path !== undefined) NODES_PATH = config.nodes_path
 
@@ -110,6 +111,7 @@ const purgeCache = (requiredSpace: number, remainingSpace: number): void => {
 }
 
 const cacheFile = (filePath: string, file: Buffer): void => {
+  if (fs.existsSync(filePath)) return
   const size = file.length
   const remainingSpace = MAX_STORAGE - usedStorage
   if (size > remainingSpace) purgeCache(size, remainingSpace)
@@ -185,27 +187,50 @@ const fetchFromS3 = async (bucket: string, key: string): Promise<File> => {
 }
 
 const getFileFromNodes = async (hash: string): Promise<File | false> => {
-  for (const node of getNodes({ includeSelf: false })) {
+  const nodes = getNodes({ includeSelf: false })
+  let activePromises: Array<Promise<File | false>> = []
+
+  for (const node of nodes) {
     if (node.http && node.host.length > 0) {
-      const startTime = Date.now()
-      const file = await downloadFromNode(node.host, hash)
-      if (file !== false) {
-        node.duration += Date.now() - startTime
-        node.bytes += file.file.length
+      const promise = (async (): Promise<File | false> => {
+        const startTime = Date.now()
+        const file = await downloadFromNode(node.host, hash)
 
-        node.hits++
+        if (file !== false) {
+          node.duration += Date.now() - startTime
+          node.bytes += file.file.length
+          node.hits++
 
-        updateNode(node)
-        cacheFile(path.join(DIRNAME, 'files', hash), file.file)
-        const index = pendingFiles.indexOf(hash)
-        if (index > -1) pendingFiles.splice(index, 1)
-        return file
-      } else {
-        node.rejects++
-        updateNode(node)
+          updateNode(node)
+          cacheFile(path.join(DIRNAME, 'files', hash), file.file)
+          const index = pendingFiles.indexOf(hash)
+          if (index > -1) pendingFiles.splice(index, 1)
+          return file
+        } else {
+          node.rejects++
+          updateNode(node)
+          return false
+        }
+      })()
+      activePromises.push(promise)
+
+      if (activePromises.length >= MAX_CONCURRENT_NODES) {
+        const file = await Promise.race(activePromises)
+        if (file !== false) return file
+
+        activePromises = activePromises.filter(p => !p.isFulfilled)
       }
     }
   }
+
+  while (activePromises.length > 0) {
+    await Promise.race(activePromises)
+    const file = await Promise.race(activePromises)
+    if (file !== false) return file
+
+    activePromises = activePromises.filter(p => !p.isFulfilled)
+  }
+
   return false
 }
 
