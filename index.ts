@@ -471,7 +471,7 @@ server.listen(PORT, HOSTNAME, (): void => {
     console.log('Testing network connection')
     const testPath = path.join(DIRNAME, 'files', '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f');
     if (fs.existsSync(testPath)) fs.rmSync(testPath)
-    await downloadFromNode(`${HOSTNAME + (PORT !== 80 && PORT !== 443 ? `:${PORT}` : '')}`, '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f')
+    await downloadFromNode(`${PUBLIC_HOSTNAME}`, '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f')
     if (!fs.existsSync(testPath)) console.error('Download test failed, cannot connect to network')
     else if (isIp(PUBLIC_HOSTNAME) && isPrivateIP(PUBLIC_HOSTNAME)) console.error('Public hostname is a private IP address, cannot announce to other nodes')
     else {
