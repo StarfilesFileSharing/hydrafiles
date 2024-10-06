@@ -514,7 +514,7 @@ server.listen(PORT, HOSTNAME, (): void => {
         usedStorage += stats.size
       }
     }
-    console.log(`Files dir size: ${usedStorage} bytes`)
+    console.log(`Files dir size: ${Math.round(100 * usedStorage / 1024 / 1024 / 1024) / 100}GB`)
 
     // Call all nodes and pull their /nodes
     const nodes = getNodes({ includeSelf: false })
