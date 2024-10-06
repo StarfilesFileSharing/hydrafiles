@@ -1,13 +1,12 @@
 import http from 'http'
 import fs from 'fs'
 import path from 'path'
-import crypto from 'crypto'
-import { S3 } from '@aws-sdk/client-s3'
-import { Readable } from 'stream'
 import formidable from 'formidable'
-import os from 'os'
-
 import CONFIG from './config'
+import init from './init'
+import Nodes, { Node, nodeFrom } from './nodes'
+import FileManager, { Metadata, File } from './file'
+import { getRandomNumber, isValidSHA256Hash, isIp, isPrivateIP, promiseWithTimeout } from './utils'
 
 // TODO: IDEA: HydraTorrent - New Github repo - "Hydrafiles + WebTorrent Compatibility Layer" - Hydrafiles noes can optionally run HydraTorrent to seed files via webtorrent
 // Change index hash from sha256 to infohash, then allow nodes to leech files from webtorrent + normal torrent
@@ -24,282 +23,16 @@ const DIRNAME = path.resolve()
 const NODES_PATH = path.join(DIRNAME, 'nodes.json')
 
 // TYPES //////////////////////////////////////
-interface Metadata {name: string, size: string, type: string, hash: string, id: string}
 interface ResponseHeaders { [key: string]: string }
-type File = { file: Buffer, name?: string, signal: number } | false
-interface Node { host: string, http: boolean, dns: boolean, cf: boolean, hits: number, rejects: number, bytes: number, duration: number, status?: boolean }
-enum PreferNode { FASTEST, LEAST_USED, RANDOM, HIGHEST_HITRATE }
 interface FileTable { [key: string]: { id?: string, name?: string } }
 // TYPES //////////////////////////////////////
 
-// INITIALISATION /////////////////////////////
-if (!fs.existsSync(path.join(DIRNAME, 'files'))) fs.mkdirSync(path.join(DIRNAME, 'files'))
-if (!fs.existsSync(NODES_PATH)) fs.writeFileSync(NODES_PATH, JSON.stringify(CONFIG.bootstrap_nodes))
-if (!fs.existsSync(path.join(DIRNAME, 'filetable.json'))) fs.writeFileSync(path.join(DIRNAME, 'filetable.json'), JSON.stringify({}))
-if (CONFIG.upload_secret.length === 0) {
-  CONFIG.upload_secret = Math.random().toString(36).substring(2, 15)
-  fs.writeFileSync(path.join(DIRNAME, 'config.json'), JSON.stringify(CONFIG, null, 2))
-}
-// INITIALISATION /////////////////////////////
-
-const isIp = (host: string): boolean => /^https?:\/\/(?:\d+\.){3}\d+(?::\d+)?$/.test(host)
-const isPrivateIP = (ip: string): boolean => /^https?:\/\/(?:10\.|(?:172\.(?:1[6-9]|2\d|3[0-1]))\.|192\.168\.|169\.254\.|127\.|224\.0\.0\.|255\.255\.255\.255)/.test(ip)
-
-let usedStorage = 0
-const downloadCount: Record<string, number> = {}
-const preferNode = PreferNode[CONFIG.prefer_node as keyof typeof PreferNode] ?? PreferNode.FASTEST
 const fileTable: FileTable = JSON.parse(fs.readFileSync(path.join(DIRNAME, 'filetable.json')).toString())
 
-const s3 = new S3({
-  region: 'us-east-1',
-  credentials: {
-    accessKeyId: CONFIG.s3_access_key_id,
-    secretAccessKey: CONFIG.s3_secret_access_key
-  },
-  endpoint: CONFIG.s3_endpoint
-})
+init()
 
-const hasSufficientMemory = (fileSize: number | false): boolean => {
-  if (!fileSize) fileSize = CONFIG.assumed_size
-  const freeMemory = os.freemem()
-  const neededMemory = fileSize + CONFIG.memory_threshold
-  console.log('RAM - Needed:', neededMemory, 'Free', freeMemory)
-  return freeMemory > neededMemory
-}
-
-const purgeCache = (requiredSpace: number, remainingSpace: number): void => {
-  const files = fs.readdirSync(path.join(DIRNAME, 'files'))
-  for (const file of files) {
-    if (CONFIG.perma_files.includes(file) || Object.keys(downloadCount).includes(file)) continue
-
-    const size = fs.statSync(path.join(DIRNAME, 'files', file)).size
-    fs.unlinkSync(path.join(DIRNAME, 'files', file))
-    usedStorage -= size
-    remainingSpace += size
-
-    if (requiredSpace <= remainingSpace) break
-  }
-  if (requiredSpace > remainingSpace) {
-    const sorted = Object.entries(downloadCount).sort(([,a], [,b]) => Number(a) - Number(b)).filter(([file]) => !CONFIG.perma_files.includes(file))
-    for (let i = 0; i < sorted.length / (CONFIG.burn_rate * 100); i++) {
-      const stats = fs.statSync(path.join(DIRNAME, 'files', sorted[i][0]))
-      fs.unlinkSync(path.join(DIRNAME, 'files', sorted[i][0]))
-      usedStorage -= stats.size
-    }
-  }
-}
-
-const cacheFile = (filePath: string, file: Buffer): void => {
-  if (fs.existsSync(filePath)) return
-  const size = file.length
-  const remainingSpace = CONFIG.max_storage - usedStorage
-  if (size > remainingSpace) purgeCache(size, remainingSpace)
-
-  const writeStream = fs.createWriteStream(filePath)
-  const readStream = Readable.from(file)
-
-  readStream.on('error', (err) => console.error('Error reading from the buffer:', err))
-  writeStream.on('error', (err) => console.error('Error writing to the file:', err))
-  writeStream.on('finish', () => {
-    usedStorage += size
-    console.log(`Successfully cached file. Used storage: ${usedStorage}`)
-  })
-  readStream.pipe(writeStream)
-}
-
-const getNodes = (opts = { includeSelf: true }): Node[] => {
-  if (opts.includeSelf === undefined) opts.includeSelf = true
-
-  const nodes = JSON.parse(fs.readFileSync(NODES_PATH).toString())
-    .filter((node: { host: string }) => opts.includeSelf || node.host !== CONFIG.public_hostname)
-    .sort(() => Math.random() - 0.5)
-
-  if (preferNode === PreferNode.FASTEST) return nodes.sort((a: { bytes: number, duration: number }, b: { bytes: number, duration: number }) => a.bytes / a.duration - b.bytes / b.duration)
-  else if (preferNode === PreferNode.LEAST_USED) return nodes.sort((a: { hits: number, rejects: number }, b: { hits: number, rejects: number }) => a.hits - a.rejects - (b.hits - b.rejects))
-  else if (preferNode === PreferNode.HIGHEST_HITRATE) return nodes.sort((a: { hits: number, rejects: number }, b: { hits: number, rejects: number }) => (a.hits - a.rejects) - (b.hits - b.rejects))
-  else return nodes
-}
-
-const downloadFromNode = async (host: string, hash: string): Promise<File | false> => {
-  try {
-    console.log(hash, `Downloading from ${host}`)
-    const response = await fetch(`${host}/download/${hash}`)
-    const arrayBuffer = await response.arrayBuffer()
-    const hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer)
-    const hashArray = Array.from(new Uint8Array(hashBuffer))
-
-    if (hash !== hashArray.map(b => b.toString(16).padStart(2, '0')).join('')) return false
-
-    const name = response.headers.get('Content-Disposition')?.split('=')[1].replace(/"/g, '')
-    const signalStrength = Number(response.headers.get('Signal-Strength'))
-
-    return { file: Buffer.from(arrayBuffer), name, signal: interfere(signalStrength) }
-  } catch (e) {
-    return false
-  }
-}
-
-const getValidNodes = async (opts = { includeSelf: true }): Promise<Node[]> => {
-  const nodes = getNodes(opts)
-  const hash = '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f'
-  const activePromises: Array<Promise<Node>> = []
-
-  for (const node of nodes) {
-    if (node.http && node.host.length > 0) {
-      const promise = (async (): Promise<Node> => {
-        const startTime = Date.now()
-        const file = await downloadFromNode(node.host, hash)
-
-        if (file !== false) {
-          node.duration += Date.now() - startTime
-          node.bytes += file.file.length
-          node.hits++
-
-          updateNode(node)
-          cacheFile(path.join(DIRNAME, 'files', hash), file.file)
-          const index = pendingFiles.indexOf(hash)
-          if (index > -1) pendingFiles.splice(index, 1)
-          return { host: node.host, status: true }
-        } else {
-          node.rejects++
-          updateNode(node)
-          return { host: node.host, status: false }
-        }
-      })()
-      activePromises.push(promise)
-
-      if (activePromises.filter(p => !p.isFulfilled).length >= CONFIG.max_concurrent_nodes) await Promise.race(activePromises)
-    }
-  }
-
-  const responses = await Promise.all(activePromises)
-  return responses.filter(node => node.status)
-}
-
-const fetchFromS3 = async (bucket: string, key: string): Promise<File> => {
-  if (CONFIG.s3_endpoint.length === 0) return false
-  try {
-    let buffer: Buffer
-    const data = await s3.getObject({ Bucket: bucket, Key: key })
-
-    if (data.Body instanceof Readable) {
-      const chunks: any[] = []
-      for await (const chunk of data.Body) {
-        chunks.push(chunk)
-      }
-      buffer = Buffer.concat(chunks)
-    } else if (data.Body instanceof Buffer) { buffer = data.Body } else { return false }
-
-    return { file: buffer, signal: interfere(100) }
-  } catch (error) {
-    if (error instanceof Error && error.name !== 'NoSuchKey') { console.error(error) }
-    return false
-  }
-}
-
-const getFileFromNodes = async (hash: string, size: number = 0): Promise<File | false> => {
-  const nodes = getNodes({ includeSelf: false })
-  let activePromises: Array<Promise<File | false>> = []
-
-  if (!hasSufficientMemory(size)) {
-    console.log('Reached memory limit, waiting')
-    await new Promise(() => {
-      const intervalId = setInterval(() => {
-        if (hasSufficientMemory(size)) clearInterval(intervalId)
-      }, CONFIG.memory_threshold_reached_wait)
-    })
-  }
-
-  for (const node of nodes) {
-    if (node.http && node.host.length > 0) {
-      const promise = (async (): Promise<File | false> => {
-        const startTime = Date.now()
-        const file = await downloadFromNode(node.host, hash)
-
-        if (file !== false) {
-          node.duration += Date.now() - startTime
-          node.bytes += file.file.length
-          node.hits++
-
-          updateNode(node)
-          cacheFile(path.join(DIRNAME, 'files', hash), file.file)
-          const index = pendingFiles.indexOf(hash)
-          if (index > -1) pendingFiles.splice(index, 1)
-          return file
-        } else {
-          node.rejects++
-          updateNode(node)
-          return false
-        }
-      })()
-      activePromises.push(promise)
-
-      if (activePromises.length >= CONFIG.max_concurrent_nodes) {
-        const file = await Promise.race(activePromises)
-        if (file !== false) return file
-
-        activePromises = activePromises.filter(p => !p.isFulfilled)
-      }
-    }
-  }
-
-  while (activePromises.length > 0) {
-    await Promise.race(activePromises)
-    const file = await Promise.race(activePromises)
-    if (file !== false) return file
-
-    activePromises = activePromises.filter(p => !p.isFulfilled)
-  }
-
-  return false
-}
-
-const fetchFile = async (hash: string): Promise<File> => {
-  const filePath = path.join(DIRNAME, 'files', hash)
-  return fs.existsSync(filePath) ? { file: fs.readFileSync(filePath), signal: interfere(100) } : false
-}
-
-const updateNode = (node: Node): void => {
-  const nodes = getNodes()
-  const index = nodes.findIndex((n: { host: string }) => n.host === node.host)
-  nodes[index] = node
-  fs.writeFileSync(NODES_PATH, JSON.stringify(nodes))
-}
-
-const getFileSize = async (hash: string, id: string = ''): Promise<number | false> => {
-  const filePath = path.join(DIRNAME, 'files', hash)
-
-  if (fs.existsSync(filePath)) {
-    const stats = fs.statSync(filePath)
-    return stats.size
-  }
-
-  try {
-    const data = await s3.headObject({ Bucket: 'uploads', Key: `${hash}.stuf` })
-
-    if (typeof data.ContentLength !== 'undefined') return data.ContentLength
-  } catch (error) {
-    if (id.length !== 0) {
-      try {
-        const response = await fetch(`${CONFIG.metadata_endpoint}${id}`)
-        if (response.status === 200) return Number((await response.json() as Metadata).size)
-      } catch (error) {
-        console.error(error)
-      }
-    }
-  }
-  return false
-}
-
-const getRandomNumber = (min: number, max: number): number => Math.floor(Math.random() * (max - min + 1)) + min
-
-const interfere = (signalStrength: number): number => {
-  if (signalStrength >= 95) return getRandomNumber(90, 100)
-  else {
-    const interference = getRandomNumber(0, 10) / 100
-    return Math.ceil(signalStrength * (1 - interference))
-  }
-}
+const nodesManager = new Nodes()
+const fileManager = new FileManager(nodesManager)
 
 const estimateNumberOfHopsWithRandomAndCertainty = (signalStrength: number): { estimatedHops: number, certaintyPercentage: number } => {
   const interference = 0.1
@@ -320,55 +53,6 @@ const estimateNumberOfHopsWithRandomAndCertainty = (signalStrength: number): { e
   }
 }
 
-const getFile = async (hash: string, id: string = ''): Promise<File> => {
-  if (pendingFiles.includes(hash)) {
-    console.log('Hash is already pending, waiting for it to be processed')
-    await new Promise(() => {
-      const intervalId = setInterval(() => {
-        if (!pendingFiles.includes(hash)) clearInterval(intervalId)
-      }, 100)
-    })
-  }
-  const size = await getFileSize(hash, id)
-  if (!hasSufficientMemory(size)) {
-    console.log('Reached memory limit, waiting')
-    await new Promise(() => {
-      const intervalId = setInterval(() => {
-        if (hasSufficientMemory(size)) clearInterval(intervalId)
-      }, CONFIG.memory_threshold_reached_wait)
-    })
-  }
-  pendingFiles.push(hash)
-
-  const localFile = await fetchFile(hash)
-  if (localFile !== false) {
-    console.log(hash, `Serving ${size !== false ? Math.round(size / 1024 / 1024) : 0}MB from cache`)
-    const index = pendingFiles.indexOf(hash)
-    if (index > -1) pendingFiles.splice(index, 1)
-    return localFile
-  }
-
-  if (CONFIG.s3_endpoint.length > 0) {
-    const s3File = await fetchFromS3('uploads', `${hash}.stuf`)
-    if (s3File !== false) {
-      if (CONFIG.cache_s3) cacheFile(path.join(DIRNAME, 'files', hash), s3File.file)
-      console.log(hash, `Serving ${size !== false ? Math.round(size / 1024 / 1024) : 0}MB from S3`)
-      const index = pendingFiles.indexOf(hash)
-      if (index > -1) pendingFiles.splice(index, 1)
-      return s3File
-    }
-  }
-
-  const index = pendingFiles.indexOf(hash)
-  if (index > -1) pendingFiles.splice(index, 1)
-  return await getFileFromNodes(hash, size)
-}
-
-function isValidSHA256Hash(hash: string): boolean {
-  const sha256Regex = /^[a-f0-9]{64}$/
-  return sha256Regex.test(hash)
-}
-
 const setFiletable = (hash: string, id: string | undefined, name: string | undefined): void => {
   if (typeof fileTable[hash] === 'undefined') fileTable[hash] = {}
   if (typeof id !== 'undefined') fileTable[hash].id = id
@@ -376,24 +60,7 @@ const setFiletable = (hash: string, id: string | undefined, name: string | undef
   fs.writeFileSync(path.join(DIRNAME, 'filetable.json'), JSON.stringify(fileTable, null, 2))
 }
 
-const promiseWithTimeout = async (promise: Promise<any>, timeoutDuration: number): Promise<any> => {
-  return await new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => {
-      reject(new Error('Promise timed out'))
-    }, timeoutDuration)
-
-    promise
-      .then((result) => {
-        clearTimeout(timeout)
-        resolve(result)
-      })
-      .catch((error) => {
-        clearTimeout(timeout)
-        reject(error)
-      })
-  })
-}
-const notFound: Record<string, number> = {}
+let notFound: Record<string, number> = {}
 
 const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse<http.IncomingMessage>): Promise<void> => {
   try {
@@ -406,20 +73,20 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
     } else if (req.url === '/nodes' || req.url.startsWith('/nodes?')) {
       res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=3600' })
 
-      const nodes = await getValidNodes()
+      const nodes = await nodesManager.getValidNodes()
       res.end(JSON.stringify(nodes))
     } else if (req.url.startsWith('/announce')) {
       const params = Object.fromEntries(new URLSearchParams(req.url.split('?')[1]))
       const host = params.host
 
-      const nodes = getNodes()
+      const nodes = nodesManager.getNodes()
       if (nodes.find((node) => node.host === host) != null) {
         res.end('Already known\n')
         return
       }
 
-      if (await downloadFromNode(host, '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f') !== false) {
-        nodes.push({ host, http: true, dns: false, cf: false, hits: 0, rejects: 0, bytes: 0, duration: 0 })
+      if (await nodesManager.downloadFromNode(nodeFrom(host), '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f') !== false) {
+        nodesManager.nodes.push({ host, http: true, dns: false, cf: false, hits: 0, rejects: 0, bytes: 0, duration: 0 })
         fs.writeFileSync(NODES_PATH, JSON.stringify(nodes))
         res.end('Announced\n')
       } else res.end('Invalid request\n')
@@ -439,7 +106,7 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
           res.end('404 File Not Found\n')
           return
         } else {
-          notFound[hash] = undefined
+          notFound = Object.fromEntries(Object.entries(notFound).filter(([key]) => key !== hash))
         }
       }
 
@@ -450,13 +117,10 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
 
       let file: File | false = false
       try {
-        file = await promiseWithTimeout(getFile(hash, fileId), CONFIG.timeout)
+        file = await promiseWithTimeout(fileManager.getFile(hash, fileId), CONFIG.timeout)
       } catch (error) {
         console.error(error)
       }
-      headers['Signal-Strength'] = file.signal
-
-      console.log(hash, 'Signal Strength:', file.signal, estimateNumberOfHopsWithRandomAndCertainty(file.signal))
 
       if (file === false) {
         notFound[hash] = +new Date()
@@ -464,6 +128,9 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
         res.end('404 File Not Found\n')
         return
       }
+
+      headers['Signal-Strength'] = String(file.signal)
+      console.log(hash, 'Signal Strength:', file.signal, estimateNumberOfHopsWithRandomAndCertainty(file.signal))
 
       let name: string | undefined
       if (typeof fileId !== 'undefined') {
@@ -479,7 +146,6 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
 
       res.writeHead(200, headers)
       res.end(file.file)
-      downloadCount[hash] = typeof downloadCount[hash] === 'undefined' ? Number(downloadCount[hash]) + 1 : 1
     } else if (req.url === '/upload') {
       const uploadSecret = req.headers['x-hydra-upload-secret']
       if (uploadSecret !== CONFIG.upload_secret) {
@@ -520,7 +186,7 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
 
         fs.writeFileSync(path.join(DIRNAME, 'config.json'), JSON.stringify(CONFIG, null, 2))
 
-        cacheFile(filePath, fs.readFileSync(file.filepath))
+        fileManager.cacheFile(filePath, fs.readFileSync(file.filepath))
 
         res.writeHead(201, { 'Content-Type': 'text/plain' })
         res.end('200 OK\n')
@@ -536,7 +202,6 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
   }
 }
 
-const pendingFiles: string[] = []
 const server = http.createServer((req, res) => {
   console.log('Request Received:', req.url)
 
@@ -547,18 +212,8 @@ server.listen(CONFIG.port, CONFIG.hostname, (): void => {
   console.log(`Server running at ${CONFIG.public_hostname}/`)
 
   const handleListen = async (): Promise<void> => {
-    const filesPath = path.join(DIRNAME, 'files')
-    if (fs.existsSync(filesPath)) {
-      const files = fs.readdirSync(filesPath)
-      for (const file of files) {
-        const stats = fs.statSync(path.join(filesPath, file))
-        usedStorage += stats.size
-      }
-    }
-    console.log(`Files dir size: ${Math.round(100 * usedStorage / 1024 / 1024 / 1024) / 100}GB`)
-
     // Call all nodes and pull their /nodes
-    const nodes = getNodes({ includeSelf: false })
+    const nodes = nodesManager.getNodes({ includeSelf: false })
     for (const node of nodes) {
       try {
         if (node.http) {
@@ -567,7 +222,7 @@ server.listen(CONFIG.port, CONFIG.hostname, (): void => {
           if (response.status === 200) {
             const remoteNodes = await response.json() as Node[]
             for (const remoteNode of remoteNodes) {
-              if (typeof nodes.find((node: { host: string }) => node.host === remoteNode.host) === 'undefined' && (await downloadFromNode(remoteNode.host, '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f') !== false)) nodes.push(remoteNode)
+              if (typeof nodes.find((node: { host: string }) => node.host === remoteNode.host) === 'undefined' && (await nodesManager.downloadFromNode(remoteNode, '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f') !== false)) nodesManager.nodes.push(remoteNode)
             }
           }
         }
@@ -579,31 +234,25 @@ server.listen(CONFIG.port, CONFIG.hostname, (): void => {
     fs.writeFileSync(NODES_PATH, JSON.stringify(nodes))
 
     console.log('Testing network connection')
-    const file = await getFileFromNodes('04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f')
-    if (!file) console.error('Download test failed, cannot connect to network')
+    const file = await nodesManager.getFile('04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f')
+    if (file === false) console.error('Download test failed, cannot connect to network')
     else {
       console.log('Connected to network')
       if (isIp(CONFIG.public_hostname) && isPrivateIP(CONFIG.public_hostname)) console.error('Public hostname is a private IP address, cannot announce to other nodes')
       else {
         console.log(`Testing downloads ${CONFIG.public_hostname}/download/04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f`)
 
-        const response = await downloadFromNode(`${CONFIG.public_hostname}`, '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f')
-        console.log(`Download ${!response ? 'Failed' : 'Succeeded'}`)
+        const response = await nodesManager.downloadFromNode(nodeFrom(`${CONFIG.public_hostname}`), '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f')
+        console.log(`Download ${response === false ? 'Failed' : 'Succeeded'}`)
 
         // Save self to nodes.json
         if (nodes.find((node: { host: string }) => node.host === CONFIG.public_hostname) == null) {
-          nodes.push({ host: CONFIG.public_hostname, http: true, dns: false, cf: false, hits: 0, rejects: 0, bytes: 0, duration: 0 })
+          nodesManager.nodes.push({ host: CONFIG.public_hostname, http: true, dns: false, cf: false, hits: 0, rejects: 0, bytes: 0, duration: 0 })
           fs.writeFileSync(NODES_PATH, JSON.stringify(nodes))
         }
 
         console.log('Announcing to nodes')
-        for (const node of nodes) {
-          if (node.http) {
-            if (node.host === CONFIG.public_hostname) continue
-            console.log('Announcing to', node.host)
-            await fetch(`${node.host}/announce?host=${CONFIG.public_hostname}`)
-          }
-        }
+        await nodesManager.announce()
       }
     }
   }

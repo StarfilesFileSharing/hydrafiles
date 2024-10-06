@@ -1,7 +1,8 @@
 import fs from 'fs'
 import path from 'path'
+import { PreferNode } from './nodes'
 
-interface Config {
+export interface Config {
   port: number
   hostname: string
   max_storage: number
@@ -10,7 +11,7 @@ interface Config {
   metadata_endpoint: string
   bootstrap_nodes: string[]
   public_hostname: string
-  prefer_node: string
+  prefer_node: PreferNode
   max_concurrent_nodes: number
   upload_secret: string
   s3_access_key_id: string
@@ -18,7 +19,6 @@ interface Config {
   s3_endpoint: string
   cache_s3: boolean
   memory_threshold: number
-  assumed_size: number
   memory_threshold_reached_wait: number
   timeout: number
 }
@@ -45,7 +45,6 @@ const CONFIG: Config = {
   s3_endpoint: config.s3_endpoint,
   cache_s3: config.cache_s3,
   memory_threshold: config.memory_threshold,
-  assumed_size: config.assumed_size,
   memory_threshold_reached_wait: config.memory_threshold_reached_wait,
   timeout: config.timeout
 }

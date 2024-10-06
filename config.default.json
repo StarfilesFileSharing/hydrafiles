@@ -17,7 +17,6 @@
 	"s3_endpoint": "",
 	"cache_s3": true,
 	"memory_threshold": 0,
-	"assumed_size": 0,
 	"memory_threshold_reached_wait": 100,
 	"timeout": 60000,
 	"upload_secret": ""
