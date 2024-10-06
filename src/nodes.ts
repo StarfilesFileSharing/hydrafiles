@@ -135,7 +135,7 @@ export default class Nodes {
           const file = await this.downloadFromNode(node, hash)
 
           if (file !== false) {
-            this.fileManager.cacheFile(path.join(DIRNAME, 'files', hash), file.file)
+            this.fileManager.cacheFile(hash, file.file)
             return file
           } else {
             return false

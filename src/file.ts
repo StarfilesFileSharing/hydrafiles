@@ -105,7 +105,8 @@ class FileManager {
     }
   }
 
-  cacheFile (filePath: string, file: Buffer): void {
+  cacheFile (hash: string, file: Buffer): void {
+    const filePath = path.join(DIRNAME, 'files', hash)
     if (fs.existsSync(filePath)) return
 
     const size = file.length
@@ -119,7 +120,7 @@ class FileManager {
     writeStream.on('error', (err) => console.error('Error writing to file:', err))
     writeStream.on('finish', () => {
       this.usedStorage += size
-      console.log(`Successfully cached file. Used storage: ${this.usedStorage}`)
+      console.log(`  ${hash}  Successfully cached file. Used storage: ${this.usedStorage}`)
     })
 
     readStream.pipe(writeStream)
@@ -133,7 +134,7 @@ class FileManager {
     if (!isValidSHA256Hash(hash)) return false
     downloadCount[hash] = typeof downloadCount[hash] === 'undefined' ? Number(downloadCount[hash]) + 1 : 1
     if (this.pendingFiles.includes(hash)) {
-      console.log('Hash is already pending, waiting for it to be processed')
+      console.log(`  ${hash}  File is already pending, waiting for it to be processed`)
       await new Promise(() => {
         const intervalId = setInterval(() => {
           if (!this.pendingFiles.includes(hash)) clearInterval(intervalId)
@@ -143,7 +144,7 @@ class FileManager {
 
     const size = await this.getFileSize(hash, id)
     if (size !== false && !hasSufficientMemory(size)) {
-      console.log('Reached memory limit, waiting')
+      console.log(`  ${hash}  Reached memory limit, waiting`)
       await new Promise(() => {
         const intervalId = setInterval(() => {
           if (hasSufficientMemory(size)) clearInterval(intervalId)
@@ -155,7 +156,7 @@ class FileManager {
 
     const localFile = await this.fetchFile(hash)
     if (localFile !== false) {
-      console.log(hash, `Serving ${size !== false ? Math.round(size / 1024 / 1024) : 0}MB from cache`)
+      console.log(`  ${hash}  Serving ${size !== false ? Math.round(size / 1024 / 1024) : 0}MB from cache`)
       const index = this.pendingFiles.indexOf(hash)
       if (index > -1) this.pendingFiles.splice(index, 1)
       return localFile
@@ -164,8 +165,8 @@ class FileManager {
     if (CONFIG.s3_endpoint.length > 0) {
       const s3File = await this.fetchFromS3('uploads', `${hash}.stuf`)
       if (s3File !== false) {
-        if (CONFIG.cache_s3) this.cacheFile(path.join(DIRNAME, 'files', hash), s3File.file)
-        console.log(hash, `Serving ${size !== false ? Math.round(size / 1024 / 1024) : 0}MB from S3`)
+        if (CONFIG.cache_s3) this.cacheFile(hash, s3File.file)
+        console.log(`  ${hash}  Serving ${size !== false ? Math.round(size / 1024 / 1024) : 0}MB from S3`)
         const index = this.pendingFiles.indexOf(hash)
         if (index > -1) this.pendingFiles.splice(index, 1)
         return s3File

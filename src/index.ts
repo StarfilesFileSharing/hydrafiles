@@ -130,8 +130,7 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
 
         console.log('Uploading', hash)
 
-        const filePath = path.join(DIRNAME, 'files', hash)
-        if (fs.existsSync(filePath)) {
+        if (fs.existsSync(path.join(DIRNAME, 'files', hash))) {
           res.writeHead(200, { 'Content-Type': 'text/plain' })
           res.end('200 OK\n')
           return
@@ -141,7 +140,7 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
 
         fs.writeFileSync(path.join(DIRNAME, 'config.json'), JSON.stringify(CONFIG, null, 2))
 
-        fileManager.cacheFile(filePath, fs.readFileSync(file.filepath))
+        fileManager.cacheFile(hash, fs.readFileSync(file.filepath))
 
         res.writeHead(201, { 'Content-Type': 'text/plain' })
         res.end('200 OK\n')
