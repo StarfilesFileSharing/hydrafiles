@@ -80,7 +80,7 @@ const s3 = new S3({
 })
 
 const hasSufficientMemory = (fileSize: number | false): boolean => {
-  if (Number(fileSize) === 0) fileSize = ASSUMED_SIZE
+  if (!fileSize) fileSize = ASSUMED_SIZE
   const freeMemory = os.freemem()
   const neededMemory = fileSize + MEMORY_THRESHOLD
   console.log('Needed Memory', neededMemory)
@@ -180,7 +180,7 @@ const fetchFromS3 = async (bucket: string, key: string): Promise<File> => {
       buffer = Buffer.concat(chunks)
     } else if (data.Body instanceof Buffer) { buffer = data.Body } else { return false }
 
-    return { file: buffer, signal: interfere(90) }
+    return { file: buffer, signal: interfere(100) }
   } catch (error) {
     if (error instanceof Error && error.name !== 'NoSuchKey') { console.error(error) }
     return false
@@ -246,7 +246,7 @@ const getFileFromNodes = async (hash: string, size: number = 0): Promise<File | 
 
 const fetchFile = async (hash: string): Promise<File> => {
   const filePath = path.join(DIRNAME, 'files', hash)
-  return fs.existsSync(filePath) ? { file: fs.readFileSync(filePath), signal: interfere(90) } : false
+  return fs.existsSync(filePath) ? { file: fs.readFileSync(filePath), signal: interfere(100) } : false
 }
 
 const updateNode = (node: Node): void => {
@@ -284,10 +284,29 @@ const getFileSize = async (hash: string, id: string = ''): Promise<number | fals
 const getRandomNumber = (min: number, max: number): number => Math.floor(Math.random() * (max - min + 1)) + min
 
 const interfere = (signalStrength: number): number => {
-  if (signalStrength >= 90) return getRandomNumber(80, 100)
+  if (signalStrength >= 95) return getRandomNumber(90, 100)
   else {
-    const interference = getRandomNumber(0, 10)
-    return signalStrength * (interference / 100)
+    const interference = getRandomNumber(0, 10) / 100
+    return Math.ceil(signalStrength * (1 - interference))
+  }
+}
+
+const estimateNumberOfHopsWithRandomAndCertainty = (signalStrength: number): { estimatedHops: number, certaintyPercentage: number } => {
+  const interference = 0.1
+
+  const numerator = 2 * signalStrength - 100
+  if (numerator <= 0) throw new Error('Invalid average signal strength for the given initial signal strength.')
+  const numberOfHops = Math.log(numerator / 100) / Math.log(1 - interference)
+
+  let worstCaseSignal = 100
+  for (let i = 0; i < Math.ceil(numberOfHops); i++) {
+    worstCaseSignal *= (1 - interference)
+    if (worstCaseSignal >= 95) worstCaseSignal = getRandomNumber(90, 100)
+  }
+
+  return {
+    estimatedHops: Math.round(numberOfHops),
+    certaintyPercentage: Number(worstCaseSignal.toFixed(2))
   }
 }
 
