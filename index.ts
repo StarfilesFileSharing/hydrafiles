@@ -531,7 +531,7 @@ server.listen(PORT, HOSTNAME, (): void => {
           }
         }
       } catch (e) {
-        console.error('Failed to fetch nodes from', node.host)
+        console.error(`    Failed to fetch nodes from ${node.host}/nodes`)
       }
     }
 
@@ -540,25 +540,28 @@ server.listen(PORT, HOSTNAME, (): void => {
     console.log('Testing network connection')
     const file = await getFileFromNodes('04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f')
     if (!file) console.error('Download test failed, cannot connect to network')
-    else if (isIp(PUBLIC_HOSTNAME) && isPrivateIP(PUBLIC_HOSTNAME)) console.error('Public hostname is a private IP address, cannot announce to other nodes')
     else {
-      console.log(`Testing downloads ${PUBLIC_HOSTNAME}/download/04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f`)
+      console.log('Connected to network')
+      if (isIp(PUBLIC_HOSTNAME) && isPrivateIP(PUBLIC_HOSTNAME)) console.error('Public hostname is a private IP address, cannot announce to other nodes')
+      else {
+        console.log(`Testing downloads ${PUBLIC_HOSTNAME}/download/04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f`)
 
-      const response = await downloadFromNode(`${PUBLIC_HOSTNAME}`, '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f')
-      console.log(`Download ${!response ? 'Failed' : 'Succeeded'}`)
+        const response = await downloadFromNode(`${PUBLIC_HOSTNAME}`, '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f')
+        console.log(`Download ${!response ? 'Failed' : 'Succeeded'}`)
 
-      // Save self to nodes.json
-      if (nodes.find((node: { host: string }) => node.host === PUBLIC_HOSTNAME) == null) {
-        nodes.push({ host: PUBLIC_HOSTNAME, http: true, dns: false, cf: false, hits: 0, rejects: 0, bytes: 0, duration: 0 })
-        fs.writeFileSync(NODES_PATH, JSON.stringify(nodes))
-      }
+        // Save self to nodes.json
+        if (nodes.find((node: { host: string }) => node.host === PUBLIC_HOSTNAME) == null) {
+          nodes.push({ host: PUBLIC_HOSTNAME, http: true, dns: false, cf: false, hits: 0, rejects: 0, bytes: 0, duration: 0 })
+          fs.writeFileSync(NODES_PATH, JSON.stringify(nodes))
+        }
 
-      console.log('Announcing to nodes')
-      for (const node of nodes) {
-        if (node.http) {
-          if (node.host === PUBLIC_HOSTNAME) continue
-          console.log('Announcing to', node.host)
-          await fetch(`${node.host}/announce?host=${PUBLIC_HOSTNAME}`)
+        console.log('Announcing to nodes')
+        for (const node of nodes) {
+          if (node.http) {
+            if (node.host === PUBLIC_HOSTNAME) continue
+            console.log('Announcing to', node.host)
+            await fetch(`${node.host}/announce?host=${PUBLIC_HOSTNAME}`)
+          }
         }
       }
     }
