@@ -163,6 +163,94 @@
         Method: <code>GET</code><br>
         Endpoint: <code><span class="hydra-host">https://hydrafiles.com</span>/download/<span style="background:#ccc;padding:2px 4px;border-radius:8px">sha256_checksum</span></code>
         </p>
+        <h3>Signal-Strength Header</h3>
+        <p>The <code>Signal-Strength</code> HTTP header is used to approximate number of hops without breaking privacy. This is used to approximate network other statistics such as redudancy.</p>
+        <p>It works by simulating radio-wave interference. Nodes directly serving the file return a signal strength of 90%-100%. Each node after returns a signal strength 0-10% lower than the previous hop. If a node receives a signal strength of 95% or higher, it defaults to returning a signal strength of 90-100% to further obfuscate the origin.</p>
+        <p>A simulation with 100k runs provides the following signal strengths:</p>
+        <table border="1">
+            <thead>
+                <tr>
+                    <th>Hop #</th>
+                    <th>Minimum</th>
+                    <th>Average</th>
+                    <th>Median</th>
+                    <th>Maximum</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>1</td>
+                    <td>90</td>
+                    <td>95</td>
+                    <td>95</td>
+                    <td>100</td>
+                </tr>
+                <tr>
+                    <td>2</td>
+                    <td>81</td>
+                    <td>92</td>
+                    <td>92</td>
+                    <td>100</td>
+                </tr>
+                <tr>
+                    <td>3</td>
+                    <td>73</td>
+                    <td>88</td>
+                    <td>88</td>
+                    <td>100</td>
+                </tr>
+                <tr>
+                    <td>4</td>
+                    <td>66</td>
+                    <td>85</td>
+                    <td>84</td>
+                    <td>100</td>
+                </tr>
+                <tr>
+                    <td>5</td>
+                    <td>61</td>
+                    <td>81</td>
+                    <td>80</td>
+                    <td>100</td>
+                </tr>
+                <tr>
+                    <td>6</td>
+                    <td>56</td>
+                    <td>78</td>
+                    <td>77</td>
+                    <td>100</td>
+                </tr>
+                <tr>
+                    <td>7</td>
+                    <td>51</td>
+                    <td>74</td>
+                    <td>73</td>
+                    <td>100</td>
+                </tr>
+                <tr>
+                    <td>8</td>
+                    <td>49</td>
+                    <td>71</td>
+                    <td>70</td>
+                    <td>100</td>
+                </tr>
+                <tr>
+                    <td>9</td>
+                    <td>45</td>
+                    <td>68</td>
+                    <td>67</td>
+                    <td>100</td>
+                </tr>
+                <tr>
+                    <td>10</td>
+                    <td>43</td>
+                    <td>65</td>
+                    <td>64</td>
+                    <td>100</td>
+                </tr>
+            </tbody>
+        </table>
+        <p>Based on these averages, we can correlate signal strength with number of hops.</p>
     </section>
     
     <!-- <section>
