@@ -49,7 +49,7 @@ const MEMORY_THRESHOLD: number = config.memory_threshold
 const ASSUMED_SIZE: number = config.assumed_size
 const MEMORY_THRESHOLD_ASSUMED_WAIT: number = config.memory_threshold_reached_wait
 
-const TIMEOUT = 60000
+const TIMEOUT: number = config.timeout
 // CONFIG /////////////////////////////////////
 
 // INITIALISATION /////////////////////////////

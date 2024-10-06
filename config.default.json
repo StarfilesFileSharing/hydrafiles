@@ -20,4 +20,5 @@
 	"memory_threshold": 0,
 	"assumed_size": 52428800,
 	"memory_threshold_reached_wait": 100
+	"timeout": 60000
 }
