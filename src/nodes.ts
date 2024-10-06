@@ -92,6 +92,10 @@ export default class Nodes {
     const executing: Array<Promise<void>> = []
 
     for (const node of nodes) {
+      if (node.host === CONFIG.public_hostname) {
+        results.push(node)
+        continue
+      }
       const promise = this.validateNode(node).then(result => {
         results.push(result)
         executing.splice(executing.indexOf(promise), 1)

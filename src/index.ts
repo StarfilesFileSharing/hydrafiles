@@ -44,9 +44,7 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
       res.end(JSON.stringify({ status: true }))
     } else if (req.url === '/nodes' || req.url.startsWith('/nodes?')) {
       res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=3600' })
-
-      const nodes = await nodesManager.getValidNodes()
-      res.end(JSON.stringify(nodes))
+      res.end(JSON.stringify(await nodesManager.getValidNodes()))
     } else if (req.url.startsWith('/announce')) {
       const params = Object.fromEntries(new URLSearchParams(req.url.split('?')[1]))
       const host = params.host
