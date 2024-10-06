@@ -80,7 +80,7 @@ const s3 = new S3({
 })
 
 const hasSufficientMemory = (fileSize: number | false): boolean => {
-  if (!fileSize) fileSize = ASSUMED_SIZE
+  if (Number(fileSize) === 0) fileSize = ASSUMED_SIZE
   const freeMemory = os.freemem()
   const neededMemory = fileSize + MEMORY_THRESHOLD
   console.log('Needed Memory', neededMemory)
