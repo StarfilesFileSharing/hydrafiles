@@ -4,7 +4,7 @@
 	"public_hostname": "http://127.0.0.1:80",
 	"max_storage": 107374182400,
 	"perma_files": [],
-	"prefer_node": "FASTEST",
+	"prefer_node": "HIGHEST_HITRATE",
 	"max_concurrent_nodes": 5,
 	"metadata_endpoint": "https://api2.starfiles.co/file/",
 	"bootstrap_nodes": [
@@ -18,7 +18,7 @@
 	"s3_endpoint": "",
 	"cache_s3": true,
 	"memory_threshold": 0,
-	"assumed_size": 52428800,
-	"memory_threshold_reached_wait": 100
+	"assumed_size": 0,
+	"memory_threshold_reached_wait": 100,
 	"timeout": 60000
 }
