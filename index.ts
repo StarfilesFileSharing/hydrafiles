@@ -143,7 +143,7 @@ const getNodes = (opts = { includeSelf: true }): Node[] => {
 
 const downloadFromNode = async (host: string, hash: string): Promise<File | false> => {
   try {
-    console.log(`    Downloading from ${host}/download/${hash}`)
+    console.log(hash, `Downloading from ${host}`)
     const response = await fetch(`${host}/download/${hash}`)
     const arrayBuffer = await response.arrayBuffer()
     const hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer)
@@ -153,7 +153,7 @@ const downloadFromNode = async (host: string, hash: string): Promise<File | fals
 
     const name = response.headers.get('Content-Disposition')?.split('=')[1].replace(/"/g, '')
     const signalStrength = Number(response.headers.get('Signal-Strength'))
-    console.log(`${hash} Signal Strength:`, signalStrength, estimateNumberOfHopsWithRandomAndCertainty(signalStrength))
+    console.log(hash, 'Signal Strength:', signalStrength, estimateNumberOfHopsWithRandomAndCertainty(signalStrength))
 
     return { file: Buffer.from(arrayBuffer), name, signal: interfere(signalStrength) }
   } catch (e) {
@@ -332,7 +332,7 @@ const getFile = async (hash: string, id: string = ''): Promise<File> => {
 
   const localFile = await fetchFile(hash)
   if (localFile !== false) {
-    console.log(`    Serving ${size !== false ? Math.round(size / 1024 / 1024) : 0}MB from cache`)
+    console.log(hash, `Serving ${size !== false ? Math.round(size / 1024 / 1024) : 0}MB from cache`)
     const index = pendingFiles.indexOf(hash)
     if (index > -1) pendingFiles.splice(index, 1)
     return localFile
@@ -342,7 +342,7 @@ const getFile = async (hash: string, id: string = ''): Promise<File> => {
     const s3File = await fetchFromS3('uploads', `${hash}.stuf`)
     if (s3File !== false) {
       if (CACHE_S3 !== false) cacheFile(path.join(DIRNAME, 'files', hash), s3File.file)
-      console.log(`    Serving ${size !== false ? Math.round(size / 1024 / 1024) : 0}MB from S3`)
+      console.log(hash, `Serving ${size !== false ? Math.round(size / 1024 / 1024) : 0}MB from S3`)
       const index = pendingFiles.indexOf(hash)
       if (index > -1) pendingFiles.splice(index, 1)
       return s3File
