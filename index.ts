@@ -318,7 +318,12 @@ const getFile = async (hash: string, id: string = ''): Promise<File> => {
 
   const index = pendingFiles.indexOf(hash)
   if (index > -1) pendingFiles.splice(index, 1)
-  return await getFileFromNodes(hash)
+  return await getFileFromNodes(hash, size)
+}
+
+function isValidSHA256Hash(hash: string): boolean {
+  const sha256Regex = /^[a-f0-9]{64}$/
+  return sha256Regex.test(hash)
 }
 
 const setFiletable = (hash: string, id: string | undefined, name: string | undefined): void => {
@@ -377,6 +382,12 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
     } else if (req.url?.startsWith('/download/')) {
       const hash = req.url.split('/')[2]
       const fileId = req.url.split('/')[3]
+
+      if (!isValidSHA256Hash(hash)) {
+        res.writeHead(400, { 'Content-Type': 'text/plain' })
+        res.end('400 Bad Request Error\n')
+        return
+      }
 
       const headers: ResponseHeaders = {
         'Content-Type': 'application/octet-stream',
