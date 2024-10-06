@@ -164,7 +164,7 @@ export default class Nodes {
   }
 
   async announce (): Promise<void> {
-    for (const node of this.nodes) {
+    for (const node of this.getNodes({ includeSelf: false })) {
       if (node.http) {
         if (node.host === CONFIG.public_hostname) continue
         console.log('Announcing to', node.host)
