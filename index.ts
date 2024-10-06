@@ -186,9 +186,18 @@ const fetchFromS3 = async (bucket: string, key: string): Promise<File> => {
   }
 }
 
-const getFileFromNodes = async (hash: string): Promise<File | false> => {
+const getFileFromNodes = async (hash: string, size: number = 0): Promise<File | false> => {
   const nodes = getNodes({ includeSelf: false })
   let activePromises: Array<Promise<File | false>> = []
+
+  if (!hasSufficientMemory(size)) {
+    console.log('Reached memory limit, waiting')
+    await new Promise(() => {
+      const intervalId = setInterval(() => {
+        if (hasSufficientMemory(size)) clearInterval(intervalId)
+      }, MEMORY_THRESHOLD_ASSUMED_WAIT)
+    })
+  }
 
   for (const node of nodes) {
     if (node.http && node.host.length > 0) {
