@@ -503,12 +503,12 @@ server.listen(PORT, HOSTNAME, (): void => {
     for (const node of nodes) {
       try {
         if (node.http) {
-          console.log(`Fetching nodes from ${node.host}`)
+          console.log(`Fetching nodes from ${node.host}/nodes`)
           const response = await fetch(`${node.host}/nodes`)
           if (response.status === 200) {
             const remoteNodes = await response.json() as Node[]
             for (const remoteNode of remoteNodes) {
-              if ((nodes.find((node: { host: string }) => node.host === remoteNode.host) == null) && (await downloadFromNode(remoteNode.host, '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f') !== false)) nodes.push(remoteNode)
+              if (typeof nodes.find((node: { host: string }) => node.host === remoteNode.host) === 'undefined' && (await downloadFromNode(remoteNode.host, '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f') !== false)) nodes.push(remoteNode)
             }
           }
         }
