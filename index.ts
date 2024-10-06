@@ -152,7 +152,7 @@ const downloadFromNode = async (host: string, hash: string): Promise<File | fals
     if (hash !== hashArray.map(b => b.toString(16).padStart(2, '0')).join('')) return false
 
     const name = response.headers.get('Content-Disposition')?.split('=')[1].replace(/"/g, '')
-    const signalStrength = Number(response.headers.get('Signal-Strength')?.split('=')[1])
+    const signalStrength = Number(response.headers.get('Signal-Strength'))
 
     return { file: Buffer.from(arrayBuffer), name, signal: interfere(signalStrength) }
   } catch (e) {
