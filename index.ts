@@ -8,6 +8,17 @@ import { Readable } from 'stream'
 import formidable from 'formidable'
 import os from 'os'
 
+// TODO: IDEA: HydraTorrent - New Github repo - "Hydrafiles + WebTorrent Compatibility Layer" - Hydrafiles noes can optionally run HydraTorrent to seed files via webtorrent
+// Change index hash from sha256 to infohash, then allow nodes to leech files from webtorrent + normal torrent
+// HydraTorrent is a WebTorrent hybrid client that plugs into Hydrafiles
+// Then send a PR to WebTorrent for it to connect to the Hydrafiles network as default webseeds
+// HydraTorrent is 2-way, allowing for fetching-seeding files via both hydrafiles and torrent
+//
+// ALSO THIS ALLOWS FOR PLAUSIBLE DENIABLITY FOR NORMAL TORRENTS
+// Torrent clients can connect to the Hydrafiles network and claim they dont host any of the files they seed
+// bittorrent to http proxy
+// starfiles.co would use webtorrent to download files
+
 const DIRNAME = path.resolve()
 
 // ADVANCED CONFIG ////////////////////////////
@@ -83,8 +94,7 @@ const hasSufficientMemory = (fileSize: number | false): boolean => {
   if (!fileSize) fileSize = ASSUMED_SIZE
   const freeMemory = os.freemem()
   const neededMemory = fileSize + MEMORY_THRESHOLD
-  console.log('Needed Memory', neededMemory)
-  console.log('Free Memory', freeMemory)
+  console.log('RAM - Needed:', neededMemory, 'Free', freeMemory)
   return freeMemory > neededMemory
 }
 
