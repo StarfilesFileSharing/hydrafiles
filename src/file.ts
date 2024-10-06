@@ -3,7 +3,7 @@ import * as fs from 'fs'
 import * as path from 'path'
 import { Readable } from 'stream'
 import CONFIG from './config'
-import { hasSufficientMemory, interfere } from './utils'
+import { hasSufficientMemory, interfere, isValidSHA256Hash } from './utils'
 import Nodes from './nodes'
 
 export interface File { file: Buffer, name?: string, signal: number }
@@ -19,6 +19,7 @@ class FileManager {
   private readonly s3: S3
   private readonly pendingFiles: string[]
   private readonly nodesManager: Nodes
+  private notFound: Record<string, number> = {}
 
   constructor (nodesManager: Nodes) {
     this.s3 = new S3({
@@ -125,6 +126,11 @@ class FileManager {
   }
 
   async getFile (hash: string, id: string = ''): Promise<File | false> {
+    if (Object.keys(this.notFound).includes(hash)) {
+      if (this.notFound[hash] > +new Date() - (1000 * 60 * 5)) return false
+      else this.notFound = Object.fromEntries(Object.entries(this.notFound).filter(([key]) => key !== hash))
+    }
+    if (!isValidSHA256Hash(hash)) return false
     downloadCount[hash] = typeof downloadCount[hash] === 'undefined' ? Number(downloadCount[hash]) + 1 : 1
     if (this.pendingFiles.includes(hash)) {
       console.log('Hash is already pending, waiting for it to be processed')
@@ -168,7 +174,9 @@ class FileManager {
 
     const index = this.pendingFiles.indexOf(hash)
     if (index > -1) this.pendingFiles.splice(index, 1)
-    return await this.nodesManager.getFile(hash, Number(size))
+    const file = await this.nodesManager.getFile(hash, Number(size))
+    if (file === false) this.notFound[hash] = +new Date()
+    return file
   }
 
   async fetchFromS3 (bucket: string, key: string): Promise<File | false> {

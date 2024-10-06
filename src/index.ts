@@ -59,7 +59,6 @@ const setFiletable = (hash: string, id: string | undefined, name: string | undef
   if (typeof name !== 'undefined') fileTable[hash].name = name
   fs.writeFileSync(path.join(DIRNAME, 'filetable.json'), JSON.stringify(fileTable, null, 2))
 }
-
 let notFound: Record<string, number> = {}
 
 const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse<http.IncomingMessage>): Promise<void> => {
@@ -100,16 +99,6 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
         return
       }
 
-      if (Object.keys(notFound).includes(hash)) {
-        if (notFound[hash] > +new Date() - (1000 * 60 * 5)) {
-          res.writeHead(404, { 'Content-Type': 'text/plain' })
-          res.end('404 File Not Found\n')
-          return
-        } else {
-          notFound = Object.fromEntries(Object.entries(notFound).filter(([key]) => key !== hash))
-        }
-      }
-
       const headers: ResponseHeaders = {
         'Content-Type': 'application/octet-stream',
         'Cache-Control': 'public, max-age=31536000'
@@ -123,7 +112,6 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
       }
 
       if (file === false) {
-        notFound[hash] = +new Date()
         res.writeHead(404, { 'Content-Type': 'text/plain' })
         res.end('404 File Not Found\n')
         return
