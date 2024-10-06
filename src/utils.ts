@@ -48,6 +48,7 @@ export function estimateHops (signalStrength: number): { hop: number | null, cer
     { hop: 9, min: 45, avg: 68 },
     { hop: 10, min: 43, avg: 65 }
   ]
+  const avgDistance = hopData.reduce((sum, hop) => sum + Math.abs(signalStrength - hop.avg), 0) / hopData.length
 
   let closestHop: number | null = null
   let closestDistance: number = Infinity // Diff between signal strength and avg
@@ -58,7 +59,8 @@ export function estimateHops (signalStrength: number): { hop: number | null, cer
     const distance = Math.abs(signalStrength - hop.avg)
     const range = 100 - hop.min
     const distanceMinMax = Math.min(Math.abs(signalStrength - hop.min), Math.abs(100 - signalStrength))
-    const certaintyAvg = range > 0 ? (1 - (distance / (range / 2))) : 0
+    const certaintyAvg = avgDistance > 0 ? (1 - (distance / avgDistance)) : 0
+    // const certaintyAvg = range > 0 ? (1 - (distance / (range / 2))) : 0
     const certaintyMinMax = 1 - (distanceMinMax / Math.max(range, 1))
     const finalCertainty = (certaintyAvg + certaintyMinMax) / 2
     if (distance < closestDistance) {
