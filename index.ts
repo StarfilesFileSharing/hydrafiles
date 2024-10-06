@@ -260,8 +260,12 @@ const getFileSize = async (hash: string, id: string = ''): Promise<number | fals
     if (typeof data.ContentLength !== 'undefined') return data.ContentLength
   } catch (error) {
     if (id.length !== 0) {
-      const response = await fetch(`${METADATA_ENDPOINT}${id}`)
-      if (response.status === 200) return Number((await response.json() as Metadata).size)
+      try {
+        const response = await fetch(`${METADATA_ENDPOINT}${id}`)
+        if (response.status === 200) return Number((await response.json() as Metadata).size)
+      } catch (error) {
+        console.error(error)
+      }
     }
   }
   return false
