@@ -1,0 +1,13 @@
+[Unit]
+Description=Hydrafiles Service
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/npx tsx /root/Hydrafiles/src/index.ts
+Restart=always
+User=root
+Environment=NODE_ENV=production
+WorkingDirectory=/root/Hydrafiles/
+
+[Install]
+WantedBy=multi-user.target
