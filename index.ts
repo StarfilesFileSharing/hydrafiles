@@ -18,7 +18,7 @@ let NODES_PATH = path.join(DIRNAME, 'nodes.json')
 interface Metadata {name: string, size: string, type: string, hash: string, id: string}
 interface ResponseHeaders { [key: string]: string }
 type File = { file: Buffer, name?: string, signal: number } | false
-interface Node { host: string, http: boolean, dns: boolean, cf: boolean, hits: number, rejects: number, bytes: number, duration: number }
+interface Node { host: string, http: boolean, dns: boolean, cf: boolean, hits: number, rejects: number, bytes: number, duration: number, status?: boolean }
 enum PreferNode { FASTEST, LEAST_USED, RANDOM, HIGHEST_HITRATE }
 interface FileTable { [key: string]: { id?: string, name?: string } }
 // TYPES //////////////////////////////////////
@@ -162,7 +162,39 @@ const downloadFromNode = async (host: string, hash: string): Promise<File | fals
 
 const getValidNodes = async (opts = { includeSelf: true }): Promise<Node[]> => {
   const nodes = getNodes(opts)
-  return nodes.filter(async node => await downloadFromNode(node.host, '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f') !== false)
+  const hash = '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f'
+  let activePromises: Array<Promise<Node>> = []
+
+  for (const node of nodes) {
+    if (node.http && node.host.length > 0) {
+      const promise = (async (): Promise<Node> => {
+        const startTime = Date.now()
+        const file = await downloadFromNode(node.host, hash)
+
+        if (file !== false) {
+          node.duration += Date.now() - startTime
+          node.bytes += file.file.length
+          node.hits++
+
+          updateNode(node)
+          cacheFile(path.join(DIRNAME, 'files', hash), file.file)
+          const index = pendingFiles.indexOf(hash)
+          if (index > -1) pendingFiles.splice(index, 1)
+          return { host: node.host, status: true }
+        } else {
+          node.rejects++
+          updateNode(node)
+          return { host: node.host, status: false }
+        }
+      })()
+      activePromises.push(promise)
+
+      if (activePromises.filter(p => !p.isFulfilled).length >= MAX_CONCURRENT_NODES) await Promise.race(activePromises)
+    }
+  }
+
+  const responses = await Promise.all(activePromises)
+  return responses.filter(node => node.status)
 }
 
 const fetchFromS3 = async (bucket: string, key: string): Promise<File> => {
