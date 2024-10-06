@@ -9,7 +9,6 @@
 	"metadata_endpoint": "https://api2.starfiles.co/file/",
 	"bootstrap_nodes": [
 		{"host": "https://hydrafiles.com", "http": true, "dns": false, "cf": false, "hits": 0, "rejects": 0, "bytes": 0, "duration": 0},
-		{"host": "https://starfilesdl.com", "http": true, "dns": false, "cf": false, "hits": 0, "rejects": 0, "bytes": 0, "duration": 0},
 		{"host": "https://hydra.starfiles.co", "http": true, "dns": false, "cf": false, "hits": 0, "rejects": 0, "bytes": 0, "duration": 0}
 	],
 	"burn_rate": 0.1,
