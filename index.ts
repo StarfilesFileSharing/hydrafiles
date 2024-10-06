@@ -382,6 +382,7 @@ const promiseWithTimeout = async (promise: Promise<any>, timeoutDuration: number
       })
   })
 }
+const notFound: Record<string, number> = {}
 
 const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse<http.IncomingMessage>): Promise<void> => {
   try {
@@ -421,6 +422,16 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
         return
       }
 
+      if (Object.keys(notFound).includes(hash)) {
+        if (notFound[hash] > +new Date() - (1000 * 60 * 5)) {
+          res.writeHead(404, { 'Content-Type': 'text/plain' })
+          res.end('404 File Not Found\n')
+          return
+        } else {
+          notFound[hash] = undefined
+        }
+      }
+
       const headers: ResponseHeaders = {
         'Content-Type': 'application/octet-stream',
         'Cache-Control': 'public, max-age=31536000'
@@ -437,8 +448,9 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
       console.log(hash, 'Signal Strength:', file.signal, estimateNumberOfHopsWithRandomAndCertainty(file.signal))
 
       if (file === false) {
+        notFound[hash] = +new Date()
         res.writeHead(404, { 'Content-Type': 'text/plain' })
-        res.end('404 Not Found\n')
+        res.end('404 File Not Found\n')
         return
       }
 
@@ -507,7 +519,7 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
       })
     } else {
       res.writeHead(404, { 'Content-Type': 'text/plain' })
-      res.end('404 Not Found\n')
+      res.end('404 Page Not Found\n')
     }
   } catch (e) {
     console.error(e)
