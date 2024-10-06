@@ -153,6 +153,7 @@ const downloadFromNode = async (host: string, hash: string): Promise<File | fals
 
     const name = response.headers.get('Content-Disposition')?.split('=')[1].replace(/"/g, '')
     const signalStrength = Number(response.headers.get('Signal-Strength'))
+    console.log(`${hash} Signal Strength:`, signalStrength, estimateNumberOfHopsWithRandomAndCertainty(signalStrength))
 
     return { file: Buffer.from(arrayBuffer), name, signal: interfere(signalStrength) }
   } catch (e) {
