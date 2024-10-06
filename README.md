@@ -15,7 +15,7 @@ Hydrafiles is the headless storage network. Anyone can be a part of the network.
 In a world where information is freedom. We believe that the people have a right to access the world's information. We believe the people of Russia, China, Iran, America, North Korea, and the rest of the world, all deserve access to the same information. Most people don't use anti-censorship tools when they're inconvenient. We can't control the people. I personally wish the whole internet ran on I2P. But that's never going to happen because it's slow and inconvenient for users. Torrents died off because streaming is more convenient. Piracy is back because subscriptions have gotten inconvenient. Hydrafiles realises that the people don't want to trade their convenience for freedom. Unfortunately, not all hosts have the luxury. With global censorship of whistleblowing and propaganda at an all time high, it is, now more than ever, crucial for people to be able to anonymously serve files to the masses.
 
 ## How does it work?
-![I'm Spartacus!](i-am-spartacus.gif)
+![I'm Spartacus!](src/public/i-am-spartacus.gif)
 
 TLDR: This scene ^
 
