@@ -346,7 +346,7 @@ const estimateNumberOfHopsWithRandomAndCertainty = (signalStrength: number): { e
   }
 
   return {
-    estimatedHops: Math.round(numberOfHops),
+    estimatedHops: Math.ceil(numberOfHops),
     certaintyPercentage: Number(worstCaseSignal.toFixed(2))
   }
 }
