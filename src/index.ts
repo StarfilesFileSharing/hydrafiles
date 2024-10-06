@@ -1,12 +1,13 @@
 import http from 'http'
 import fs from 'fs'
 import path from 'path'
-// import fetch from 'node-fetch'
 import crypto from 'crypto'
 import { S3 } from '@aws-sdk/client-s3'
 import { Readable } from 'stream'
 import formidable from 'formidable'
 import os from 'os'
+
+import CONFIG from './config'
 
 // TODO: IDEA: HydraTorrent - New Github repo - "Hydrafiles + WebTorrent Compatibility Layer" - Hydrafiles noes can optionally run HydraTorrent to seed files via webtorrent
 // Change index hash from sha256 to infohash, then allow nodes to leech files from webtorrent + normal torrent
@@ -20,10 +21,7 @@ import os from 'os'
 // starfiles.co would use webtorrent to download files
 
 const DIRNAME = path.resolve()
-
-// ADVANCED CONFIG ////////////////////////////
-let NODES_PATH = path.join(DIRNAME, 'nodes.json')
-// ADVANCED CONFIG ////////////////////////////
+const NODES_PATH = path.join(DIRNAME, 'nodes.json')
 
 // TYPES //////////////////////////////////////
 interface Metadata {name: string, size: string, type: string, hash: string, id: string}
@@ -34,42 +32,13 @@ enum PreferNode { FASTEST, LEAST_USED, RANDOM, HIGHEST_HITRATE }
 interface FileTable { [key: string]: { id?: string, name?: string } }
 // TYPES //////////////////////////////////////
 
-// CONFIG /////////////////////////////////////
-if (!fs.existsSync(path.join(DIRNAME, 'config.json'))) fs.copyFileSync(path.join(DIRNAME, 'config.default.json'), path.join(DIRNAME, 'config.json'))
-
-const config = JSON.parse(fs.readFileSync(path.join(DIRNAME, 'config.json')).toString())
-const PORT: number = config.port
-const HOSTNAME: string = config.hostname
-const MAX_STORAGE = config.max_storage
-const PERMA_FILES: string[] = config.perma_files
-const BURN_RATE = config.burn_rate
-const METADATA_ENDPOINT: string = config.metadata_endpoint
-const BOOTSTRAP_NODES = config.bootstrap_nodes
-const PUBLIC_HOSTNAME: string = config.public_hostname
-const PREFER_NODE: string = config.prefer_node
-const MAX_CONCURRENT_NODES: number = config.max_concurrent_nodes
-const UPLOAD_SECRET = config.upload_secret?.strlen !== 0 ? config.upload_secret : Math.random().toString(36).substring(2, 15)
-if (config.nodes_path !== undefined) NODES_PATH = config.nodes_path
-
-const S3ACCESSKEYID = config.s3_access_key_id
-const S3SECRETACCESSKEY = config.s3_secret_access_key
-const S3ENDPOINT = config.s3_endpoint
-const CACHE_S3 = config.cache_s3
-
-const MEMORY_THRESHOLD: number = config.memory_threshold
-const ASSUMED_SIZE: number = config.assumed_size
-const MEMORY_THRESHOLD_ASSUMED_WAIT: number = config.memory_threshold_reached_wait
-
-const TIMEOUT: number = config.timeout
-// CONFIG /////////////////////////////////////
-
 // INITIALISATION /////////////////////////////
 if (!fs.existsSync(path.join(DIRNAME, 'files'))) fs.mkdirSync(path.join(DIRNAME, 'files'))
-if (!fs.existsSync(NODES_PATH)) fs.writeFileSync(NODES_PATH, JSON.stringify(BOOTSTRAP_NODES))
+if (!fs.existsSync(NODES_PATH)) fs.writeFileSync(NODES_PATH, JSON.stringify(CONFIG.bootstrap_nodes))
 if (!fs.existsSync(path.join(DIRNAME, 'filetable.json'))) fs.writeFileSync(path.join(DIRNAME, 'filetable.json'), JSON.stringify({}))
-if (config.upload_secret === undefined) {
-  config.upload_secret = UPLOAD_SECRET
-  fs.writeFileSync(path.join(DIRNAME, 'config.json'), JSON.stringify(config, null, 2))
+if (CONFIG.upload_secret.length === 0) {
+  CONFIG.upload_secret = Math.random().toString(36).substring(2, 15)
+  fs.writeFileSync(path.join(DIRNAME, 'config.json'), JSON.stringify(CONFIG, null, 2))
 }
 // INITIALISATION /////////////////////////////
 
@@ -78,22 +47,22 @@ const isPrivateIP = (ip: string): boolean => /^https?:\/\/(?:10\.|(?:172\.(?:1[6
 
 let usedStorage = 0
 const downloadCount: Record<string, number> = {}
-const preferNode = PreferNode[PREFER_NODE as keyof typeof PreferNode] ?? PreferNode.FASTEST
+const preferNode = PreferNode[CONFIG.prefer_node as keyof typeof PreferNode] ?? PreferNode.FASTEST
 const fileTable: FileTable = JSON.parse(fs.readFileSync(path.join(DIRNAME, 'filetable.json')).toString())
 
 const s3 = new S3({
   region: 'us-east-1',
   credentials: {
-    accessKeyId: S3ACCESSKEYID,
-    secretAccessKey: S3SECRETACCESSKEY
+    accessKeyId: CONFIG.s3_access_key_id,
+    secretAccessKey: CONFIG.s3_secret_access_key
   },
-  endpoint: S3ENDPOINT
+  endpoint: CONFIG.s3_endpoint
 })
 
 const hasSufficientMemory = (fileSize: number | false): boolean => {
-  if (!fileSize) fileSize = ASSUMED_SIZE
+  if (!fileSize) fileSize = CONFIG.assumed_size
   const freeMemory = os.freemem()
-  const neededMemory = fileSize + MEMORY_THRESHOLD
+  const neededMemory = fileSize + CONFIG.memory_threshold
   console.log('RAM - Needed:', neededMemory, 'Free', freeMemory)
   return freeMemory > neededMemory
 }
@@ -101,7 +70,7 @@ const hasSufficientMemory = (fileSize: number | false): boolean => {
 const purgeCache = (requiredSpace: number, remainingSpace: number): void => {
   const files = fs.readdirSync(path.join(DIRNAME, 'files'))
   for (const file of files) {
-    if (PERMA_FILES.includes(file) || Object.keys(downloadCount).includes(file)) continue
+    if (CONFIG.perma_files.includes(file) || Object.keys(downloadCount).includes(file)) continue
 
     const size = fs.statSync(path.join(DIRNAME, 'files', file)).size
     fs.unlinkSync(path.join(DIRNAME, 'files', file))
@@ -111,8 +80,8 @@ const purgeCache = (requiredSpace: number, remainingSpace: number): void => {
     if (requiredSpace <= remainingSpace) break
   }
   if (requiredSpace > remainingSpace) {
-    const sorted = Object.entries(downloadCount).sort(([,a], [,b]) => Number(a) - Number(b)).filter(([file]) => !PERMA_FILES.includes(file))
-    for (let i = 0; i < sorted.length / (BURN_RATE * 100); i++) {
+    const sorted = Object.entries(downloadCount).sort(([,a], [,b]) => Number(a) - Number(b)).filter(([file]) => !CONFIG.perma_files.includes(file))
+    for (let i = 0; i < sorted.length / (CONFIG.burn_rate * 100); i++) {
       const stats = fs.statSync(path.join(DIRNAME, 'files', sorted[i][0]))
       fs.unlinkSync(path.join(DIRNAME, 'files', sorted[i][0]))
       usedStorage -= stats.size
@@ -123,7 +92,7 @@ const purgeCache = (requiredSpace: number, remainingSpace: number): void => {
 const cacheFile = (filePath: string, file: Buffer): void => {
   if (fs.existsSync(filePath)) return
   const size = file.length
-  const remainingSpace = MAX_STORAGE - usedStorage
+  const remainingSpace = CONFIG.max_storage - usedStorage
   if (size > remainingSpace) purgeCache(size, remainingSpace)
 
   const writeStream = fs.createWriteStream(filePath)
@@ -142,7 +111,7 @@ const getNodes = (opts = { includeSelf: true }): Node[] => {
   if (opts.includeSelf === undefined) opts.includeSelf = true
 
   const nodes = JSON.parse(fs.readFileSync(NODES_PATH).toString())
-    .filter((node: { host: string }) => opts.includeSelf || node.host !== PUBLIC_HOSTNAME)
+    .filter((node: { host: string }) => opts.includeSelf || node.host !== CONFIG.public_hostname)
     .sort(() => Math.random() - 0.5)
 
   if (preferNode === PreferNode.FASTEST) return nodes.sort((a: { bytes: number, duration: number }, b: { bytes: number, duration: number }) => a.bytes / a.duration - b.bytes / b.duration)
@@ -173,7 +142,7 @@ const downloadFromNode = async (host: string, hash: string): Promise<File | fals
 const getValidNodes = async (opts = { includeSelf: true }): Promise<Node[]> => {
   const nodes = getNodes(opts)
   const hash = '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f'
-  let activePromises: Array<Promise<Node>> = []
+  const activePromises: Array<Promise<Node>> = []
 
   for (const node of nodes) {
     if (node.http && node.host.length > 0) {
@@ -199,7 +168,7 @@ const getValidNodes = async (opts = { includeSelf: true }): Promise<Node[]> => {
       })()
       activePromises.push(promise)
 
-      if (activePromises.filter(p => !p.isFulfilled).length >= MAX_CONCURRENT_NODES) await Promise.race(activePromises)
+      if (activePromises.filter(p => !p.isFulfilled).length >= CONFIG.max_concurrent_nodes) await Promise.race(activePromises)
     }
   }
 
@@ -208,7 +177,7 @@ const getValidNodes = async (opts = { includeSelf: true }): Promise<Node[]> => {
 }
 
 const fetchFromS3 = async (bucket: string, key: string): Promise<File> => {
-  if (S3ENDPOINT.length === 0) return false
+  if (CONFIG.s3_endpoint.length === 0) return false
   try {
     let buffer: Buffer
     const data = await s3.getObject({ Bucket: bucket, Key: key })
@@ -237,7 +206,7 @@ const getFileFromNodes = async (hash: string, size: number = 0): Promise<File | 
     await new Promise(() => {
       const intervalId = setInterval(() => {
         if (hasSufficientMemory(size)) clearInterval(intervalId)
-      }, MEMORY_THRESHOLD_ASSUMED_WAIT)
+      }, CONFIG.memory_threshold_reached_wait)
     })
   }
 
@@ -265,7 +234,7 @@ const getFileFromNodes = async (hash: string, size: number = 0): Promise<File | 
       })()
       activePromises.push(promise)
 
-      if (activePromises.length >= MAX_CONCURRENT_NODES) {
+      if (activePromises.length >= CONFIG.max_concurrent_nodes) {
         const file = await Promise.race(activePromises)
         if (file !== false) return file
 
@@ -312,7 +281,7 @@ const getFileSize = async (hash: string, id: string = ''): Promise<number | fals
   } catch (error) {
     if (id.length !== 0) {
       try {
-        const response = await fetch(`${METADATA_ENDPOINT}${id}`)
+        const response = await fetch(`${CONFIG.metadata_endpoint}${id}`)
         if (response.status === 200) return Number((await response.json() as Metadata).size)
       } catch (error) {
         console.error(error)
@@ -366,7 +335,7 @@ const getFile = async (hash: string, id: string = ''): Promise<File> => {
     await new Promise(() => {
       const intervalId = setInterval(() => {
         if (hasSufficientMemory(size)) clearInterval(intervalId)
-      }, MEMORY_THRESHOLD_ASSUMED_WAIT)
+      }, CONFIG.memory_threshold_reached_wait)
     })
   }
   pendingFiles.push(hash)
@@ -379,10 +348,10 @@ const getFile = async (hash: string, id: string = ''): Promise<File> => {
     return localFile
   }
 
-  if (S3ENDPOINT.length > 0) {
+  if (CONFIG.s3_endpoint.length > 0) {
     const s3File = await fetchFromS3('uploads', `${hash}.stuf`)
     if (s3File !== false) {
-      if (CACHE_S3 !== false) cacheFile(path.join(DIRNAME, 'files', hash), s3File.file)
+      if (CONFIG.cache_s3) cacheFile(path.join(DIRNAME, 'files', hash), s3File.file)
       console.log(hash, `Serving ${size !== false ? Math.round(size / 1024 / 1024) : 0}MB from S3`)
       const index = pendingFiles.indexOf(hash)
       if (index > -1) pendingFiles.splice(index, 1)
@@ -430,7 +399,7 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
   try {
     if (req.url === '/' || req.url === null || typeof req.url === 'undefined') {
       res.writeHead(200, { 'Content-Type': 'text/html', 'Cache-Control': 'public, max-age=604800' })
-      fs.createReadStream('index.html').pipe(res)
+      fs.createReadStream('public/index.html').pipe(res)
     } else if (req.url === '/status') {
       res.writeHead(200, { 'Content-Type': 'application/json' })
       res.end(JSON.stringify({ status: true }))
@@ -481,7 +450,7 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
 
       let file: File | false = false
       try {
-        file = await promiseWithTimeout(getFile(hash, fileId), TIMEOUT)
+        file = await promiseWithTimeout(getFile(hash, fileId), CONFIG.timeout)
       } catch (error) {
         console.error(error)
       }
@@ -498,7 +467,7 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
 
       let name: string | undefined
       if (typeof fileId !== 'undefined') {
-        const response = await fetch(`${METADATA_ENDPOINT}${fileId}`)
+        const response = await fetch(`${CONFIG.metadata_endpoint}${fileId}`)
         if (response.status === 200) name = (await response.json() as Metadata).name
       }
 
@@ -513,7 +482,7 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
       downloadCount[hash] = typeof downloadCount[hash] === 'undefined' ? Number(downloadCount[hash]) + 1 : 1
     } else if (req.url === '/upload') {
       const uploadSecret = req.headers['x-hydra-upload-secret']
-      if (uploadSecret !== UPLOAD_SECRET) {
+      if (uploadSecret !== CONFIG.upload_secret) {
         res.writeHead(401, { 'Content-Type': 'text/plain' })
         res.end('401 Unauthorized\n')
         return
@@ -547,12 +516,9 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
           return
         }
 
-        if (!PERMA_FILES.includes(hash)) {
-          PERMA_FILES.push(hash)
-          config.perma_files = PERMA_FILES
-        }
+        if (!CONFIG.perma_files.includes(hash)) CONFIG.perma_files.push(hash)
 
-        fs.writeFileSync(path.join(DIRNAME, 'config.json'), JSON.stringify(config, null, 2))
+        fs.writeFileSync(path.join(DIRNAME, 'config.json'), JSON.stringify(CONFIG, null, 2))
 
         cacheFile(filePath, fs.readFileSync(file.filepath))
 
@@ -577,8 +543,8 @@ const server = http.createServer((req, res) => {
   void handleRequest(req, res)
 })
 
-server.listen(PORT, HOSTNAME, (): void => {
-  console.log(`Server running at ${PUBLIC_HOSTNAME}/`)
+server.listen(CONFIG.port, CONFIG.hostname, (): void => {
+  console.log(`Server running at ${CONFIG.public_hostname}/`)
 
   const handleListen = async (): Promise<void> => {
     const filesPath = path.join(DIRNAME, 'files')
@@ -617,25 +583,25 @@ server.listen(PORT, HOSTNAME, (): void => {
     if (!file) console.error('Download test failed, cannot connect to network')
     else {
       console.log('Connected to network')
-      if (isIp(PUBLIC_HOSTNAME) && isPrivateIP(PUBLIC_HOSTNAME)) console.error('Public hostname is a private IP address, cannot announce to other nodes')
+      if (isIp(CONFIG.public_hostname) && isPrivateIP(CONFIG.public_hostname)) console.error('Public hostname is a private IP address, cannot announce to other nodes')
       else {
-        console.log(`Testing downloads ${PUBLIC_HOSTNAME}/download/04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f`)
+        console.log(`Testing downloads ${CONFIG.public_hostname}/download/04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f`)
 
-        const response = await downloadFromNode(`${PUBLIC_HOSTNAME}`, '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f')
+        const response = await downloadFromNode(`${CONFIG.public_hostname}`, '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f')
         console.log(`Download ${!response ? 'Failed' : 'Succeeded'}`)
 
         // Save self to nodes.json
-        if (nodes.find((node: { host: string }) => node.host === PUBLIC_HOSTNAME) == null) {
-          nodes.push({ host: PUBLIC_HOSTNAME, http: true, dns: false, cf: false, hits: 0, rejects: 0, bytes: 0, duration: 0 })
+        if (nodes.find((node: { host: string }) => node.host === CONFIG.public_hostname) == null) {
+          nodes.push({ host: CONFIG.public_hostname, http: true, dns: false, cf: false, hits: 0, rejects: 0, bytes: 0, duration: 0 })
           fs.writeFileSync(NODES_PATH, JSON.stringify(nodes))
         }
 
         console.log('Announcing to nodes')
         for (const node of nodes) {
           if (node.http) {
-            if (node.host === PUBLIC_HOSTNAME) continue
+            if (node.host === CONFIG.public_hostname) continue
             console.log('Announcing to', node.host)
-            await fetch(`${node.host}/announce?host=${PUBLIC_HOSTNAME}`)
+            await fetch(`${node.host}/announce?host=${CONFIG.public_hostname}`)
           }
         }
       }
