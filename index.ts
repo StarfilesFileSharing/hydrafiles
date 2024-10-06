@@ -407,7 +407,12 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
         'Cache-Control': 'public, max-age=31536000'
       }
 
-      const file = await promiseWithTimeout(getFile(hash, fileId), TIMEOUT)
+      let file: File | false = false
+      try {
+        file = await promiseWithTimeout(getFile(hash, fileId), TIMEOUT)
+      } catch (error) {
+        console.error(error)
+      }
       headers['Signal-Strength'] = file.signal
 
       if (file === false) {
