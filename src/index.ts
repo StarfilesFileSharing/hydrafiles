@@ -6,7 +6,7 @@ import CONFIG from './config'
 import init from './init'
 import Nodes, { Node, nodeFrom } from './nodes'
 import FileManager, { Metadata, File } from './file'
-import { isIp, isPrivateIP, promiseWithTimeout, estimateNumberOfHopsWithRandomAndCertainty } from './utils'
+import { isIp, isPrivateIP, promiseWithTimeout, estimateHops } from './utils'
 
 // TODO: IDEA: HydraTorrent - New Github repo - "Hydrafiles + WebTorrent Compatibility Layer" - Hydrafiles noes can optionally run HydraTorrent to seed files via webtorrent
 // Change index hash from sha256 to infohash, then allow nodes to leech files from webtorrent + normal torrent
@@ -83,7 +83,7 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
       }
 
       headers['Signal-Strength'] = String(file.signal)
-      console.log(hash, 'Signal Strength:', file.signal, estimateNumberOfHopsWithRandomAndCertainty(file.signal))
+      console.log(hash, 'Signal Strength:', file.signal, estimateHops(file.signal))
 
       let name: string | undefined
       if (typeof fileId !== 'undefined') {

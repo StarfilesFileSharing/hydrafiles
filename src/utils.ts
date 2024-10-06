@@ -35,21 +35,38 @@ export const promiseWrapper = (promise: Promise<any>): { promise: Promise<any>, 
     isFulfilled
   }
 }
-export const estimateNumberOfHopsWithRandomAndCertainty = (signalStrength: number): { estimatedHops: number, certaintyPercentage: number } => {
-  const interference = 0.1
+export function estimateHops (signalStrength: number): { hop: number | null, certainty: number } {
+  const hopData = [
+    { hop: 1, min: 90, avg: 95 },
+    { hop: 2, min: 81, avg: 92 },
+    { hop: 3, min: 73, avg: 88 },
+    { hop: 4, min: 66, avg: 85 },
+    { hop: 5, min: 61, avg: 81 },
+    { hop: 6, min: 56, avg: 78 },
+    { hop: 7, min: 51, avg: 74 },
+    { hop: 8, min: 49, avg: 71 },
+    { hop: 9, min: 45, avg: 68 },
+    { hop: 10, min: 43, avg: 65 }
+  ]
 
-  const numerator = 2 * signalStrength - 100
-  if (numerator <= 0) throw new Error('Invalid average signal strength for the given initial signal strength.')
-  const numberOfHops = Math.log(numerator / 100) / Math.log(1 - interference)
+  let closestHop: number | null = null
+  let closestDistance: number = Infinity // Diff between signal strength and avg
+  let closestCertainty: number = Infinity
 
-  let worstCaseSignal = 100
-  for (let i = 0; i < Math.ceil(numberOfHops); i++) {
-    worstCaseSignal *= (1 - interference)
-    if (worstCaseSignal >= 95) worstCaseSignal = getRandomNumber(90, 100)
+  for (const hop of hopData) {
+    if (signalStrength < hop.min) continue
+    const distance = Math.abs(signalStrength - hop.avg)
+    const range = 100 - hop.min
+    const distanceMinMax = Math.min(Math.abs(signalStrength - hop.min), Math.abs(100 - signalStrength))
+    const certaintyAvg = range > 0 ? (1 - (distance / (range / 2))) : 0
+    const certaintyMinMax = 1 - (distanceMinMax / Math.max(range, 1))
+    const finalCertainty = (certaintyAvg + certaintyMinMax) / 2
+    if (distance < closestDistance) {
+      closestDistance = distance
+      closestHop = hop.hop
+      closestCertainty = finalCertainty
+    }
   }
 
-  return {
-    estimatedHops: Math.ceil(numberOfHops),
-    certaintyPercentage: Number(worstCaseSignal.toFixed(2))
-  }
+  return { hop: closestHop, certainty: closestCertainty }
 }
