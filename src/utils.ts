@@ -35,3 +35,21 @@ export const promiseWrapper = (promise: Promise<any>): { promise: Promise<any>, 
     isFulfilled
   }
 }
+export const estimateNumberOfHopsWithRandomAndCertainty = (signalStrength: number): { estimatedHops: number, certaintyPercentage: number } => {
+  const interference = 0.1
+
+  const numerator = 2 * signalStrength - 100
+  if (numerator <= 0) throw new Error('Invalid average signal strength for the given initial signal strength.')
+  const numberOfHops = Math.log(numerator / 100) / Math.log(1 - interference)
+
+  let worstCaseSignal = 100
+  for (let i = 0; i < Math.ceil(numberOfHops); i++) {
+    worstCaseSignal *= (1 - interference)
+    if (worstCaseSignal >= 95) worstCaseSignal = getRandomNumber(90, 100)
+  }
+
+  return {
+    estimatedHops: Math.ceil(numberOfHops),
+    certaintyPercentage: Number(worstCaseSignal.toFixed(2))
+  }
+}

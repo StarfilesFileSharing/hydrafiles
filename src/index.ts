@@ -6,7 +6,7 @@ import CONFIG from './config'
 import init from './init'
 import Nodes, { Node, nodeFrom } from './nodes'
 import FileManager, { Metadata, File } from './file'
-import { getRandomNumber, isValidSHA256Hash, isIp, isPrivateIP, promiseWithTimeout } from './utils'
+import { isIp, isPrivateIP, promiseWithTimeout, estimateNumberOfHopsWithRandomAndCertainty } from './utils'
 
 // TODO: IDEA: HydraTorrent - New Github repo - "Hydrafiles + WebTorrent Compatibility Layer" - Hydrafiles noes can optionally run HydraTorrent to seed files via webtorrent
 // Change index hash from sha256 to infohash, then allow nodes to leech files from webtorrent + normal torrent
@@ -19,39 +19,13 @@ import { getRandomNumber, isValidSHA256Hash, isIp, isPrivateIP, promiseWithTimeo
 // bittorrent to http proxy
 // starfiles.co would use webtorrent to download files
 
-const DIRNAME = path.resolve()
-const NODES_PATH = path.join(DIRNAME, 'nodes.json')
-
-// TYPES //////////////////////////////////////
-interface ResponseHeaders { [key: string]: string }
-interface FileTable { [key: string]: { id?: string, name?: string } }
-// TYPES //////////////////////////////////////
-
-const fileTable: FileTable = JSON.parse(fs.readFileSync(path.join(DIRNAME, 'filetable.json')).toString())
-
 init()
 
+const DIRNAME = path.resolve()
+const NODES_PATH = path.join(DIRNAME, 'nodes.json')
+const fileTable: { [key: string]: { id?: string, name?: string } } = JSON.parse(fs.readFileSync(path.join(DIRNAME, 'filetable.json')).toString())
 const nodesManager = new Nodes()
 const fileManager = new FileManager(nodesManager)
-
-const estimateNumberOfHopsWithRandomAndCertainty = (signalStrength: number): { estimatedHops: number, certaintyPercentage: number } => {
-  const interference = 0.1
-
-  const numerator = 2 * signalStrength - 100
-  if (numerator <= 0) throw new Error('Invalid average signal strength for the given initial signal strength.')
-  const numberOfHops = Math.log(numerator / 100) / Math.log(1 - interference)
-
-  let worstCaseSignal = 100
-  for (let i = 0; i < Math.ceil(numberOfHops); i++) {
-    worstCaseSignal *= (1 - interference)
-    if (worstCaseSignal >= 95) worstCaseSignal = getRandomNumber(90, 100)
-  }
-
-  return {
-    estimatedHops: Math.ceil(numberOfHops),
-    certaintyPercentage: Number(worstCaseSignal.toFixed(2))
-  }
-}
 
 const setFiletable = (hash: string, id: string | undefined, name: string | undefined): void => {
   if (typeof fileTable[hash] === 'undefined') fileTable[hash] = {}
@@ -59,7 +33,6 @@ const setFiletable = (hash: string, id: string | undefined, name: string | undef
   if (typeof name !== 'undefined') fileTable[hash].name = name
   fs.writeFileSync(path.join(DIRNAME, 'filetable.json'), JSON.stringify(fileTable, null, 2))
 }
-let notFound: Record<string, number> = {}
 
 const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse<http.IncomingMessage>): Promise<void> => {
   try {
@@ -93,13 +66,7 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
       const hash = req.url.split('/')[2]
       const fileId = req.url.split('/')[3]
 
-      if (!isValidSHA256Hash(hash)) {
-        res.writeHead(400, { 'Content-Type': 'text/plain' })
-        res.end('400 Bad Request Error\n')
-        return
-      }
-
-      const headers: ResponseHeaders = {
+      const headers: { [key: string]: string } = {
         'Content-Type': 'application/octet-stream',
         'Cache-Control': 'public, max-age=31536000'
       }
