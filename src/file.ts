@@ -2,6 +2,7 @@ import { S3 } from '@aws-sdk/client-s3'
 import * as fs from 'fs'
 import * as path from 'path'
 import { Readable } from 'stream'
+import sqlite3 from 'sqlite3'
 import CONFIG from './config'
 import { hasSufficientMemory, interfere, isValidSHA256Hash } from './utils'
 import Nodes from './nodes'
@@ -11,15 +12,12 @@ export interface Metadata { name: string, size: string, type: string, hash: stri
 
 const DIRNAME = path.resolve()
 
-const downloadCount: Record<string, number> = {}
-
 class FileManager {
   private usedStorage: number
-  private fileTable: Record<string, { id?: string, name?: string }>
   private readonly s3: S3
+  private readonly db: sqlite3.Database
   private readonly pendingFiles: string[]
   private readonly nodesManager: Nodes
-  private notFound: Record<string, number> = {}
 
   constructor (nodesManager: Nodes) {
     this.s3 = new S3({
@@ -30,6 +28,7 @@ class FileManager {
       },
       endpoint: CONFIG.s3_endpoint
     })
+
     this.usedStorage = 0
     const filesPath = path.join(DIRNAME, 'files')
     if (fs.existsSync(filesPath)) {
@@ -40,12 +39,30 @@ class FileManager {
       }
     }
     console.log(`Files dir size: ${Math.round(100 * this.usedStorage / 1024 / 1024 / 1024) / 100}GB`)
-    this.fileTable = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'filetable.json')).toString())
+
     this.pendingFiles = []
     this.nodesManager = nodesManager
+
+    this.db = new sqlite3.Database(path.join(DIRNAME, 'filemanager.db'), (err) => {
+      if (err !== null) console.error('Error opening SQLite database:', err.message)
+      else console.log('Connected to the SQLite database.')
+    })
+
+    this.initializeDB()
   }
 
-  // Fetch a file locally or return false if it doesn't exist
+  private initializeDB (): void {
+    const createDownloadCountTable = 'CREATE TABLE IF NOT EXISTS downloadCount (hash TEXT PRIMARY KEY, count INTEGER DEFAULT 0)'
+    const createNotFoundTable = 'CREATE TABLE IF NOT EXISTS notFound (hash TEXT PRIMARY KEY, timestamp INTEGER)'
+    const createFileTable = 'CREATE TABLE IF NOT EXISTS fileTable (hash TEXT PRIMARY KEY, id TEXT, name TEXT)'
+
+    this.db.serialize(() => {
+      this.db.run(createDownloadCountTable)
+      this.db.run(createNotFoundTable)
+      this.db.run(createFileTable)
+    })
+  }
+
   private async fetchFile (hash: string): Promise<File | false> {
     const filePath = path.join(DIRNAME, 'files', hash)
     if (fs.existsSync(filePath)) {
@@ -54,7 +71,6 @@ class FileManager {
     return false
   }
 
-  // Get the file size from local storage, S3, or metadata API
   private async getFileSize (hash: string, id: string = ''): Promise<number | false> {
     const filePath = path.join(DIRNAME, 'files', hash)
 
@@ -82,10 +98,38 @@ class FileManager {
     return false
   }
 
+  private incrementDownloadCount (hash: string): void {
+    const query = 'INSERT INTO downloadCount (hash, count) VALUES (?, 1) ON CONFLICT(hash) DO UPDATE SET count = count + 1'
+    this.db.run(query, [hash], function (err) {
+      if (err != null) console.error('Error incrementing download count:', err.message)
+    })
+  }
+
+  private async isFileNotFound (hash: string): Promise<boolean> {
+    const query = 'SELECT timestamp FROM notFound WHERE hash = ?'
+    return await new Promise((resolve, reject) => {
+      this.db.get(query, [hash], (err, row: { timestamp: number }) => {
+        if (err !== null) {
+          console.log(err)
+          reject(err)
+        } else if (row.timestamp > Date.now() - (1000 * 60 * 5)) resolve(true)
+        else resolve(false)
+      })
+    })
+  }
+
+  private markFileAsNotFound (hash: string): void {
+    const query = 'INSERT INTO notFound (hash, timestamp) VALUES (?, ?) ON CONFLICT(hash) DO UPDATE SET timestamp = ?'
+    const timestamp = +new Date()
+    this.db.run(query, [hash, timestamp, timestamp], function (err) {
+      if (err !== null) console.error('Error marking file as not found:', err.message)
+    })
+  }
+
   purgeCache (requiredSpace: number, remainingSpace: number): void {
     const files = fs.readdirSync(path.join(process.cwd(), 'files'))
     for (const file of files) {
-      if (CONFIG.perma_files.includes(file) || Object.keys(downloadCount).includes(file)) continue
+      if (CONFIG.perma_files.includes(file)) continue
 
       const size = fs.statSync(path.join(process.cwd(), 'files', file)).size
       fs.unlinkSync(path.join(process.cwd(), 'files', file))
@@ -93,15 +137,6 @@ class FileManager {
       remainingSpace += size
 
       if (requiredSpace <= remainingSpace) break
-    }
-
-    if (requiredSpace > remainingSpace) {
-      const sorted = Object.entries(downloadCount).sort(([,a], [,b]) => Number(a) - Number(b)).filter(([file]) => !CONFIG.perma_files.includes(file))
-      for (let i = 0; i < sorted.length / (CONFIG.burn_rate * 100); i++) {
-        const stats = fs.statSync(path.join(DIRNAME, 'files', sorted[i][0]))
-        fs.unlinkSync(path.join(DIRNAME, 'files', sorted[i][0]))
-        this.usedStorage -= stats.size
-      }
     }
   }
 
@@ -127,20 +162,10 @@ class FileManager {
   }
 
   async getFile (hash: string, id: string = ''): Promise<File | false> {
-    if (Object.keys(this.notFound).includes(hash)) {
-      if (this.notFound[hash] > +new Date() - (1000 * 60 * 5)) return false
-      else this.notFound = Object.fromEntries(Object.entries(this.notFound).filter(([key]) => key !== hash))
-    }
+    const fileNotFound = await this.isFileNotFound(hash)
+    if (fileNotFound) return false
     if (!isValidSHA256Hash(hash)) return false
-    downloadCount[hash] = typeof downloadCount[hash] === 'undefined' ? Number(downloadCount[hash]) + 1 : 1
-    if (this.pendingFiles.includes(hash)) {
-      console.log(`  ${hash}  File is already pending, waiting for it to be processed`)
-      await new Promise(() => {
-        const intervalId = setInterval(() => {
-          if (!this.pendingFiles.includes(hash)) clearInterval(intervalId)
-        }, 100)
-      })
-    }
+    this.incrementDownloadCount(hash)
 
     const size = await this.getFileSize(hash, id)
     if (size !== false && !hasSufficientMemory(size)) {
@@ -176,7 +201,7 @@ class FileManager {
     const index = this.pendingFiles.indexOf(hash)
     if (index > -1) this.pendingFiles.splice(index, 1)
     const file = await this.nodesManager.getFile(hash, Number(size))
-    if (file === false) this.notFound[hash] = +new Date()
+    if (file === false) this.markFileAsNotFound(hash)
     return file
   }
 
@@ -206,10 +231,10 @@ class FileManager {
   }
 
   setFiletable (hash: string, id?: string, name?: string): void {
-    if (this.fileTable[hash] !== undefined) this.fileTable[hash] = {}
-    if (typeof id !== 'undefined') this.fileTable[hash].id = id
-    if (typeof name !== 'undefined') this.fileTable[hash].name = name
-    fs.writeFileSync(path.join(process.cwd(), 'filetable.json'), JSON.stringify(this.fileTable, null, 2))
+    const query = 'INSERT INTO fileTable (hash, id, name) VALUES (?, ?, ?) ON CONFLICT(hash) DO UPDATE SET id = ?, name = ?'
+    this.db.run(query, [hash, id, name, id, name], function (err) {
+      if (err !== null) console.error('Error updating fileTable:', err.message)
+    })
   }
 }
 

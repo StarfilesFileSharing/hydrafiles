@@ -70,5 +70,5 @@ export function estimateHops (signalStrength: number): { hop: number | null, cer
     }
   }
 
-  return { hop: closestHop, certainty: closestCertainty }
+  return { hop: closestHop, certainty: Math.round(closestCertainty * 1000) / 100 }
 }
