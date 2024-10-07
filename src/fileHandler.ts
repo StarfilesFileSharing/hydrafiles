@@ -173,6 +173,7 @@ export default class FileHandler extends Model {
   async getFile (nodesManager: Nodes): Promise<{ file: Buffer, signal: number } | false> {
     return await promiseWithTimeout((async (): Promise<{ file: Buffer, signal: number } | false> => {
       const hash = String(this.get('hash'))
+      console.log(`  ${hash}  Getting file`)
       if (!isValidSHA256Hash(hash)) return false
       // if (!this.found) return false
       const downloadCount = Number(this.get('downloadCount')) + 1
