@@ -46,6 +46,7 @@ export default class Nodes {
   }
 
   async downloadFromNode (node: Node, file: FileHandler): Promise<{ file: Buffer, signal: number } | false> {
+    return false
     try {
       const startTime = Date.now()
 
