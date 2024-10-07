@@ -108,11 +108,11 @@ class FileManager {
   private async isFileNotFound (hash: string): Promise<boolean> {
     const query = 'SELECT timestamp FROM notFound WHERE hash = ?'
     return await new Promise((resolve, reject) => {
-      this.db.get(query, [hash], (err, row: { timestamp: number }) => {
+      this.db.get(query, [hash], (err, row: { timestamp: number } | undefined) => {
         if (err !== null) {
           console.log(err)
           reject(err)
-        } else if (row.timestamp > Date.now() - (1000 * 60 * 5)) resolve(true)
+        } else if (typeof row !== 'undefined' && row.timestamp > Date.now() - (1000 * 60 * 5)) resolve(true)
         else resolve(false)
       })
     })
