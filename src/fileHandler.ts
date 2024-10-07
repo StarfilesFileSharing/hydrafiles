@@ -67,8 +67,9 @@ export default class FileHandler extends Model {
   public async getSize (): Promise<number | false> {
     let size = Number(this.get('size'))
     if (size > 0) return size
-
     const hash = String(this.get('hash'))
+
+    console.log(`  ${hash}  Getting file size`)
 
     const filePath = path.join(DIRNAME, 'files', hash)
     if (fs.existsSync(filePath)) {
