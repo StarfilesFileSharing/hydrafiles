@@ -51,7 +51,7 @@ export default class Nodes {
 
       const hash = String(file.get('hash'))
       console.log(`  ${hash}  Downloading from ${node.host}`)
-      const response = await promiseWithTimeout(fetch(`${node.host}/download/${hash}`), CONFIG.timeout)
+      const response = await /*promiseWithTimeout(*/fetch(`${node.host}/download/${hash}`) // , CONFIG.timeout)
       console.log('hashing')
       // const verifiedHash = await hashStream(response.body) // todo: causes OOM
       console.log('Done hashing')
