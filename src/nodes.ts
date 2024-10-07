@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import CONFIG from './config'
-import { hashArrayBuffer, hasSufficientMemory, interfere, promiseWrapper } from './utils'
+import { hashArrayBuffer, hashStream, hasSufficientMemory, interfere, promiseWrapper } from './utils'
 import FileHandler from './fileHandler'
 
 export interface Node { host: string, http: boolean, dns: boolean, cf: boolean, hits: number, rejects: number, bytes: number, duration: number, status?: boolean }
@@ -52,13 +52,15 @@ export default class Nodes {
       const hash = String(file.get('hash'))
       console.log(`  ${hash}  Downloading from ${node.host}`)
       const response = await fetch(`${node.host}/download/${hash}`)
-      const arrayBuffer = await response.arrayBuffer()
-      const verifiedHash = await hashArrayBuffer(arrayBuffer)
-      if (hash !== verifiedHash) return false
+      console.log('hashing')
+      // const verifiedHash = await hashStream(response.body)
+      console.log('Done hashing')
+      // if (hash !== verifiedHash) return false
 
       file.set('name', String(response.headers.get('Content-Disposition')?.split('=')[1].replace(/"/g, '')))
       file.save().catch(console.error)
       const signalStrength = Number(response.headers.get('Signal-Strength'))
+      const arrayBuffer = await response.arrayBuffer()
 
       node.status = true
       node.duration += Date.now() - startTime

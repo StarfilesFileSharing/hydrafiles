@@ -1,6 +1,8 @@
 import os from 'os'
 import { createHash } from 'crypto'
 import CONFIG from './config'
+import { Readable } from 'stream'
+import { pipeline } from 'stream/promises'
 
 export const getRandomNumber = (min: number, max: number): number => Math.floor(Math.random() * (max - min + 1)) + min
 export const isValidSHA256Hash = (hash: string): boolean => /^[a-f0-9]{64}$/.test(hash)
@@ -78,16 +80,18 @@ export const estimateHops = (signalStrength: number): { hop: number | null, cert
 
   return { hop: closestHop, certainty: Math.round(closestCertainty * 10000) / 100 }
 }
-export const hashArrayBuffer = async (arrayBuffer: ArrayBuffer): Promise<string> => {
-  const hash = createHash('sha256')
-  const data = new Uint8Array(arrayBuffer)
-  const chunkSize = 1024 * 1024
-  const chunks = Math.ceil(data.length / chunkSize)
 
-  for (let i = 0; i < chunks; i++) {
-    const chunk = data.subarray(i * chunkSize, (i + 1) * chunkSize)
-    hash.update(chunk)
-  }
+export const hashStream = async (stream: Readable): Promise<string> => {
+  const hash = createHash('sha256')
+
+  await pipeline(
+    stream,
+    async function * (source) {
+      for await (const chunk of source) {
+        hash.update(chunk)
+      }
+    }
+  )
 
   return hash.digest('hex')
 }
