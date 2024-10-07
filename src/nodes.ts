@@ -49,14 +49,15 @@ export default class Nodes {
     try {
       const startTime = Date.now()
 
-      console.log(`  ${file.hash}  Downloading from ${node.host}`)
-      const response = await fetch(`${node.host}/download/${file.hash}`)
+      const hash = String(file.get('hash'))
+      console.log(`  ${hash}  Downloading from ${node.host}`)
+      const response = await fetch(`${node.host}/download/${hash}`)
       const arrayBuffer = await response.arrayBuffer()
-      const hash = await hashArrayBuffer(arrayBuffer)
-      if (file.hash !== hash) return false
+      const verifiedHash = await hashArrayBuffer(arrayBuffer)
+      if (hash !== verifiedHash) return false
 
-      file.name = String(response.headers.get('Content-Disposition')?.split('=')[1].replace(/"/g, ''))
-      // file.save().catch(e => console.error(e))
+      file.set('name', String(response.headers.get('Content-Disposition')?.split('=')[1].replace(/"/g, '')))
+      file.save().catch(e => console.error(e))
       const signalStrength = Number(response.headers.get('Signal-Strength'))
 
       node.status = true

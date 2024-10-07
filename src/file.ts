@@ -4,7 +4,7 @@ import * as path from 'path'
 import { Readable } from 'stream'
 import { Sequelize, Model, DataTypes } from 'sequelize'
 import CONFIG from './config'
-import { hasSufficientMemory, interfere, isValidSHA256Hash, promiseWithTimeout } from './utils'
+import { hasSufficientMemory, interfere, isValidSHA256Hash } from './utils'
 import Nodes from './nodes'
 
 interface Metadata { name: string, size: number, type: string, hash: string, id: string }
@@ -46,45 +46,43 @@ const purgeCache = (requiredSpace: number, remainingSpace: number): void => {
 }
 
 export default class File extends Model {
-  public hash: string
-  public downloadCount!: number
-  public id: string | undefined
-  public name!: string
-  public found!: boolean
-  public size!: number
-  public createdAt!: Date
-  public updatedAt!: Date
-
   constructor (hash: string) {
     super()
-    this.hash = hash
-    if (!isValidSHA256Hash(this.hash)) console.error('Invalid hash provided')
+    this.set('hash', hash)
+    if (!isValidSHA256Hash(hash)) console.error('Invalid hash provided')
     else {
-      File.findOne({ where: { hash: this.hash } })
-        .then(existingFile => {
-          if (existingFile !== null) Object.assign(this, existingFile.get())
-          this.hash = hash
-        })
-        .catch(error => console.error('Error finding existing file:', error))
+      (async () => {
+        let file = await File.findOne({ where: { hash } })
+        if (file === null) {
+          await this.save()
+          file = await File.findOne({ where: { hash } })
+        }
+        console.log(file.get())
+      })().catch(console.error)
     }
   }
 
   public async getSize (): Promise<number | false> {
-    if (this.size !== 0) return this.size
+    let size = Number(this.get('size'))
+    if (size > 0) return size
 
-    const filePath = path.join(DIRNAME, 'files', this.hash)
+    const hash = String(this.get('hash'))
+
+    const filePath = path.join(DIRNAME, 'files', hash)
     if (fs.existsSync(filePath)) {
-      this.size = fs.statSync(filePath).size
+      size = fs.statSync(filePath).size
+      this.set('size', size)
       await this.save()
-      return this.size
+      return size
     }
 
     try {
-      const data = await s3.headObject({ Bucket: 'uploads', Key: `${this.hash}.stuf` })
+      const data = await s3.headObject({ Bucket: 'uploads', Key: `${hash}.stuf` })
       if (typeof data.ContentLength !== 'undefined') {
-        this.size = data.ContentLength
+        size = data.ContentLength
+        this.set('size', size)
         await this.save()
-        return data.ContentLength
+        return size
       }
     } catch (error) {
       console.error(error)
@@ -94,27 +92,34 @@ export default class File extends Model {
   }
 
   public async getName (): Promise<string | undefined> {
-    if (this.name !== undefined) return this.name
-    if (typeof this.id !== 'undefined') {
-      const response = await fetch(`${CONFIG.metadata_endpoint}${this.id}`)
+    let name = String(this.get('name'))
+    if (name.length > 0) return name
+
+    const id = String(this.get('id'))
+    if (id.length > 0) {
+      const response = await fetch(`${CONFIG.metadata_endpoint}${id}`)
       if (response.status === 200) {
-        this.name = (await response.json() as Metadata).name
+        name = (await response.json() as Metadata).name
+        this.set('name', name)
         await this.save()
       }
     }
-    return this.name
+    return name
   }
 
   cacheFile (file: Buffer): void {
-    const filePath = path.join(DIRNAME, 'files', this.hash)
+    const hash = String(this.get('hash'))
+    const filePath = path.join(DIRNAME, 'files', hash)
     if (fs.existsSync(filePath)) return
 
-    if (this.size === 0) {
-      this.size = file.length
-      this.save().catch(e => console.error(e))
+    let size = Number(this.get('size'))
+    if (size === 0) {
+      size = file.byteLength
+      this.set('size', size)
+      this.save().catch(console.error)
     }
     const remainingSpace = CONFIG.max_storage - usedStorage
-    if (this.size > remainingSpace) purgeCache(this.size, remainingSpace)
+    if (size > remainingSpace) purgeCache(size, remainingSpace)
 
     const writeStream = fs.createWriteStream(filePath)
     const readStream = Readable.from(file)
@@ -122,23 +127,27 @@ export default class File extends Model {
     readStream.on('error', (err) => console.error('Error reading from buffer:', err))
     writeStream.on('error', (err) => console.error('Error writing to file:', err))
     writeStream.on('finish', (): void => {
-      usedStorage += this.size
-      console.log(`  ${this.hash}  Successfully cached file. Used storage: ${usedStorage}`)
+      usedStorage += size
+      console.log(`  ${hash}  Successfully cached file. Used storage: ${usedStorage}`)
     })
 
     readStream.pipe(writeStream)
   }
 
   private async fetchFromCache (): Promise<{ file: Buffer, signal: number } | false> {
-    const filePath = path.join(DIRNAME, 'files', this.hash)
+    const hash = String(this.get('hash'))
+    console.log(`  ${hash}  Checking Cache`)
+    const filePath = path.join(DIRNAME, 'files', hash)
     return fs.existsSync(filePath) ? { file: fs.readFileSync(filePath), signal: interfere(100) } : false
   }
 
   async fetchFromS3 (): Promise<{ file: Buffer, signal: number } | false> {
+    const hash = String(this.get('hash'))
+    console.log(`  ${hash}  Checking S3`)
     if (CONFIG.s3_endpoint.length === 0) return false
     try {
       let buffer: Buffer
-      const data = await s3.getObject({ Bucket: 'uploads', Key: `${this.hash}.stuf` })
+      const data = await s3.getObject({ Bucket: 'uploads', Key: `${hash}.stuf` })
 
       if (data.Body instanceof Readable) {
         const chunks: any[] = []
@@ -157,51 +166,54 @@ export default class File extends Model {
   }
 
   async getFile (nodesManager: Nodes): Promise<{ file: Buffer, signal: number } | false> {
-    return await promiseWithTimeout((async (): Promise<{ file: Buffer, signal: number } | false> => {
-      if (!isValidSHA256Hash(this.hash)) return false
-      // if (!this.found) return false
-      this.downloadCount += 1
+    // return await promiseWithTimeout((async (): Promise<{ file: Buffer, signal: number } | false> => {
+    const hash = String(this.get('hash'))
+    if (!isValidSHA256Hash(hash)) return false
+    // if (!this.found) return false
+    const downloadCount = Number(this.get('downloadCount')) + 1
+    this.set('downloadCount', downloadCount)
+
+    const size = Number(this.get('size'))
+    if (size === 0) await this.getSize()
+
+    if (size !== 0 && !hasSufficientMemory(size)) {
+      await new Promise(() => {
+        const intervalId = setInterval(() => {
+          console.log(`  ${hash}  Reached memory limit, waiting`, size)
+          if (size === 0 || hasSufficientMemory(size)) clearInterval(intervalId)
+        }, CONFIG.memory_threshold_reached_wait)
+      })
+    }
+
+    const localFile = await this.fetchFromCache()
+    if (localFile !== false) {
+      console.log(`  ${hash}  Serving ${size !== undefined ? Math.round(size / 1024 / 1024) : 0}MB from cache`)
+      return localFile
+    }
+
+    if (CONFIG.s3_endpoint.length > 0) {
+      const s3File = await this.fetchFromS3()
+      if (s3File !== false) {
+        if (CONFIG.cache_s3) this.cacheFile(s3File.file)
+        console.log(`  ${hash}  Serving ${size !== undefined ? Math.round(size / 1024 / 1024) : 0}MB from S3`)
+        return s3File
+      }
+    }
+
+    const file = await nodesManager.getFile(hash, Number(size))
+    if (file === false) {
+      this.set('found', false)
       await this.save()
-
-      if (this.size === 0) await this.getSize()
-
-      if (this.size !== 0 && !hasSufficientMemory(this.size)) {
-        console.log(`  ${this.hash}  Reached memory limit, waiting`)
-        await new Promise(() => {
-          const intervalId = setInterval(() => {
-            if (hasSufficientMemory(this.size)) clearInterval(intervalId)
-          }, CONFIG.memory_threshold_reached_wait)
-        })
-      }
-
-      const localFile = await this.fetchFromCache()
-      if (localFile !== false) {
-        console.log(`  ${this.hash}  Serving ${this.size !== 0 ? Math.round(this.size / 1024 / 1024) : 0}MB from cache`)
-        return localFile
-      }
-
-      if (CONFIG.s3_endpoint.length > 0) {
-        const s3File = await this.fetchFromS3()
-        if (s3File !== false) {
-          if (CONFIG.cache_s3) this.cacheFile(s3File.file)
-          console.log(`  ${this.hash}  Serving ${this.size !== 0 ? Math.round(this.size / 1024 / 1024) : 0}MB from S3`)
-          return s3File
-        }
-      }
-
-      const file = await nodesManager.getFile(this.hash, Number(this.size))
-      if (file === false) {
-        this.found = false
-        await this.save()
-      }
-      return file
-    })(), CONFIG.timeout)
+    }
+    return file
+    // })(), CONFIG.timeout)
   }
 }
 
 const sequelize = new Sequelize({
   dialect: 'sqlite',
   storage: path.join(DIRNAME, 'filemanager.db')
+  // logging: (...msg) => console.log(msg)
 })
 
 File.init(

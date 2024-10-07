@@ -63,9 +63,12 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
       }
 
       const file = new File(hash)
-      if (file.id === undefined) {
-        file.id = fileId
-        await file.save()
+      if (fileId.length !== 0) {
+        const id = String(file.get('id'))
+        if (id.length === 0) {
+          file.set(id, fileId)
+          await file.save()
+        }
       }
       const fileContent = await file.getFile(nodesManager)
 
@@ -78,7 +81,7 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
       headers['Signal-Strength'] = String(fileContent.signal)
       console.log(`  ${hash}  Signal Strength:`, fileContent.signal, estimateHops(fileContent.signal))
 
-      headers['Content-Length'] = String(file.size)
+      headers['Content-Length'] = String(file.getSize())
       headers['Content-Disposition'] = `attachment; filename="${encodeURIComponent(await file.getName() ?? 'File').replace(/%20/g, ' ')}"`
 
       res.writeHead(200, headers)
@@ -109,8 +112,10 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
         const uploadedFile = files.file[0]
 
         const file = new File(hash)
-        if (file.name.length === 0 && uploadedFile.originalFilename !== null) {
-          file.name = uploadedFile.originalFilename
+        let name = String(file.get('name'))
+        if (name.length === 0 && uploadedFile.originalFilename !== null) {
+          name = uploadedFile.originalFilename
+          file.set('name', name)
           file.save().catch(e => console.error(e))
         }
 
@@ -126,7 +131,7 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
         fs.writeFileSync(path.join(DIRNAME, 'config.json'), JSON.stringify(CONFIG, null, 2))
 
         file.cacheFile(fs.readFileSync(uploadedFile.filepath))
-        file.save().catch(e => console.error(e))
+        // file.save().catch(e => console.error(e))
 
         res.writeHead(201, { 'Content-Type': 'text/plain' })
         res.end('200 OK\n')
@@ -183,7 +188,7 @@ server.listen(CONFIG.port, CONFIG.hostname, (): void => {
         console.log(`Testing downloads ${CONFIG.public_hostname}/download/04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f`)
 
         const response = await nodesManager.downloadFromNode(nodeFrom(`${CONFIG.public_hostname}`), new File('04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f'))
-        console.log(`Download ${response === false ? 'Failed' : 'Succeeded'}`)
+        console.log(`  04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f  Test ${response === false ? 'Failed' : 'Succeeded'}`)
 
         // Save self to nodes.json
         if (nodes.find((node: { host: string }) => node.host === CONFIG.public_hostname) == null) {
