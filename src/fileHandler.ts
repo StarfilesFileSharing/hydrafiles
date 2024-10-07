@@ -206,7 +206,7 @@ export default class FileHandler extends Model {
         }
       }
 
-      const file = await nodesManager.getFile(hash, Number(size))
+      const file = await promiseWithTimeout(nodesManager.getFile(hash, Number(size)), CONFIG.timeout)
       if (file === false) {
         this.set('found', false)
         await this.save()

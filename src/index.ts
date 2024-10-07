@@ -6,7 +6,7 @@ import CONFIG from './config'
 import init from './init'
 import Nodes, { Node, nodeFrom } from './nodes'
 import FileHandler from './fileHandler'
-import { isIp, isPrivateIP, estimateHops } from './utils'
+import { isIp, isPrivateIP, estimateHops, promiseWithTimeout } from './utils'
 
 // TODO: IDEA: HydraTorrent - New Github repo - "Hydrafiles + WebTorrent Compatibility Layer" - Hydrafiles noes can optionally run HydraTorrent to seed files via webtorrent
 // Change index hash from sha256 to infohash, then allow nodes to leech files from webtorrent + normal torrent
@@ -73,7 +73,7 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
 
       let fileContent
       try {
-        fileContent = await file.getFile(nodesManager)
+        fileContent = await promiseWithTimeout(file.getFile(nodesManager), CONFIG.timeout)
       } catch (e) {
         if (e.message === 'Promise timed out') fileContent = false
         else throw new Error(e)
@@ -186,7 +186,7 @@ server.listen(CONFIG.port, CONFIG.hostname, (): void => {
     fs.writeFileSync(NODES_PATH, JSON.stringify(nodes))
 
     console.log('Testing network connection')
-    const file = await nodesManager.getFile('04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f')
+    const file = await promiseWithTimeout(nodesManager.getFile('04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f'), CONFIG.timeout)
     if (file === false) console.error('Download test failed, cannot connect to network')
     else {
       console.log('Connected to network')
