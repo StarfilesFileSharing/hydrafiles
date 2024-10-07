@@ -52,14 +52,18 @@ class FileManager {
   }
 
   private initializeDB (): void {
-    const createDownloadCountTable = 'CREATE TABLE IF NOT EXISTS downloadCount (hash TEXT PRIMARY KEY, count INTEGER DEFAULT 0)'
-    const createNotFoundTable = 'CREATE TABLE IF NOT EXISTS notFound (hash TEXT PRIMARY KEY, timestamp INTEGER)'
-    const createFileTable = 'CREATE TABLE IF NOT EXISTS fileTable (hash TEXT PRIMARY KEY, id TEXT, name TEXT)'
+    const createFilesTable = `
+      CREATE TABLE IF NOT EXISTS file (
+        hash TEXT PRIMARY KEY,
+        download_count INTEGER DEFAULT 0,
+        last_access_timestamp INTEGER,
+        id TEXT,
+        name TEXT
+      )
+    `
 
     this.db.serialize(() => {
-      this.db.run(createDownloadCountTable)
-      this.db.run(createNotFoundTable)
-      this.db.run(createFileTable)
+      this.db.run(createFilesTable)
     })
   }
 
@@ -99,27 +103,27 @@ class FileManager {
   }
 
   private incrementDownloadCount (hash: string): void {
-    const query = 'INSERT INTO downloadCount (hash, count) VALUES (?, 1) ON CONFLICT(hash) DO UPDATE SET count = count + 1'
+    const query = 'UPDATE file SET download_count = download_count + 1 WHERE hash = ?'
     this.db.run(query, [hash], function (err) {
       if (err != null) console.error('Error incrementing download count:', err.message)
     })
   }
 
   private async isFileNotFound (hash: string): Promise<boolean> {
-    const query = 'SELECT timestamp FROM notFound WHERE hash = ?'
+    const query = 'SELECT last_access_timestamp FROM file WHERE hash = ?'
     return await new Promise((resolve, reject) => {
-      this.db.get(query, [hash], (err, row: { timestamp: number } | undefined) => {
+      this.db.get(query, [hash], (err, row: { last_access_timestamp: number } | undefined) => {
         if (err !== null) {
           console.log(err)
           reject(err)
-        } else if (typeof row !== 'undefined' && row.timestamp > Date.now() - (1000 * 60 * 5)) resolve(true)
+        } else if (typeof row !== 'undefined' && row.last_access_timestamp > Date.now() - (1000 * 60 * 5)) resolve(true)
         else resolve(false)
       })
     })
   }
 
   private markFileAsNotFound (hash: string): void {
-    const query = 'INSERT INTO notFound (hash, timestamp) VALUES (?, ?) ON CONFLICT(hash) DO UPDATE SET timestamp = ?'
+    const query = 'INSERT INTO file (hash, last_access_timestamp) VALUES (?, ?) ON CONFLICT(hash) DO UPDATE SET last_access_timestamp = ?'
     const timestamp = +new Date()
     this.db.run(query, [hash, timestamp, timestamp], function (err) {
       if (err !== null) console.error('Error marking file as not found:', err.message)
@@ -231,9 +235,9 @@ class FileManager {
   }
 
   setFiletable (hash: string, id?: string, name?: string): void {
-    const query = 'INSERT INTO fileTable (hash, id, name) VALUES (?, ?, ?) ON CONFLICT(hash) DO UPDATE SET id = ?, name = ?'
+    const query = 'INSERT INTO file (hash, id, name) VALUES (?, ?, ?) ON CONFLICT(hash) DO UPDATE SET id = ?, name = ?'
     this.db.run(query, [hash, id, name, id, name], function (err) {
-      if (err !== null) console.error('Error updating fileTable:', err.message)
+      if (err !== null) console.error('Error updating file_metadata:', err.message)
     })
   }
 }
