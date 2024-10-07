@@ -2,7 +2,7 @@ import { S3 } from '@aws-sdk/client-s3'
 import * as fs from 'fs'
 import * as path from 'path'
 import { Readable } from 'stream'
-import sqlite3 from 'sqlite3'
+import { Sequelize, Model, DataTypes } from 'sequelize'
 import CONFIG from './config'
 import { hasSufficientMemory, interfere, isValidSHA256Hash } from './utils'
 import Nodes from './nodes'
@@ -12,11 +12,43 @@ export interface Metadata { name: string, size: string, type: string, hash: stri
 
 const DIRNAME = path.resolve()
 
+class File extends Model {
+  public hash!: string
+  public download_count!: number
+  public id!: string
+  public name!: string
+  public updatedAt!: number
+
+  public static initialize (sequelize: Sequelize): void {
+    File.init(
+      {
+        hash: {
+          type: DataTypes.STRING,
+          primaryKey: true
+        },
+        download_count: {
+          type: DataTypes.INTEGER,
+          defaultValue: 0
+        },
+        id: {
+          type: DataTypes.STRING
+        },
+        name: {
+          type: DataTypes.STRING
+        }
+      },
+      {
+        sequelize,
+        tableName: 'file'
+      }
+    )
+  }
+}
+
 class FileManager {
   private usedStorage: number
   private readonly s3: S3
-  private readonly db: sqlite3.Database
-  private readonly pendingFiles: string[]
+  private readonly sequelize: Sequelize
   private readonly nodesManager: Nodes
 
   constructor (nodesManager: Nodes) {
@@ -40,31 +72,24 @@ class FileManager {
     }
     console.log(`Files dir size: ${Math.round(100 * this.usedStorage / 1024 / 1024 / 1024) / 100}GB`)
 
-    this.pendingFiles = []
     this.nodesManager = nodesManager
 
-    this.db = new sqlite3.Database(path.join(DIRNAME, 'filemanager.db'), (err) => {
-      if (err !== null) console.error('Error opening SQLite database:', err.message)
-      else console.log('Connected to the SQLite database.')
+    this.sequelize = new Sequelize({
+      dialect: 'sqlite',
+      storage: path.join(DIRNAME, 'filemanager.db')
     })
 
-    this.initializeDB()
+    File.initialize(this.sequelize)
+    this.initializeDB().then((msg) => {
+      console.log(msg)
+    }).catch((e) => {
+      console.log(e)
+    })
   }
 
-  private initializeDB (): void {
-    const createFilesTable = `
-      CREATE TABLE IF NOT EXISTS file (
-        hash TEXT PRIMARY KEY,
-        download_count INTEGER DEFAULT 0,
-        last_access_timestamp INTEGER,
-        id TEXT,
-        name TEXT
-      )
-    `
-
-    this.db.serialize(() => {
-      this.db.run(createFilesTable)
-    })
+  private async initializeDB (): Promise<void> {
+    await this.sequelize.sync()
+    console.log('Connected to the local DB')
   }
 
   private async fetchFile (hash: string): Promise<File | false> {
@@ -102,32 +127,16 @@ class FileManager {
     return false
   }
 
-  private incrementDownloadCount (hash: string): void {
-    const query = 'UPDATE file SET download_count = download_count + 1 WHERE hash = ?'
-    this.db.run(query, [hash], function (err) {
-      if (err != null) console.error('Error incrementing download count:', err.message)
-    })
+  private async incrementDownloadCount (hash: string): Promise<void> {
+    await File.increment('download_count', { where: { hash } })
   }
 
   private async isFileNotFound (hash: string): Promise<boolean> {
-    const query = 'SELECT last_access_timestamp FROM file WHERE hash = ?'
-    return await new Promise((resolve, reject) => {
-      this.db.get(query, [hash], (err, row: { last_access_timestamp: number } | undefined) => {
-        if (err !== null) {
-          console.log(err)
-          reject(err)
-        } else if (typeof row !== 'undefined' && row.last_access_timestamp > Date.now() - (1000 * 60 * 5)) resolve(true)
-        else resolve(false)
-      })
-    })
-  }
-
-  private markFileAsNotFound (hash: string): void {
-    const query = 'INSERT INTO file (hash, last_access_timestamp) VALUES (?, ?) ON CONFLICT(hash) DO UPDATE SET last_access_timestamp = ?'
-    const timestamp = +new Date()
-    this.db.run(query, [hash, timestamp, timestamp], function (err) {
-      if (err !== null) console.error('Error marking file as not found:', err.message)
-    })
+    const file = await File.findOne({ where: { hash } })
+    if (file !== null && file.updatedAt > Date.now() - 1000 * 60 * 5) {
+      return true
+    }
+    return false
   }
 
   purgeCache (requiredSpace: number, remainingSpace: number): void {
@@ -169,7 +178,7 @@ class FileManager {
     const fileNotFound = await this.isFileNotFound(hash)
     if (fileNotFound) return false
     if (!isValidSHA256Hash(hash)) return false
-    this.incrementDownloadCount(hash)
+    await this.incrementDownloadCount(hash)
 
     const size = await this.getFileSize(hash, id)
     if (size !== false && !hasSufficientMemory(size)) {
@@ -181,13 +190,9 @@ class FileManager {
       })
     }
 
-    this.pendingFiles.push(hash)
-
     const localFile = await this.fetchFile(hash)
     if (localFile !== false) {
       console.log(`  ${hash}  Serving ${size !== false ? Math.round(size / 1024 / 1024) : 0}MB from cache`)
-      const index = this.pendingFiles.indexOf(hash)
-      if (index > -1) this.pendingFiles.splice(index, 1)
       return localFile
     }
 
@@ -196,16 +201,12 @@ class FileManager {
       if (s3File !== false) {
         if (CONFIG.cache_s3) this.cacheFile(hash, s3File.file)
         console.log(`  ${hash}  Serving ${size !== false ? Math.round(size / 1024 / 1024) : 0}MB from S3`)
-        const index = this.pendingFiles.indexOf(hash)
-        if (index > -1) this.pendingFiles.splice(index, 1)
         return s3File
       }
     }
 
-    const index = this.pendingFiles.indexOf(hash)
-    if (index > -1) this.pendingFiles.splice(index, 1)
     const file = await this.nodesManager.getFile(hash, Number(size))
-    if (file === false) this.markFileAsNotFound(hash)
+    // if (file === false) await this.markFileAsNotFound(hash)
     return file
   }
 
@@ -234,10 +235,11 @@ class FileManager {
     }
   }
 
-  setFiletable (hash: string, id?: string, name?: string): void {
-    const query = 'INSERT INTO file (hash, id, name) VALUES (?, ?, ?) ON CONFLICT(hash) DO UPDATE SET id = ?, name = ?'
-    this.db.run(query, [hash, id, name, id, name], function (err) {
-      if (err !== null) console.error('Error updating file_metadata:', err.message)
+  async setFiletable (hash: string, id?: string, name?: string): Promise<void> {
+    await File.upsert({
+      hash,
+      id,
+      name
     })
   }
 }
