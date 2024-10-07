@@ -65,12 +65,12 @@ export default class File extends Model {
 
   constructor (options: ConstructorOptions) {
     super()
-    if (this.get('hash') === undefined && options.hash !== undefined) this.set('hash', options.hash)
-    if (this.get('id') === undefined && options.id !== undefined) this.set('id', options.id)
-    if (this.get('downloadCount') === undefined && options.downloadCount !== undefined) this.set('downloadCount', options.downloadCount ?? 0)
-    if (this.get('found') === undefined && options.found !== undefined) this.set('found', options.found ?? true)
-    if (this.get('size') === undefined && options.size !== undefined) this.set('size', options.size ?? 0)
-    if (this.get('name') === undefined && options.name !== undefined) this.set('name', options.name)
+    if (this.get('hash') === null && options.hash !== undefined) this.set('hash', options.hash)
+    if (this.get('id') === null && options.id !== undefined) this.set('id', options.id)
+    if (this.get('downloadCount') === null && options.downloadCount !== undefined) this.set('downloadCount', options.downloadCount ?? 0)
+    if (this.get('found') === null && options.found !== undefined) this.set('found', options.found ?? true)
+    if (this.get('size') === null && options.size !== undefined) this.set('size', options.size ?? 0)
+    if (this.get('name') === null && options.name !== undefined) this.set('name', options.name)
     this.hash = this.get('hash')
     this.id = this.get('id')
     this.downloadCount = this.get('downloadCount')
