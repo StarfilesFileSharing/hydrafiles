@@ -2,7 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import CONFIG from './config'
 import { hashArrayBuffer, hasSufficientMemory, interfere, promiseWrapper } from './utils'
-import File from './file'
+import FileHandler from './fileHandler'
 
 export interface Node { host: string, http: boolean, dns: boolean, cf: boolean, hits: number, rejects: number, bytes: number, duration: number, status?: boolean }
 export enum PreferNode { FASTEST, LEAST_USED, RANDOM, HIGHEST_HITRATE }
@@ -45,7 +45,7 @@ export default class Nodes {
     else return nodes
   }
 
-  async downloadFromNode (node: Node, file: File): Promise<{ file: Buffer, signal: number } | false> {
+  async downloadFromNode (node: Node, file: FileHandler): Promise<{ file: Buffer, signal: number } | false> {
     try {
       const startTime = Date.now()
 
@@ -57,14 +57,13 @@ export default class Nodes {
       if (hash !== verifiedHash) return false
 
       file.set('name', String(response.headers.get('Content-Disposition')?.split('=')[1].replace(/"/g, '')))
-      file.save().catch(e => console.error(e))
+      file.save().catch(console.error)
       const signalStrength = Number(response.headers.get('Signal-Strength'))
 
       node.status = true
       node.duration += Date.now() - startTime
       node.bytes += arrayBuffer.byteLength
       node.hits++
-
       this.updateNode(node)
       return { file: Buffer.from(arrayBuffer), signal: interfere(signalStrength) }
     } catch (e) {
@@ -105,7 +104,7 @@ export default class Nodes {
   }
 
   async validateNode (node: Node): Promise<Node> {
-    const file = await this.downloadFromNode(node, new File('04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f'))
+    const file = await this.downloadFromNode(node, await FileHandler.initialize('04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f'))
     if (file !== false) {
       node.status = true
       this.updateNode(node)
@@ -133,7 +132,7 @@ export default class Nodes {
     for (const node of nodes) {
       if (node.http && node.host.length > 0) {
         const promise = (async (): Promise<{ file: Buffer, signal: number } | false> => {
-          const file = new File(hash)
+          const file = await FileHandler.initialize(hash)
           const fileContent = await this.downloadFromNode(node, file)
 
           if (fileContent !== false) {

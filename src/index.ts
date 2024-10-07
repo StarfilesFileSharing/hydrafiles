@@ -5,7 +5,7 @@ import formidable from 'formidable'
 import CONFIG from './config'
 import init from './init'
 import Nodes, { Node, nodeFrom } from './nodes'
-import File from './file'
+import FileHandler from './fileHandler'
 import { isIp, isPrivateIP, estimateHops } from './utils'
 
 // TODO: IDEA: HydraTorrent - New Github repo - "Hydrafiles + WebTorrent Compatibility Layer" - Hydrafiles noes can optionally run HydraTorrent to seed files via webtorrent
@@ -48,21 +48,21 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
         return
       }
 
-      if (await nodesManager.downloadFromNode(nodeFrom(host), new File('04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f')) !== false) {
+      if (await nodesManager.downloadFromNode(nodeFrom(host), await FileHandler.initialize('04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f')) !== false) {
         nodesManager.nodes.push({ host, http: true, dns: false, cf: false, hits: 0, rejects: 0, bytes: 0, duration: 0 })
         fs.writeFileSync(NODES_PATH, JSON.stringify(nodes))
         res.end('Announced\n')
       } else res.end('Invalid request\n')
     } else if (req.url?.startsWith('/download/')) {
       const hash = req.url.split('/')[2]
-      const fileId = req.url.split('/')[3]
+      const fileId = String(req.url.split('/')[3])
 
       const headers: { [key: string]: string } = {
         'Content-Type': 'application/octet-stream',
         'Cache-Control': 'public, max-age=31536000'
       }
 
-      const file = new File(hash)
+      const file = await FileHandler.initialize(hash)
       if (fileId.length !== 0) {
         const id = String(file.get('id'))
         if (id.length === 0) {
@@ -95,7 +95,7 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
       }
 
       const form = formidable({})
-      form.parse(req, (err: unknown, fields: formidable.Fields, files: formidable.Files) => {
+      form.parse(req, async (err: unknown, fields: formidable.Fields, files: formidable.Files) => {
         if (err !== undefined && err !== null) {
           res.writeHead(500, { 'Content-Type': 'text/plain' })
           res.end('500 Internal Server Error\n')
@@ -111,7 +111,7 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
         const hash = fields.hash[0]
         const uploadedFile = files.file[0]
 
-        const file = new File(hash)
+        const file = await FileHandler.initialize(hash)
         let name = String(file.get('name'))
         if (name.length === 0 && uploadedFile.originalFilename !== null) {
           name = uploadedFile.originalFilename
@@ -131,7 +131,7 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
         fs.writeFileSync(path.join(DIRNAME, 'config.json'), JSON.stringify(CONFIG, null, 2))
 
         file.cacheFile(fs.readFileSync(uploadedFile.filepath))
-        // file.save().catch(e => console.error(e))
+        file.save().catch(e => console.error(e))
 
         res.writeHead(201, { 'Content-Type': 'text/plain' })
         res.end('200 OK\n')
@@ -161,13 +161,13 @@ server.listen(CONFIG.port, CONFIG.hostname, (): void => {
     const nodes = nodesManager.getNodes({ includeSelf: false })
     for (const node of nodes) {
       try {
-        if (node.http) {
+        if (node.host.startsWith('http://') || node.host.startsWith('https://')) {
           console.log(`Fetching nodes from ${node.host}/nodes`)
           const response = await fetch(`${node.host}/nodes`)
           if (response.status === 200) {
             const remoteNodes = await response.json() as Node[]
             for (const remoteNode of remoteNodes) {
-              if (remoteNode.host !== CONFIG.public_hostname && typeof nodes.find((node: { host: string }) => node.host === remoteNode.host) === 'undefined' && (await nodesManager.downloadFromNode(remoteNode, new File('04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f')) !== false)) nodesManager.nodes.push(remoteNode)
+              if (remoteNode.host !== CONFIG.public_hostname && typeof nodes.find((node: { host: string }) => node.host === remoteNode.host) === 'undefined' && (await nodesManager.downloadFromNode(remoteNode, await FileHandler.initialize('04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f')) !== false)) nodesManager.nodes.push(remoteNode)
             }
           }
         }
@@ -187,7 +187,7 @@ server.listen(CONFIG.port, CONFIG.hostname, (): void => {
       else {
         console.log(`Testing downloads ${CONFIG.public_hostname}/download/04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f`)
 
-        const response = await nodesManager.downloadFromNode(nodeFrom(`${CONFIG.public_hostname}`), new File('04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f'))
+        const response = await nodesManager.downloadFromNode(nodeFrom(`${CONFIG.public_hostname}`), await FileHandler.initialize('04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f'))
         console.log(`  04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f  Test ${response === false ? 'Failed' : 'Succeeded'}`)
 
         // Save self to nodes.json

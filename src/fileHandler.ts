@@ -45,21 +45,23 @@ const purgeCache = (requiredSpace: number, remainingSpace: number): void => {
   }
 }
 
-export default class File extends Model {
-  constructor (hash: string) {
-    super()
-    this.set('hash', hash)
-    if (!isValidSHA256Hash(hash)) console.error('Invalid hash provided')
-    else {
-      (async () => {
-        let file = await File.findOne({ where: { hash } })
-        if (file === null) {
-          await this.save()
-          file = await File.findOne({ where: { hash } })
-        }
-        console.log(file.get())
-      })().catch(console.error)
-    }
+export default class FileHandler extends Model {
+  public static initialize = async (hash: string): Promise<FileHandler> => {
+    if (!isValidSHA256Hash(hash)) throw new Error('Invalid hash provided')
+
+    const existingFile = await FileHandler.findByPk(hash)
+    const file = existingFile ?? new FileHandler()
+
+    file.set('hash', hash)
+
+    // If the record existed, update its properties. If not, initialize them.
+    if (existingFile !== null) {
+      Object.keys(existingFile.dataValues).forEach((key: string) => {
+        file.set(key, existingFile.dataValues[key])
+      })
+    } else await file.save().catch(console.error)
+
+    return file
   }
 
   public async getSize (): Promise<number | false> {
@@ -216,7 +218,7 @@ const sequelize = new Sequelize({
   // logging: (...msg) => console.log(msg)
 })
 
-File.init(
+FileHandler.init(
   {
     hash: {
       type: DataTypes.STRING,
@@ -252,4 +254,4 @@ File.init(
     timestamps: true
   }
 )
-sequelize.sync().then(() => console.log('Connected to the local DB')).catch(error => console.error('Error connecting to the database:', error))
+sequelize.sync().then(() => console.log('Connected to the local DB')).catch(console.error)
