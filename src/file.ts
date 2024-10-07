@@ -216,6 +216,7 @@ class FileManager {
     const localFile = await this.fetchFile(hash)
     if (localFile !== false) {
       console.log(`  ${hash}  Serving ${size !== false ? Math.round(size / 1024 / 1024) : 0}MB from cache`)
+      await this.setFiletable(hash, id)
       return localFile
     }
 
@@ -224,12 +225,14 @@ class FileManager {
       if (s3File !== false) {
         if (CONFIG.cache_s3) this.cacheFile(hash, s3File.file)
         console.log(`  ${hash}  Serving ${size !== false ? Math.round(size / 1024 / 1024) : 0}MB from S3`)
+        await this.setFiletable(hash, id)
         return s3File
       }
     }
 
     const file = await this.nodesManager.getFile(hash, Number(size))
     if (file === false) await this.markFileAsNotFound(hash)
+    await this.setFiletable(hash, id)
     return file
   }
 
