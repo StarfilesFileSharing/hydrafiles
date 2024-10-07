@@ -70,7 +70,14 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
           await file.save()
         }
       }
-      const fileContent = await file.getFile(nodesManager)
+
+      let fileContent
+      try {
+        fileContent = await file.getFile(nodesManager)
+      } catch (e) {
+        if (e.message === 'Promise timed out') fileContent = false
+        else throw new Error(e)
+      }
 
       if (fileContent === false) {
         res.writeHead(404, { 'Content-Type': 'text/plain' })
