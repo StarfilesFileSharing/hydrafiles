@@ -78,16 +78,18 @@ export default class FileHandler extends Model {
       return size
     }
 
-    try {
-      const data = await s3.headObject({ Bucket: 'uploads', Key: `${hash}.stuf` })
-      if (typeof data.ContentLength !== 'undefined') {
-        size = data.ContentLength
-        this.set('size', size)
-        await this.save()
-        return size
+    if (CONFIG.s3_endpoint.length !== 0) {
+      try {
+        const data = await s3.headObject({ Bucket: 'uploads', Key: `${hash}.stuf` })
+        if (typeof data.ContentLength !== 'undefined') {
+          size = data.ContentLength
+          this.set('size', size)
+          await this.save()
+          return size
+        }
+      } catch (error) {
+        console.error(error)
       }
-    } catch (error) {
-      console.error(error)
     }
 
     return false
