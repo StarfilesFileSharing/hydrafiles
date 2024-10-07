@@ -4,7 +4,7 @@ import * as path from 'path'
 import { Readable } from 'stream'
 import { Sequelize, Model, DataTypes } from 'sequelize'
 import CONFIG from './config'
-import { hasSufficientMemory, interfere, isValidSHA256Hash } from './utils'
+import { hasSufficientMemory, interfere, isValidSHA256Hash, promiseWithTimeout } from './utils'
 import Nodes from './nodes'
 
 interface Metadata { name: string, size: number, type: string, hash: string, id: string }
@@ -170,47 +170,47 @@ export default class FileHandler extends Model {
   }
 
   async getFile (nodesManager: Nodes): Promise<{ file: Buffer, signal: number } | false> {
-    // return await promiseWithTimeout((async (): Promise<{ file: Buffer, signal: number } | false> => {
-    const hash = String(this.get('hash'))
-    if (!isValidSHA256Hash(hash)) return false
-    // if (!this.found) return false
-    const downloadCount = Number(this.get('downloadCount')) + 1
-    this.set('downloadCount', downloadCount)
+    return await promiseWithTimeout((async (): Promise<{ file: Buffer, signal: number } | false> => {
+      const hash = String(this.get('hash'))
+      if (!isValidSHA256Hash(hash)) return false
+      // if (!this.found) return false
+      const downloadCount = Number(this.get('downloadCount')) + 1
+      this.set('downloadCount', downloadCount)
 
-    const size = Number(this.get('size'))
-    if (size === 0) await this.getSize()
+      const size = Number(this.get('size') ?? 0)
+      if (size === 0) await this.getSize()
 
-    if (size !== 0 && !hasSufficientMemory(size)) {
-      await new Promise(() => {
-        const intervalId = setInterval(() => {
-          console.log(`  ${hash}  Reached memory limit, waiting`, size)
-          if (size === 0 || hasSufficientMemory(size)) clearInterval(intervalId)
-        }, CONFIG.memory_threshold_reached_wait)
-      })
-    }
-
-    const localFile = await this.fetchFromCache()
-    if (localFile !== false) {
-      console.log(`  ${hash}  Serving ${size !== undefined ? Math.round(size / 1024 / 1024) : 0}MB from cache`)
-      return localFile
-    }
-
-    if (CONFIG.s3_endpoint.length > 0) {
-      const s3File = await this.fetchFromS3()
-      if (s3File !== false) {
-        if (CONFIG.cache_s3) this.cacheFile(s3File.file)
-        console.log(`  ${hash}  Serving ${size !== undefined ? Math.round(size / 1024 / 1024) : 0}MB from S3`)
-        return s3File
+      if (size !== 0 && !hasSufficientMemory(size)) {
+        await new Promise(() => {
+          const intervalId = setInterval(() => {
+            console.log(`  ${hash}  Reached memory limit, waiting`, size)
+            if (size === 0 || hasSufficientMemory(size)) clearInterval(intervalId)
+          }, CONFIG.memory_threshold_reached_wait)
+        })
       }
-    }
 
-    const file = await nodesManager.getFile(hash, Number(size))
-    if (file === false) {
-      this.set('found', false)
-      await this.save()
-    }
-    return file
-    // })(), CONFIG.timeout)
+      const localFile = await this.fetchFromCache()
+      if (localFile !== false) {
+        console.log(`  ${hash}  Serving ${size !== undefined ? Math.round(size / 1024 / 1024) : 0}MB from cache`)
+        return localFile
+      }
+
+      if (CONFIG.s3_endpoint.length > 0) {
+        const s3File = await this.fetchFromS3()
+        if (s3File !== false) {
+          if (CONFIG.cache_s3) this.cacheFile(s3File.file)
+          console.log(`  ${hash}  Serving ${size !== undefined ? Math.round(size / 1024 / 1024) : 0}MB from S3`)
+          return s3File
+        }
+      }
+
+      const file = await nodesManager.getFile(hash, Number(size))
+      if (file === false) {
+        this.set('found', false)
+        await this.save()
+      }
+      return file
+    })(), CONFIG.timeout)
   }
 }
 
