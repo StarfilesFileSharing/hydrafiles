@@ -5,8 +5,8 @@ import formidable from 'formidable'
 import CONFIG from './config'
 import init from './init'
 import Nodes, { Node, nodeFrom } from './nodes'
-import FileManager, { Metadata, File } from './file'
-import { isIp, isPrivateIP, promiseWithTimeout, estimateHops } from './utils'
+import File from './file'
+import { isIp, isPrivateIP, estimateHops } from './utils'
 
 // TODO: IDEA: HydraTorrent - New Github repo - "Hydrafiles + WebTorrent Compatibility Layer" - Hydrafiles noes can optionally run HydraTorrent to seed files via webtorrent
 // Change index hash from sha256 to infohash, then allow nodes to leech files from webtorrent + normal torrent
@@ -23,16 +23,7 @@ init()
 
 const DIRNAME = path.resolve()
 const NODES_PATH = path.join(DIRNAME, 'nodes.json')
-const fileTable: { [key: string]: { id?: string, name?: string } } = JSON.parse(fs.readFileSync(path.join(DIRNAME, 'filetable.json')).toString())
 const nodesManager = new Nodes()
-const fileManager = new FileManager(nodesManager)
-
-const setFiletable = (hash: string, id: string | undefined, name: string | undefined): void => {
-  if (typeof fileTable[hash] === 'undefined') fileTable[hash] = {}
-  if (typeof id !== 'undefined') fileTable[hash].id = id
-  if (typeof name !== 'undefined') fileTable[hash].name = name
-  fs.writeFileSync(path.join(DIRNAME, 'filetable.json'), JSON.stringify(fileTable, null, 2))
-}
 
 const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse<http.IncomingMessage>): Promise<void> => {
   try {
@@ -55,7 +46,7 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
         return
       }
 
-      if (await nodesManager.downloadFromNode(nodeFrom(host), '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f') !== false) {
+      if (await nodesManager.downloadFromNode(nodeFrom(host), new File({ hash: '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f' })) !== false) {
         nodesManager.nodes.push({ host, http: true, dns: false, cf: false, hits: 0, rejects: 0, bytes: 0, duration: 0 })
         fs.writeFileSync(NODES_PATH, JSON.stringify(nodes))
         res.end('Announced\n')
@@ -69,36 +60,23 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
         'Cache-Control': 'public, max-age=31536000'
       }
 
-      let file: File | false = false
-      try {
-        file = await promiseWithTimeout(fileManager.getFile(hash, fileId), CONFIG.timeout)
-      } catch (error) {
-        console.error(error)
-      }
+      const file = new File({ hash, id: fileId })
+      const fileContent = await file.getFile(nodesManager)
 
-      if (file === false) {
+      if (fileContent === false) {
         res.writeHead(404, { 'Content-Type': 'text/plain' })
         res.end('404 File Not Found\n')
         return
       }
 
-      headers['Signal-Strength'] = String(file.signal)
-      console.log(`  ${hash}  Signal Strength:`, file.signal, estimateHops(file.signal))
+      headers['Signal-Strength'] = String(fileContent.signal)
+      console.log(`  ${hash}  Signal Strength:`, fileContent.signal, estimateHops(fileContent.signal))
 
-      let name: string | undefined
-      if (typeof fileId !== 'undefined') {
-        const response = await fetch(`${CONFIG.metadata_endpoint}${fileId}`)
-        if (response.status === 200) name = (await response.json() as Metadata).name
-      }
-
-      name = typeof name !== 'undefined' ? name : (file.name ?? fileTable[hash]?.name)
-      headers['Content-Length'] = file.file.length.toString()
-      headers['Content-Disposition'] = `attachment; filename="${encodeURIComponent(name ?? 'File').replace(/%20/g, ' ')}"`
-
-      setFiletable(hash, fileId, name)
+      headers['Content-Length'] = String(file.size)
+      headers['Content-Disposition'] = `attachment; filename="${encodeURIComponent(await file.getName() ?? 'File').replace(/%20/g, ' ')}"`
 
       res.writeHead(200, headers)
-      res.end(file.file)
+      res.end(fileContent.file)
     } else if (req.url === '/upload') {
       const uploadSecret = req.headers['x-hydra-upload-secret']
       if (uploadSecret !== CONFIG.upload_secret) {
@@ -122,9 +100,9 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
         }
 
         const hash = fields.hash[0]
-        const file = files.file[0]
+        const uploadedFile = files.file[0]
 
-        setFiletable(hash, undefined, file.originalFilename as string)
+        const file = new File({ hash, name: uploadedFile.originalFilename ?? undefined })
 
         console.log('Uploading', hash)
 
@@ -135,10 +113,10 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
         }
 
         if (!CONFIG.perma_files.includes(hash)) CONFIG.perma_files.push(hash)
-
         fs.writeFileSync(path.join(DIRNAME, 'config.json'), JSON.stringify(CONFIG, null, 2))
 
-        fileManager.cacheFile(hash, fs.readFileSync(file.filepath))
+        file.cacheFile(fs.readFileSync(uploadedFile.filepath))
+        file.save().catch(e => console.error(e))
 
         res.writeHead(201, { 'Content-Type': 'text/plain' })
         res.end('200 OK\n')
@@ -174,7 +152,7 @@ server.listen(CONFIG.port, CONFIG.hostname, (): void => {
           if (response.status === 200) {
             const remoteNodes = await response.json() as Node[]
             for (const remoteNode of remoteNodes) {
-              if (remoteNode.host !== CONFIG.public_hostname && typeof nodes.find((node: { host: string }) => node.host === remoteNode.host) === 'undefined' && (await nodesManager.downloadFromNode(remoteNode, '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f') !== false)) nodesManager.nodes.push(remoteNode)
+              if (remoteNode.host !== CONFIG.public_hostname && typeof nodes.find((node: { host: string }) => node.host === remoteNode.host) === 'undefined' && (await nodesManager.downloadFromNode(remoteNode, new File({ hash: '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f' })) !== false)) nodesManager.nodes.push(remoteNode)
             }
           }
         }
@@ -194,7 +172,7 @@ server.listen(CONFIG.port, CONFIG.hostname, (): void => {
       else {
         console.log(`Testing downloads ${CONFIG.public_hostname}/download/04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f`)
 
-        const response = await nodesManager.downloadFromNode(nodeFrom(`${CONFIG.public_hostname}`), '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f')
+        const response = await nodesManager.downloadFromNode(nodeFrom(`${CONFIG.public_hostname}`), new File({ hash: '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f' }))
         console.log(`Download ${response === false ? 'Failed' : 'Succeeded'}`)
 
         // Save self to nodes.json

@@ -2,7 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import CONFIG from './config'
 import { hasSufficientMemory, interfere, promiseWrapper } from './utils'
-import FileManager, { File } from './file'
+import File from './file'
 
 export interface Node { host: string, http: boolean, dns: boolean, cf: boolean, hits: number, rejects: number, bytes: number, duration: number, status?: boolean }
 export enum PreferNode { FASTEST, LEAST_USED, RANDOM, HIGHEST_HITRATE }
@@ -26,11 +26,9 @@ export const nodeFrom = (host: string): Node => {
 export default class Nodes {
   nodesPath: string
   nodes: Node[]
-  fileManager: FileManager
   constructor () {
     this.nodesPath = path.join(DIRNAME, 'nodes.json')
     this.nodes = this.loadNodes()
-    this.fileManager = new FileManager(this)
   }
 
   loadNodes (): Node[] {
@@ -47,20 +45,18 @@ export default class Nodes {
     else return nodes
   }
 
-  async downloadFromNode (node: Node, hash: string): Promise<File | false> {
+  async downloadFromNode (node: Node, file: File): Promise<{ file: Buffer, signal: number } | false> {
     try {
       const startTime = Date.now()
 
-      const host = node.host
-      console.log(`  ${hash}  Downloading from ${host}`)
-      const response = await fetch(`${host}/download/${hash}`)
+      console.log(`  ${file.hash}  Downloading from ${node.host}`)
+      const response = await fetch(`${node.host}/download/${file.hash}`)
       const arrayBuffer = await response.arrayBuffer()
-      const hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer)
-      const hashArray = Array.from(new Uint8Array(hashBuffer))
+      const hashArray = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', arrayBuffer)))
+      if (file.hash !== hashArray.map(b => b.toString(16).padStart(2, '0')).join('')) return false
 
-      if (hash !== hashArray.map(b => b.toString(16).padStart(2, '0')).join('')) return false
-
-      const name = String(response.headers.get('Content-Disposition')?.split('=')[1].replace(/"/g, ''))
+      file.name = String(response.headers.get('Content-Disposition')?.split('=')[1].replace(/"/g, ''))
+      file.save().catch(e => console.error(e))
       const signalStrength = Number(response.headers.get('Signal-Strength'))
 
       node.status = true
@@ -69,7 +65,7 @@ export default class Nodes {
       node.hits++
 
       this.updateNode(node)
-      return { file: Buffer.from(arrayBuffer), name, signal: interfere(signalStrength) }
+      return { file: Buffer.from(arrayBuffer), signal: interfere(signalStrength) }
     } catch (e) {
       node.rejects++
 
@@ -108,7 +104,7 @@ export default class Nodes {
   }
 
   async validateNode (node: Node): Promise<Node> {
-    const file = await this.downloadFromNode(node, '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f')
+    const file = await this.downloadFromNode(node, new File({ hash: '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f' }))
     if (file !== false) {
       node.status = true
       this.updateNode(node)
@@ -120,9 +116,9 @@ export default class Nodes {
     }
   }
 
-  async getFile (hash: string, size: number = 0): Promise<File | false> {
+  async getFile (hash: string, size: number = 0): Promise<{ file: Buffer, signal: number } | false> {
     const nodes = this.getNodes({ includeSelf: false })
-    let activePromises: Array<Promise<File | false>> = []
+    let activePromises: Array<Promise<{ file: Buffer, signal: number } | false>> = []
 
     if (!hasSufficientMemory(size)) {
       console.log('Reached memory limit, waiting')
@@ -135,15 +131,14 @@ export default class Nodes {
 
     for (const node of nodes) {
       if (node.http && node.host.length > 0) {
-        const promise = (async (): Promise<File | false> => {
-          const file = await this.downloadFromNode(node, hash)
+        const promise = (async (): Promise<{ file: Buffer, signal: number } | false> => {
+          const file = new File({ hash })
+          const fileContent = await this.downloadFromNode(node, file)
 
-          if (file !== false) {
-            this.fileManager.cacheFile(hash, file.file)
-            return file
-          } else {
-            return false
-          }
+          if (fileContent !== false) {
+            file.cacheFile(fileContent.file)
+            return fileContent
+          } else return false
         })()
         activePromises.push(promise)
 
