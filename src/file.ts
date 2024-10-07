@@ -8,7 +8,7 @@ import { hasSufficientMemory, interfere, isValidSHA256Hash } from './utils'
 import Nodes from './nodes'
 
 export interface File { file: Buffer, name?: string, signal: number }
-export interface Metadata { name: string, size: string, type: string, hash: string, id: string }
+export interface Metadata { name: string, size: number, type: string, hash: string, id: string }
 
 const DIRNAME = path.resolve()
 
@@ -18,6 +18,7 @@ class File extends Model {
   public id!: string
   public name!: string
   public found!: boolean
+  public size!: number
   public updatedAt!: number
 
   public static initialize (sequelize: Sequelize): void {
@@ -112,23 +113,33 @@ class FileManager {
   }
 
   private async getFileSize (hash: string, id: string = ''): Promise<number | false> {
+    const fileFromDB = await File.findOne({ where: { hash } })
+    if (fileFromDB?.size !== null) {
+      return fileFromDB?.size ?? false
+    }
+
     const filePath = path.join(DIRNAME, 'files', hash)
 
     if (fs.existsSync(filePath)) {
       const stats = fs.statSync(filePath)
+      this.setFiletable(hash, undefined, undefined, stats.size).catch(e => console.error(e))
       return stats.size
     }
 
     try {
       const data = await this.s3.headObject({ Bucket: 'uploads', Key: `${hash}.stuf` })
-      if (typeof data.ContentLength !== 'undefined') return data.ContentLength
+      if (typeof data.ContentLength !== 'undefined') {
+        this.setFiletable(hash, undefined, undefined, data.ContentLength).catch(e => console.error(e))
+        return data.ContentLength
+      }
     } catch (error) {
       if (id.length !== 0) {
         try {
           const response = await fetch(`${CONFIG.metadata_endpoint}${id}`)
           if (response.status === 200) {
             const metadata = await response.json() as Metadata
-            return Number(metadata.size)
+            this.setFiletable(hash, undefined, undefined, metadata.size).catch(e => console.error(e))
+            return metadata.size
           }
         } catch (error) {
           console.error(error)
@@ -177,9 +188,10 @@ class FileManager {
 
     readStream.on('error', (err) => console.error('Error reading from buffer:', err))
     writeStream.on('error', (err) => console.error('Error writing to file:', err))
-    writeStream.on('finish', () => {
+    writeStream.on('finish', (): void => {
       this.usedStorage += size
       console.log(`  ${hash}  Successfully cached file. Used storage: ${this.usedStorage}`)
+      this.setFiletable(hash, undefined, undefined, size).catch(e => console.error(e))
     })
 
     readStream.pipe(writeStream)
@@ -250,11 +262,12 @@ class FileManager {
     return await File.update({ found: false }, { where: { hash } })
   }
 
-  async setFiletable (hash: string, id?: string, name?: string): Promise<void> {
+  async setFiletable (hash: string, id?: string, name?: string, size?: number): Promise<void> {
     await File.upsert({
       hash,
       id,
-      name
+      name,
+      size
     })
   }
 }
