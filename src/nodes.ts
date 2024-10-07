@@ -52,7 +52,7 @@ export default class Nodes {
       const startTime = Date.now()
 
       const host = node.host
-      console.log(hash, `Downloading from ${host}`)
+      console.log(`  ${hash}  Downloading from ${host}`)
       const response = await fetch(`${host}/download/${hash}`)
       const arrayBuffer = await response.arrayBuffer()
       const hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer)
