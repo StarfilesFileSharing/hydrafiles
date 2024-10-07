@@ -35,6 +35,12 @@ class File extends Model {
         },
         name: {
           type: DataTypes.STRING
+        },
+        createdAt: {
+          type: DataTypes.DATE
+        },
+        updatedAt: {
+          type: DataTypes.DATE
         }
       },
       {
