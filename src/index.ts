@@ -19,6 +19,8 @@ import { isIp, isPrivateIP, estimateHops } from './utils'
 // bittorrent to http proxy
 // starfiles.co would use webtorrent to download files
 
+console.log('Hydrafiles Starting')
+
 init()
 
 const DIRNAME = path.resolve()
@@ -61,7 +63,7 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
       }
 
       const file = new File(hash)
-      if (file.id.length === 0) {
+      if (file.id === undefined) {
         file.id = fileId
         await file.save()
       }

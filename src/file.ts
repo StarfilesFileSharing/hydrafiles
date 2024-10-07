@@ -46,9 +46,9 @@ const purgeCache = (requiredSpace: number, remainingSpace: number): void => {
 }
 
 export default class File extends Model {
-  public hash!: string
+  public hash: string
   public downloadCount!: number
-  public id!: string
+  public id: string | undefined
   public name!: string
   public found!: boolean
   public size!: number
@@ -57,11 +57,16 @@ export default class File extends Model {
 
   constructor (hash: string) {
     super()
-    File.findOne({ where: { hash } })
-      .then(existingFile => {
-        if (existingFile !== null) Object.assign(this, existingFile.get())
-      })
-      .catch(error => console.error('Error finding existing file:', error))
+    this.hash = hash
+    if (!isValidSHA256Hash(this.hash)) console.error('Invalid hash provided')
+    else {
+      File.findOne({ where: { hash: this.hash } })
+        .then(existingFile => {
+          if (existingFile !== null) Object.assign(this, existingFile.get())
+          this.hash = hash
+        })
+        .catch(error => console.error('Error finding existing file:', error))
+    }
   }
 
   public async getSize (): Promise<number | false> {
