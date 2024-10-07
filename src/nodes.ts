@@ -104,7 +104,7 @@ export default class Nodes {
   }
 
   async validateNode (node: Node): Promise<Node> {
-    const file = await this.downloadFromNode(node, new File({ hash: '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f' }))
+    const file = await this.downloadFromNode(node, new File('04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f'))
     if (file !== false) {
       node.status = true
       this.updateNode(node)
@@ -132,7 +132,7 @@ export default class Nodes {
     for (const node of nodes) {
       if (node.http && node.host.length > 0) {
         const promise = (async (): Promise<{ file: Buffer, signal: number } | false> => {
-          const file = new File({ hash })
+          const file = new File(hash)
           const fileContent = await this.downloadFromNode(node, file)
 
           if (fileContent !== false) {

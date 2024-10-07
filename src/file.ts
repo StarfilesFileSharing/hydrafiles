@@ -8,14 +8,6 @@ import { hasSufficientMemory, interfere, isValidSHA256Hash, promiseWithTimeout }
 import Nodes from './nodes'
 
 interface Metadata { name: string, size: number, type: string, hash: string, id: string }
-interface ConstructorOptions {
-  hash: string
-  id?: string
-  downloadCount?: number
-  found?: boolean
-  size?: number
-  name?: string
-}
 
 const DIRNAME = path.resolve()
 
@@ -63,20 +55,13 @@ export default class File extends Model {
   public createdAt!: Date
   public updatedAt!: Date
 
-  constructor (options: ConstructorOptions) {
+  constructor (hash: string) {
     super()
-    if (this.get('hash') === null && options.hash !== undefined) this.set('hash', options.hash)
-    if (this.get('id') === null && options.id !== undefined) this.set('id', options.id)
-    if (this.get('downloadCount') === null && options.downloadCount !== undefined) this.set('downloadCount', options.downloadCount ?? 0)
-    if (this.get('found') === null && options.found !== undefined) this.set('found', options.found ?? true)
-    if (this.get('size') === null && options.size !== undefined) this.set('size', options.size ?? 0)
-    if (this.get('name') === null && options.name !== undefined) this.set('name', options.name)
-    this.hash = this.get('hash')
-    this.id = this.get('id')
-    this.downloadCount = this.get('downloadCount')
-    this.found = this.get('found')
-    this.size = this.get('size')
-    this.name = this.get('name')
+    File.findOne({ where: { hash } })
+      .then(existingFile => {
+        if (existingFile !== null) Object.assign(this, existingFile.get())
+      })
+      .catch(error => console.error('Error finding existing file:', error))
   }
 
   public async getSize (): Promise<number | false> {

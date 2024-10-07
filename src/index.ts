@@ -46,7 +46,7 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
         return
       }
 
-      if (await nodesManager.downloadFromNode(nodeFrom(host), new File({ hash: '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f' })) !== false) {
+      if (await nodesManager.downloadFromNode(nodeFrom(host), new File('04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f')) !== false) {
         nodesManager.nodes.push({ host, http: true, dns: false, cf: false, hits: 0, rejects: 0, bytes: 0, duration: 0 })
         fs.writeFileSync(NODES_PATH, JSON.stringify(nodes))
         res.end('Announced\n')
@@ -60,7 +60,11 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
         'Cache-Control': 'public, max-age=31536000'
       }
 
-      const file = new File({ hash, id: fileId })
+      const file = new File(hash)
+      if (file.id.length === 0) {
+        file.id = fileId
+        await file.save()
+      }
       const fileContent = await file.getFile(nodesManager)
 
       if (fileContent === false) {
@@ -102,7 +106,11 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
         const hash = fields.hash[0]
         const uploadedFile = files.file[0]
 
-        const file = new File({ hash, name: uploadedFile.originalFilename ?? undefined })
+        const file = new File(hash)
+        if (file.name.length === 0 && uploadedFile.originalFilename !== null) {
+          file.name = uploadedFile.originalFilename
+          file.save().catch(e => console.error(e))
+        }
 
         console.log('Uploading', hash)
 
@@ -152,7 +160,7 @@ server.listen(CONFIG.port, CONFIG.hostname, (): void => {
           if (response.status === 200) {
             const remoteNodes = await response.json() as Node[]
             for (const remoteNode of remoteNodes) {
-              if (remoteNode.host !== CONFIG.public_hostname && typeof nodes.find((node: { host: string }) => node.host === remoteNode.host) === 'undefined' && (await nodesManager.downloadFromNode(remoteNode, new File({ hash: '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f' })) !== false)) nodesManager.nodes.push(remoteNode)
+              if (remoteNode.host !== CONFIG.public_hostname && typeof nodes.find((node: { host: string }) => node.host === remoteNode.host) === 'undefined' && (await nodesManager.downloadFromNode(remoteNode, new File('04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f')) !== false)) nodesManager.nodes.push(remoteNode)
             }
           }
         }
@@ -172,7 +180,7 @@ server.listen(CONFIG.port, CONFIG.hostname, (): void => {
       else {
         console.log(`Testing downloads ${CONFIG.public_hostname}/download/04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f`)
 
-        const response = await nodesManager.downloadFromNode(nodeFrom(`${CONFIG.public_hostname}`), new File({ hash: '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f' }))
+        const response = await nodesManager.downloadFromNode(nodeFrom(`${CONFIG.public_hostname}`), new File('04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f'))
         console.log(`Download ${response === false ? 'Failed' : 'Succeeded'}`)
 
         // Save self to nodes.json
