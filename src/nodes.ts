@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import CONFIG from './config'
-import { hasSufficientMemory, interfere, promiseWrapper } from './utils'
+import { hashArrayBuffer, hasSufficientMemory, interfere, promiseWrapper } from './utils'
 import File from './file'
 
 export interface Node { host: string, http: boolean, dns: boolean, cf: boolean, hits: number, rejects: number, bytes: number, duration: number, status?: boolean }
@@ -52,11 +52,11 @@ export default class Nodes {
       console.log(`  ${file.hash}  Downloading from ${node.host}`)
       const response = await fetch(`${node.host}/download/${file.hash}`)
       const arrayBuffer = await response.arrayBuffer()
-      const hashArray = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', arrayBuffer)))
-      if (file.hash !== hashArray.map(b => b.toString(16).padStart(2, '0')).join('')) return false
+      const hash = await hashArrayBuffer(arrayBuffer)
+      if (file.hash !== hash) return false
 
       file.name = String(response.headers.get('Content-Disposition')?.split('=')[1].replace(/"/g, ''))
-      file.save().catch(e => console.error(e))
+      // file.save().catch(e => console.error(e))
       const signalStrength = Number(response.headers.get('Signal-Strength'))
 
       node.status = true
