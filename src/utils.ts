@@ -1,4 +1,5 @@
 import os from 'os'
+import { createHash } from 'crypto'
 import CONFIG from './config'
 
 export const getRandomNumber = (min: number, max: number): number => Math.floor(Math.random() * (max - min + 1)) + min
@@ -35,7 +36,7 @@ export const promiseWrapper = (promise: Promise<any>): { promise: Promise<any>, 
     isFulfilled
   }
 }
-export function estimateHops (signalStrength: number): { hop: number | null, certainty: number } {
+export const estimateHops = (signalStrength: number): { hop: number | null, certainty: number } => {
   const hopData = [
     { hop: 1, min: 90, avg: 95 },
     { hop: 2, min: 81, avg: 92 },
@@ -71,4 +72,17 @@ export function estimateHops (signalStrength: number): { hop: number | null, cer
   }
 
   return { hop: closestHop, certainty: Math.round(closestCertainty * 10000) / 100 }
+}
+export const hashArrayBuffer = async (arrayBuffer: ArrayBuffer): Promise<string> => {
+  const hash = createHash('sha256')
+  const data = new Uint8Array(arrayBuffer)
+  const chunkSize = 1024 * 1024
+  const chunks = Math.ceil(data.length / chunkSize)
+
+  for (let i = 0; i < chunks; i++) {
+    const chunk = data.subarray(i * chunkSize, (i + 1) * chunkSize)
+    hash.update(chunk)
+  }
+
+  return hash.digest('hex')
 }
