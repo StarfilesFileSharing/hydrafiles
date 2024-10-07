@@ -17,6 +17,7 @@ class File extends Model {
   public download_count!: number
   public id!: string
   public name!: string
+  public found!: boolean
   public updatedAt!: number
 
   public static initialize (sequelize: Sequelize): void {
@@ -35,6 +36,10 @@ class File extends Model {
         },
         name: {
           type: DataTypes.STRING
+        },
+        found: {
+          type: DataTypes.BOOLEAN,
+          defaultValue: true
         },
         createdAt: {
           type: DataTypes.DATE
@@ -139,7 +144,7 @@ class FileManager {
 
   private async isFileNotFound (hash: string): Promise<boolean> {
     const file = await File.findOne({ where: { hash } })
-    if (file !== null && file.updatedAt > Date.now() - 1000 * 60 * 5) {
+    if (file !== null && !file.found) {
       return true
     }
     return false
@@ -212,7 +217,7 @@ class FileManager {
     }
 
     const file = await this.nodesManager.getFile(hash, Number(size))
-    // if (file === false) await this.markFileAsNotFound(hash)
+    if (file === false) await this.markFileAsNotFound(hash)
     return file
   }
 
@@ -239,6 +244,10 @@ class FileManager {
       console.error(error)
       return false
     }
+  }
+
+  async markFileAsNotFound (hash: string): Promise<[affectedCount: number]> {
+    return await File.update({ found: false }, { where: { hash } })
   }
 
   async setFiletable (hash: string, id?: string, name?: string): Promise<void> {
