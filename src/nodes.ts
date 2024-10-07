@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import CONFIG from './config'
-import { hashArrayBuffer, hashStream, hasSufficientMemory, interfere, promiseWrapper } from './utils'
+import { promiseWithTimeout, hasSufficientMemory, interfere, promiseWrapper } from './utils'
 import FileHandler from './fileHandler'
 
 export interface Node { host: string, http: boolean, dns: boolean, cf: boolean, hits: number, rejects: number, bytes: number, duration: number, status?: boolean }
@@ -51,9 +51,9 @@ export default class Nodes {
 
       const hash = String(file.get('hash'))
       console.log(`  ${hash}  Downloading from ${node.host}`)
-      const response = await fetch(`${node.host}/download/${hash}`)
+      const response = await promiseWithTimeout(fetch(`${node.host}/download/${hash}`), CONFIG.timeout)
       console.log('hashing')
-      // const verifiedHash = await hashStream(response.body)
+      // const verifiedHash = await hashStream(response.body) // todo: causes OOM
       console.log('Done hashing')
       // if (hash !== verifiedHash) return false
 
