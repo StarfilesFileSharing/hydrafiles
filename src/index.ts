@@ -83,7 +83,7 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
       }
 
       headers['Signal-Strength'] = String(file.signal)
-      console.log(`  ${hash} Signal Strength:`, file.signal, estimateHops(file.signal))
+      console.log(`  ${hash}  Signal Strength:`, file.signal, estimateHops(file.signal))
 
       let name: string | undefined
       if (typeof fileId !== 'undefined') {
