@@ -157,7 +157,7 @@ export default class File extends Model {
   }
 
   async getFile (nodesManager: Nodes): Promise<{ file: Buffer, signal: number } | false> {
-    const func = async (): Promise<{ file: Buffer, signal: number } | false> => {
+    return await promiseWithTimeout((async (): Promise<{ file: Buffer, signal: number } | false> => {
       if (!isValidSHA256Hash(this.hash)) return false
       if (!this.found) return false
       this.downloadCount += 1
@@ -195,8 +195,7 @@ export default class File extends Model {
         await this.save()
       }
       return file
-    }
-    return await promiseWithTimeout(func(), CONFIG.timeout)
+    })(), CONFIG.timeout)
   }
 }
 
@@ -204,6 +203,7 @@ const sequelize = new Sequelize({
   dialect: 'sqlite',
   storage: path.join(DIRNAME, 'filemanager.db')
 })
+
 File.init(
   {
     hash: {
