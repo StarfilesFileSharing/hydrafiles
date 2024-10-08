@@ -80,6 +80,8 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
       }
 
       if (fileContent === false) {
+        file.found = false
+        await file.save()
         res.writeHead(404, { 'Content-Type': 'text/plain' })
         res.end('404 File Not Found\n')
         return

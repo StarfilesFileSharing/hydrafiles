@@ -61,7 +61,7 @@ export default class FileHandler {
   downloadCount!: number
   id: string | null | undefined
   name: string | null | undefined
-  found: boolean | undefined
+  found!: boolean
   size!: number
   createdAt!: Date
   updatedAt!: Date
@@ -182,7 +182,7 @@ export default class FileHandler {
 
       return { file: buffer, signal: interfere(100) }
     } catch (error) {
-      console.error(error)
+      if (error.message !== 'The specified key does not exist.') console.error(error)
       return false
     }
   }
@@ -192,7 +192,7 @@ export default class FileHandler {
       const hash = this.hash
       console.log(`  ${hash}  Getting file`)
       if (!isValidSHA256Hash(hash)) return false
-      // if (!this.found) return false
+      if (!this.found && new Date(this.updatedAt) > new Date(new Date().getTime() - 5 * 60 * 1000)) return false
       const downloadCount = this.downloadCount + 1
       this.downloadCount = downloadCount
 
