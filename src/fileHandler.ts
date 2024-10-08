@@ -99,7 +99,6 @@ export default class FileHandler {
       const response = await fetch(`${CONFIG.metadata_endpoint}${id}`)
       if (response.ok) {
         const metadata = await response.json() as Metadata
-        console.log('metadata', metadata)
         this.name = metadata.name
         this.size = metadata.size
         this.save()
