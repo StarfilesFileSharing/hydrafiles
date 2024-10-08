@@ -4,6 +4,12 @@
   <a href="#how-do-i-setup-a-node">Skip To Deploy Instructions</a>
   <br><br>
   <img src="/public/favicon.ico">
+  <br><br>
+  Please submit ideas and feature requests and submit any problems you're facing as an issue.
+  <br><br>
+  <strong>Like our mission?</strong>
+  <br>
+  If you're a developer, you can check our issues for how to help. Otherwise, check <a href="#contribute-to-hydrafiles">here</a> on how else you can contribute.
 </p>
 
 ## Popular Nodes
