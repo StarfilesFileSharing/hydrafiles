@@ -55,7 +55,7 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
       } else res.end('Invalid request\n')
     } else if (req.url?.startsWith('/download/')) {
       const hash = req.url.split('/')[2]
-      const fileId = req.url.split('/')[3]
+      const fileId = String(req.url.split('/')[3])
 
       const headers: { [key: string]: string } = {
         'Content-Type': 'application/octet-stream',
