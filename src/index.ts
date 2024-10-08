@@ -88,8 +88,15 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
       headers['Signal-Strength'] = String(fileContent.signal)
       console.log(`  ${hash}  Signal Strength:`, fileContent.signal, estimateHops(fileContent.signal))
 
-      headers['Content-Length'] = String(file.getSize())
-      headers['Content-Disposition'] = `attachment; filename="${encodeURIComponent(await file.getName() ?? 'File').replace(/%20/g, ' ')}"`
+      let size = Number(file.get('size'))
+      let name = String(file.get('name'))
+      if (size === 0 || name.length === 0) {
+        await file.getMetadata()
+        size = Number(file.get('size'))
+        name = String(file.get('name'))
+      }
+      headers['Content-Length'] = String(size)
+      headers['Content-Disposition'] = `attachment; filename="${encodeURIComponent(name ?? 'File').replace(/%20/g, ' ')}"`
 
       res.writeHead(200, headers)
       res.end(fileContent.file)

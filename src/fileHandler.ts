@@ -64,29 +64,39 @@ export default class FileHandler extends Model {
     return file
   }
 
-  public async getSize (): Promise<number | false> {
-    let size = Number(this.get('size'))
-    if (size > 0) return size
+  public async getMetadata (): Promise<FileHandler | false> {
+    if (Number(this.get('size')) > 0 && String(this.get('name')).length > 0) return this
+
     const hash = String(this.get('hash'))
 
-    console.log(`  ${hash}  Getting file size`)
+    console.log(`  ${hash}  Getting file metadata`)
+
+    const id = String(this.get('id'))
+    if (id.length > 0) {
+      const response = await fetch(`${CONFIG.metadata_endpoint}${id}`)
+      if (response.status === 200) {
+        const metadata = await response.json() as Metadata
+        this.set('name', metadata.name)
+        this.set('size', metadata.size)
+        await this.save()
+        return this
+      }
+    }
 
     const filePath = path.join(DIRNAME, 'files', hash)
     if (fs.existsSync(filePath)) {
-      size = fs.statSync(filePath).size
-      this.set('size', size)
+      this.set('size', fs.statSync(filePath).size)
       await this.save()
-      return size
+      return this
     }
 
     if (CONFIG.s3_endpoint.length !== 0) {
       try {
         const data = await s3.headObject({ Bucket: 'uploads', Key: `${hash}.stuf` })
         if (typeof data.ContentLength !== 'undefined') {
-          size = data.ContentLength
-          this.set('size', size)
+          this.set('size', data.ContentLength)
           await this.save()
-          return size
+          return this
         }
       } catch (error) {
         console.error(error)
@@ -94,22 +104,6 @@ export default class FileHandler extends Model {
     }
 
     return false
-  }
-
-  public async getName (): Promise<string | undefined> {
-    let name = String(this.get('name'))
-    if (name.length > 0) return name
-
-    const id = String(this.get('id'))
-    if (id.length > 0) {
-      const response = await fetch(`${CONFIG.metadata_endpoint}${id}`)
-      if (response.status === 200) {
-        name = (await response.json() as Metadata).name
-        this.set('name', name)
-        await this.save()
-      }
-    }
-    return name
   }
 
   cacheFile (file: Buffer): void {
@@ -180,7 +174,7 @@ export default class FileHandler extends Model {
       this.set('downloadCount', downloadCount)
 
       const size = Number(this.get('size') ?? 0)
-      if (size === 0) await this.getSize()
+      if (size === 0) await this.getMetadata()
 
       if (size !== 0 && !hasSufficientMemory(size)) {
         await new Promise(() => {
