@@ -79,7 +79,7 @@ export default class FileHandler {
   }
 
   getValue<K extends keyof FileAttributes>(key: K): FileAttributes[K] {
-    if (this[key] === null) return '' as FileAttributes[K]
+    if (this[key] === null || typeof this[key] === 'undefined') return '' as FileAttributes[K]
     return this[key]
   }
 
