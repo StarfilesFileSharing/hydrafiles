@@ -49,14 +49,14 @@ export default class Nodes {
     try {
       const startTime = Date.now()
 
-      const hash = file.getValue('hash')
+      const hash = file.hash
       console.log(`  ${hash}  Downloading from ${node.host}`)
       const response = await promiseWithTimeout(fetch(`${node.host}/download/${hash}`), CONFIG.timeout)
       console.log(`  ${hash}  Validating hash`)
       const verifiedHash = await hashStream(response.body)
       if (hash !== verifiedHash) return false
 
-      if (file.getValue('name').length === 0) {
+      if (file.name === null || file.name.length === 0) {
         file.name = String(response.headers.getValue('Content-Disposition')?.split('=')[1].replace(/"/g, ''))
         file.save()
       }

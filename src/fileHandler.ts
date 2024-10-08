@@ -58,11 +58,11 @@ interface FileAttributes {
 
 export default class FileHandler {
   hash!: string
-  downloadCount!: number
-  id!: string
-  name!: string
-  found!: boolean
-  size!: number
+  downloadCount: number = 0
+  id: string | null = null
+  name: string | null = null
+  found: boolean = true
+  size: number = 0
   createdAt!: Date
   updatedAt!: Date
   file!: Model<any, any>
@@ -78,23 +78,19 @@ export default class FileHandler {
     return fileHandler
   }
 
-  getValue<K extends keyof FileAttributes>(key: K): FileAttributes[K] {
-    if (this[key] === null || typeof this[key] === 'undefined') return '' as FileAttributes[K]
-    return this[key]
-  }
-
   public async getMetadata (): Promise<FileHandler | false> {
-    if (this.getValue('size') > 0 && this.getValue('name').length > 0) return this
+    if (this.size > 0 && this.name !== null && this.name.length > 0) return this
 
-    const hash = this.getValue('hash')
+    const hash = this.hash
 
     console.log(`  ${hash}  Getting file metadata`)
 
-    const id = this.getValue('id')
-    if (id.length > 0) {
+    const id = this.id
+    if (id !== null && id.length > 0) {
       const response = await fetch(`${CONFIG.metadata_endpoint}${id}`)
       if (response.ok) {
         const metadata = await response.json() as Metadata
+        console.log('metadata', metadata)
         this.name = metadata.name
         this.size = metadata.size
         this.save()
@@ -126,11 +122,11 @@ export default class FileHandler {
   }
 
   cacheFile (file: Buffer): void {
-    const hash = this.getValue('hash')
+    const hash = this.hash
     const filePath = path.join(DIRNAME, 'files', hash)
     if (fs.existsSync(filePath)) return
 
-    let size = this.getValue('size')
+    let size = this.size
     if (size === 0) {
       size = file.byteLength
       this.size = size
@@ -153,14 +149,14 @@ export default class FileHandler {
   }
 
   private async fetchFromCache (): Promise<{ file: Buffer, signal: number } | false> {
-    const hash = this.getValue('hash')
+    const hash = this.hash
     console.log(`  ${hash}  Checking Cache`)
     const filePath = path.join(DIRNAME, 'files', hash)
     return fs.existsSync(filePath) ? { file: fs.readFileSync(filePath), signal: interfere(100) } : false
   }
 
   async fetchFromS3 (): Promise<{ file: Buffer, signal: number } | false> {
-    const hash = this.getValue('hash')
+    const hash = this.hash
     console.log(`  ${hash}  Checking S3`)
     if (CONFIG.s3_endpoint.length === 0) return false
     try {
@@ -185,14 +181,14 @@ export default class FileHandler {
 
   async getFile (nodesManager: Nodes): Promise<{ file: Buffer, signal: number } | false> {
     return await promiseWithTimeout((async (): Promise<{ file: Buffer, signal: number } | false> => {
-      const hash = this.getValue('hash')
+      const hash = this.hash
       console.log(`  ${hash}  Getting file`)
       if (!isValidSHA256Hash(hash)) return false
       // if (!this.found) return false
-      const downloadCount = this.getValue('downloadCount') + 1
+      const downloadCount = this.downloadCount + 1
       this.downloadCount = downloadCount
 
-      const size = this.getValue('size')
+      const size = this.size
       if (size === 0) await this.getMetadata()
 
       if (size !== 0 && !hasSufficientMemory(size)) {

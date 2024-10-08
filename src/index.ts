@@ -64,8 +64,8 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
 
       const file = await FileHandler.init(hash)
       if (fileId.length !== 0) {
-        const id = file.getValue('id')
-        if (id.length === 0) {
+        const id = file.id
+        if (id === null || id.length === 0) {
           file.id = fileId
           file.save()
         }
@@ -88,12 +88,12 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
       headers['Signal-Strength'] = fileContent.signal
       console.log(`  ${hash}  Signal Strength:`, fileContent.signal, estimateHops(fileContent.signal))
 
-      let size = file.getValue('size')
-      let name = file.getValue('name')
-      if (size === 0 || name.length === 0) {
+      let size = file.size
+      let name = file.name
+      if (size === 0 || name === null || name.length === 0) {
         await file.getMetadata()
-        size = file.getValue('size')
-        name = file.getValue('name')
+        size = file.size
+        name = file.name
       }
       headers['Content-Length'] = String(size)
       headers['Content-Disposition'] = `attachment; filename="${encodeURIComponent(name ?? 'File').replace(/%20/g, ' ')}"`
@@ -126,8 +126,8 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
         const uploadedFile = files.file[0]
 
         FileHandler.init(hash).then(file => {
-          let name = file.getValue('name')
-          if (name.length === 0 && uploadedFile.originalFilename !== null) {
+          let name = file.name
+          if ((name === null || name.length === 0) && uploadedFile.originalFilename !== null) {
             name = uploadedFile.originalFilename
             file.name = name
             file.cacheFile(fs.readFileSync(uploadedFile.filepath))
