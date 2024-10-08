@@ -135,7 +135,7 @@ export default class Nodes {
       if (node.http && node.host.length > 0) {
         const promise = (async (): Promise<{ file: Buffer, signal: number } | false> => {
           const file = await FileHandler.initialize(hash)
-          const fileContent = await this.downloadFromNode(node, file)
+          const fileContent = await promiseWithTimeout(this.downloadFromNode(node, file), CONFIG.timeout)
 
           if (fileContent !== false) {
             file.cacheFile(fileContent.file)
@@ -147,18 +147,16 @@ export default class Nodes {
         if (activePromises.length >= CONFIG.max_concurrent_nodes) {
           const file = await Promise.race(activePromises)
           if (file !== false) return file
-
           activePromises = activePromises.filter(p => !promiseWrapper(p).isFulfilled)
         }
       }
     }
 
-    while (activePromises.length > 0) {
-      await Promise.race(activePromises)
-      const file = await Promise.race(activePromises)
-      if (file !== false) return file
-
-      activePromises = activePromises.filter(p => !promiseWrapper(p).isFulfilled)
+    if (activePromises.length > 0) {
+      const files = await Promise.all(activePromises)
+      for (let i = 0; i < files.length; i++) {
+        if (files[i] !== false) return files[i]
+      }
     }
 
     return false
