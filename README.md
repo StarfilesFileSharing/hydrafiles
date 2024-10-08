@@ -5,11 +5,11 @@
   <br><br>
   <img src="/public/favicon.ico">
   <br><br>
-  Please submit ideas and feature requests and submit any problems you're facing as an issue.
+  Please submit ideas & feature requests as well as any problems you're facing as an issue.
   <br><br>
   <strong>Like our mission?</strong>
   <br>
-  If you're a developer, you can check our issues for how to help. Otherwise, check <a href="#contribute-to-hydrafiles">here</a> on how else you can contribute.
+  If you're a developer, you can check our issues for ideas on how to help. Otherwise, check <a href="#contribute-to-hydrafiles">here</a> on how else you can contribute.
 </p>
 
 ## Popular Nodes
