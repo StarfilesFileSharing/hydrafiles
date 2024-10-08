@@ -81,6 +81,7 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
           }
         }
 
+        await file.getMetadata()
         let fileContent
         try {
           fileContent = await promiseWithTimeout(file.getFile(nodesManager), CONFIG.timeout)
@@ -100,7 +101,6 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
         headers['Signal-Strength'] = fileContent.signal
         console.log(`  ${hash}  Signal Strength:`, fileContent.signal, estimateHops(fileContent.signal))
 
-        await file.getMetadata()
         headers['Content-Length'] = String(file.size)
         headers['Content-Disposition'] = `attachment; filename="${encodeURIComponent(file.name ?? 'File').replace(/%20/g, ' ')}"`
 

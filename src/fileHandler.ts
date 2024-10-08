@@ -196,21 +196,18 @@ export default class FileHandler {
       const downloadCount = this.downloadCount + 1
       this.downloadCount = downloadCount
 
-      const size = this.size
-      if (size === 0) await this.getMetadata()
-
-      if (size !== 0 && !hasSufficientMemory(size)) {
+      if (this.size !== 0 && !hasSufficientMemory(this.size)) {
         await new Promise(() => {
           const intervalId = setInterval(() => {
-            console.log(`  ${hash}  Reached memory limit, waiting`, size)
-            if (size === 0 || hasSufficientMemory(size)) clearInterval(intervalId)
+            console.log(`  ${hash}  Reached memory limit, waiting`, this.size)
+            if (this.size === 0 || hasSufficientMemory(this.size)) clearInterval(intervalId)
           }, CONFIG.memory_threshold_reached_wait)
         })
       }
 
       const localFile = await this.fetchFromCache()
       if (localFile !== false) {
-        console.log(`  ${hash}  Serving ${size !== undefined ? Math.round(size / 1024 / 1024) : 0}MB from cache`)
+        console.log(`  ${hash}  Serving ${this.size !== undefined ? Math.round(this.size / 1024 / 1024) : 0}MB from cache`)
         return localFile
       }
 
@@ -218,12 +215,12 @@ export default class FileHandler {
         const s3File = await this.fetchFromS3()
         if (s3File !== false) {
           if (CONFIG.cache_s3) await this.cacheFile(s3File.file)
-          console.log(`  ${hash}  Serving ${size !== undefined ? Math.round(size / 1024 / 1024) : 0}MB from S3`)
+          console.log(`  ${hash}  Serving ${this.size !== undefined ? Math.round(this.size / 1024 / 1024) : 0}MB from S3`)
           return s3File
         }
       }
 
-      const file = await promiseWithTimeout(nodesManager.getFile(hash, size), CONFIG.timeout)
+      const file = await promiseWithTimeout(nodesManager.getFile(hash, this.size), CONFIG.timeout)
       if (file === false) {
         this.found = false
         await this.save()
