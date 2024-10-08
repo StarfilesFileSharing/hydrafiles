@@ -52,22 +52,22 @@ export default class Nodes {
       const hash = String(file.get('hash'))
       console.log(`  ${hash}  Downloading from ${node.host}`)
       const response = await promiseWithTimeout(fetch(`${node.host}/download/${hash}`), CONFIG.timeout)
-      console.log('hashing')
-      const verifiedHash = await hashStream(response.body) // todo: causes OOM
-      console.log('Done hashing')
+      console.log(`  ${hash}  Validating hash`)
+      const verifiedHash = await hashStream(response.body) // todo: causes OO
       if (hash !== verifiedHash) return false
 
-      file.set('name', String(response.headers.get('Content-Disposition')?.split('=')[1].replace(/"/g, '')))
-      file.save().catch(console.error)
-      const signalStrength = Number(response.headers.get('Signal-Strength'))
-      const arrayBuffer = await response.arrayBuffer()
+      if (String(file.get('name')).length === 0) {
+        file.set('name', String(response.headers.get('Content-Disposition')?.split('=')[1].replace(/"/g, '')))
+        file.save().catch(console.error)
+      }
+      const arrayBuffer = await response.arrayBuffer() as ArrayBuffer
 
       node.status = true
       node.duration += Date.now() - startTime
       node.bytes += arrayBuffer.byteLength
       node.hits++
       this.updateNode(node)
-      return { file: Buffer.from(arrayBuffer), signal: interfere(signalStrength) }
+      return { file: Buffer.from(arrayBuffer), signal: interfere(Number(response.headers.get('Signal-Strength'))) }
     } catch (e) {
       node.rejects++
 
