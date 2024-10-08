@@ -1,7 +1,10 @@
-# Hydrafiles
-The headless storage network.
-
-[Skip To Deploy Instructions](#how-do-i-setup-a-node)
+<h1 align="center">Hydrafiles</h1>
+<p align="center">The headless storage network.</p>
+<p align="center">
+  <a href="#how-do-i-setup-a-node">Skip To Deploy Instructions</a>
+  <br><br>
+  <img src="/public/favicon.ico">
+</p>
 
 ## Popular Nodes
 Please send a Pull Request to get your node listed here.
