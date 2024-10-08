@@ -244,8 +244,17 @@ export default class FileHandler {
 
 const sequelize = new Sequelize({
   dialect: 'sqlite',
-  storage: path.join(DIRNAME, 'filemanager.db')
-  // logging: (...msg) => console.log(msg)
+  storage: path.join(DIRNAME, 'filemanager.db'),
+  logging: (...msg) => {
+    const payload = msg[1]
+    if (payload.type === 'SELECT') {
+      console.log(`  ${payload.where.split("'")[1]}  SELECTing file from database`)
+    } else if (payload.type === 'INSERT') {
+      console.log(`  ${payload.instance.dataValues.hash}  INSERTing file to database`)
+    } else if (payload.type === 'UPDATE') {
+      console.log(`  ${payload.instance.dataValues.hash}  UPDAT(E)ing file in database`)
+    }
+  }
 })
 
 const File = sequelize.define('File',
