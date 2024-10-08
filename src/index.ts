@@ -66,7 +66,7 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
       if (fileId.length !== 0) {
         const id = String(file.get('id'))
         if (id.length === 0) {
-          file.set(id, fileId)
+          file.set('id', fileId)
           await file.save()
         }
       }
