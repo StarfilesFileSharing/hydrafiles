@@ -45,16 +45,32 @@ const purgeCache = (requiredSpace: number, remainingSpace: number): void => {
   }
 }
 
-export default class FileHandler extends Model {
+interface FileAttributes {
+  hash: string
+  downloadCount: number
+  id: string
+  name: string
+  found: boolean
+  size: number
+  createdAt: Date
+  updatedAt: Date
+}
+
+export default class FileHandler extends Model<FileAttributes> implements FileAttributes {
+  hash!: string
+  downloadCount: number = 0
+  id!: string
+  name!: string
+  found: boolean = true
+  size: number = 0
+  createdAt!: Date
+  updatedAt!: Date
   public static initialize = async (hash: string): Promise<FileHandler> => {
     if (!isValidSHA256Hash(hash)) throw new Error('Invalid hash provided')
 
     const existingFile = await FileHandler.findByPk(hash)
     const file = existingFile ?? new FileHandler()
 
-    file.set('hash', hash)
-
-    // If the record existed, update its properties. If not, initialize them.
     if (existingFile !== null) {
       Object.keys(existingFile.dataValues).forEach((key: string) => {
         file.set(key, existingFile.dataValues[key])
@@ -64,14 +80,20 @@ export default class FileHandler extends Model {
     return file
   }
 
-  public async getMetadata (): Promise<FileHandler | false> {
-    if (Number(this.get('size')) > 0 && String(this.get('name')).length > 0) return this
+  getValue<K extends keyof FileAttributes>(key: K): FileAttributes[K] {
+    const value = this.get(key)
+    if (value === null) return '' as unknown as FileAttributes[K]
+    return value as FileAttributes[K]
+  }
 
-    const hash = String(this.get('hash'))
+  public async getMetadata (): Promise<FileHandler | false> {
+    if (this.getValue('size') > 0 && this.getValue('name').length > 0) return this
+
+    const hash = this.getValue('hash')
 
     console.log(`  ${hash}  Getting file metadata`)
 
-    const id = String(this.get('id'))
+    const id = this.getValue('id')
     if (id.length > 0) {
       const response = await fetch(`${CONFIG.metadata_endpoint}${id}`)
       if (response.status === 200) {
@@ -107,11 +129,11 @@ export default class FileHandler extends Model {
   }
 
   cacheFile (file: Buffer): void {
-    const hash = String(this.get('hash'))
+    const hash = this.getValue('hash')
     const filePath = path.join(DIRNAME, 'files', hash)
     if (fs.existsSync(filePath)) return
 
-    let size = Number(this.get('size'))
+    let size = this.getValue('size')
     if (size === 0) {
       size = file.byteLength
       this.set('size', size)
@@ -134,14 +156,14 @@ export default class FileHandler extends Model {
   }
 
   private async fetchFromCache (): Promise<{ file: Buffer, signal: number } | false> {
-    const hash = String(this.get('hash'))
+    const hash = this.getValue('hash')
     console.log(`  ${hash}  Checking Cache`)
     const filePath = path.join(DIRNAME, 'files', hash)
     return fs.existsSync(filePath) ? { file: fs.readFileSync(filePath), signal: interfere(100) } : false
   }
 
   async fetchFromS3 (): Promise<{ file: Buffer, signal: number } | false> {
-    const hash = String(this.get('hash'))
+    const hash = this.getValue('hash')
     console.log(`  ${hash}  Checking S3`)
     if (CONFIG.s3_endpoint.length === 0) return false
     try {
@@ -166,14 +188,14 @@ export default class FileHandler extends Model {
 
   async getFile (nodesManager: Nodes): Promise<{ file: Buffer, signal: number } | false> {
     return await promiseWithTimeout((async (): Promise<{ file: Buffer, signal: number } | false> => {
-      const hash = String(this.get('hash'))
+      const hash = this.getValue('hash')
       console.log(`  ${hash}  Getting file`)
       if (!isValidSHA256Hash(hash)) return false
       // if (!this.found) return false
-      const downloadCount = Number(this.get('downloadCount')) + 1
+      const downloadCount = this.getValue('downloadCount') + 1
       this.set('downloadCount', downloadCount)
 
-      const size = Number(this.get('size') ?? 0)
+      const size = this.getValue('size')
       if (size === 0) await this.getMetadata()
 
       if (size !== 0 && !hasSufficientMemory(size)) {
@@ -200,7 +222,7 @@ export default class FileHandler extends Model {
         }
       }
 
-      const file = await promiseWithTimeout(nodesManager.getFile(hash, Number(size)), CONFIG.timeout)
+      const file = await promiseWithTimeout(nodesManager.getFile(hash, size), CONFIG.timeout)
       if (file === false) {
         this.set('found', false)
         await this.save()
@@ -249,7 +271,8 @@ FileHandler.init(
   {
     sequelize,
     tableName: 'file',
-    timestamps: true
+    timestamps: true,
+    modelName: 'FileHandler'
   }
 )
 sequelize.sync().then(() => console.log('Connected to the local DB')).catch(console.error)

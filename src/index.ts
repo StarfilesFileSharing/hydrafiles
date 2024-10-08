@@ -55,7 +55,7 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
       } else res.end('Invalid request\n')
     } else if (req.url?.startsWith('/download/')) {
       const hash = req.url.split('/')[2]
-      const fileId = String(req.url.split('/')[3])
+      const fileId = req.url.split('/')[3]
 
       const headers: { [key: string]: string } = {
         'Content-Type': 'application/octet-stream',
@@ -64,7 +64,8 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
 
       const file = await FileHandler.initialize(hash)
       if (fileId.length !== 0) {
-        const id = String(file.get('id'))
+        const id = file.getValue('id')
+        console.log('file id', id.length)
         if (id.length === 0) {
           file.set('id', fileId)
           await file.save()
@@ -85,15 +86,15 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
         return
       }
 
-      headers['Signal-Strength'] = String(fileContent.signal)
+      headers['Signal-Strength'] = fileContent.signal
       console.log(`  ${hash}  Signal Strength:`, fileContent.signal, estimateHops(fileContent.signal))
 
-      let size = Number(file.get('size'))
-      let name = String(file.get('name'))
+      let size = file.getValue('size')
+      let name = file.getValue('name')
       if (size === 0 || name.length === 0) {
         await file.getMetadata()
-        size = Number(file.get('size'))
-        name = String(file.get('name'))
+        size = file.getValue('size')
+        name = file.getValue('name')
       }
       headers['Content-Length'] = String(size)
       headers['Content-Disposition'] = `attachment; filename="${encodeURIComponent(name ?? 'File').replace(/%20/g, ' ')}"`
@@ -126,7 +127,7 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
         const uploadedFile = files.file[0]
 
         const file = await FileHandler.initialize(hash)
-        let name = String(file.get('name'))
+        let name = file.getValue('name')
         if (name.length === 0 && uploadedFile.originalFilename !== null) {
           name = uploadedFile.originalFilename
           file.set('name', name)

@@ -49,15 +49,15 @@ export default class Nodes {
     try {
       const startTime = Date.now()
 
-      const hash = String(file.get('hash'))
+      const hash = file.getValue('hash')
       console.log(`  ${hash}  Downloading from ${node.host}`)
       const response = await promiseWithTimeout(fetch(`${node.host}/download/${hash}`), CONFIG.timeout)
       console.log(`  ${hash}  Validating hash`)
-      const verifiedHash = await hashStream(response.body) // todo: causes OO
+      const verifiedHash = await hashStream(response.body)
       if (hash !== verifiedHash) return false
 
-      if (String(file.get('name')).length === 0) {
-        file.set('name', String(response.headers.get('Content-Disposition')?.split('=')[1].replace(/"/g, '')))
+      if (file.getValue('name').length === 0) {
+        file.set('name', String(response.headers.getValue('Content-Disposition')?.split('=')[1].replace(/"/g, '')))
         file.save().catch(console.error)
       }
       const arrayBuffer = await response.arrayBuffer() as ArrayBuffer
@@ -67,7 +67,7 @@ export default class Nodes {
       node.bytes += arrayBuffer.byteLength
       node.hits++
       this.updateNode(node)
-      return { file: Buffer.from(arrayBuffer), signal: interfere(Number(response.headers.get('Signal-Strength'))) }
+      return { file: Buffer.from(arrayBuffer), signal: interfere(Number(response.headers.getValue('Signal-Strength'))) }
     } catch (e) {
       node.rejects++
 
