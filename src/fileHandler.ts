@@ -101,7 +101,7 @@ export default class FileHandler {
         const metadata = await response.json() as Metadata
         this.name = metadata.name
         this.size = metadata.size
-        this.save()
+        await this.save()
         return this
       }
     }
@@ -109,7 +109,7 @@ export default class FileHandler {
     const filePath = path.join(DIRNAME, 'files', hash)
     if (fs.existsSync(filePath)) {
       this.size = fs.statSync(filePath).size
-      this.save()
+      await this.save()
       return this
     }
 
@@ -118,7 +118,7 @@ export default class FileHandler {
         const data = await s3.headObject({ Bucket: 'uploads', Key: `${hash}.stuf` })
         if (typeof data.ContentLength !== 'undefined') {
           this.size = data.ContentLength
-          this.save()
+          await this.save()
           return this
         }
       } catch (error) {
@@ -129,7 +129,7 @@ export default class FileHandler {
     return false
   }
 
-  cacheFile (file: Buffer): void {
+  async cacheFile (file: Buffer): Promise<void> {
     const hash = this.hash
     const filePath = path.join(DIRNAME, 'files', hash)
     if (fs.existsSync(filePath)) return
@@ -138,7 +138,7 @@ export default class FileHandler {
     if (size === 0) {
       size = file.byteLength
       this.size = size
-      this.save()
+      await this.save()
     }
     const remainingSpace = CONFIG.max_storage - usedStorage
     if (size > remainingSpace) purgeCache(size, remainingSpace)
@@ -217,7 +217,7 @@ export default class FileHandler {
       if (CONFIG.s3_endpoint.length > 0) {
         const s3File = await this.fetchFromS3()
         if (s3File !== false) {
-          if (CONFIG.cache_s3) this.cacheFile(s3File.file)
+          if (CONFIG.cache_s3) await this.cacheFile(s3File.file)
           console.log(`  ${hash}  Serving ${size !== undefined ? Math.round(size / 1024 / 1024) : 0}MB from S3`)
           return s3File
         }
@@ -226,19 +226,19 @@ export default class FileHandler {
       const file = await promiseWithTimeout(nodesManager.getFile(hash, size), CONFIG.timeout)
       if (file === false) {
         this.found = false
-        this.save()
+        await this.save()
       }
       return file
     })(), CONFIG.timeout)
   }
 
-  public save = (): void => {
+  async save (): Promise<void> {
     const values = Object.keys(this).reduce((acc, key) => {
       if (key !== 'file' && key !== 'save') acc[key] = this[key as keyof FileAttributes]
       return acc
     }, {})
     Object.assign(this.file, values)
-    this.file.save().catch(console.error)
+    await this.file.save()
   }
 }
 
