@@ -11,33 +11,23 @@ export const isPrivateIP = (ip: string): boolean => /^https?:\/\/(?:10\.|(?:172\
 export const interfere = (signalStrength: number): number => signalStrength >= 95 ? getRandomNumber(90, 100) : Math.ceil(signalStrength * (1 - (getRandomNumber(0, 10) / 100)))
 export const hasSufficientMemory = (fileSize: number): boolean => os.freemem() > (fileSize + CONFIG.memory_threshold)
 export const promiseWithTimeout = async (promise: Promise<any>, timeoutDuration: number): Promise<any> => {
-  // Create an AbortController instance
-  const controller = new AbortController();
-  const signal = controller.signal;
-
-  // Modify the promise to accept the abort signal
+  const controller = new AbortController()
+  const signal = controller.signal
   const wrappedPromise = new Promise<any>((resolve, reject) => {
-    // Listen for abort signal
-    signal.addEventListener('abort', () => {
-      reject(new Error('Promise was aborted'));
-    });
-
-    // Execute the original promise
+    signal.addEventListener('abort', () => reject(new Error('Promise timed out')))
     promise
       .then(resolve)
-      .catch(reject);
-  });
+      .catch(reject)
+  })
 
   return await Promise.race([
     wrappedPromise,
-    new Promise((_, reject) => 
-      setTimeout(() => {
-        controller.abort(); // Abort the original promise
-        reject(new Error('Promise timed out'));
-      }, timeoutDuration)
-    )
-  ]);
-};
+    new Promise((_, reject) => setTimeout(() => {
+      controller.abort()
+      reject(new Error('Promise timed out'))
+    }, timeoutDuration))
+  ])
+}
 
 export const promiseWrapper = (promise: Promise<any>): { promise: Promise<any>, isFulfilled: boolean } => {
   let isFulfilled = false
