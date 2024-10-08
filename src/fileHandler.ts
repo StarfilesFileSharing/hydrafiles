@@ -58,11 +58,11 @@ interface FileAttributes {
 
 export default class FileHandler {
   hash!: string
-  downloadCount: number = 0
-  id: string | null = null
-  name: string | null = null
-  found: boolean = true
-  size: number = 0
+  downloadCount!: number
+  id: string | undefined
+  name: string | undefined
+  found: boolean | undefined
+  size!: number
   createdAt!: Date
   updatedAt!: Date
   file!: Model<any, any>
@@ -81,19 +81,21 @@ export default class FileHandler {
     const existingFile = await File.findByPk(hash)
     fileHandler.file = existingFile ?? await File.create({ hash })
     Object.assign(fileHandler, fileHandler.file.dataValues)
+    if (Number(fileHandler.size) === 0) fileHandler.size = 0
+    if (Number(fileHandler.downloadCount) === 0) fileHandler.downloadCount = 0
 
     return fileHandler
   }
 
   public async getMetadata (): Promise<FileHandler | false> {
-    if (this.size > 0 && this.name !== null && this.name.length > 0) return this
+    if (this.size > 0 && this.name !== undefined && this.name.length > 0) return this
 
     const hash = this.hash
 
     console.log(`  ${hash}  Getting file metadata`)
 
     const id = this.id
-    if (id !== null && id.length > 0) {
+    if (id !== undefined && id.length > 0) {
       const response = await fetch(`${CONFIG.metadata_endpoint}${id}`)
       if (response.ok) {
         const metadata = await response.json() as Metadata

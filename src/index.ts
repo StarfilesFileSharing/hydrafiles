@@ -65,7 +65,7 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
       const file = await FileHandler.init(hash)
       if (fileId.length !== 0) {
         const id = file.id
-        if (id === null || id.length === 0) {
+        if (id === undefined || id.length === 0) {
           file.id = fileId
           file.save()
         }
@@ -90,7 +90,7 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
 
       let size = file.size
       let name = file.name
-      if (size === 0 || name === null || name.length === 0) {
+      if (size === 0 || name === undefined || name.length === 0) {
         await file.getMetadata()
         size = file.size
         name = file.name
@@ -127,7 +127,7 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
 
         FileHandler.init(hash).then(file => {
           let name = file.name
-          if ((name === null || name.length === 0) && uploadedFile.originalFilename !== null) {
+          if ((name === undefined || name.length === 0) && uploadedFile.originalFilename !== null) {
             name = uploadedFile.originalFilename
             file.name = name
             file.cacheFile(fs.readFileSync(uploadedFile.filepath))
