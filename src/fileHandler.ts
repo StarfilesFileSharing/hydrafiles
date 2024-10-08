@@ -56,34 +56,31 @@ interface FileAttributes {
   updatedAt: Date
 }
 
-export default class FileHandler extends Model<FileAttributes> implements FileAttributes {
+export default class FileHandler {
   hash!: string
-  downloadCount: number = 0
+  downloadCount!: number
   id!: string
   name!: string
-  found: boolean = true
-  size: number = 0
+  found!: boolean
+  size!: number
   createdAt!: Date
   updatedAt!: Date
-  public static initialize = async (hash: string): Promise<FileHandler> => {
+  file!: Model<any, any>
+
+  public static async init (hash: string): Promise<FileHandler> {
     if (!isValidSHA256Hash(hash)) throw new Error('Invalid hash provided')
 
-    const existingFile = await FileHandler.findByPk(hash)
-    const file = existingFile ?? new FileHandler()
+    const fileHandler = new FileHandler()
+    const existingFile = await File.findByPk(hash)
+    fileHandler.file = existingFile ?? await File.create({ hash })
+    Object.assign(fileHandler, fileHandler.file.dataValues)
 
-    if (existingFile !== null) {
-      Object.keys(existingFile.dataValues).forEach((key: string) => {
-        file.set(key, existingFile.dataValues[key])
-      })
-    } else await file.save().catch(console.error)
-
-    return file
+    return fileHandler
   }
 
   getValue<K extends keyof FileAttributes>(key: K): FileAttributes[K] {
-    const value = this.get(key)
-    if (value === null) return '' as unknown as FileAttributes[K]
-    return value as FileAttributes[K]
+    if (this[key] === null) return '' as FileAttributes[K]
+    return this[key]
   }
 
   public async getMetadata (): Promise<FileHandler | false> {
@@ -96,19 +93,19 @@ export default class FileHandler extends Model<FileAttributes> implements FileAt
     const id = this.getValue('id')
     if (id.length > 0) {
       const response = await fetch(`${CONFIG.metadata_endpoint}${id}`)
-      if (response.status === 200) {
+      if (response.ok) {
         const metadata = await response.json() as Metadata
-        this.set('name', metadata.name)
-        this.set('size', metadata.size)
-        await this.save()
+        this.name = metadata.name
+        this.size = metadata.size
+        this.save()
         return this
       }
     }
 
     const filePath = path.join(DIRNAME, 'files', hash)
     if (fs.existsSync(filePath)) {
-      this.set('size', fs.statSync(filePath).size)
-      await this.save()
+      this.size = fs.statSync(filePath).size
+      this.save()
       return this
     }
 
@@ -116,8 +113,8 @@ export default class FileHandler extends Model<FileAttributes> implements FileAt
       try {
         const data = await s3.headObject({ Bucket: 'uploads', Key: `${hash}.stuf` })
         if (typeof data.ContentLength !== 'undefined') {
-          this.set('size', data.ContentLength)
-          await this.save()
+          this.size = data.ContentLength
+          this.save()
           return this
         }
       } catch (error) {
@@ -136,8 +133,8 @@ export default class FileHandler extends Model<FileAttributes> implements FileAt
     let size = this.getValue('size')
     if (size === 0) {
       size = file.byteLength
-      this.set('size', size)
-      this.save().catch(console.error)
+      this.size = size
+      this.save()
     }
     const remainingSpace = CONFIG.max_storage - usedStorage
     if (size > remainingSpace) purgeCache(size, remainingSpace)
@@ -193,7 +190,7 @@ export default class FileHandler extends Model<FileAttributes> implements FileAt
       if (!isValidSHA256Hash(hash)) return false
       // if (!this.found) return false
       const downloadCount = this.getValue('downloadCount') + 1
-      this.set('downloadCount', downloadCount)
+      this.downloadCount = downloadCount
 
       const size = this.getValue('size')
       if (size === 0) await this.getMetadata()
@@ -224,11 +221,20 @@ export default class FileHandler extends Model<FileAttributes> implements FileAt
 
       const file = await promiseWithTimeout(nodesManager.getFile(hash, size), CONFIG.timeout)
       if (file === false) {
-        this.set('found', false)
-        await this.save()
+        this.found = false
+        this.save()
       }
       return file
     })(), CONFIG.timeout)
+  }
+
+  public save = (): void => {
+    const values = Object.keys(this).reduce((acc, key) => {
+      if (key !== 'file' && key !== 'save') acc[key] = this[key as keyof FileAttributes]
+      return acc
+    }, {})
+    Object.assign(this.file, values)
+    this.file.save().catch(console.error)
   }
 }
 
@@ -238,7 +244,7 @@ const sequelize = new Sequelize({
   // logging: (...msg) => console.log(msg)
 })
 
-FileHandler.init(
+const File = sequelize.define('File',
   {
     hash: {
       type: DataTypes.STRING,
@@ -269,10 +275,9 @@ FileHandler.init(
     }
   },
   {
-    sequelize,
     tableName: 'file',
     timestamps: true,
     modelName: 'FileHandler'
   }
 )
-sequelize.sync().then(() => console.log('Connected to the local DB')).catch(console.error)
+sequelize.sync({ alter: true }).then(() => console.log('Connected to the local DB')).catch(console.error)

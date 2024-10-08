@@ -48,7 +48,7 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
         return
       }
 
-      if (await nodesManager.downloadFromNode(nodeFrom(host), await FileHandler.initialize('04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f')) !== false) {
+      if (await nodesManager.downloadFromNode(nodeFrom(host), await FileHandler.init('04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f')) !== false) {
         nodesManager.nodes.push({ host, http: true, dns: false, cf: false, hits: 0, rejects: 0, bytes: 0, duration: 0 })
         fs.writeFileSync(NODES_PATH, JSON.stringify(nodes))
         res.end('Announced\n')
@@ -62,13 +62,12 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
         'Cache-Control': 'public, max-age=31536000'
       }
 
-      const file = await FileHandler.initialize(hash)
+      const file = await FileHandler.init(hash)
       if (fileId.length !== 0) {
         const id = file.getValue('id')
-        console.log('file id', id.length)
         if (id.length === 0) {
-          file.set('id', fileId)
-          await file.save()
+          file.id = fileId
+          file.save()
         }
       }
 
@@ -110,7 +109,7 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
       }
 
       const form = formidable({})
-      form.parse(req, async (err: unknown, fields: formidable.Fields, files: formidable.Files) => {
+      form.parse(req, (err: unknown, fields: formidable.Fields, files: formidable.Files) => {
         if (err !== undefined && err !== null) {
           res.writeHead(500, { 'Content-Type': 'text/plain' })
           res.end('500 Internal Server Error\n')
@@ -126,13 +125,15 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
         const hash = fields.hash[0]
         const uploadedFile = files.file[0]
 
-        const file = await FileHandler.initialize(hash)
-        let name = file.getValue('name')
-        if (name.length === 0 && uploadedFile.originalFilename !== null) {
-          name = uploadedFile.originalFilename
-          file.set('name', name)
-          file.save().catch(e => console.error(e))
-        }
+        FileHandler.init(hash).then(file => {
+          let name = file.getValue('name')
+          if (name.length === 0 && uploadedFile.originalFilename !== null) {
+            name = uploadedFile.originalFilename
+            file.name = name
+            file.cacheFile(fs.readFileSync(uploadedFile.filepath))
+            file.save()
+          }
+        }).catch(console.error)
 
         console.log('Uploading', hash)
 
@@ -144,9 +145,6 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
 
         if (!CONFIG.perma_files.includes(hash)) CONFIG.perma_files.push(hash)
         fs.writeFileSync(path.join(DIRNAME, 'config.json'), JSON.stringify(CONFIG, null, 2))
-
-        file.cacheFile(fs.readFileSync(uploadedFile.filepath))
-        file.save().catch(e => console.error(e))
 
         res.writeHead(201, { 'Content-Type': 'text/plain' })
         res.end('200 OK\n')
@@ -182,7 +180,7 @@ server.listen(CONFIG.port, CONFIG.hostname, (): void => {
           if (response.status === 200) {
             const remoteNodes = await response.json() as Node[]
             for (const remoteNode of remoteNodes) {
-              if (remoteNode.host !== CONFIG.public_hostname && typeof nodes.find((node: { host: string }) => node.host === remoteNode.host) === 'undefined' && (await nodesManager.downloadFromNode(remoteNode, await FileHandler.initialize('04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f')) !== false)) nodesManager.nodes.push(remoteNode)
+              if (remoteNode.host !== CONFIG.public_hostname && typeof nodes.find((node: { host: string }) => node.host === remoteNode.host) === 'undefined' && (await nodesManager.downloadFromNode(remoteNode, await FileHandler.init('04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f')) !== false)) nodesManager.nodes.push(remoteNode)
             }
           }
         }
@@ -202,7 +200,7 @@ server.listen(CONFIG.port, CONFIG.hostname, (): void => {
       else {
         console.log(`Testing downloads ${CONFIG.public_hostname}/download/04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f`)
 
-        const response = await nodesManager.downloadFromNode(nodeFrom(`${CONFIG.public_hostname}`), await FileHandler.initialize('04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f'))
+        const response = await nodesManager.downloadFromNode(nodeFrom(`${CONFIG.public_hostname}`), await FileHandler.init('04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f'))
         console.log(`  04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f  Test ${response === false ? 'Failed' : 'Succeeded'}`)
 
         // Save self to nodes.json
