@@ -26,6 +26,7 @@ init()
 const DIRNAME = path.resolve()
 const NODES_PATH = path.join(DIRNAME, 'nodes.json')
 const nodesManager = new Nodes()
+const hashLocks = new Map<string, Promise<any>>()
 
 const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse<http.IncomingMessage>): Promise<void> => {
   try {
@@ -65,40 +66,55 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
         'Cache-Control': 'public, max-age=31536000'
       }
 
-      const file = await FileHandler.init(hash)
-      if (fileId.length !== 0) {
-        const id = file.id
-        if (id === undefined || id === null || id.length === 0) {
-          file.id = fileId
-          await file.save()
+      while (hashLocks.has(hash)) {
+        console.log(`  ${hash}  Waiting for existing request with same hash`)
+        await hashLocks.get(hash)
+      }
+      const processingPromise = (async () => {
+        const file = await FileHandler.init(hash)
+
+        if (fileId.length !== 0) {
+          const id = file.id
+          if (id === undefined || id === null || id.length === 0) {
+            file.id = fileId
+            await file.save()
+          }
         }
-      }
 
-      let fileContent
+        let fileContent
+        try {
+          fileContent = await promiseWithTimeout(file.getFile(nodesManager), CONFIG.timeout)
+        } catch (e) {
+          if (e.message === 'Promise timed out') fileContent = false
+          else throw new Error(e)
+        }
+
+        if (fileContent === false) {
+          file.found = false
+          await file.save()
+          res.writeHead(404, { 'Content-Type': 'text/plain' })
+          res.end('404 File Not Found\n')
+          return
+        }
+
+        headers['Signal-Strength'] = fileContent.signal
+        console.log(`  ${hash}  Signal Strength:`, fileContent.signal, estimateHops(fileContent.signal))
+
+        await file.getMetadata()
+        headers['Content-Length'] = String(file.size)
+        headers['Content-Disposition'] = `attachment; filename="${encodeURIComponent(file.name ?? 'File').replace(/%20/g, ' ')}"`
+
+        res.writeHead(200, headers)
+        res.end(fileContent.file)
+      })()
+
+      hashLocks.set(hash, processingPromise)
+
       try {
-        fileContent = await promiseWithTimeout(file.getFile(nodesManager), CONFIG.timeout)
-      } catch (e) {
-        if (e.message === 'Promise timed out') fileContent = false
-        else throw new Error(e)
+        await processingPromise
+      } finally {
+        hashLocks.delete(hash)
       }
-
-      if (fileContent === false) {
-        file.found = false
-        await file.save()
-        res.writeHead(404, { 'Content-Type': 'text/plain' })
-        res.end('404 File Not Found\n')
-        return
-      }
-
-      headers['Signal-Strength'] = fileContent.signal
-      console.log(`  ${hash}  Signal Strength:`, fileContent.signal, estimateHops(fileContent.signal))
-
-      await file.getMetadata()
-      headers['Content-Length'] = String(file.size)
-      headers['Content-Disposition'] = `attachment; filename="${encodeURIComponent(file.name ?? 'File').replace(/%20/g, ' ')}"`
-
-      res.writeHead(200, headers)
-      res.end(fileContent.file)
     } else if (req.url === '/upload') {
       const uploadSecret = req.headers['x-hydra-upload-secret']
       if (uploadSecret !== CONFIG.upload_secret) {
