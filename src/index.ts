@@ -32,6 +32,9 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
     if (req.url === '/' || req.url === null || typeof req.url === 'undefined') {
       res.writeHead(200, { 'Content-Type': 'text/html', 'Cache-Control': 'public, max-age=604800' })
       fs.createReadStream('public/index.html').pipe(res)
+    } else if (req.url === '/favicon.ico') {
+      res.writeHead(200, { 'Content-Type': 'image/x-icon', 'Cache-Control': 'public, max-age=604800' })
+      fs.createReadStream('public/favicon.ico').pipe(res)
     } else if (req.url === '/status') {
       res.writeHead(200, { 'Content-Type': 'application/json' })
       res.end(JSON.stringify({ status: true }))
