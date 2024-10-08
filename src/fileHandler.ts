@@ -71,6 +71,13 @@ export default class FileHandler {
     if (!isValidSHA256Hash(hash)) throw new Error('Invalid hash provided')
 
     const fileHandler = new FileHandler()
+    fileHandler.hash = hash
+    fileHandler.downloadCount = 0
+    fileHandler.id = ''
+    fileHandler.name = ''
+    fileHandler.found = true
+    fileHandler.size = 0
+
     const existingFile = await File.findByPk(hash)
     fileHandler.file = existingFile ?? await File.create({ hash })
     Object.assign(fileHandler, fileHandler.file.dataValues)
