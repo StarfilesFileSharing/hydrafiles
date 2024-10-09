@@ -240,10 +240,9 @@ export default class FileHandler {
     const filePath = path.join(DIRNAME, 'files', this.hash)
     if (!fs.existsSync(filePath)) return
     const buffer = fs.readFileSync(filePath)
-    const blob = new Blob([buffer])
-    const file = new File([blob], this.name ?? this.hash)
-    webtorrent.seed(file, {
-      createdBy: 'Hydrafiles/0.1'
+    webtorrent.seed(buffer, {
+      createdBy: 'Hydrafiles/0.1',
+      name: this.name
     }, (torrent) => {
       console.log(`  ${this.hash}  Seeding with infohash ${torrent.infoHash}`)
     })
