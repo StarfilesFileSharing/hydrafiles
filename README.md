@@ -131,7 +131,22 @@ Thanks, your fellow Hydra operator.
 ```
 
 ## How do I setup a node?
+### Option A: Pull Docker Container
+```bash
+docker pull quix2/hydrafiles
+docker run -p 80:80 quix2/hydrafiles
 ```
+
+### Option B: Build Docker Container
+```bash
+git clone https://github.com/StarfilesFileSharing/Hydrafiles
+cd Hydrafiles
+docker build -t hydrafiles .
+docker run -p 80:80 hydrafiles
+```
+
+### Option C: Manual
+```bash
 git clone https://github.com/StarfilesFileSharing/Hydrafiles
 cd Hydrafiles
 yarn
