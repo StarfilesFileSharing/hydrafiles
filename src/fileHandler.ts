@@ -7,6 +7,7 @@ import CONFIG from './config'
 import { hasSufficientMemory, interfere, isValidSHA256Hash, promiseWithTimeout, streamLength } from './utils'
 import Nodes from './nodes'
 import WebTorrent from 'webtorrent'
+import { Blob, File } from 'node-fetch'
 
 interface Metadata { name: string, size: number, type: string, hash: string, id: string }
 
@@ -80,8 +81,8 @@ export default class FileHandler {
     fileHandler.found = true
     fileHandler.size = 0
 
-    const existingFile = await File.findByPk(hash)
-    fileHandler.file = existingFile ?? await File.create({ hash })
+    const existingFile = await FileModel.findByPk(hash)
+    fileHandler.file = existingFile ?? await FileModel.create({ hash })
     Object.assign(fileHandler, fileHandler.file.dataValues)
     if (Number(fileHandler.size) === 0) fileHandler.size = 0
     if (Number(fileHandler.downloadCount) === 0) fileHandler.downloadCount = 0
@@ -240,7 +241,12 @@ export default class FileHandler {
   seed (): void {
     const filePath = path.join(DIRNAME, 'files', this.hash)
     if (!fs.existsSync(filePath)) return
-    webtorrent.seed(filePath, {}, (torrent) => {
+    const buffer = fs.readFileSync(filePath)
+    const blob = new Blob([buffer])
+    const file = new File([blob], this.name ?? this.hash)
+    webtorrent.seed(file, {
+      createdBy: 'Hydrafiles/0.1'
+    }, (torrent) => {
       console.log(`  ${this.hash}  Seeding with infohash ${torrent.infoHash}`)
     })
   }
@@ -261,7 +267,7 @@ const sequelize = new Sequelize({
   }
 })
 
-const File = sequelize.define('File',
+const FileModel = sequelize.define('File',
   {
     hash: {
       type: DataTypes.STRING,

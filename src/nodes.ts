@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import CONFIG from './config'
-import { promiseWithTimeout, hasSufficientMemory, interfere, promiseWrapper, hashStream, streamLength } from './utils'
+import { promiseWithTimeout, hasSufficientMemory, interfere, promiseWrapper, hashStream, bufferToStream } from './utils'
 import FileHandler from './fileHandler'
 import { Readable } from 'stream'
 
@@ -46,16 +46,16 @@ export default class Nodes {
     else return nodes
   }
 
-  async downloadFromNode (node: Node, file: FileHandler): Promise<{ file: Readable, signal: number } | false> {
+  async downloadFromNode (node: Node, file: FileHandler): Promise<{ file: ArrayBuffer, signal: number } | false> {
     try {
       const startTime = Date.now()
 
       const hash = file.hash
       console.log(`  ${hash}  Downloading from ${node.host}`)
       const response = await promiseWithTimeout(fetch(`${node.host}/download/${hash}`), CONFIG.timeout)
-      const stream: Readable = response.body
+      const buffer: ArrayBuffer = response.arrayBuffer
       console.log(`  ${hash}  Validating hash`)
-      const verifiedHash = await hashStream(stream)
+      const verifiedHash = await hashStream(bufferToStream(buffer))
       if (hash !== verifiedHash) return false
 
       if (file.name === undefined || file.name === null || file.name.length === 0) {
@@ -65,10 +65,10 @@ export default class Nodes {
 
       node.status = true
       node.duration += Date.now() - startTime
-      node.bytes += await streamLength(stream)
+      node.bytes += buffer.byteLength
       node.hits++
       this.updateNode(node)
-      return { file: stream, signal: interfere(Number(response.headers.get('Signal-Strength'))) }
+      return { file: buffer, signal: interfere(Number(response.headers.get('Signal-Strength'))) }
     } catch (e) {
       console.error(e)
       node.rejects++

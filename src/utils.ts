@@ -86,17 +86,15 @@ export const estimateHops = (signalStrength: number): { hop: number | null, cert
 export const hashStream = async (stream: Readable): Promise<string> => {
   const hash = createHash('sha256')
 
-  await pipeline(
-    stream,
-    async function * (source) {
-      for await (const chunk of source) {
-        hash.update(chunk)
-      }
+  await pipeline(stream, async function * (source) {
+    for await (const chunk of source) {
+      hash.update(chunk)
     }
-  )
+  })
 
   return hash.digest('hex')
 }
+
 export async function streamLength (stream: Readable): Promise<number> {
   const chunks: Buffer[] = []
 
@@ -108,4 +106,28 @@ export async function streamLength (stream: Readable): Promise<number> {
 
   const completeBuffer = Buffer.concat(chunks)
   return completeBuffer.buffer.slice(completeBuffer.byteOffset, completeBuffer.byteOffset + completeBuffer.byteLength).byteLength
+}
+
+export async function streamToBuffer (stream: Readable): Promise<ArrayBuffer> {
+  const chunks: Buffer[] = []
+
+  await pipeline(stream, async function * (source) {
+    for await (const chunk of source) {
+      chunks.push(chunk)
+    }
+  })
+
+  const completeBuffer = Buffer.concat(chunks)
+  return completeBuffer.buffer.slice(completeBuffer.byteOffset, completeBuffer.byteOffset + completeBuffer.byteLength)
+}
+
+export function bufferToStream (arrayBuffer: ArrayBuffer): Readable {
+  const buffer = Buffer.from(arrayBuffer)
+  const readable = new Readable({
+    read () {
+      this.push(buffer)
+      this.push(null)
+    }
+  })
+  return readable
 }
