@@ -162,6 +162,7 @@ export default class FileHandler {
     const hash = this.hash
     console.log(`  ${hash}  Checking Cache`)
     const filePath = path.join(DIRNAME, 'files', hash)
+    this.seed()
     return fs.existsSync(filePath) ? { file: fs.createReadStream(filePath), signal: interfere(100) } : false
   }
 
