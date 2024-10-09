@@ -240,7 +240,7 @@ export default class FileHandler {
 
   seed (): void {
     webtorrent.seed(path.join(DIRNAME, 'files', this.hash), {}, (torrent) => {
-      console.log(`  ${this.hash}  Seeding`, torrent)
+      console.log(`  ${this.hash}  Seeding with infohash ${torrent.infoHash}`)
     })
   }
 }
