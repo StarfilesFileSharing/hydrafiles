@@ -116,6 +116,55 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
       } finally {
         hashLocks.delete(hash)
       }
+    } else if (req.url?.startsWith('/infohash/')) {
+      const infohash = req.url.split('/')[2]
+
+      while (hashLocks.has(infohash)) {
+        console.log(`  ${infohash}  Waiting for existing request with same infohash`)
+        await hashLocks.get(infohash)
+      }
+      const processingPromise = (async () => {
+        const file = await FileHandler.init({ infohash })
+
+        await file.getMetadata()
+        let fileContent: { file: Readable, signal: number } | false
+        try {
+          fileContent = await promiseWithTimeout(file.getFile(nodesManager), CONFIG.timeout)
+        } catch (e) {
+          if (e.message === 'Promise timed out') fileContent = false
+          else throw new Error(e)
+        }
+
+        if (fileContent === false) {
+          file.found = false
+          await file.save()
+          res.writeHead(404, { 'Content-Type': 'text/plain' })
+          res.end('404 File Not Found\n')
+          return
+        }
+
+        const headers: { [key: string]: string } = {
+          'Content-Type': 'application/octet-stream',
+          'Cache-Control': 'public, max-age=31536000'
+        }
+
+        headers['Signal-Strength'] = String(fileContent.signal)
+        console.log(`  ${file.hash}  Signal Strength:`, fileContent.signal, estimateHops(fileContent.signal))
+
+        headers['Content-Length'] = String(file.size)
+        headers['Content-Disposition'] = `attachment; filename="${encodeURIComponent(file.name ?? 'File').replace(/%20/g, ' ').replace(/(\.\w+)$/, ' [HYDRAFILES]$1')}"`
+
+        res.writeHead(200, headers)
+        res.end(fileContent.file)
+      })()
+
+      hashLocks.set(infohash, processingPromise)
+
+      try {
+        await processingPromise
+      } finally {
+        hashLocks.delete(infohash)
+      }
     } else if (req.url === '/upload') {
       const uploadSecret = req.headers['x-hydra-upload-secret']
       if (uploadSecret !== CONFIG.upload_secret) {
