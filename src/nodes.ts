@@ -59,7 +59,7 @@ export default class Nodes {
       if (hash !== verifiedHash) return false
 
       if (file.name === undefined || file.name === null || file.name.length === 0) {
-        file.name = String(response.headers.get('Content-Disposition')?.split('=')[1].replace(/"/g, ''))
+        file.name = String(response.headers.get('Content-Disposition')?.split('=')[1].replace(/"/g, '').replace(' [HYDRAFILES]', ''))
         await file.save()
       }
 

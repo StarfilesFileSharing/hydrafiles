@@ -243,10 +243,9 @@ export default class FileHandler {
     seeding.push(this.hash)
     const filePath = path.join(DIRNAME, 'files', this.hash)
     if (!fs.existsSync(filePath)) return
-    // const buffer = fs.readFileSync(filePath)
     webtorrent.seed(filePath, {
       createdBy: 'Hydrafiles/0.1',
-      name: this.name, // TODO: Add [HYDRA] to name
+      name: (this.name ?? this.hash).replace(/(\.\w+)$/, ' [HYDRA]$1'),
       destroyStoreOnDestroy: true,
       addUID: true,
       comment: 'Anonymously seeded with Hydrafiles'

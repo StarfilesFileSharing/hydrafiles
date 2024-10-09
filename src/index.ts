@@ -103,7 +103,7 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
         console.log(`  ${hash}  Signal Strength:`, fileContent.signal, estimateHops(fileContent.signal))
 
         headers['Content-Length'] = String(file.size)
-        headers['Content-Disposition'] = `attachment; filename="${encodeURIComponent(file.name ?? 'File').replace(/%20/g, ' ')}"`
+        headers['Content-Disposition'] = `attachment; filename="${encodeURIComponent(file.name ?? 'File').replace(/%20/g, ' ').replace(/(\.\w+)$/, ' [HYDRAFILES]$1')}"`
 
         res.writeHead(200, headers)
         res.end(fileContent.file)
