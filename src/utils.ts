@@ -1,4 +1,5 @@
 import os from 'os'
+import fs from 'fs'
 import { createHash } from 'crypto'
 import CONFIG from './config'
 import { Readable } from 'stream'
@@ -130,4 +131,20 @@ export function bufferToStream (arrayBuffer: ArrayBuffer): Readable {
     }
   })
   return readable
+}
+
+export async function saveBufferToFile (buffer: Buffer, filePath: string): Promise<void> {
+  return await new Promise((resolve, reject) => {
+    try {
+      fs.writeFile(filePath, buffer, (err) => {
+        if (err) {
+          reject(err)
+        } else {
+          resolve()
+        }
+      })
+    } catch (error) {
+      reject(error)
+    }
+  })
 }

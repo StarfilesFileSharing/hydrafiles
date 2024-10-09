@@ -146,7 +146,7 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
           if ((name === undefined || name === null || name.length === 0) && uploadedFile.originalFilename !== null) {
             name = uploadedFile.originalFilename
             file.name = name
-            await file.cacheFile(fs.createReadStream(uploadedFile.filepath))
+            await file.cacheFile(fs.readFileSync(uploadedFile.filepath))
             await file.save()
           }
         }).catch(console.error)
