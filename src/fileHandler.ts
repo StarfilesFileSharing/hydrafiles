@@ -239,7 +239,9 @@ export default class FileHandler {
   }
 
   seed (): void {
-    webtorrent.seed(path.join(DIRNAME, 'files', this.hash), {}, (torrent) => {
+    const filePath = path.join(DIRNAME, 'files', this.hash)
+    if (!fs.existsSync(filePath)) return
+    webtorrent.seed(filePath, {}, (torrent) => {
       console.log(`  ${this.hash}  Seeding with infohash ${torrent.infoHash}`)
     })
   }
