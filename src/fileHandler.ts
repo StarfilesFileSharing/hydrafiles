@@ -106,6 +106,7 @@ export default class FileHandler {
       const response = await fetch(`${CONFIG.metadata_endpoint}${id}`)
       if (response.ok) {
         const metadata = (await response.json()).result as Metadata
+        // add [HOSTNAME] to name
         this.name = metadata.name
         this.size = metadata.size
         await this.save()
@@ -187,6 +188,7 @@ export default class FileHandler {
   }
 
   // TODO: fetchFromTorrent
+  // TODO: Connect to other hydrafiles nodes as webseed
 
   async getFile (nodesManager: Nodes): Promise<{ file: Buffer, signal: number } | false> {
     return await promiseWithTimeout((async (): Promise<{ file: Buffer, signal: number } | false> => {
@@ -241,10 +243,13 @@ export default class FileHandler {
     seeding.push(this.hash)
     const filePath = path.join(DIRNAME, 'files', this.hash)
     if (!fs.existsSync(filePath)) return
-    const buffer = fs.readFileSync(filePath)
-    webtorrent.seed(buffer, {
+    // const buffer = fs.readFileSync(filePath)
+    webtorrent.seed(filePath, {
       createdBy: 'Hydrafiles/0.1',
-      name: this.name
+      name: this.name, // TODO: Add [HYDRA] to name
+      destroyStoreOnDestroy: true,
+      addUID: true,
+      comment: 'Anonymously seeded with Hydrafiles'
     }, async (torrent) => {
       console.log(`  ${this.hash}  Seeding with infohash ${torrent.infoHash}`)
       this.infohash = torrent.infoHash
