@@ -147,7 +147,6 @@ export default class FileHandler {
 
     const writeStream = fs.createWriteStream(filePath)
 
-    file.on('error', (err) => console.error('Error reading from stream:', err))
     writeStream.on('error', (err) => console.error('Error writing to file:', err))
     writeStream.on('finish', (): void => {
       usedStorage += size
