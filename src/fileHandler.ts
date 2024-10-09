@@ -189,6 +189,7 @@ export default class FileHandler {
       if (!this.found && new Date(this.updatedAt) > new Date(new Date().getTime() - 5 * 60 * 1000)) return false
       const downloadCount = this.downloadCount + 1
       this.downloadCount = downloadCount
+      await this.save()
 
       if (this.size !== 0 && !hasSufficientMemory(this.size)) {
         await new Promise(() => {
