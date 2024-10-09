@@ -6,6 +6,7 @@ import { Sequelize, Model, DataTypes } from 'sequelize'
 import CONFIG from './config'
 import { hasSufficientMemory, interfere, isValidSHA256Hash, promiseWithTimeout, streamLength } from './utils'
 import Nodes from './nodes'
+import WebTorrent from 'webtorrent'
 
 interface Metadata { name: string, size: number, type: string, hash: string, id: string }
 
@@ -22,6 +23,7 @@ if (fs.existsSync(filesPath)) {
 }
 console.log(`Files dir size: ${Math.round((100 * usedStorage) / 1024 / 1024 / 1024) / 100}GB`)
 
+const webtorrent = new WebTorrent()
 const s3 = new S3({
   region: 'us-east-1',
   credentials: {
@@ -150,6 +152,7 @@ export default class FileHandler {
     writeStream.on('finish', (): void => {
       usedStorage += size
       console.log(`  ${hash}  Successfully cached file. Used storage: ${usedStorage}`)
+      this.seed()
     })
 
     file.pipe(writeStream)
@@ -232,6 +235,12 @@ export default class FileHandler {
     }, {})
     Object.assign(this.file, values)
     await this.file.save()
+  }
+
+  seed (): void {
+    webtorrent.seed(path.join(DIRNAME, 'files', this.hash), {}, (torrent) => {
+      console.log(`  ${this.hash}  Seeding`, torrent)
+    })
   }
 }
 
