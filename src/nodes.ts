@@ -46,14 +46,14 @@ export default class Nodes {
     else return nodes
   }
 
-  async downloadFromNode (node: Node, file: FileHandler): Promise<{ file: ArrayBuffer, signal: number } | false> {
+  async downloadFromNode (node: Node, file: FileHandler): Promise<{ file: Buffer, signal: number } | false> {
     try {
       const startTime = Date.now()
 
       const hash = file.hash
       console.log(`  ${hash}  Downloading from ${node.host}`)
       const response = await promiseWithTimeout(fetch(`${node.host}/download/${hash}`), CONFIG.timeout)
-      const buffer: ArrayBuffer = await response.arrayBuffer()
+      const buffer: Buffer = Buffer.from(await response.arrayBuffer())
       console.log(`  ${hash}  Validating hash`)
       const verifiedHash = await hashStream(bufferToStream(buffer))
       if (hash !== verifiedHash) return false
