@@ -68,6 +68,8 @@ export default class Nodes {
       node.bytes += buffer.byteLength
       node.hits++
       this.updateNode(node)
+
+      await file.cacheFile(buffer)
       return { file: buffer, signal: interfere(Number(response.headers.get('Signal-Strength'))) }
     } catch (e) {
       console.error(e)
@@ -120,9 +122,9 @@ export default class Nodes {
     }
   }
 
-  async getFile (hash: string, size: number = 0): Promise<{ file: Readable, signal: number } | false> {
+  async getFile (hash: string, size: number = 0): Promise<{ file: Buffer, signal: number } | false> {
     const nodes = this.getNodes({ includeSelf: false })
-    let activePromises: Array<Promise<{ file: Readable, signal: number } | false>> = []
+    let activePromises: Array<Promise<{ file: Buffer, signal: number } | false>> = []
 
     if (!hasSufficientMemory(size)) {
       console.log('Reached memory limit, waiting')
@@ -135,14 +137,10 @@ export default class Nodes {
 
     for (const node of nodes) {
       if (node.http && node.host.length > 0) {
-        const promise = (async (): Promise<{ file: Readable, signal: number } | false> => {
+        const promise = (async (): Promise<{ file: Buffer, signal: number } | false> => {
           const file = await FileHandler.init(hash)
           const fileContent = await promiseWithTimeout(this.downloadFromNode(node, file), CONFIG.timeout)
-
-          if (fileContent !== false) {
-            await file.cacheFile(fileContent.file)
-            return fileContent
-          } else return false
+          return fileContent !== false ? fileContent : false
         })()
         activePromises.push(promise)
 

@@ -50,6 +50,7 @@ const purgeCache = (requiredSpace: number, remainingSpace: number): void => {
 
 interface FileAttributes {
   hash: string
+  infohash: string
   downloadCount: number
   id: string
   name: string
@@ -61,6 +62,7 @@ interface FileAttributes {
 
 export default class FileHandler {
   hash!: string
+  infohash: string | null | undefined
   downloadCount!: number
   id: string | null | undefined
   name: string | null | undefined
@@ -75,6 +77,7 @@ export default class FileHandler {
 
     const fileHandler = new FileHandler()
     fileHandler.hash = hash
+    fileHandler.infohash = ''
     fileHandler.downloadCount = 0
     fileHandler.id = ''
     fileHandler.name = ''
@@ -174,6 +177,7 @@ export default class FileHandler {
       } else if (data.Body instanceof Buffer) buffer = data.Body
       else return false
 
+      if (CONFIG.cache_s3) await this.cacheFile(buffer)
       return { file: buffer, signal: interfere(100) }
     } catch (error) {
       if (error.message !== 'The specified key does not exist.') console.error(error)
@@ -202,27 +206,22 @@ export default class FileHandler {
         })
       }
 
-      const localFile = await this.fetchFromCache()
-      if (localFile !== false) {
-        console.log(`  ${hash}  Serving ${this.size !== undefined ? Math.round(this.size / 1024 / 1024) : 0}MB from cache`)
-        return localFile
-      }
-
-      if (CONFIG.s3_endpoint.length > 0) {
-        const s3File = await this.fetchFromS3()
-        if (s3File !== false) {
-          if (CONFIG.cache_s3) await this.cacheFile(s3File.file)
-          console.log(`  ${hash}  Serving ${this.size !== undefined ? Math.round(this.size / 1024 / 1024) : 0}MB from S3`)
-          return s3File
+      let file = await this.fetchFromCache()
+      if (file !== false) console.log(`  ${hash}  Serving ${this.size !== undefined ? Math.round(this.size / 1024 / 1024) : 0}MB from cache`)
+      else {
+        if (CONFIG.s3_endpoint.length > 0) file = await this.fetchFromS3()
+        if (file !== false) console.log(`  ${hash}  Serving ${this.size !== undefined ? Math.round(this.size / 1024 / 1024) : 0}MB from S3`)
+        else {
+          file = await nodesManager.getFile(hash, this.size)
+          if (file === false) {
+            this.found = false
+            await this.save()
+          }
         }
       }
 
-      const file = await promiseWithTimeout(nodesManager.getFile(hash, this.size), CONFIG.timeout)
-      if (file === false) {
-        this.found = false
-        await this.save()
-      }
-      await this.cacheFile(file)
+      if (file !== false) this.seed()
+
       return file
     })(), CONFIG.timeout)
   }
@@ -243,8 +242,10 @@ export default class FileHandler {
     webtorrent.seed(buffer, {
       createdBy: 'Hydrafiles/0.1',
       name: this.name
-    }, (torrent) => {
+    }, async (torrent) => {
       console.log(`  ${this.hash}  Seeding with infohash ${torrent.infoHash}`)
+      this.infohash = torrent.infoHash
+      await this.save()
     })
   }
 }
@@ -269,6 +270,9 @@ const FileModel = sequelize.define('File',
     hash: {
       type: DataTypes.STRING,
       primaryKey: true
+    },
+    infohash: {
+      type: DataTypes.STRING
     },
     downloadCount: {
       type: DataTypes.INTEGER,
@@ -301,3 +305,5 @@ const FileModel = sequelize.define('File',
   }
 )
 sequelize.sync({ alter: true }).then(() => console.log('Connected to the local DB')).catch(console.error)
+
+// TODO: webtorrent.add() all known files
