@@ -53,7 +53,7 @@ export default class Nodes {
       const hash = file.hash
       console.log(`  ${hash}  Downloading from ${node.host}`)
       const response = await promiseWithTimeout(fetch(`${node.host}/download/${hash}`), CONFIG.timeout)
-      const buffer: ArrayBuffer = response.arrayBuffer
+      const buffer: ArrayBuffer = await response.arrayBuffer()
       console.log(`  ${hash}  Validating hash`)
       const verifiedHash = await hashStream(bufferToStream(buffer))
       if (hash !== verifiedHash) return false
