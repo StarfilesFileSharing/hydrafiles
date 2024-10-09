@@ -106,7 +106,7 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
         headers['Content-Disposition'] = `attachment; filename="${encodeURIComponent(file.name ?? 'File').replace(/%20/g, ' ')}"`
 
         res.writeHead(200, headers)
-        res.end(fileContent.file)
+        res.pipe(fileContent.file as unknown as NodeJS.WritableStream)
       })()
 
       hashLocks.set(hash, processingPromise)
