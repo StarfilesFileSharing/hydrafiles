@@ -7,7 +7,6 @@ import CONFIG from './config'
 import { hasSufficientMemory, interfere, isValidSHA256Hash, promiseWithTimeout, saveBufferToFile } from './utils'
 import Nodes from './nodes'
 import WebTorrent from 'webtorrent'
-import { Blob, File } from 'node-fetch'
 
 interface Metadata { name: string, size: number, type: string, hash: string, id: string }
 
@@ -33,6 +32,8 @@ const s3 = new S3({
   },
   endpoint: CONFIG.s3_endpoint
 })
+
+const seeding: string[] = []
 
 const purgeCache = (requiredSpace: number, remainingSpace: number): void => {
   const files = fs.readdirSync(path.join(process.cwd(), 'files'))
@@ -236,6 +237,8 @@ export default class FileHandler {
   }
 
   seed (): void {
+    if (seeding.includes(this.hash)) return
+    seeding.push(this.hash)
     const filePath = path.join(DIRNAME, 'files', this.hash)
     if (!fs.existsSync(filePath)) return
     const buffer = fs.readFileSync(filePath)
