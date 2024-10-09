@@ -97,7 +97,7 @@ export const hashStream = async (stream: Readable): Promise<string> => {
 
   return hash.digest('hex')
 }
-export async function streamToBuffer (stream: Readable): Promise<ArrayBuffer> {
+export async function streamLength (stream: Readable): Promise<number> {
   const chunks: Buffer[] = []
 
   await pipeline(stream, async function * (source) {
@@ -107,10 +107,5 @@ export async function streamToBuffer (stream: Readable): Promise<ArrayBuffer> {
   })
 
   const completeBuffer = Buffer.concat(chunks)
-  const arrayBuffer = completeBuffer.buffer.slice(
-    completeBuffer.byteOffset,
-    completeBuffer.byteOffset + completeBuffer.byteLength
-  )
-
-  return arrayBuffer
+  return completeBuffer.buffer.slice(completeBuffer.byteOffset, completeBuffer.byteOffset + completeBuffer.byteLength).byteLength
 }

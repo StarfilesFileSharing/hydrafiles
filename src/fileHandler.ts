@@ -4,7 +4,7 @@ import * as path from 'path'
 import { Readable } from 'stream'
 import { Sequelize, Model, DataTypes } from 'sequelize'
 import CONFIG from './config'
-import { hasSufficientMemory, interfere, isValidSHA256Hash, promiseWithTimeout } from './utils'
+import { hasSufficientMemory, interfere, isValidSHA256Hash, promiseWithTimeout, streamLength } from './utils'
 import Nodes from './nodes'
 
 interface Metadata { name: string, size: number, type: string, hash: string, id: string }
@@ -129,14 +129,14 @@ export default class FileHandler {
     return false
   }
 
-  async cacheFile (file: Buffer): Promise<void> {
+  async cacheFile (file: Readable): Promise<void> {
     const hash = this.hash
     const filePath = path.join(DIRNAME, 'files', hash)
     if (fs.existsSync(filePath)) return
 
     let size = this.size
     if (size === 0) {
-      size = file.byteLength
+      size = await streamLength(file)
       this.size = size
       await this.save()
     }
@@ -144,51 +144,45 @@ export default class FileHandler {
     if (size > remainingSpace) purgeCache(size, remainingSpace)
 
     const writeStream = fs.createWriteStream(filePath)
-    const readStream = Readable.from(file)
 
-    readStream.on('error', (err) => console.error('Error reading from buffer:', err))
+    file.on('error', (err) => console.error('Error reading from stream:', err))
     writeStream.on('error', (err) => console.error('Error writing to file:', err))
     writeStream.on('finish', (): void => {
       usedStorage += size
       console.log(`  ${hash}  Successfully cached file. Used storage: ${usedStorage}`)
     })
 
-    readStream.pipe(writeStream)
+    file.pipe(writeStream)
   }
 
-  private async fetchFromCache (): Promise<{ file: Buffer, signal: number } | false> {
+  private async fetchFromCache (): Promise<{ file: Readable, signal: number } | false> {
     const hash = this.hash
     console.log(`  ${hash}  Checking Cache`)
     const filePath = path.join(DIRNAME, 'files', hash)
-    return fs.existsSync(filePath) ? { file: fs.readFileSync(filePath), signal: interfere(100) } : false
+    return fs.existsSync(filePath) ? { file: fs.createReadStream(filePath), signal: interfere(100) } : false
   }
 
-  async fetchFromS3 (): Promise<{ file: Buffer, signal: number } | false> {
+  async fetchFromS3 (): Promise<{ file: Readable, signal: number } | false> {
     const hash = this.hash
     console.log(`  ${hash}  Checking S3`)
     if (CONFIG.s3_endpoint.length === 0) return false
     try {
-      let buffer: Buffer
+      let stream: Readable
       const data = await s3.getObject({ Bucket: 'uploads', Key: `${hash}.stuf` })
 
-      if (data.Body instanceof Readable) {
-        const chunks: any[] = []
-        for await (const chunk of data.Body) {
-          chunks.push(chunk)
-        }
-        buffer = Buffer.concat(chunks)
-      } else if (data.Body instanceof Buffer) buffer = data.Body
+      if (data.Body instanceof Readable) stream = data.Body
+      else if (data.Body instanceof Buffer) stream = Readable.from(data.Body)
       else return false
 
-      return { file: buffer, signal: interfere(100) }
+      return { file: stream, signal: interfere(100) }
     } catch (error) {
       if (error.message !== 'The specified key does not exist.') console.error(error)
       return false
     }
   }
 
-  async getFile (nodesManager: Nodes): Promise<{ file: Buffer, signal: number } | false> {
-    return await promiseWithTimeout((async (): Promise<{ file: Buffer, signal: number } | false> => {
+  async getFile (nodesManager: Nodes): Promise<{ file: Readable, signal: number } | false> {
+    return await promiseWithTimeout((async (): Promise<{ file: Readable, signal: number } | false> => {
       const hash = this.hash
       console.log(`  ${hash}  Getting file`)
       if (!isValidSHA256Hash(hash)) return false
@@ -225,6 +219,7 @@ export default class FileHandler {
         this.found = false
         await this.save()
       }
+      await this.cacheFile(file)
       return file
     })(), CONFIG.timeout)
   }

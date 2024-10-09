@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import CONFIG from './config'
-import { promiseWithTimeout, hasSufficientMemory, interfere, promiseWrapper, hashStream, streamToBuffer } from './utils'
+import { promiseWithTimeout, hasSufficientMemory, interfere, promiseWrapper, hashStream, streamLength } from './utils'
 import FileHandler from './fileHandler'
 import { Readable } from 'stream'
 
@@ -46,7 +46,7 @@ export default class Nodes {
     else return nodes
   }
 
-  async downloadFromNode (node: Node, file: FileHandler): Promise<{ file: Buffer, signal: number } | false> {
+  async downloadFromNode (node: Node, file: FileHandler): Promise<{ file: Readable, signal: number } | false> {
     try {
       const startTime = Date.now()
 
@@ -63,14 +63,12 @@ export default class Nodes {
         await file.save()
       }
 
-      const arrayBuffer = await streamToBuffer(stream)
-
       node.status = true
       node.duration += Date.now() - startTime
-      node.bytes += arrayBuffer.byteLength
+      node.bytes += await streamLength(stream)
       node.hits++
       this.updateNode(node)
-      return { file: Buffer.from(arrayBuffer), signal: interfere(Number(response.headers.get('Signal-Strength'))) }
+      return { file: stream, signal: interfere(Number(response.headers.get('Signal-Strength'))) }
     } catch (e) {
       console.error(e)
       node.rejects++
@@ -122,9 +120,9 @@ export default class Nodes {
     }
   }
 
-  async getFile (hash: string, size: number = 0): Promise<{ file: Buffer, signal: number } | false> {
+  async getFile (hash: string, size: number = 0): Promise<{ file: Readable, signal: number } | false> {
     const nodes = this.getNodes({ includeSelf: false })
-    let activePromises: Array<Promise<{ file: Buffer, signal: number } | false>> = []
+    let activePromises: Array<Promise<{ file: Readable, signal: number } | false>> = []
 
     if (!hasSufficientMemory(size)) {
       console.log('Reached memory limit, waiting')
@@ -137,7 +135,7 @@ export default class Nodes {
 
     for (const node of nodes) {
       if (node.http && node.host.length > 0) {
-        const promise = (async (): Promise<{ file: Buffer, signal: number } | false> => {
+        const promise = (async (): Promise<{ file: Readable, signal: number } | false> => {
           const file = await FileHandler.init(hash)
           const fileContent = await promiseWithTimeout(this.downloadFromNode(node, file), CONFIG.timeout)
 

@@ -61,11 +61,6 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
       const hash = req.url.split('/')[2]
       const fileId = req.url.split('/')[3] ?? ''
 
-      const headers: { [key: string]: string } = {
-        'Content-Type': 'application/octet-stream',
-        'Cache-Control': 'public, max-age=31536000'
-      }
-
       while (hashLocks.has(hash)) {
         console.log(`  ${hash}  Waiting for existing request with same hash`)
         await hashLocks.get(hash)
@@ -96,6 +91,11 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
           res.writeHead(404, { 'Content-Type': 'text/plain' })
           res.end('404 File Not Found\n')
           return
+        }
+
+        const headers: { [key: string]: string } = {
+          'Content-Type': 'application/octet-stream',
+          'Cache-Control': 'public, max-age=31536000'
         }
 
         headers['Signal-Strength'] = fileContent.signal
@@ -145,7 +145,7 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
           if ((name === undefined || name === null || name.length === 0) && uploadedFile.originalFilename !== null) {
             name = uploadedFile.originalFilename
             file.name = name
-            await file.cacheFile(fs.readFileSync(uploadedFile.filepath))
+            await file.cacheFile(fs.createReadStream(uploadedFile.filepath))
             await file.save()
           }
         }).catch(console.error)
