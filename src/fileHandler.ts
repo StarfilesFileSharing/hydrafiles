@@ -4,7 +4,7 @@ import * as path from 'path'
 import { Readable } from 'stream'
 import { Sequelize, Model, DataTypes } from 'sequelize'
 import CONFIG from './config'
-import { hasSufficientMemory, interfere, isValidSHA256Hash, promiseWithTimeout, saveBufferToFile } from './utils'
+import { hasSufficientMemory, interfere, isValidInfoHash, isValidSHA256Hash, promiseWithTimeout, saveBufferToFile } from './utils'
 import Nodes from './nodes'
 import WebTorrent from 'webtorrent'
 
@@ -73,8 +73,14 @@ export default class FileHandler {
   updatedAt!: Date
   file!: Model<any, any>
 
-  public static async init (hash: string): Promise<FileHandler> {
-    if (!isValidSHA256Hash(hash)) throw new Error('Invalid hash provided')
+  public static async init (opts: { hash?: string, infohash?: string }): Promise<FileHandler> {
+    if (opts.infohash !== undefined) {
+      if (!isValidInfoHash(opts.infohash)) throw new Error('Invalid infohash provided')
+      const file = await FileModel.findOne({ where: { infohash: opts.infohash } })
+      opts.hash = file?.dataValues.hash
+    }
+    if (opts.hash === undefined || !isValidSHA256Hash(opts.hash)) throw new Error('No hash provided')
+    const hash = opts.hash
 
     const fileHandler = new FileHandler()
     fileHandler.hash = hash
