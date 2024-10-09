@@ -1,8 +1,9 @@
 import fs from 'fs'
 import path from 'path'
 import CONFIG from './config'
-import { promiseWithTimeout, hasSufficientMemory, interfere, promiseWrapper, hashStream } from './utils'
+import { promiseWithTimeout, hasSufficientMemory, interfere, promiseWrapper, hashStream, streamToBuffer } from './utils'
 import FileHandler from './fileHandler'
+import { Readable } from 'stream'
 
 export interface Node { host: string, http: boolean, dns: boolean, cf: boolean, hits: number, rejects: number, bytes: number, duration: number, status?: boolean }
 export enum PreferNode { FASTEST, LEAST_USED, RANDOM, HIGHEST_HITRATE }
@@ -52,23 +53,26 @@ export default class Nodes {
       const hash = file.hash
       console.log(`  ${hash}  Downloading from ${node.host}`)
       const response = await promiseWithTimeout(fetch(`${node.host}/download/${hash}`), CONFIG.timeout)
+      const stream: Readable = response.body
       console.log(`  ${hash}  Validating hash`)
-      const verifiedHash = await hashStream(response.body)
+      const verifiedHash = await hashStream(stream)
       if (hash !== verifiedHash) return false
 
       if (file.name === undefined || file.name === null || file.name.length === 0) {
-        file.name = String(response.headers.getValue('Content-Disposition')?.split('=')[1].replace(/"/g, ''))
-        file.save()
+        file.name = String(response.headers.get('Content-Disposition')?.split('=')[1].replace(/"/g, ''))
+        await file.save()
       }
-      const arrayBuffer = await response.arrayBuffer() as ArrayBuffer
+
+      const arrayBuffer = await streamToBuffer(stream)
 
       node.status = true
       node.duration += Date.now() - startTime
       node.bytes += arrayBuffer.byteLength
       node.hits++
       this.updateNode(node)
-      return { file: Buffer.from(arrayBuffer), signal: interfere(Number(response.headers.getValue('Signal-Strength'))) }
+      return { file: Buffer.from(arrayBuffer), signal: interfere(Number(response.headers.get('Signal-Strength'))) }
     } catch (e) {
+      console.error(e)
       node.rejects++
 
       this.updateNode(node)
@@ -138,7 +142,7 @@ export default class Nodes {
           const fileContent = await promiseWithTimeout(this.downloadFromNode(node, file), CONFIG.timeout)
 
           if (fileContent !== false) {
-            file.cacheFile(fileContent.file)
+            await file.cacheFile(fileContent.file)
             return fileContent
           } else return false
         })()
