@@ -243,7 +243,7 @@ const sequelize = new Sequelize({
   dialect: 'sqlite',
   storage: path.join(DIRNAME, 'filemanager.db'),
   logging: (...msg) => {
-    const payload = msg[1]
+    const payload = msg[1] as unknown as { type: string, where: string, instance: { dataValues: { hash: string } }, fields: string[] }
     if (payload.type === 'SELECT') {
       console.log(`  ${payload.where.split("'")[1]}  SELECTing file from database`)
     } else if (payload.type === 'INSERT') {
