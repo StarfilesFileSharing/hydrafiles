@@ -2,12 +2,13 @@ import fs from 'fs'
 import path from 'path'
 import CONFIG from './config'
 import { promiseWithTimeout, hasSufficientMemory, interfere, promiseWrapper, hashStream, bufferToStream } from './utils'
-import FileHandler, { FileModel } from './fileHandler'
+import FileHandler from './fileHandler'
 
 export interface Node { host: string, http: boolean, dns: boolean, cf: boolean, hits: number, rejects: number, bytes: number, duration: number, status?: boolean }
 export enum PreferNode { FASTEST, LEAST_USED, RANDOM, HIGHEST_HITRATE }
 
 const DIRNAME = path.resolve()
+const NODES_PATH = path.join(DIRNAME, 'nodes.json')
 
 export const nodeFrom = (host: string): Node => {
   const node: Node = {
@@ -29,6 +30,13 @@ export default class Nodes {
   constructor () {
     this.nodesPath = path.join(DIRNAME, 'nodes.json')
     this.nodes = this.loadNodes()
+  }
+
+  async add (node: Node): Promise<void> {
+    if (node.host !== CONFIG.public_hostname && typeof this.nodes.find((existingNode) => existingNode.host === node.host) === 'undefined' && (await this.downloadFromNode(node, await FileHandler.init({ hash: '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f' })) !== false)) {
+      this.nodes.push(node)
+      fs.writeFileSync(NODES_PATH, JSON.stringify(this.nodes))
+    }
   }
 
   loadNodes (): Node[] {
@@ -189,9 +197,31 @@ export default class Nodes {
         }
       }
     } catch (e) {
-      console.log(`Failed to compare file list with ${node.host} - ${e.message}`)
+      console.error(`Failed to compare file list with ${node.host} - ${e.message}`)
       return
     }
     console.log(`Done comparing file list with ${node.host}`)
+  }
+
+  async compareNodeList (): Promise<void> {
+    console.log('Comparing node list')
+    const nodes = this.getNodes({ includeSelf: false })
+    for (const node of nodes) {
+      try {
+        if (node.host.startsWith('http://') || node.host.startsWith('https://')) {
+          console.log(`Fetching nodes from ${node.host}/nodes`)
+          const response = await fetch(`${node.host}/nodes`)
+          const remoteNodes = await response.json() as Node[]
+          for (const remoteNode of remoteNodes) {
+            this.add(remoteNode).catch((e) => {
+              if (CONFIG.log_level === 'verbose') console.error(e)
+            })
+          }
+        }
+      } catch (e) {
+        console.error(`Failed to fetch nodes from ${node.host}/nodes`)
+      }
+    }
+    console.log('Done comparing node list')
   }
 }
