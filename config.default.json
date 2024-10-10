@@ -20,5 +20,6 @@
 	"memory_threshold_reached_wait": 100,
 	"timeout": 60000,
 	"upload_secret": "",
-	"log_level": "normal"
+	"log_level": "normal",
+	"summary_speed": 60000
 }

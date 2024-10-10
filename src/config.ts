@@ -22,6 +22,7 @@ export interface Config {
   memory_threshold_reached_wait: number
   timeout: number
   log_level: 'verbose' | 'normal'
+  summary_speed: number
 }
 
 const DIRNAME = path.resolve()
@@ -48,7 +49,8 @@ const CONFIG: Config = {
   memory_threshold: config.memory_threshold,
   memory_threshold_reached_wait: config.memory_threshold_reached_wait,
   timeout: config.timeout,
-  log_level: config.log_level
+  log_level: config.log_level,
+  summary_speed: config.summary_speed
 }
 
 export default CONFIG

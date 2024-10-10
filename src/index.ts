@@ -29,6 +29,11 @@ const NODES_PATH = path.join(DIRNAME, 'nodes.json')
 const nodesManager = new Nodes()
 const hashLocks = new Map<string, Promise<any>>()
 
+function stateSummary (): void {
+  console.log('====\nProcessing files:', hashLocks.size, '\n====')
+}
+setInterval(stateSummary, CONFIG.summary_speed)
+
 const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse<http.IncomingMessage>): Promise<void> => {
   try {
     if (req.url === '/' || req.url === null || typeof req.url === 'undefined') {
