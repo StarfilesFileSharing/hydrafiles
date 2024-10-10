@@ -176,12 +176,12 @@ export default class FileHandler {
   // TODO: Connect to other hydrafiles nodes as webseed
   // TODO: Check other nodes file lists to find other claimed infohashes for the file, leech off all of them and copy the metadata from the healthiest torrent
 
-  async getFile (nodesManager: Nodes): Promise<{ file: Buffer, signal: number } | false> {
+  async getFile (nodesManager: Nodes, opts: { logDownloads?: boolean } = {}): Promise<{ file: Buffer, signal: number } | false> {
     const hash = this.hash
     console.log(`  ${hash}  Getting file`)
     if (!isValidSHA256Hash(hash)) return false
     if (!this.found && new Date(this.updatedAt) > new Date(new Date().getTime() - 5 * 60 * 1000)) return false
-    await this.increment('downloadCount')
+    if (opts.logDownloads === undefined || opts.logDownloads) await this.increment('downloadCount')
     await this.save()
 
     if (this.size !== 0 && !hasSufficientMemory(this.size)) {
