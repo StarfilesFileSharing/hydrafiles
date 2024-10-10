@@ -221,6 +221,13 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
         res.writeHead(201, { 'Content-Type': 'text/plain' })
         res.end('200 OK\n')
       })
+    } else if (req.url === '/files') {
+      const rows = (await FileModel.findAll()).map((row) => {
+        const { hash, infohash, id, name, size } = row.dataValues
+        return { hash, infohash, id, name, size }
+      })
+      res.writeHead(201, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify(rows))
     } else {
       res.writeHead(404, { 'Content-Type': 'text/plain' })
       res.end('404 Page Not Found\n')
