@@ -207,7 +207,7 @@ export default class Nodes {
     console.log('Comparing node list')
     const nodes = this.getNodes({ includeSelf: false })
     for (const node of nodes) {
-      try {
+      (async () => {
         if (node.host.startsWith('http://') || node.host.startsWith('https://')) {
           console.log(`Fetching nodes from ${node.host}/nodes`)
           const response = await fetch(`${node.host}/nodes`)
@@ -218,9 +218,7 @@ export default class Nodes {
             })
           }
         }
-      } catch (e) {
-        console.error(`Failed to fetch nodes from ${node.host}/nodes`)
-      }
+      })().catch(console.error)
     }
     console.log('Done comparing node list')
   }
