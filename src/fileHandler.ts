@@ -281,7 +281,7 @@ const sequelize = new Sequelize({
   }
 })
 
-const FileModel = sequelize.define('File',
+export const FileModel = sequelize.define('File',
   {
     hash: {
       type: DataTypes.STRING,
