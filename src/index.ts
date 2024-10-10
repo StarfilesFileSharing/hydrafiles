@@ -32,9 +32,10 @@ const hashLocks = new Map<string, Promise<any>>()
 
 function stateSummary (): void {
   (async () => {
-    console.log('========\nKnown (Network) Files:', await FileModel.noCache().count(), `(${Math.round((100 * await FileModel.noCache().sum('size')) / 1024 / 1024 / 1024) / 100}GB)`, '\nStored Files:', fs.readdirSync('files/').length, `(${Math.round((100 * calculateUsedStorage()) / 1024 / 1024 / 1024) / 100}GB)`, '\nProcessing Files:', hashLocks.size, '\nSeeding Torrent Files:', webtorrent.torrents.length, '\nDownload Count:', await FileModel.noCache().sum('downloadCount'), '\n========')
+    console.log('\n===============================================\n========', new Date().toUTCString(), '========\n===============================================\n| Known (Network) Files:', await FileModel.noCache().count(), `(${Math.round((100 * await FileModel.noCache().sum('size')) / 1024 / 1024 / 1024) / 100}GB)`, '\n| Stored Files:', fs.readdirSync('files/').length, `(${Math.round((100 * calculateUsedStorage()) / 1024 / 1024 / 1024) / 100}GB)`, '\n| Processing Files:', hashLocks.size, '\n| Seeding Torrent Files:', webtorrent.torrents.length, '\n| Download Count:', await FileModel.noCache().sum('downloadCount'), '\n===============================================\n')
   })().catch(console.error)
 }
+stateSummary()
 setInterval(stateSummary, CONFIG.summary_speed)
 
 const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse<http.IncomingMessage>): Promise<void> => {
