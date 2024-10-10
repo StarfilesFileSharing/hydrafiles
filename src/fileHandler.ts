@@ -12,15 +12,19 @@ interface Metadata { name: string, size: number, type: string, hash: string, id:
 
 const DIRNAME = path.resolve()
 
-let usedStorage = 0
 const filesPath = path.join(DIRNAME, 'files')
-if (fs.existsSync(filesPath)) {
-  const files = fs.readdirSync(filesPath)
-  for (const file of files) {
-    const stats = fs.statSync(path.join(filesPath, file))
-    usedStorage += stats.size
+export const calculateUsedStorage = (): number => {
+  let usedStorage = 0
+  if (fs.existsSync(filesPath)) {
+    const files = fs.readdirSync(filesPath)
+    for (const file of files) {
+      const stats = fs.statSync(path.join(filesPath, file))
+      usedStorage += stats.size
+    }
   }
+  return usedStorage
 }
+let usedStorage = calculateUsedStorage()
 console.log(`Files dir size: ${Math.round((100 * usedStorage) / 1024 / 1024 / 1024) / 100}GB`)
 
 export const webtorrent = new WebTorrent()
