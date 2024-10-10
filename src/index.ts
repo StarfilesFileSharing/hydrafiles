@@ -5,7 +5,7 @@ import formidable from 'formidable'
 import CONFIG from './config'
 import init from './init'
 import Nodes, { Node, nodeFrom } from './nodes'
-import FileHandler, { startDatabase, webtorrent } from './fileHandler'
+import FileHandler, { calculateUsedStorage, startDatabase, webtorrent } from './fileHandler'
 import { isIp, isPrivateIP, estimateHops, promiseWithTimeout } from './utils'
 import { Readable } from 'stream'
 
@@ -30,7 +30,7 @@ const nodesManager = new Nodes()
 const hashLocks = new Map<string, Promise<any>>()
 
 function stateSummary (): void {
-  console.log('====\nStored Files:', fs.readdirSync('files/').length, '\nProcessing Files:', hashLocks.size, '\nSeeding Torrent Files:', webtorrent.torrents.length, '\n====')
+  console.log('====\nStored Files:', fs.readdirSync('files/').length, '\nUsed Storage:', `${Math.round((100 * calculateUsedStorage()) / 1024 / 1024 / 1024) / 100}GB`, '\nProcessing Files:', hashLocks.size, '\nSeeding Torrent Files:', webtorrent.torrents.length, '\n====')
 }
 setInterval(stateSummary, CONFIG.summary_speed)
 
