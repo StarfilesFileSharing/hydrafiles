@@ -90,7 +90,7 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
           fileContent = await promiseWithTimeout(file.getFile(nodesManager), CONFIG.timeout)
         } catch (e) {
           if (e.message === 'Promise timed out') fileContent = false
-          else throw new Error(e)
+          else throw e
         }
 
         if (fileContent === false) {
