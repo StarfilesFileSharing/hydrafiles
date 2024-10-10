@@ -296,7 +296,7 @@ setInterval(() => {
 backgroundTasks().catch(console.error)
 
 async function backfillFiles (): Promise<void> {
-  const files = await FileModel.findAll({ order: Sequelize.literal('rand()') })
+  const files = await FileModel.findAll({ order: Sequelize.literal('RANDOM()') })
   for (let i = 0; i < files.length; i++) {
     const hash: string = files[i].dataValues.hash
     console.log(`  ${hash}  Backfilling file`)
