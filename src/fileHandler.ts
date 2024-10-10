@@ -316,6 +316,10 @@ const FileModel = sequelize.define('File',
     modelName: 'FileHandler'
   }
 )
-sequelize.sync({ alter: true }).then(() => console.log('Connected to the local DB')).catch(console.error)
+
+export const startDatabase = async (): Promise<void> => {
+  await sequelize.sync({ alter: true })
+  console.log('Connected to the local DB')
+}
 
 // TODO: webtorrent.add() all known files

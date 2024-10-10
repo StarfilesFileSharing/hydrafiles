@@ -240,6 +240,8 @@ server.listen(CONFIG.port, CONFIG.hostname, (): void => {
   console.log(`Server running at ${CONFIG.public_hostname}/`)
 
   const handleListen = async (): Promise<void> => {
+    await startDatabase()
+
     // Call all nodes and pull their /nodes
     const nodes = nodesManager.getNodes({ includeSelf: false })
     for (const node of nodes) {
@@ -284,5 +286,5 @@ server.listen(CONFIG.port, CONFIG.hostname, (): void => {
       }
     }
   }
-  handleListen().catch((e) => console.error(e))
+  handleListen().catch(console.error)
 })
