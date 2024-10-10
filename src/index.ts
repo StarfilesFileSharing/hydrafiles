@@ -4,7 +4,7 @@ import path from 'path'
 import formidable from 'formidable'
 import CONFIG from './config'
 import init from './init'
-import Nodes, { Node, nodeFrom } from './nodes'
+import Nodes, { nodeFrom } from './nodes'
 import FileHandler, { calculateUsedStorage, FileModel, startDatabase, webtorrent } from './fileHandler'
 import { isIp, isPrivateIP, estimateHops, promiseWithTimeout } from './utils'
 import { Readable } from 'stream'
@@ -31,7 +31,7 @@ const hashLocks = new Map<string, Promise<any>>()
 
 function stateSummary (): void {
   (async () => {
-    console.log('========\nKnown (Network) Files:', await FileModel.noCache().count(), `${Math.round((100 * await FileModel.noCache().sum('size')) / 1024 / 1024 / 1024) / 100}GB`, '\nStored Files:', fs.readdirSync('files/').length, `${Math.round((100 * calculateUsedStorage()) / 1024 / 1024 / 1024) / 100}GB`, '\nProcessing Files:', hashLocks.size, '\nSeeding Torrent Files:', webtorrent.torrents.length, '\nDownload Count:', await FileModel.noCache().sum('downloadCount'), '\n========')
+    console.log('========\nKnown (Network) Files:', await FileModel.noCache().count(), `(${Math.round((100 * await FileModel.noCache().sum('size')) / 1024 / 1024 / 1024) / 100}GB)`, '\nStored Files:', fs.readdirSync('files/').length, `(${Math.round((100 * calculateUsedStorage()) / 1024 / 1024 / 1024) / 100}GB)`, '\nProcessing Files:', hashLocks.size, '\nSeeding Torrent Files:', webtorrent.torrents.length, '\nDownload Count:', await FileModel.noCache().sum('downloadCount'), '\n========')
   })().catch(console.error)
 }
 setInterval(stateSummary, CONFIG.summary_speed)
@@ -139,7 +139,7 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
           fileContent = await promiseWithTimeout(file.getFile(nodesManager), CONFIG.timeout)
         } catch (e) {
           if (e.message === 'Promise timed out') fileContent = false
-          else throw new Error(e)
+          else throw e
         }
 
         if (fileContent === false) {
