@@ -7,6 +7,7 @@ import CONFIG from './config'
 import { hasSufficientMemory, interfere, isValidInfoHash, isValidSHA256Hash, promiseWithTimeout, saveBufferToFile } from './utils'
 import Nodes from './nodes'
 import WebTorrent from 'webtorrent'
+import SequelizeSimpleCache from 'sequelize-simple-cache'
 
 interface Metadata { name: string, size: number, type: string, hash: string, id: string }
 
@@ -288,7 +289,7 @@ const sequelize = new Sequelize({
   }
 })
 
-export const FileModel = sequelize.define('File',
+const UncachedFileModel = sequelize.define('File',
   {
     hash: {
       type: DataTypes.STRING,
@@ -327,6 +328,10 @@ export const FileModel = sequelize.define('File',
     modelName: 'FileHandler'
   }
 )
+
+const cache = new SequelizeSimpleCache({ File: { ttl: 30 * 60 } })
+
+export const FileModel = cache.init(UncachedFileModel)
 
 export const startDatabase = async (): Promise<void> => {
   await sequelize.sync({ alter: true })
