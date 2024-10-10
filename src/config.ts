@@ -21,6 +21,7 @@ export interface Config {
   memory_threshold: number
   memory_threshold_reached_wait: number
   timeout: number
+  log_level: 'verbose' | 'normal'
 }
 
 const DIRNAME = path.resolve()
@@ -46,7 +47,8 @@ const CONFIG: Config = {
   cache_s3: config.cache_s3,
   memory_threshold: config.memory_threshold,
   memory_threshold_reached_wait: config.memory_threshold_reached_wait,
-  timeout: config.timeout
+  timeout: config.timeout,
+  log_level: config.log_level
 }
 
 export default CONFIG
