@@ -294,6 +294,7 @@ const backgroundTasks = async (): Promise<void> => {
       const files = await FileModel.findAll()
       for (let i = 0; i < files.length; i++) {
         const hash: string = files[i].dataValues.hash
+        console.log(`  ${hash}  Backfilling file`)
         const file = await FileHandler.init({ hash })
         await file.getFile(nodesManager)
       }
