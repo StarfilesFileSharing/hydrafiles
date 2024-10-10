@@ -56,7 +56,7 @@ const purgeCache = (requiredSpace: number, remainingSpace: number): void => {
 interface FileAttributes {
   hash: string
   infohash: string
-  downloadCount: number
+  downloadCount: number | undefined
   id: string
   name: string
   found: boolean
@@ -68,7 +68,7 @@ interface FileAttributes {
 export default class FileHandler {
   hash!: string
   infohash: string | null | undefined
-  downloadCount!: number
+  downloadCount: number | undefined
   id: string | null | undefined
   name: string | null | undefined
   found!: boolean
@@ -94,7 +94,6 @@ export default class FileHandler {
     const fileHandler = new FileHandler()
     fileHandler.hash = hash
     fileHandler.infohash = ''
-    fileHandler.downloadCount = 0
     fileHandler.id = ''
     fileHandler.name = ''
     fileHandler.found = true
@@ -104,7 +103,6 @@ export default class FileHandler {
     fileHandler.file = existingFile ?? await FileModel.create({ hash })
     Object.assign(fileHandler, fileHandler.file.dataValues)
     if (Number(fileHandler.size) === 0) fileHandler.size = 0
-    if (Number(fileHandler.downloadCount) === 0) fileHandler.downloadCount = 0
 
     return fileHandler
   }
@@ -211,8 +209,7 @@ export default class FileHandler {
       console.log(`  ${hash}  Getting file`)
       if (!isValidSHA256Hash(hash)) return false
       if (!this.found && new Date(this.updatedAt) > new Date(new Date().getTime() - 5 * 60 * 1000)) return false
-      const downloadCount = this.downloadCount + 1
-      this.downloadCount = downloadCount
+      await this.increment('downloadCount')
       await this.save()
 
       if (this.size !== 0 && !hasSufficientMemory(this.size)) {
@@ -269,6 +266,10 @@ export default class FileHandler {
       this.infohash = torrent.infoHash
       await this.save()
     })
+  }
+
+  async increment (column: string): Promise<void> {
+    await this.file.increment(column)
   }
 }
 
