@@ -4,7 +4,7 @@ import * as path from 'path'
 import { Readable } from 'stream'
 import { Sequelize, Model, DataTypes } from 'sequelize'
 import CONFIG from './config'
-import { hasSufficientMemory, interfere, isValidInfoHash, isValidSHA256Hash, promiseWithTimeout, saveBufferToFile, remainingStorage, purgeCache } from './utils'
+import { hasSufficientMemory, interfere, isValidInfoHash, isValidSHA256Hash, saveBufferToFile, remainingStorage, purgeCache } from './utils'
 import Nodes from './nodes'
 import WebTorrent from 'webtorrent'
 import SequelizeSimpleCache from 'sequelize-simple-cache'
@@ -177,41 +177,39 @@ export default class FileHandler {
   // TODO: Check other nodes file lists to find other claimed infohashes for the file, leech off all of them and copy the metadata from the healthiest torrent
 
   async getFile (nodesManager: Nodes): Promise<{ file: Buffer, signal: number } | false> {
-    return await promiseWithTimeout((async (): Promise<{ file: Buffer, signal: number } | false> => {
-      const hash = this.hash
-      console.log(`  ${hash}  Getting file`)
-      if (!isValidSHA256Hash(hash)) return false
-      if (!this.found && new Date(this.updatedAt) > new Date(new Date().getTime() - 5 * 60 * 1000)) return false
-      await this.increment('downloadCount')
-      await this.save()
+    const hash = this.hash
+    console.log(`  ${hash}  Getting file`)
+    if (!isValidSHA256Hash(hash)) return false
+    if (!this.found && new Date(this.updatedAt) > new Date(new Date().getTime() - 5 * 60 * 1000)) return false
+    await this.increment('downloadCount')
+    await this.save()
 
-      if (this.size !== 0 && !hasSufficientMemory(this.size)) {
-        await new Promise(() => {
-          const intervalId = setInterval(() => {
-            console.log(`  ${hash}  Reached memory limit, waiting`, this.size)
-            if (this.size === 0 || hasSufficientMemory(this.size)) clearInterval(intervalId)
-          }, CONFIG.memory_threshold_reached_wait)
-        })
-      }
+    if (this.size !== 0 && !hasSufficientMemory(this.size)) {
+      await new Promise(() => {
+        const intervalId = setInterval(() => {
+          console.log(`  ${hash}  Reached memory limit, waiting`, this.size)
+          if (this.size === 0 || hasSufficientMemory(this.size)) clearInterval(intervalId)
+        }, CONFIG.memory_threshold_reached_wait)
+      })
+    }
 
-      let file = await this.fetchFromCache()
-      if (file !== false) console.log(`  ${hash}  Serving ${this.size !== undefined ? Math.round(this.size / 1024 / 1024) : 0}MB from cache`)
+    let file = await this.fetchFromCache()
+    if (file !== false) console.log(`  ${hash}  Serving ${this.size !== undefined ? Math.round(this.size / 1024 / 1024) : 0}MB from cache`)
+    else {
+      if (CONFIG.s3_endpoint.length > 0) file = await this.fetchFromS3()
+      if (file !== false) console.log(`  ${hash}  Serving ${this.size !== undefined ? Math.round(this.size / 1024 / 1024) : 0}MB from S3`)
       else {
-        if (CONFIG.s3_endpoint.length > 0) file = await this.fetchFromS3()
-        if (file !== false) console.log(`  ${hash}  Serving ${this.size !== undefined ? Math.round(this.size / 1024 / 1024) : 0}MB from S3`)
-        else {
-          file = await nodesManager.getFile(hash, this.size)
-          if (file === false) {
-            this.found = false
-            await this.save()
-          }
+        file = await nodesManager.getFile(hash, this.size)
+        if (file === false) {
+          this.found = false
+          await this.save()
         }
       }
+    }
 
-      if (file !== false) this.seed()
+    if (file !== false) this.seed()
 
-      return file
-    })(), CONFIG.timeout)
+    return file
   }
 
   async save (): Promise<void> {

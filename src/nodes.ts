@@ -146,7 +146,7 @@ export default class Nodes {
       if (node.http && node.host.length > 0) {
         const promise = (async (): Promise<{ file: Buffer, signal: number } | false> => {
           const file = await FileHandler.init({ hash })
-          const fileContent = await promiseWithTimeout(this.downloadFromNode(node, file), CONFIG.timeout)
+          const fileContent = await this.downloadFromNode(node, file)
           return fileContent !== false ? fileContent : false
         })()
         activePromises.push(promise)
