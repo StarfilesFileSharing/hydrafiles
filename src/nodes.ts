@@ -210,12 +210,16 @@ export default class Nodes {
       (async () => {
         if (node.host.startsWith('http://') || node.host.startsWith('https://')) {
           console.log(`Fetching nodes from ${node.host}/nodes`)
-          const response = await fetch(`${node.host}/nodes`)
-          const remoteNodes = await response.json() as Node[]
-          for (const remoteNode of remoteNodes) {
-            this.add(remoteNode).catch((e) => {
-              if (CONFIG.log_level === 'verbose') console.error(e)
-            })
+          try {
+            const response = await promiseWithTimeout(fetch(`${node.host}/nodes`), CONFIG.timeout)
+            const remoteNodes = await response.json() as Node[]
+            for (const remoteNode of remoteNodes) {
+              this.add(remoteNode).catch((e) => {
+                if (CONFIG.log_level === 'verbose') console.error(e)
+              })
+            }
+          } catch (e) {
+            if (CONFIG.log_level === 'verbose') throw e
           }
         }
       })().catch(console.error)
