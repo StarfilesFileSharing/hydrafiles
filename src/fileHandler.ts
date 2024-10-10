@@ -284,7 +284,12 @@ const sequelize = new Sequelize({
     } else if (payload.type === 'INSERT') {
       console.log(`  ${payload.instance.dataValues.hash}  INSERTing file to database`)
     } else if (payload.type === 'UPDATE') {
-      console.log(`  ${payload.instance.dataValues.hash}  UPDATEing file in database - Changing columns: ${payload.fields.join(', ')}`)
+      try {
+        console.log(`  ${payload.instance.dataValues.hash}  UPDATEing file in database - Changing columns: ${payload.fields.join(', ')}`)
+      } catch (e) {
+        console.error(e)
+        console.log(payload)
+      }
     }
   }
 })
