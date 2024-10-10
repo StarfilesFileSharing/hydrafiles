@@ -287,4 +287,4 @@ setInterval(() => {
       await nodesManager.compareFileList(nodesManager.nodes[i])
     }
   })().catch(console.error)
-}, 60000)
+}, 60000 * 5)
