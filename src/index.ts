@@ -86,7 +86,7 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
         }
 
         await file.getMetadata()
-        let fileContent: { file: Readable, signal: number } | false
+        let fileContent: { file: Buffer, signal: number } | false
         try {
           fileContent = await file.getFile(nodesManager)
         } catch (e) {
@@ -135,7 +135,7 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
         const file = await FileHandler.init({ infohash })
 
         await file.getMetadata()
-        let fileContent: { file: Readable, signal: number } | false
+        let fileContent: { file: Buffer, signal: number } | false
         try {
           fileContent = await file.getFile(nodesManager)
         } catch (e) {
