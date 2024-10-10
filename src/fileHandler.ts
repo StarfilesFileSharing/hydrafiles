@@ -9,7 +9,7 @@ import Nodes from './nodes'
 import WebTorrent from 'webtorrent'
 import SequelizeSimpleCache from 'sequelize-simple-cache'
 
-interface Metadata { name: string, size: number, type: string, hash: string, id: string }
+interface Metadata { name: string, size: number, type: string, hash: string, id: string, infohash: string }
 
 const DIRNAME = path.resolve()
 
@@ -122,6 +122,7 @@ export default class FileHandler {
         const metadata = (await response.json()).result as Metadata
         this.name = metadata.name
         this.size = metadata.size
+        if (this.infohash?.length === 0) this.infohash = metadata.infohash
         await this.save()
         return this
       }
