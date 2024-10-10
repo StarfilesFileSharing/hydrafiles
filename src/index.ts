@@ -28,10 +28,23 @@ const DIRNAME = path.resolve()
 const NODES_PATH = path.join(DIRNAME, 'nodes.json')
 const nodesManager = new Nodes()
 const hashLocks = new Map<string, Promise<any>>()
+const startTime = +new Date()
+
+function convertTime (duration: number): string {
+  const msPerSecond = 1000
+  const msPerMinute = msPerSecond * 60
+  const msPerHour = msPerMinute * 60
+  const msPerDay = msPerHour * 24
+
+  if (duration < msPerMinute) return (duration / msPerSecond).toFixed(2) + ' seconds'
+  else if (duration < msPerHour) return (duration / msPerMinute).toFixed(2) + ' minutes'
+  else if (duration < msPerDay) return (duration / msPerHour).toFixed(2) + ' hours'
+  else return (duration / msPerDay).toFixed(2) + ' days'
+}
 
 function stateSummary (): void {
   (async () => {
-    console.log('\n===============================================\n========', new Date().toUTCString(), '========\n===============================================\n| Known (Network) Files:', await FileModel.noCache().count(), `(${Math.round((100 * await FileModel.noCache().sum('size')) / 1024 / 1024 / 1024) / 100}GB)`, '\n| Stored Files:', fs.readdirSync('files/').length, `(${Math.round((100 * calculateUsedStorage()) / 1024 / 1024 / 1024) / 100}GB)`, '\n| Processing Files:', hashLocks.size, '\n| Seeding Torrent Files:', webtorrent.torrents.length, '\n| Download Count:', await FileModel.noCache().sum('downloadCount'), '\n===============================================\n')
+    console.log('\n===============================================\n========', new Date().toUTCString(), '========\n===============================================\n| Uptime: ', convertTime(+new Date() - startTime), '\n| Known (Network) Files:', await FileModel.noCache().count(), `(${Math.round((100 * await FileModel.noCache().sum('size')) / 1024 / 1024 / 1024) / 100}GB)`, '\n| Stored Files:', fs.readdirSync('files/').length, `(${Math.round((100 * calculateUsedStorage()) / 1024 / 1024 / 1024) / 100}GB)`, '\n| Processing Files:', hashLocks.size, '\n| Seeding Torrent Files:', webtorrent.torrents.length, '\n| Download Count:', await FileModel.noCache().sum('downloadCount'), '\n===============================================\n')
   })().catch(console.error)
 }
 stateSummary()
