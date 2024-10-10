@@ -23,7 +23,7 @@ if (fs.existsSync(filesPath)) {
 }
 console.log(`Files dir size: ${Math.round((100 * usedStorage) / 1024 / 1024 / 1024) / 100}GB`)
 
-const webtorrent = new WebTorrent()
+export const webtorrent = new WebTorrent()
 const s3 = new S3({
   region: 'us-east-1',
   credentials: {
