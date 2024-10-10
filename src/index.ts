@@ -222,7 +222,7 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
         res.end('200 OK\n')
       })
     } else if (req.url === '/files') {
-      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=300' })
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=10800' })
       const rows = (await FileModel.findAll()).map((row) => {
         const { hash, infohash, id, name, size } = row.dataValues
         return { hash, infohash, id, name, size }
