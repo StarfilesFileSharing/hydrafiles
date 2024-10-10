@@ -294,6 +294,14 @@ server.listen(CONFIG.port, CONFIG.hostname, (): void => {
         console.log('Announcing to nodes')
         await nodesManager.announce()
       }
+
+      (async () => {
+        console.log('Comparing file list with other nodes')
+        for (let i = 0; i < nodesManager.nodes.length; i++) {
+          await nodesManager.compareFileList(nodesManager.nodes[i])
+        }
+        console.log('Done comparing file list')
+      })().catch(console.error)
     }
   }
   handleListen().catch(console.error)
