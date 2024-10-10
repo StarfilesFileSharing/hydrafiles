@@ -36,7 +36,7 @@ const s3 = new S3({
   },
   endpoint: CONFIG.s3_endpoint
 })
-
+// TODO: Log common user-agents and use the same for requests to slightly anonymise clients
 const seeding: string[] = []
 
 const purgeCache = (requiredSpace: number, remainingSpace: number): void => {
@@ -78,13 +78,18 @@ export default class FileHandler {
   file!: Model<any, any>
 
   public static async init (opts: { hash?: string, infohash?: string }): Promise<FileHandler> {
-    if (opts.infohash !== undefined) {
-      if (!isValidInfoHash(opts.infohash)) throw new Error('Invalid infohash provided')
+    let hash: string
+    if (opts.hash !== undefined) hash = opts.hash
+    else if (opts.infohash !== undefined) {
+      if (!isValidInfoHash(opts.infohash)) throw new Error(`Invalid infohash provided: ${opts.infohash}`)
       const file = await FileModel.findOne({ where: { infohash: opts.infohash } })
-      opts.hash = file?.dataValues.hash
-    }
-    if (opts.hash === undefined || !isValidSHA256Hash(opts.hash)) throw new Error('No hash provided')
-    const hash = opts.hash
+      if (typeof file?.dataValues.hash === 'string') hash = file?.dataValues.hash
+      else {
+        // TODO: Check against other nodes
+        hash = ''
+      }
+    } else throw new Error('No hash or infohash provided')
+    if (hash !== undefined && !isValidSHA256Hash(hash)) throw new Error('Invalid hash provided')
 
     const fileHandler = new FileHandler()
     fileHandler.hash = hash
@@ -198,6 +203,7 @@ export default class FileHandler {
 
   // TODO: fetchFromTorrent
   // TODO: Connect to other hydrafiles nodes as webseed
+  // TODO: Check other nodes file lists to find other claimed infohashes for the file, leech off all of them and copy the metadata from the healthiest torrent
 
   async getFile (nodesManager: Nodes): Promise<{ file: Buffer, signal: number } | false> {
     return await promiseWithTimeout((async (): Promise<{ file: Buffer, signal: number } | false> => {
