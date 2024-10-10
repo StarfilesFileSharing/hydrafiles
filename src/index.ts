@@ -31,7 +31,7 @@ const hashLocks = new Map<string, Promise<any>>()
 
 function stateSummary (): void {
   (async () => {
-    console.log('====\nStored Files:', fs.readdirSync('files/').length, '\nUsed Storage:', `${Math.round((100 * calculateUsedStorage()) / 1024 / 1024 / 1024) / 100}GB`, '\nProcessing Files:', hashLocks.size, '\nSeeding Torrent Files:', webtorrent.torrents.length, '\nDownload Count:', await FileModel.noCache().sum('downloadCount'), '\n====')
+    console.log('========\nKnown Files:', await FileModel.noCache().count(), '\nStored Files:', fs.readdirSync('files/').length, '\nKnown Files Size:', `${Math.round((100 * await FileModel.noCache().sum('size')) / 1024 / 1024 / 1024) / 100}GB`, '\nStored Files Size:', `${Math.round((100 * calculateUsedStorage()) / 1024 / 1024 / 1024) / 100}GB`, '\nProcessing Files:', hashLocks.size, '\nSeeding Torrent Files:', webtorrent.torrents.length, '\nDownload Count:', await FileModel.noCache().sum('downloadCount'), '\n========')
   })().catch(console.error)
 }
 setInterval(stateSummary, CONFIG.summary_speed)
