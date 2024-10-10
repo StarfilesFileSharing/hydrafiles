@@ -291,32 +291,11 @@ const backgroundTasks = async (): Promise<void> => {
   })().catch(console.error);
   (async () => {
     if (CONFIG.backfill) {
-      const files = await FileModel.findAll({
-        where: {
-          size: {
-            [Op.not]: 0
-          },
-          [Op.or]: {
-            infohash: {
-              [Op.or]: [
-                null,
-                ''
-              ]
-            },
-            name: {
-              [Op.or]: [
-                null,
-                ''
-              ]
-            }
-          }
-        }
-      })
+      const files = await FileModel.findAll()
       for (let i = 0; i < files.length; i++) {
-        const remainingSpace = remainingStorage()
-        if (CONFIG.max_storage !== -1 && files[i].dataValues.size > remainingSpace) purgeCache(files[i].dataValues.size, remainingSpace)
-        console.log(`  ${files[i].dataValues.hash}  Backfilling file`)
-        await nodesManager.getFile(files[i].dataValues.hash)
+        const hash: string = files[i].dataValues.hash
+        const file = await FileHandler.init({ hash })
+        await file.getFile(nodesManager)
       }
     }
   })().catch(console.error)
