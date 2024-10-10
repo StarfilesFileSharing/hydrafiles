@@ -2,7 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import CONFIG from './config'
 import { promiseWithTimeout, hasSufficientMemory, interfere, promiseWrapper, hashStream, bufferToStream } from './utils'
-import FileHandler from './fileHandler'
+import FileHandler, { FileModel } from './fileHandler'
 
 export interface Node { host: string, http: boolean, dns: boolean, cf: boolean, hits: number, rejects: number, bytes: number, duration: number, status?: boolean }
 export enum PreferNode { FASTEST, LEAST_USED, RANDOM, HIGHEST_HITRATE }
@@ -168,6 +168,19 @@ export default class Nodes {
         console.log('Announcing to', node.host)
         await fetch(`${node.host}/announce?host=${CONFIG.public_hostname}`)
       }
+    }
+  }
+
+  async compareFileList (node: Node): Promise<void> {
+    const response = await fetch(`${node.host}/files`)
+    const files = await response.json()
+    for (let i = 0; i < files.length; i++) {
+      const file = await FileHandler.init(files[i])
+      if (file.infohash?.length === 0 && files[i].infohash.length !== 0) file.infohash = files[i].infohash
+      if (file.id?.length === 0 && files[i].id.length !== 0) file.id = files[i].id
+      if (file.name?.length === 0 && files[i].name.length !== 0) file.name = files[i].name
+      if (file.size === 0 && files[i].size !== 0) file.size = files[i].size
+      await file.save()
     }
   }
 }
