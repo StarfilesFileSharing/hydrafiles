@@ -8,7 +8,7 @@ import Nodes, { nodeFrom } from './nodes'
 import FileHandler, { FileModel, startDatabase, webtorrent } from './fileHandler'
 import { isIp, isPrivateIP, estimateHops, promiseWithTimeout, remainingStorage, purgeCache, calculateUsedStorage } from './utils'
 import { Readable } from 'stream'
-import { Op } from 'sequelize'
+import { Op, Sequelize } from 'sequelize'
 
 // TODO: IDEA: HydraTorrent - New Github repo - "Hydrafiles + WebTorrent Compatibility Layer" - Hydrafiles noes can optionally run HydraTorrent to seed files via webtorrent
 // Change index hash from sha256 to infohash, then allow nodes to leech files from webtorrent + normal torrent
@@ -288,17 +288,6 @@ const backgroundTasks = async (): Promise<void> => {
     for (let i = 0; i < nodesManager.getNodes({ includeSelf: false }).length; i++) {
       await nodesManager.compareFileList(nodesManager.nodes[i])
     }
-  })().catch(console.error);
-  (async () => {
-    if (CONFIG.backfill) {
-      const files = await FileModel.findAll()
-      for (let i = 0; i < files.length; i++) {
-        const hash: string = files[i].dataValues.hash
-        console.log(`  ${hash}  Backfilling file`)
-        const file = await FileHandler.init({ hash })
-        await file.getFile(nodesManager)
-      }
-    }
   })().catch(console.error)
 }
 
@@ -306,3 +295,19 @@ setInterval(() => {
   backgroundTasks().catch(console.error)
 }, CONFIG.compare_speed)
 backgroundTasks().catch(console.error)
+
+async function backfillFiles (): Promise<void> {
+  const files = await FileModel.findAll({ order: Sequelize.literal('rand()') })
+  for (let i = 0; i < files.length; i++) {
+    const hash: string = files[i].dataValues.hash
+    console.log(`  ${hash}  Backfilling file`)
+    const file = await FileHandler.init({ hash })
+    try {
+      await file.getFile(nodesManager)
+    } catch (e) {
+      console.error(e)
+    }
+  }
+  backfillFiles().catch(console.error)
+}
+if (CONFIG.backfill) backfillFiles().catch(console.error)
