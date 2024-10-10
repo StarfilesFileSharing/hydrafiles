@@ -300,7 +300,12 @@ async function backfillFiles (): Promise<void> {
   for (let i = 0; i < files.length; i++) {
     const hash: string = files[i].dataValues.hash
     console.log(`  ${hash}  Backfilling file`)
-    const file = await FileHandler.init({ hash })
+    let file
+    try {
+      file = await FileHandler.init({ hash })
+    } catch (e) {
+      if (CONFIG.log_level === 'verbose') throw e
+    }
     await file.getFile(nodesManager).catch((e) => { if (CONFIG.log_level === 'verbose') console.error(e) })
   }
   backfillFiles().catch(console.error)
