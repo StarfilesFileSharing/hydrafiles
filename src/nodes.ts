@@ -172,15 +172,26 @@ export default class Nodes {
   }
 
   async compareFileList (node: Node): Promise<void> {
-    const response = await fetch(`${node.host}/files`)
-    const files = await response.json()
-    for (let i = 0; i < files.length; i++) {
-      const file = await FileHandler.init(files[i])
-      if (file.infohash?.length === 0 && files[i].infohash.length !== 0) file.infohash = files[i].infohash
-      if (file.id?.length === 0 && files[i].id.length !== 0) file.id = files[i].id
-      if (file.name?.length === 0 && files[i].name.length !== 0) file.name = files[i].name
-      if (file.size === 0 && files[i].size !== 0) file.size = files[i].size
-      await file.save()
+    try {
+      console.log(`Comparing file list with ${node.host}`)
+      const response = await fetch(`${node.host}/files`)
+      const files = await response.json() as Array<{ hash: string, infohash: string | null, id: string | null, name: string | null, size: number }>
+      for (let i = 0; i < files.length; i++) {
+        try {
+          const file = await FileHandler.init({ hash: files[i].hash, infohash: files[i].infohash ?? undefined })
+          if (file.infohash?.length === 0 && files[i].infohash?.length !== 0) file.infohash = files[i].infohash
+          if (file.id?.length === 0 && files[i].id?.length !== 0) file.id = files[i].id
+          if (file.name?.length === 0 && files[i].name?.length !== 0) file.name = files[i].name
+          if (file.size === 0 && files[i].size !== 0) file.size = files[i].size
+          await file.save()
+        } catch (e) {
+          console.error(e)
+        }
+      }
+    } catch (e) {
+      console.log(`Failed to compare file list with ${node.host} - ${e.message}`)
+      return
     }
+    console.log(`Done comparing file list with ${node.host}`)
   }
 }
