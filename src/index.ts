@@ -278,8 +278,14 @@ server.listen(CONFIG.port, CONFIG.hostname, (): void => {
     }
   }
   handleListen().catch(console.error)
-})
+});
 
+(async () => {
+  await nodesManager.compareNodeList()
+  for (let i = 0; i < nodesManager.getNodes({ includeSelf: false }).length; i++) {
+    await nodesManager.compareFileList(nodesManager.nodes[i])
+  }
+})().catch(console.error)
 setInterval(() => {
   (async () => {
     await nodesManager.compareNodeList()
