@@ -313,13 +313,12 @@ async function backfillFiles (): Promise<void> {
   for (let i = 0; i < files.length; i++) {
     const hash: string = files[i].dataValues.hash
     console.log(`  ${hash}  Backfilling file`)
-    let file
+    const file = await FileHandler.init({ hash })
     try {
-      file = await FileHandler.init({ hash })
+      await file.getFile(nodesManager, { logDownloads: false }).catch((e) => { if (CONFIG.log_level === 'verbose') console.error(e) })
     } catch (e) {
       if (CONFIG.log_level === 'verbose') throw e
     }
-    await file.getFile(nodesManager).catch((e) => { if (CONFIG.log_level === 'verbose') console.error(e) })
   }
   backfillFiles().catch(console.error)
 }
