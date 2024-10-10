@@ -24,6 +24,7 @@ export interface Config {
   log_level: 'verbose' | 'normal'
   summary_speed: number
   compare_speed: number
+  backfill: boolean
 }
 
 const DIRNAME = path.resolve()
@@ -53,7 +54,8 @@ const CONFIG: Config = {
   timeout: config.timeout ?? defaultConfig.timeout,
   log_level: config.log_level ?? defaultConfig.log_level,
   summary_speed: config.summary_speed ?? defaultConfig.summary_speed,
-  compare_speed: config.compare_speed ?? defaultConfig.compare_speed
+  compare_speed: config.compare_speed ?? defaultConfig.compare_speed,
+  backfill: config.backfill ?? defaultConfig.backfill
 }
 
 export default CONFIG

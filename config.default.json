@@ -22,5 +22,6 @@
 	"upload_secret": "",
 	"log_level": "normal",
 	"summary_speed": 60000,
-	"compare_speed": 1800000
+	"compare_speed": 1800000,
+	"backfill": true
 }

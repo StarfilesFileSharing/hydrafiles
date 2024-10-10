@@ -8,6 +8,7 @@ import Nodes, { nodeFrom } from './nodes'
 import FileHandler, { FileModel, startDatabase, webtorrent } from './fileHandler'
 import { isIp, isPrivateIP, estimateHops, promiseWithTimeout, remainingStorage, purgeCache, calculateUsedStorage } from './utils'
 import { Readable } from 'stream'
+import { Op } from 'sequelize'
 
 // TODO: IDEA: HydraTorrent - New Github repo - "Hydrafiles + WebTorrent Compatibility Layer" - Hydrafiles noes can optionally run HydraTorrent to seed files via webtorrent
 // Change index hash from sha256 to infohash, then allow nodes to leech files from webtorrent + normal torrent
@@ -280,18 +281,47 @@ server.listen(CONFIG.port, CONFIG.hostname, (): void => {
   handleListen().catch(console.error)
 });
 
-(async () => {
-  await nodesManager.compareNodeList()
-  for (let i = 0; i < nodesManager.getNodes({ includeSelf: false }).length; i++) {
-    await nodesManager.compareFileList(nodesManager.nodes[i])
-  }
-})().catch(console.error)
-
-setInterval(() => {
+const backgroundTasks = async (): Promise<void> => {
+  nodesManager.compareNodeList().catch(console.error);
   (async () => {
-    await nodesManager.compareNodeList()
     for (let i = 0; i < nodesManager.getNodes({ includeSelf: false }).length; i++) {
       await nodesManager.compareFileList(nodesManager.nodes[i])
     }
+  })().catch(console.error);
+  (async () => {
+    if (CONFIG.backfill) {
+      const files = await FileModel.findAll({
+        where: {
+          size: {
+            [Op.not]: 0
+          },
+          [Op.or]: {
+            infohash: {
+              [Op.or]: [
+                null,
+                ''
+              ]
+            },
+            name: {
+              [Op.or]: [
+                null,
+                ''
+              ]
+            }
+          }
+        }
+      })
+      for (let i = 0; i < files.length; i++) {
+        const remainingSpace = remainingStorage()
+        if (CONFIG.max_storage !== -1 && files[i].dataValues.size > remainingSpace) purgeCache(files[i].dataValues.size, remainingSpace)
+        console.log(`  ${files[i].dataValues.hash}  Backfilling file`)
+        await nodesManager.getFile(files[i].dataValues.hash)
+      }
+    }
   })().catch(console.error)
+}
+
+setInterval(() => {
+  backgroundTasks().catch(console.error)
 }, CONFIG.compare_speed)
+backgroundTasks().catch(console.error)
