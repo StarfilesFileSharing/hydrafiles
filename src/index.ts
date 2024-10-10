@@ -5,8 +5,8 @@ import formidable from 'formidable'
 import CONFIG from './config'
 import init from './init'
 import Nodes, { nodeFrom } from './nodes'
-import FileHandler, { calculateUsedStorage, FileModel, startDatabase, webtorrent } from './fileHandler'
-import { isIp, isPrivateIP, estimateHops, promiseWithTimeout } from './utils'
+import FileHandler, { FileModel, startDatabase, webtorrent } from './fileHandler'
+import { isIp, isPrivateIP, estimateHops, promiseWithTimeout, remainingStorage, purgeCache, calculateUsedStorage } from './utils'
 import { Readable } from 'stream'
 
 // TODO: IDEA: HydraTorrent - New Github repo - "Hydrafiles + WebTorrent Compatibility Layer" - Hydrafiles noes can optionally run HydraTorrent to seed files via webtorrent

@@ -4,7 +4,7 @@ import * as path from 'path'
 import { Readable } from 'stream'
 import { Sequelize, Model, DataTypes } from 'sequelize'
 import CONFIG from './config'
-import { hasSufficientMemory, interfere, isValidInfoHash, isValidSHA256Hash, promiseWithTimeout, saveBufferToFile } from './utils'
+import { hasSufficientMemory, interfere, isValidInfoHash, isValidSHA256Hash, promiseWithTimeout, saveBufferToFile, remainingStorage, purgeCache } from './utils'
 import Nodes from './nodes'
 import WebTorrent from 'webtorrent'
 import SequelizeSimpleCache from 'sequelize-simple-cache'
@@ -12,21 +12,6 @@ import SequelizeSimpleCache from 'sequelize-simple-cache'
 interface Metadata { name: string, size: number, type: string, hash: string, id: string, infohash: string }
 
 const DIRNAME = path.resolve()
-
-const filesPath = path.join(DIRNAME, 'files')
-export const calculateUsedStorage = (): number => {
-  let usedStorage = 0
-  if (fs.existsSync(filesPath)) {
-    const files = fs.readdirSync(filesPath)
-    for (const file of files) {
-      const stats = fs.statSync(path.join(filesPath, file))
-      usedStorage += stats.size
-    }
-  }
-  return usedStorage
-}
-let usedStorage = calculateUsedStorage()
-console.log(`Files dir size: ${Math.round((100 * usedStorage) / 1024 / 1024 / 1024) / 100}GB`)
 
 export const webtorrent = new WebTorrent()
 const s3 = new S3({
@@ -39,20 +24,6 @@ const s3 = new S3({
 })
 // TODO: Log common user-agents and use the same for requests to slightly anonymise clients
 const seeding: string[] = []
-
-const purgeCache = (requiredSpace: number, remainingSpace: number): void => {
-  const files = fs.readdirSync(path.join(process.cwd(), 'files'))
-  for (const file of files) {
-    if (CONFIG.perma_files.includes(file)) continue
-
-    const size = fs.statSync(path.join(process.cwd(), 'files', file)).size
-    fs.unlinkSync(path.join(process.cwd(), 'files', file))
-    usedStorage -= size
-    remainingSpace += size
-
-    if (requiredSpace <= remainingSpace) break
-  }
-}
 
 interface FileAttributes {
   hash: string
@@ -162,8 +133,8 @@ export default class FileHandler {
       this.size = size
       await this.save()
     }
-    const remainingSpace = CONFIG.max_storage - usedStorage
-    if (size > remainingSpace) purgeCache(size, remainingSpace)
+    const remainingSpace = remainingStorage()
+    if (CONFIG.max_storage !== -1 && size > remainingSpace) purgeCache(size, remainingSpace)
 
     await saveBufferToFile(file, filePath)
   }

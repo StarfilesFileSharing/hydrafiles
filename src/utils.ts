@@ -4,6 +4,9 @@ import { createHash } from 'crypto'
 import CONFIG from './config'
 import { Readable } from 'stream'
 import { pipeline } from 'stream/promises'
+import path from 'path'
+
+const DIRNAME = path.resolve()
 
 export const getRandomNumber = (min: number, max: number): number => Math.floor(Math.random() * (max - min + 1)) + min
 export const isValidSHA256Hash = (hash: string): boolean => /^[a-f0-9]{64}$/.test(hash)
@@ -148,4 +151,31 @@ export async function saveBufferToFile (buffer: Buffer, filePath: string): Promi
       reject(error)
     }
   })
+}
+export const remainingStorage = (): number => {
+  return CONFIG.max_storage - calculateUsedStorage()
+}
+export const calculateUsedStorage = (): number => {
+  const filesPath = path.join(DIRNAME, 'files')
+  let usedStorage = 0
+  if (fs.existsSync(filesPath)) {
+    const files = fs.readdirSync(filesPath)
+    for (const file of files) {
+      const stats = fs.statSync(path.join(filesPath, file))
+      usedStorage += stats.size
+    }
+  }
+  return usedStorage
+}
+export const purgeCache = (requiredSpace: number, remainingSpace: number): void => {
+  const files = fs.readdirSync(path.join(process.cwd(), 'files'))
+  for (const file of files) {
+    if (CONFIG.perma_files.includes(file)) continue
+
+    const size = fs.statSync(path.join(process.cwd(), 'files', file)).size
+    fs.unlinkSync(path.join(process.cwd(), 'files', file))
+    remainingSpace += size
+
+    if (requiredSpace <= remainingSpace) break
+  }
 }
