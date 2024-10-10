@@ -168,6 +168,7 @@ export const calculateUsedStorage = (): number => {
   return usedStorage
 }
 export const purgeCache = (requiredSpace: number, remainingSpace: number): void => {
+  console.warn('WARNING: Your node has reached max storage, some files are getting purged. To prevent this, increase your limit at config.json or add more storage to your machine.')
   const files = fs.readdirSync(path.join(process.cwd(), 'files'))
   for (const file of files) {
     if (CONFIG.perma_files.includes(file)) continue
