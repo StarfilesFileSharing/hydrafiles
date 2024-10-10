@@ -63,7 +63,7 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
       const fileId = req.url.split('/')[3] ?? ''
 
       while (hashLocks.has(hash)) {
-        console.log(`  ${hash}  Waiting for existing request with same hash`)
+        if (CONFIG.log_level === 'verbose') console.log(`  ${hash}  Waiting for existing request with same hash`)
         await hashLocks.get(hash)
       }
       const processingPromise = (async () => {
@@ -250,7 +250,7 @@ server.listen(CONFIG.port, CONFIG.hostname, (): void => {
           }
         }
       } catch (e) {
-        console.error(`    Failed to fetch nodes from ${node.host}/nodes`)
+        console.error(`Failed to fetch nodes from ${node.host}/nodes`)
       }
     }
 
