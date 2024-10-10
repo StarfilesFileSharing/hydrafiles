@@ -250,34 +250,43 @@ server.listen(CONFIG.port, CONFIG.hostname, (): void => {
   console.log(`Server running at ${CONFIG.public_hostname}/`)
 
   const handleListen = async (): Promise<void> => {
-    await startDatabase()
+    await startDatabase();
 
     // Call all nodes and pull their /nodes
-    const nodes = nodesManager.getNodes({ includeSelf: false })
-    for (const node of nodes) {
-      try {
-        if (node.host.startsWith('http://') || node.host.startsWith('https://')) {
-          console.log(`Fetching nodes from ${node.host}/nodes`)
-          const response = await fetch(`${node.host}/nodes`)
-          if (response.status === 200) {
-            const remoteNodes = await response.json() as Node[]
-            for (const remoteNode of remoteNodes) {
-              if (remoteNode.host !== CONFIG.public_hostname && typeof nodes.find((node: { host: string }) => node.host === remoteNode.host) === 'undefined' && (await nodesManager.downloadFromNode(remoteNode, await FileHandler.init({ hash: '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f' })) !== false)) nodesManager.nodes.push(remoteNode)
+    (async () => {
+      const nodes = nodesManager.getNodes({ includeSelf: false })
+      for (const node of nodes) {
+        try {
+          if (node.host.startsWith('http://') || node.host.startsWith('https://')) {
+            console.log(`Fetching nodes from ${node.host}/nodes`)
+            const response = await fetch(`${node.host}/nodes`)
+            if (response.status === 200) {
+              const remoteNodes = await response.json() as Node[]
+              for (const remoteNode of remoteNodes) {
+                if (remoteNode.host !== CONFIG.public_hostname && typeof nodes.find((node: { host: string }) => node.host === remoteNode.host) === 'undefined' && (await nodesManager.downloadFromNode(remoteNode, await FileHandler.init({ hash: '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f' })) !== false)) nodesManager.nodes.push(remoteNode)
+              }
             }
           }
+        } catch (e) {
+          console.error(`Failed to fetch nodes from ${node.host}/nodes`)
         }
-      } catch (e) {
-        console.error(`Failed to fetch nodes from ${node.host}/nodes`)
       }
-    }
-
-    fs.writeFileSync(NODES_PATH, JSON.stringify(nodes))
+      fs.writeFileSync(NODES_PATH, JSON.stringify(nodes))
+    })().catch(console.error)
 
     console.log('Testing network connection')
     const file = await promiseWithTimeout(nodesManager.getFile('04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f'), CONFIG.timeout)
     if (file === false) console.error('Download test failed, cannot connect to network')
     else {
-      console.log('Connected to network')
+      console.log('Connected to network');
+      (async () => {
+        console.log('Comparing file list with other nodes')
+        for (let i = 0; i < nodesManager.nodes.length; i++) {
+          await nodesManager.compareFileList(nodesManager.nodes[i])
+        }
+        console.log('Done comparing file list')
+      })().catch(console.error)
+
       if (isIp(CONFIG.public_hostname) && isPrivateIP(CONFIG.public_hostname)) console.error('Public hostname is a private IP address, cannot announce to other nodes')
       else {
         console.log(`Testing downloads ${CONFIG.public_hostname}/download/04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f`)
@@ -286,22 +295,14 @@ server.listen(CONFIG.port, CONFIG.hostname, (): void => {
         console.log(`  04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f  Test ${response === false ? 'Failed' : 'Succeeded'}`)
 
         // Save self to nodes.json
-        if (nodes.find((node: { host: string }) => node.host === CONFIG.public_hostname) == null) {
+        if (nodesManager.nodes.find((node: { host: string }) => node.host === CONFIG.public_hostname) == null) {
           nodesManager.nodes.push({ host: CONFIG.public_hostname, http: true, dns: false, cf: false, hits: 0, rejects: 0, bytes: 0, duration: 0 })
-          fs.writeFileSync(NODES_PATH, JSON.stringify(nodes))
+          fs.writeFileSync(NODES_PATH, JSON.stringify(nodesManager.nodes))
         }
 
         console.log('Announcing to nodes')
         await nodesManager.announce()
       }
-
-      (async () => {
-        console.log('Comparing file list with other nodes')
-        for (let i = 0; i < nodesManager.nodes.length; i++) {
-          await nodesManager.compareFileList(nodesManager.nodes[i])
-        }
-        console.log('Done comparing file list')
-      })().catch(console.error)
     }
   }
   handleListen().catch(console.error)
