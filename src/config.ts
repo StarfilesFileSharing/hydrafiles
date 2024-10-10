@@ -28,7 +28,7 @@ export interface Config {
 
 const DIRNAME = path.resolve()
 
-if (!fs.existsSync(path.join(DIRNAME, 'config.json'))) fs.copyFileSync(path.join(DIRNAME, 'config.default.json'), path.join(DIRNAME, 'config.json'))
+if (!fs.existsSync(path.join(DIRNAME, 'config.json'))) fs.writeFileSync(path.join(DIRNAME, 'config.json'), '{}')
 const config: Config = JSON.parse(fs.readFileSync(path.join(DIRNAME, 'config.json')).toString())
 const defaultConfig: Config = JSON.parse(fs.readFileSync(path.join(DIRNAME, 'config.default.json')).toString())
 
