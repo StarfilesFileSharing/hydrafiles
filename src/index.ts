@@ -286,6 +286,7 @@ server.listen(CONFIG.port, CONFIG.hostname, (): void => {
     await nodesManager.compareFileList(nodesManager.nodes[i])
   }
 })().catch(console.error)
+
 setInterval(() => {
   (async () => {
     await nodesManager.compareNodeList()
@@ -293,4 +294,4 @@ setInterval(() => {
       await nodesManager.compareFileList(nodesManager.nodes[i])
     }
   })().catch(console.error)
-}, 60000 * 5)
+}, CONFIG.compare_speed)

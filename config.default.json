@@ -21,5 +21,6 @@
 	"timeout": 60000,
 	"upload_secret": "",
 	"log_level": "normal",
-	"summary_speed": 60000
+	"summary_speed": 60000,
+	"compare_speed": 1800000
 }
