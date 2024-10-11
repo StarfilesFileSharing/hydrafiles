@@ -28,12 +28,15 @@ import { calculateUsedStorage, convertTime } from './utils.js';
 class Hydrafiles {
     constructor() {
         this.backgroundTasks = () => __awaiter(this, void 0, void 0, function* () {
-            nodesManager.compareNodeList().catch(console.error);
-            (() => __awaiter(this, void 0, void 0, function* () {
-                for (let i = 0; i < nodesManager.getNodes({ includeSelf: false }).length; i++) {
-                    yield nodesManager.compareFileList(nodesManager.nodes[i]);
-                }
-            }))().catch(console.error);
+            if (CONFIG.compare_nodes)
+                nodesManager.compareNodeList().catch(console.error);
+            if (CONFIG.compare_files) {
+                (() => __awaiter(this, void 0, void 0, function* () {
+                    for (let i = 0; i < nodesManager.getNodes({ includeSelf: false }).length; i++) {
+                        yield nodesManager.compareFileList(nodesManager.nodes[i]);
+                    }
+                }))().catch(console.error);
+            }
         });
         this.backfillFiles = () => __awaiter(this, void 0, void 0, function* () {
             const files = yield FileModel.findAll({ order: Sequelize.literal('RANDOM()') });

@@ -39,12 +39,14 @@ class Hydrafiles {
   }
 
   backgroundTasks = async (): Promise<void> => {
-    nodesManager.compareNodeList().catch(console.error);
-    (async () => {
-      for (let i = 0; i < nodesManager.getNodes({ includeSelf: false }).length; i++) {
-        await nodesManager.compareFileList(nodesManager.nodes[i])
-      }
-    })().catch(console.error)
+    if (CONFIG.compare_nodes) nodesManager.compareNodeList().catch(console.error)
+    if (CONFIG.compare_files) {
+      (async () => {
+        for (let i = 0; i < nodesManager.getNodes({ includeSelf: false }).length; i++) {
+          await nodesManager.compareFileList(nodesManager.nodes[i])
+        }
+      })().catch(console.error)
+    }
   }
 
   backfillFiles = async (): Promise<void> => {

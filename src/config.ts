@@ -25,6 +25,8 @@ export interface Config {
   summary_speed: number
   compare_speed: number
   backfill: boolean
+  compare_nodes: boolean
+  compare_files: boolean
 }
 
 const DIRNAME = path.resolve()
@@ -55,7 +57,9 @@ const CONFIG: Config = {
   log_level: config.log_level ?? defaultConfig.log_level,
   summary_speed: config.summary_speed ?? defaultConfig.summary_speed,
   compare_speed: config.compare_speed ?? defaultConfig.compare_speed,
-  backfill: config.backfill ?? defaultConfig.backfill
+  backfill: config.backfill ?? defaultConfig.backfill,
+  compare_nodes: config.compare_nodes ?? defaultConfig.compare_nodes,
+  compare_files: config.compare_files ?? defaultConfig.compare_files
 }
 
 export default CONFIG

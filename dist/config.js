@@ -1,4 +1,4 @@
-var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x;
+var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z;
 import fs from 'fs';
 import path from 'path';
 const DIRNAME = path.resolve();
@@ -28,6 +28,8 @@ const CONFIG = {
     log_level: (_u = config.log_level) !== null && _u !== void 0 ? _u : defaultConfig.log_level,
     summary_speed: (_v = config.summary_speed) !== null && _v !== void 0 ? _v : defaultConfig.summary_speed,
     compare_speed: (_w = config.compare_speed) !== null && _w !== void 0 ? _w : defaultConfig.compare_speed,
-    backfill: (_x = config.backfill) !== null && _x !== void 0 ? _x : defaultConfig.backfill
+    backfill: (_x = config.backfill) !== null && _x !== void 0 ? _x : defaultConfig.backfill,
+    compare_nodes: (_y = config.compare_nodes) !== null && _y !== void 0 ? _y : defaultConfig.compare_nodes,
+    compare_files: (_z = config.compare_files) !== null && _z !== void 0 ? _z : defaultConfig.compare_files
 };
 export default CONFIG;
