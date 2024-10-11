@@ -5,9 +5,10 @@
   "description": "The headless storage network.",
   "main": "index.js",
   "scripts": {
-    "format": "npx ts-standard --fix",
-    "test": "npx ts-standard && npx tsx src/index.ts",
-    "start": "npx tsx src/index.ts"
+    "format": "npx ts-standard --fix src/*.ts",
+    "test": "npx tsx src/index.ts",
+    "build": "npx ts-standard src/*.ts && npx tsc",
+    "start": "node dist/index.js"
   },
   "repository": {
     "type": "git",
@@ -31,11 +32,12 @@
   "type": "module",
   "devDependencies": {
     "@types/formidable": "^3.4.5",
-    "@types/node": "^18.14.0",
+    "@types/node": "^18.19.55",
+    "@types/sequelize": "^4.28.20",
     "@types/webtorrent": "^0.109.8",
     "ts-node": "^10.9.2",
     "ts-standard": "^12.0.2",
-    "typescript": "^5.4.5"
+    "typescript": "^5.6.3"
   },
   "keywords": []
 }

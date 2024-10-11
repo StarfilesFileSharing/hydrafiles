@@ -1,11 +1,16 @@
 {
 	"compilerOptions": {
+		"module": "ESNext",
+		"target": "ES6",
 		"esModuleInterop": true,
 		"strict": true,
 		"noImplicitAny": true,
 		"strictNullChecks": true,
 		"noImplicitReturns": true,
 		"noImplicitThis": true,
-		"alwaysStrict": true
+		"alwaysStrict": true,
+		"moduleResolution": "node",
+		"outDir": "./dist",
+		"rootDir": "./src"
 	}
 }
