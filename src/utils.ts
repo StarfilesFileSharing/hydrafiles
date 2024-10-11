@@ -180,3 +180,14 @@ export const purgeCache = (requiredSpace: number, remainingSpace: number): void 
     if (requiredSpace <= remainingSpace) break
   }
 }
+export const convertTime = (duration: number): string => {
+  const msPerSecond = 1000
+  const msPerMinute = msPerSecond * 60
+  const msPerHour = msPerMinute * 60
+  const msPerDay = msPerHour * 24
+
+  if (duration < msPerMinute) return (duration / msPerSecond).toFixed(2) + ' seconds'
+  else if (duration < msPerHour) return (duration / msPerMinute).toFixed(2) + ' minutes'
+  else if (duration < msPerDay) return (duration / msPerHour).toFixed(2) + ' hours'
+  else return (duration / msPerDay).toFixed(2) + ' days'
+}
