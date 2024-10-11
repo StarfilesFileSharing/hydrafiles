@@ -27,7 +27,11 @@ class Hydrafiles {
     (async () => {
       await this.logState()
       setInterval(() => { this.logState().catch(console.error) }, CONFIG.summary_speed)
-      await startDatabase()
+      try {
+        await startDatabase()
+      } catch (e) {
+        console.error(e)
+      }
       startServer()
 
       // setInterval(() => {
