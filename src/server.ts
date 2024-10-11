@@ -2,10 +2,10 @@ import fs from 'fs'
 import http from 'http'
 import path from 'path'
 import formidable from 'formidable'
-import CONFIG from './config'
-import { nodeFrom, NODES_PATH, nodesManager } from './nodes'
-import FileHandler, { FileAttributes, FileModel } from './fileHandler'
-import { estimateHops, isIp, isPrivateIP } from './utils'
+import CONFIG from './config.js'
+import { nodeFrom, NODES_PATH, nodesManager } from './nodes.js'
+import FileHandler, { FileAttributes, FileModel } from './fileHandler.js'
+import { estimateHops, isIp, isPrivateIP } from './utils.js'
 
 const DIRNAME = path.resolve()
 export const hashLocks = new Map<string, Promise<any>>()

@@ -1,6 +1,6 @@
 import fs from 'fs'
 import path from 'path'
-import { PreferNode } from './nodes'
+import { PreferNode } from './nodes.js'
 
 export interface Config {
   port: number

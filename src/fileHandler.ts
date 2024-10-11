@@ -1,13 +1,14 @@
 import { S3 } from '@aws-sdk/client-s3'
-import * as fs from 'fs'
-import * as path from 'path'
+import fs from 'fs'
+import path from 'path'
 import { Readable } from 'stream'
-import { Sequelize, Model, DataTypes } from 'sequelize'
-import CONFIG from './config'
-import { hasSufficientMemory, interfere, isValidInfoHash, isValidSHA256Hash, saveBufferToFile, remainingStorage, purgeCache } from './utils'
-import Nodes from './nodes'
-import WebTorrent from 'webtorrent'
+import { Sequelize, DataTypes, Model } from 'sequelize'
+import CONFIG from './config.js'
+import { hasSufficientMemory, interfere, isValidInfoHash, isValidSHA256Hash, saveBufferToFile, remainingStorage, purgeCache } from './utils.js'
+import Nodes from './nodes.js'
 import SequelizeSimpleCache from 'sequelize-simple-cache'
+import { Instance } from 'webtorrent'
+const WebTorrentPromise = import('webtorrent')
 
 interface Metadata { name: string, size: number, type: string, hash: string, id: string, infohash: string }
 

@@ -1,11 +1,11 @@
 import fs from 'fs'
-import CONFIG from './config'
-import init from './init'
-import { nodesManager } from './nodes'
-import FileHandler, { FileModel, startDatabase, webtorrent } from './fileHandler'
-import { calculateUsedStorage, convertTime } from './utils'
-import { Sequelize } from 'sequelize'
-import { hashLocks, startServer } from './server'
+import Sequelize from 'sequelize'
+import init from './init.js'
+import CONFIG from './config.js'
+import { nodesManager } from './nodes.js'
+import FileHandler, { FileModel, startDatabase, webtorrentClient } from './fileHandler.js'
+import { hashLocks, startServer } from './server.js'
+import { calculateUsedStorage, convertTime } from './utils.js'
 
 // TODO: IDEA: HydraTorrent - New Github repo - "Hydrafiles + WebTorrent Compatibility Layer" - Hydrafiles noes can optionally run HydraTorrent to seed files via webtorrent
 // Change index hash from sha256 to infohash, then allow nodes to leech files from webtorrent + normal torrent

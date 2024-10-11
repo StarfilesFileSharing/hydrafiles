@@ -1,8 +1,8 @@
 import fs from 'fs'
 import path from 'path'
-import CONFIG from './config'
-import { promiseWithTimeout, hasSufficientMemory, interfere, promiseWrapper, hashStream, bufferToStream } from './utils'
-import FileHandler from './fileHandler'
+import CONFIG from './config.js'
+import { promiseWithTimeout, hasSufficientMemory, interfere, promiseWrapper, hashStream, bufferToStream } from './utils.js'
+import FileHandler from './fileHandler.js'
 
 export interface Node { host: string, http: boolean, dns: boolean, cf: boolean, hits: number, rejects: number, bytes: number, duration: number, status?: boolean }
 export enum PreferNode { FASTEST, LEAST_USED, RANDOM, HIGHEST_HITRATE }

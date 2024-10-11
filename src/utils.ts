@@ -1,7 +1,7 @@
 import os from 'os'
 import fs from 'fs'
 import { createHash } from 'crypto'
-import CONFIG from './config'
+import CONFIG from './config.js'
 import { Readable } from 'stream'
 import { pipeline } from 'stream/promises'
 import path from 'path'
