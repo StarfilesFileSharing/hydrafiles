@@ -209,7 +209,8 @@ export default class FileHandler {
             if (this.size !== 0 && !hasSufficientMemory(this.size)) {
                 yield new Promise(() => {
                     const intervalId = setInterval(() => {
-                        console.log(`  ${hash}  Reached memory limit, waiting`, this.size);
+                        if (CONFIG.log_level === 'verbose')
+                            console.log(`  ${hash}  Reached memory limit, waiting`, this.size);
                         if (this.size === 0 || hasSufficientMemory(this.size))
                             clearInterval(intervalId);
                     }, CONFIG.memory_threshold_reached_wait);
