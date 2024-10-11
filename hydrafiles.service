@@ -3,7 +3,7 @@ Description=Hydrafiles Service
 After=network.target
 
 [Service]
-ExecStart=/usr/bin/npx tsx /root/Hydrafiles/src/index.ts
+ExecStart=/usr/bin/node /root/Hydrafiles/dist/start.js
 Restart=always
 User=root
 Environment=NODE_ENV=production
