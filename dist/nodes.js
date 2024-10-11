@@ -70,7 +70,15 @@ export default class Nodes {
                 const startTime = Date.now();
                 const hash = file.hash;
                 console.log(`  ${hash}  Downloading from ${node.host}`);
-                const response = yield promiseWithTimeout(fetch(`${node.host}/download/${hash}`), CONFIG.timeout);
+                let response;
+                try {
+                    response = yield promiseWithTimeout(fetch(`${node.host}/download/${hash}`), CONFIG.timeout);
+                }
+                catch (e) {
+                    if (CONFIG.log_level === 'verbose')
+                        console.error(e);
+                    return false;
+                }
                 const buffer = Buffer.from(yield response.arrayBuffer());
                 console.log(`  ${hash}  Validating hash`);
                 const verifiedHash = yield hashStream(bufferToStream(buffer));
@@ -142,6 +150,7 @@ export default class Nodes {
     }
     getFile(hash_1) {
         return __awaiter(this, arguments, void 0, function* (hash, size = 0) {
+            console.log(`  ${hash}  Getting file from nodes`);
             const nodes = this.getNodes({ includeSelf: false });
             let activePromises = [];
             if (!hasSufficientMemory(size)) {
@@ -157,7 +166,13 @@ export default class Nodes {
                 if (node.http && node.host.length > 0) {
                     const promise = (() => __awaiter(this, void 0, void 0, function* () {
                         const file = yield FileHandler.init({ hash });
-                        const fileContent = yield this.downloadFromNode(node, file);
+                        let fileContent = false;
+                        try {
+                            fileContent = yield this.downloadFromNode(node, file);
+                        }
+                        catch (e) {
+                            console.error(e);
+                        }
                         return fileContent !== false ? fileContent : false;
                     }))();
                     activePromises.push(promise);

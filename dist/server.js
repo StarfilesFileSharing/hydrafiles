@@ -220,7 +220,7 @@ const handleRequest = (req, res) => __awaiter(void 0, void 0, void 0, function* 
 export const startServer = () => {
     const server = http.createServer((req, res) => {
         console.log('Request Received:', req.url);
-        void handleRequest(req, res);
+        handleRequest(req, res).catch(console.error);
     });
     server.listen(CONFIG.port, CONFIG.hostname, () => {
         console.log(`Server running at ${CONFIG.public_hostname}/`);

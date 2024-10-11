@@ -42,23 +42,7 @@ export const isIp = (host) => /^https?:\/\/(?:\d+\.){3}\d+(?::\d+)?$/.test(host)
 export const isPrivateIP = (ip) => /^https?:\/\/(?:10\.|(?:172\.(?:1[6-9]|2\d|3[0-1]))\.|192\.168\.|169\.254\.|127\.|224\.0\.0\.|255\.255\.255\.255)/.test(ip);
 export const interfere = (signalStrength) => signalStrength >= 95 ? getRandomNumber(90, 100) : Math.ceil(signalStrength * (1 - (getRandomNumber(0, 10) / 100)));
 export const hasSufficientMemory = (fileSize) => os.freemem() > (fileSize + CONFIG.memory_threshold);
-export const promiseWithTimeout = (promise, timeoutDuration) => __awaiter(void 0, void 0, void 0, function* () {
-    const controller = new AbortController();
-    const signal = controller.signal;
-    const wrappedPromise = new Promise((resolve, reject) => {
-        signal.addEventListener('abort', () => reject(new Error('Promise timed out')));
-        promise
-            .then(resolve)
-            .catch(reject);
-    });
-    return yield Promise.race([
-        wrappedPromise,
-        new Promise((_resolve, reject) => setTimeout(() => {
-            controller.abort();
-            reject(new Error('Promise timed out'));
-        }, timeoutDuration))
-    ]);
-});
+export const promiseWithTimeout = (promise, timeoutDuration) => __awaiter(void 0, void 0, void 0, function* () { return yield Promise.race([promise, new Promise((_resolve, reject) => setTimeout(() => reject(new Error('Promise timed out')), timeoutDuration))]); });
 export const promiseWrapper = (promise) => {
     let isFulfilled = false;
     const wrappedPromise = promise
