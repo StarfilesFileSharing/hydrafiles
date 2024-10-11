@@ -59,7 +59,13 @@ export default class Nodes {
 
       const hash = file.hash
       console.log(`  ${hash}  Downloading from ${node.host}`)
-      const response = await promiseWithTimeout(fetch(`${node.host}/download/${hash}`), CONFIG.timeout)
+      let response
+      try {
+        response = await promiseWithTimeout(fetch(`${node.host}/download/${hash}`), CONFIG.timeout)
+      } catch (e) {
+        if (CONFIG.log_level === 'verbose') console.error(e)
+        return false
+      }
       const buffer: Buffer = Buffer.from(await response.arrayBuffer())
       console.log(`  ${hash}  Validating hash`)
       const verifiedHash = await hashStream(bufferToStream(buffer))
@@ -130,6 +136,7 @@ export default class Nodes {
   }
 
   async getFile (hash: string, size: number = 0): Promise<{ file: Buffer, signal: number } | false> {
+    console.log(`  ${hash}  Getting file from nodes`)
     const nodes = this.getNodes({ includeSelf: false })
     let activePromises: Array<Promise<{ file: Buffer, signal: number } | false>> = []
 
@@ -146,7 +153,12 @@ export default class Nodes {
       if (node.http && node.host.length > 0) {
         const promise = (async (): Promise<{ file: Buffer, signal: number } | false> => {
           const file = await FileHandler.init({ hash })
-          const fileContent = await this.downloadFromNode(node, file)
+          let fileContent: { file: Buffer, signal: number } | false = false
+          try {
+            fileContent = await this.downloadFromNode(node, file)
+          } catch (e) {
+            console.error(e)
+          }
           return fileContent !== false ? fileContent : false
         })()
         activePromises.push(promise)
