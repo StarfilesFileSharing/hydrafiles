@@ -218,6 +218,7 @@ const handleRequest = (req, res) => __awaiter(void 0, void 0, void 0, function* 
     }
 });
 export const startServer = () => {
+    console.log('Starting server');
     const server = http.createServer((req, res) => {
         console.log('Request Received:', req.url);
         handleRequest(req, res).catch(console.error);

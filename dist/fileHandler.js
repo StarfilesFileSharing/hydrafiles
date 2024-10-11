@@ -340,6 +340,7 @@ const UncachedFileModel = sequelize.define('File', {
 const cache = new SequelizeSimpleCache({ File: { ttl: 30 * 60 } });
 export const FileModel = cache.init(UncachedFileModel);
 export const startDatabase = () => __awaiter(void 0, void 0, void 0, function* () {
+    console.log('Starting database');
     yield sequelize.sync({ alter: true });
     console.log('Connected to the local DB');
 });

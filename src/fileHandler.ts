@@ -321,6 +321,7 @@ const cache = new SequelizeSimpleCache({ File: { ttl: 30 * 60 } })
 export const FileModel = cache.init(UncachedFileModel)
 
 export const startDatabase = async (): Promise<void> => {
+  console.log('Starting database')
   await sequelize.sync({ alter: true })
   console.log('Connected to the local DB')
 }

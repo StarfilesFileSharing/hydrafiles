@@ -216,6 +216,7 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
 }
 
 export const startServer = (): void => {
+  console.log('Starting server')
   const server = http.createServer((req, res) => {
     console.log('Request Received:', req.url)
 
