@@ -63,27 +63,31 @@ class Hydrafiles {
   }
 
   async logState (): Promise<void> {
-    console.log(
-      '\n===============================================\n========',
-      new Date().toUTCString(),
-      '========\n===============================================\n| Uptime: ',
-      convertTime(+new Date() - this.startTime),
-      '\n| Known (Network) Files:',
-      await FileModel.noCache().count(),
-      `(${Math.round((100 * await FileModel.noCache().sum('size')) / 1024 / 1024 / 1024) / 100}GB)`,
-      '\n| Stored Files:',
-      fs.readdirSync('files/').length,
-      `(${Math.round((100 * calculateUsedStorage()) / 1024 / 1024 / 1024) / 100}GB)`,
-      '\n| Processing Files:',
-      hashLocks.size,
-      '\n| Seeding Torrent Files:',
-      webtorrent.torrents.length,
-      '\n| Download Count:',
-      await FileModel.noCache().sum('downloadCount'),
-      '\n===============================================\n'
-    )
+    try {
+      console.log(
+        '\n===============================================\n========',
+        new Date().toUTCString(),
+        '========\n===============================================\n| Uptime: ',
+        convertTime(+new Date() - this.startTime),
+        '\n| Known (Network) Files:',
+        await FileModel.noCache().count(),
+        `(${Math.round((100 * await FileModel.noCache().sum('size')) / 1024 / 1024 / 1024) / 100}GB)`,
+        '\n| Stored Files:',
+        fs.readdirSync('files/').length,
+        `(${Math.round((100 * calculateUsedStorage()) / 1024 / 1024 / 1024) / 100}GB)`,
+        '\n| Processing Files:',
+        hashLocks.size,
+        '\n| Seeding Torrent Files:',
+        (await webtorrentClient()).torrents.length,
+        '\n| Download Count:',
+        await FileModel.noCache().sum('downloadCount'),
+        '\n===============================================\n'
+      )
+    } catch (e) {
+      console.error(e)
+    }
   }
 }
 
-const hydrafiles = new Hydrafiles()
+export const hydrafiles = new Hydrafiles()
 console.log('Hydrafiles Started', hydrafiles)

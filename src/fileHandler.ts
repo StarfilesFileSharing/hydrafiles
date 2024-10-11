@@ -14,7 +14,6 @@ interface Metadata { name: string, size: number, type: string, hash: string, id:
 
 const DIRNAME = path.resolve()
 
-export const webtorrent = new WebTorrent()
 const s3 = new S3({
   region: 'us-east-1',
   credentials: {
@@ -26,7 +25,16 @@ const s3 = new S3({
 // TODO: Log common user-agents and use the same for requests to slightly anonymise clients
 const seeding: string[] = []
 
-interface FileAttributes {
+let webtorrent: Instance | null = null
+export const webtorrentClient = async (): Promise<Instance> => {
+  if (webtorrent === null) {
+    const WebTorrent = (await WebTorrentPromise).default
+    webtorrent = new WebTorrent()
+  }
+  return webtorrent
+}
+
+export interface FileAttributes {
   hash: string
   infohash: string
   downloadCount: number | undefined
@@ -144,7 +152,7 @@ export default class FileHandler {
     const hash = this.hash
     console.log(`  ${hash}  Checking Cache`)
     const filePath = path.join(DIRNAME, 'files', hash)
-    this.seed()
+    await this.seed()
     return fs.existsSync(filePath) ? { file: fs.readFileSync(filePath), signal: interfere(100) } : false
   }
 
@@ -209,7 +217,7 @@ export default class FileHandler {
       }
     }
 
-    if (file !== false) this.seed()
+    if (file !== false) await this.seed()
 
     return file
   }
@@ -224,12 +232,13 @@ export default class FileHandler {
     await this.file.save()
   }
 
-  seed (): void {
+  async seed (): Promise<void> {
     if (seeding.includes(this.hash)) return
     seeding.push(this.hash)
     const filePath = path.join(DIRNAME, 'files', this.hash)
     if (!fs.existsSync(filePath)) return
-    webtorrent.seed(filePath, {
+    (await webtorrentClient()).seed(filePath, {
+      // @ts-expect-error
       createdBy: 'Hydrafiles/0.1',
       name: (this.name ?? this.hash).replace(/(\.\w+)$/, ' [HYDRAFILES]$1'),
       destroyStoreOnDestroy: true,
