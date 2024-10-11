@@ -1,11 +1,12 @@
 var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z;
 import fs from 'fs';
 import path from 'path';
-const DIRNAME = path.resolve();
-if (!fs.existsSync(path.join(DIRNAME, 'config.json')))
-    fs.writeFileSync(path.join(DIRNAME, 'config.json'), '{}');
-const config = JSON.parse(fs.readFileSync(path.join(DIRNAME, 'config.json')).toString());
-const defaultConfig = JSON.parse(fs.readFileSync(path.join(DIRNAME, 'config.default.json')).toString());
+import { fileURLToPath } from 'url';
+const DIRNAME = path.dirname(fileURLToPath(import.meta.url));
+if (!fs.existsSync(path.join(DIRNAME, '../config.json')))
+    fs.writeFileSync(path.join(DIRNAME, '../config.json'), '{}');
+const config = JSON.parse(fs.readFileSync(path.join(DIRNAME, '../config.json')).toString());
+const defaultConfig = JSON.parse(fs.readFileSync(path.join(DIRNAME, '../config.default.json')).toString());
 const CONFIG = {
     port: (_a = config.port) !== null && _a !== void 0 ? _a : defaultConfig.port,
     hostname: (_b = config.hostname) !== null && _b !== void 0 ? _b : defaultConfig.hostname,

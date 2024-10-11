@@ -1,6 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { PreferNode } from './nodes.js'
+import { fileURLToPath } from 'url'
 
 export interface Config {
   port: number
@@ -29,11 +30,11 @@ export interface Config {
   compare_files: boolean
 }
 
-const DIRNAME = path.resolve()
+const DIRNAME = path.dirname(fileURLToPath(import.meta.url))
 
-if (!fs.existsSync(path.join(DIRNAME, 'config.json'))) fs.writeFileSync(path.join(DIRNAME, 'config.json'), '{}')
-const config: Config = JSON.parse(fs.readFileSync(path.join(DIRNAME, 'config.json')).toString())
-const defaultConfig: Config = JSON.parse(fs.readFileSync(path.join(DIRNAME, 'config.default.json')).toString())
+if (!fs.existsSync(path.join(DIRNAME, '../config.json'))) fs.writeFileSync(path.join(DIRNAME, '../config.json'), '{}')
+const config: Config = JSON.parse(fs.readFileSync(path.join(DIRNAME, '../config.json')).toString())
+const defaultConfig: Config = JSON.parse(fs.readFileSync(path.join(DIRNAME, '../config.default.json')).toString())
 
 const CONFIG: Config = {
   port: config.port ?? defaultConfig.port,
