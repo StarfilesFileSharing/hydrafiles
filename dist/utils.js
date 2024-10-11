@@ -30,216 +30,221 @@ var __asyncGenerator = (this && this.__asyncGenerator) || function (thisArg, _ar
 import os from 'os';
 import fs from 'fs';
 import { createHash } from 'crypto';
-import CONFIG from './config.js';
 import { Readable } from 'stream';
 import { pipeline } from 'stream/promises';
 import path from 'path';
-const DIRNAME = path.resolve();
-export const getRandomNumber = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
-export const isValidSHA256Hash = (hash) => /^[a-f0-9]{64}$/.test(hash);
-export const isValidInfoHash = (hash) => /^[a-f0-9]{40}$/.test(hash);
-export const isIp = (host) => /^https?:\/\/(?:\d+\.){3}\d+(?::\d+)?$/.test(host);
-export const isPrivateIP = (ip) => /^https?:\/\/(?:10\.|(?:172\.(?:1[6-9]|2\d|3[0-1]))\.|192\.168\.|169\.254\.|127\.|224\.0\.0\.|255\.255\.255\.255)/.test(ip);
-export const interfere = (signalStrength) => signalStrength >= 95 ? getRandomNumber(90, 100) : Math.ceil(signalStrength * (1 - (getRandomNumber(0, 10) / 100)));
-export const hasSufficientMemory = (fileSize) => os.freemem() > (fileSize + CONFIG.memory_threshold);
-export const promiseWithTimeout = (promise, timeoutDuration) => __awaiter(void 0, void 0, void 0, function* () { return yield Promise.race([promise, new Promise((_resolve, reject) => setTimeout(() => reject(new Error('Promise timed out')), timeoutDuration))]); });
-export const promiseWrapper = (promise) => {
-    let isFulfilled = false;
-    const wrappedPromise = promise
-        .then((value) => {
-        isFulfilled = true;
-        return value;
-    })
-        .catch((error) => {
-        isFulfilled = true;
-        throw error;
-    });
-    return {
-        promise: wrappedPromise,
-        isFulfilled
-    };
-};
-export const estimateHops = (signalStrength) => {
-    const hopData = [
-        { hop: 1, min: 90, avg: 95 },
-        { hop: 2, min: 81, avg: 92 },
-        { hop: 3, min: 73, avg: 88 },
-        { hop: 4, min: 66, avg: 85 },
-        { hop: 5, min: 61, avg: 81 },
-        { hop: 6, min: 56, avg: 78 },
-        { hop: 7, min: 51, avg: 74 },
-        { hop: 8, min: 49, avg: 71 },
-        { hop: 9, min: 45, avg: 68 },
-        { hop: 10, min: 43, avg: 65 }
-    ];
-    const avgDistance = hopData.reduce((sum, hop) => sum + Math.abs(signalStrength - hop.avg), 0) / hopData.length;
-    let closestHop = null;
-    let closestDistance = Infinity; // Diff between signal strength and avg
-    let closestCertainty = Infinity;
-    for (const hop of hopData) {
-        if (signalStrength < hop.min)
-            continue;
-        const distance = Math.abs(signalStrength - hop.avg);
-        const range = 100 - hop.min;
-        const distanceMinMax = Math.min(Math.abs(signalStrength - hop.min), Math.abs(100 - signalStrength));
-        const certaintyAvg = avgDistance > 0 ? (1 - (distance / avgDistance)) : 0;
-        // const certaintyAvg = range > 0 ? (1 - (distance / (range / 2))) : 0
-        const certaintyMinMax = 1 - (distanceMinMax / Math.max(range, 1));
-        const finalCertainty = (certaintyAvg + certaintyMinMax) / 2;
-        if (distance < closestDistance) {
-            closestDistance = distance;
-            closestHop = hop.hop;
-            closestCertainty = finalCertainty;
-        }
-    }
-    return { hop: closestHop, certainty: Math.round(closestCertainty * 10000) / 100 };
-};
-export const hashStream = (stream) => __awaiter(void 0, void 0, void 0, function* () {
-    const hash = createHash('sha256');
-    yield pipeline(stream, function (source) {
-        return __asyncGenerator(this, arguments, function* () {
-            var _a, e_1, _b, _c;
-            try {
-                for (var _d = true, source_1 = __asyncValues(source), source_1_1; source_1_1 = yield __await(source_1.next()), _a = source_1_1.done, !_a; _d = true) {
-                    _c = source_1_1.value;
-                    _d = false;
-                    const chunk = _c;
-                    hash.update(chunk);
+class Utils {
+    constructor(config) {
+        this.DIRNAME = path.resolve();
+        this.getRandomNumber = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
+        this.isValidSHA256Hash = (hash) => /^[a-f0-9]{64}$/.test(hash);
+        this.isValidInfoHash = (hash) => /^[a-f0-9]{40}$/.test(hash);
+        this.isIp = (host) => /^https?:\/\/(?:\d+\.){3}\d+(?::\d+)?$/.test(host);
+        this.isPrivateIP = (ip) => /^https?:\/\/(?:10\.|(?:172\.(?:1[6-9]|2\d|3[0-1]))\.|192\.168\.|169\.254\.|127\.|224\.0\.0\.|255\.255\.255\.255)/.test(ip);
+        this.interfere = (signalStrength) => signalStrength >= 95 ? this.getRandomNumber(90, 100) : Math.ceil(signalStrength * (1 - (this.getRandomNumber(0, 10) / 100)));
+        this.hasSufficientMemory = (fileSize) => os.freemem() > (fileSize + this.config.memory_threshold);
+        this.promiseWithTimeout = (promise, timeoutDuration) => __awaiter(this, void 0, void 0, function* () { return yield Promise.race([promise, new Promise((_resolve, reject) => setTimeout(() => reject(new Error('Promise timed out')), timeoutDuration))]); });
+        this.promiseWrapper = (promise) => {
+            let isFulfilled = false;
+            const wrappedPromise = promise
+                .then((value) => {
+                isFulfilled = true;
+                return value;
+            })
+                .catch((error) => {
+                isFulfilled = true;
+                throw error;
+            });
+            return {
+                promise: wrappedPromise,
+                isFulfilled
+            };
+        };
+        this.estimateHops = (signalStrength) => {
+            const hopData = [
+                { hop: 1, min: 90, avg: 95 },
+                { hop: 2, min: 81, avg: 92 },
+                { hop: 3, min: 73, avg: 88 },
+                { hop: 4, min: 66, avg: 85 },
+                { hop: 5, min: 61, avg: 81 },
+                { hop: 6, min: 56, avg: 78 },
+                { hop: 7, min: 51, avg: 74 },
+                { hop: 8, min: 49, avg: 71 },
+                { hop: 9, min: 45, avg: 68 },
+                { hop: 10, min: 43, avg: 65 }
+            ];
+            const avgDistance = hopData.reduce((sum, hop) => sum + Math.abs(signalStrength - hop.avg), 0) / hopData.length;
+            let closestHop = null;
+            let closestDistance = Infinity; // Diff between signal strength and avg
+            let closestCertainty = Infinity;
+            for (const hop of hopData) {
+                if (signalStrength < hop.min)
+                    continue;
+                const distance = Math.abs(signalStrength - hop.avg);
+                const range = 100 - hop.min;
+                const distanceMinMax = Math.min(Math.abs(signalStrength - hop.min), Math.abs(100 - signalStrength));
+                const certaintyAvg = avgDistance > 0 ? (1 - (distance / avgDistance)) : 0;
+                // const certaintyAvg = range > 0 ? (1 - (distance / (range / 2))) : 0
+                const certaintyMinMax = 1 - (distanceMinMax / Math.max(range, 1));
+                const finalCertainty = (certaintyAvg + certaintyMinMax) / 2;
+                if (distance < closestDistance) {
+                    closestDistance = distance;
+                    closestHop = hop.hop;
+                    closestCertainty = finalCertainty;
                 }
             }
-            catch (e_1_1) { e_1 = { error: e_1_1 }; }
-            finally {
-                try {
-                    if (!_d && !_a && (_b = source_1.return)) yield __await(_b.call(source_1));
-                }
-                finally { if (e_1) throw e_1.error; }
-            }
-        });
-    });
-    return hash.digest('hex');
-});
-export function streamLength(stream) {
-    return __awaiter(this, void 0, void 0, function* () {
-        const chunks = [];
-        yield pipeline(stream, function (source) {
-            return __asyncGenerator(this, arguments, function* () {
-                var _a, e_2, _b, _c;
-                try {
-                    for (var _d = true, source_2 = __asyncValues(source), source_2_1; source_2_1 = yield __await(source_2.next()), _a = source_2_1.done, !_a; _d = true) {
-                        _c = source_2_1.value;
-                        _d = false;
-                        const chunk = _c;
-                        chunks.push(chunk);
-                    }
-                }
-                catch (e_2_1) { e_2 = { error: e_2_1 }; }
-                finally {
+            return { hop: closestHop, certainty: Math.round(closestCertainty * 10000) / 100 };
+        };
+        this.hashStream = (stream) => __awaiter(this, void 0, void 0, function* () {
+            const hash = createHash('sha256');
+            yield pipeline(stream, function (source) {
+                return __asyncGenerator(this, arguments, function* () {
+                    var _a, e_1, _b, _c;
                     try {
-                        if (!_d && !_a && (_b = source_2.return)) yield __await(_b.call(source_2));
+                        for (var _d = true, source_1 = __asyncValues(source), source_1_1; source_1_1 = yield __await(source_1.next()), _a = source_1_1.done, !_a; _d = true) {
+                            _c = source_1_1.value;
+                            _d = false;
+                            const chunk = _c;
+                            hash.update(chunk);
+                        }
                     }
-                    finally { if (e_2) throw e_2.error; }
-                }
-            });
-        });
-        const completeBuffer = Buffer.concat(chunks);
-        return completeBuffer.buffer.slice(completeBuffer.byteOffset, completeBuffer.byteOffset + completeBuffer.byteLength).byteLength;
-    });
-}
-export function streamToBuffer(stream) {
-    return __awaiter(this, void 0, void 0, function* () {
-        const chunks = [];
-        yield pipeline(stream, function (source) {
-            return __asyncGenerator(this, arguments, function* () {
-                var _a, e_3, _b, _c;
-                try {
-                    for (var _d = true, source_3 = __asyncValues(source), source_3_1; source_3_1 = yield __await(source_3.next()), _a = source_3_1.done, !_a; _d = true) {
-                        _c = source_3_1.value;
-                        _d = false;
-                        const chunk = _c;
-                        chunks.push(chunk);
-                    }
-                }
-                catch (e_3_1) { e_3 = { error: e_3_1 }; }
-                finally {
-                    try {
-                        if (!_d && !_a && (_b = source_3.return)) yield __await(_b.call(source_3));
-                    }
-                    finally { if (e_3) throw e_3.error; }
-                }
-            });
-        });
-        const completeBuffer = Buffer.concat(chunks);
-        return completeBuffer.buffer.slice(completeBuffer.byteOffset, completeBuffer.byteOffset + completeBuffer.byteLength);
-    });
-}
-export function bufferToStream(arrayBuffer) {
-    const buffer = Buffer.from(arrayBuffer);
-    const readable = new Readable({
-        read() {
-            this.push(buffer);
-            this.push(null);
-        }
-    });
-    return readable;
-}
-export function saveBufferToFile(buffer, filePath) {
-    return __awaiter(this, void 0, void 0, function* () {
-        return yield new Promise((resolve, reject) => {
-            try {
-                fs.writeFile(filePath, buffer, (err) => {
-                    if (err !== null) {
-                        reject(err);
-                    }
-                    else {
-                        resolve();
+                    catch (e_1_1) { e_1 = { error: e_1_1 }; }
+                    finally {
+                        try {
+                            if (!_d && !_a && (_b = source_1.return)) yield __await(_b.call(source_1));
+                        }
+                        finally { if (e_1) throw e_1.error; }
                     }
                 });
+            });
+            return hash.digest('hex');
+        });
+        this.remainingStorage = () => {
+            return this.config.max_storage - this.calculateUsedStorage();
+        };
+        this.calculateUsedStorage = () => {
+            const filesPath = path.join(this.DIRNAME, 'files');
+            let usedStorage = 0;
+            if (fs.existsSync(filesPath)) {
+                const files = fs.readdirSync(filesPath);
+                for (const file of files) {
+                    const stats = fs.statSync(path.join(filesPath, file));
+                    usedStorage += stats.size;
+                }
             }
-            catch (error) {
-                reject(error);
+            return usedStorage;
+        };
+        this.purgeCache = (requiredSpace, remainingSpace) => {
+            console.warn('WARNING: Your node has reached max storage, some files are getting purged. To prevent this, increase your limit at config.json or add more storage to your machine.');
+            const files = fs.readdirSync(path.join(process.cwd(), 'files'));
+            for (const file of files) {
+                if (this.config.perma_files.includes(file))
+                    continue;
+                const size = fs.statSync(path.join(process.cwd(), 'files', file)).size;
+                fs.unlinkSync(path.join(process.cwd(), 'files', file));
+                remainingSpace += size;
+                if (requiredSpace <= remainingSpace)
+                    break;
+            }
+        };
+        this.convertTime = (duration) => {
+            const msPerSecond = 1000;
+            const msPerMinute = msPerSecond * 60;
+            const msPerHour = msPerMinute * 60;
+            const msPerDay = msPerHour * 24;
+            if (duration < msPerMinute)
+                return (duration / msPerSecond).toFixed(2) + ' seconds';
+            else if (duration < msPerHour)
+                return (duration / msPerMinute).toFixed(2) + ' minutes';
+            else if (duration < msPerDay)
+                return (duration / msPerHour).toFixed(2) + ' hours';
+            else
+                return (duration / msPerDay).toFixed(2) + ' days';
+        };
+        this.config = config;
+    }
+    streamLength(stream) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const chunks = [];
+            yield pipeline(stream, function (source) {
+                return __asyncGenerator(this, arguments, function* () {
+                    var _a, e_2, _b, _c;
+                    try {
+                        for (var _d = true, source_2 = __asyncValues(source), source_2_1; source_2_1 = yield __await(source_2.next()), _a = source_2_1.done, !_a; _d = true) {
+                            _c = source_2_1.value;
+                            _d = false;
+                            const chunk = _c;
+                            chunks.push(chunk);
+                        }
+                    }
+                    catch (e_2_1) { e_2 = { error: e_2_1 }; }
+                    finally {
+                        try {
+                            if (!_d && !_a && (_b = source_2.return)) yield __await(_b.call(source_2));
+                        }
+                        finally { if (e_2) throw e_2.error; }
+                    }
+                });
+            });
+            const completeBuffer = Buffer.concat(chunks);
+            return completeBuffer.buffer.slice(completeBuffer.byteOffset, completeBuffer.byteOffset + completeBuffer.byteLength).byteLength;
+        });
+    }
+    streamToBuffer(stream) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const chunks = [];
+            yield pipeline(stream, function (source) {
+                return __asyncGenerator(this, arguments, function* () {
+                    var _a, e_3, _b, _c;
+                    try {
+                        for (var _d = true, source_3 = __asyncValues(source), source_3_1; source_3_1 = yield __await(source_3.next()), _a = source_3_1.done, !_a; _d = true) {
+                            _c = source_3_1.value;
+                            _d = false;
+                            const chunk = _c;
+                            chunks.push(chunk);
+                        }
+                    }
+                    catch (e_3_1) { e_3 = { error: e_3_1 }; }
+                    finally {
+                        try {
+                            if (!_d && !_a && (_b = source_3.return)) yield __await(_b.call(source_3));
+                        }
+                        finally { if (e_3) throw e_3.error; }
+                    }
+                });
+            });
+            const completeBuffer = Buffer.concat(chunks);
+            return completeBuffer.buffer.slice(completeBuffer.byteOffset, completeBuffer.byteOffset + completeBuffer.byteLength);
+        });
+    }
+    bufferToStream(arrayBuffer) {
+        const buffer = Buffer.from(arrayBuffer);
+        const readable = new Readable({
+            read() {
+                this.push(buffer);
+                this.push(null);
             }
         });
-    });
+        return readable;
+    }
+    saveBufferToFile(buffer, filePath) {
+        return __awaiter(this, void 0, void 0, function* () {
+            return yield new Promise((resolve, reject) => {
+                try {
+                    fs.writeFile(filePath, buffer, (err) => {
+                        if (err !== null) {
+                            reject(err);
+                        }
+                        else {
+                            resolve();
+                        }
+                    });
+                }
+                catch (error) {
+                    reject(error);
+                }
+            });
+        });
+    }
 }
-export const remainingStorage = () => {
-    return CONFIG.max_storage - calculateUsedStorage();
-};
-export const calculateUsedStorage = () => {
-    const filesPath = path.join(DIRNAME, 'files');
-    let usedStorage = 0;
-    if (fs.existsSync(filesPath)) {
-        const files = fs.readdirSync(filesPath);
-        for (const file of files) {
-            const stats = fs.statSync(path.join(filesPath, file));
-            usedStorage += stats.size;
-        }
-    }
-    return usedStorage;
-};
-export const purgeCache = (requiredSpace, remainingSpace) => {
-    console.warn('WARNING: Your node has reached max storage, some files are getting purged. To prevent this, increase your limit at config.json or add more storage to your machine.');
-    const files = fs.readdirSync(path.join(process.cwd(), 'files'));
-    for (const file of files) {
-        if (CONFIG.perma_files.includes(file))
-            continue;
-        const size = fs.statSync(path.join(process.cwd(), 'files', file)).size;
-        fs.unlinkSync(path.join(process.cwd(), 'files', file));
-        remainingSpace += size;
-        if (requiredSpace <= remainingSpace)
-            break;
-    }
-};
-export const convertTime = (duration) => {
-    const msPerSecond = 1000;
-    const msPerMinute = msPerSecond * 60;
-    const msPerHour = msPerMinute * 60;
-    const msPerDay = msPerHour * 24;
-    if (duration < msPerMinute)
-        return (duration / msPerSecond).toFixed(2) + ' seconds';
-    else if (duration < msPerHour)
-        return (duration / msPerMinute).toFixed(2) + ' minutes';
-    else if (duration < msPerDay)
-        return (duration / msPerHour).toFixed(2) + ' hours';
-    else
-        return (duration / msPerDay).toFixed(2) + ' days';
-};
+export default Utils;

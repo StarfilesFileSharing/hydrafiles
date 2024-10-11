@@ -11,13 +11,12 @@ import fs from 'fs';
 import http from 'http';
 import path from 'path';
 import formidable from 'formidable';
-import CONFIG from './config.js';
-import { nodeFrom, NODES_PATH, nodesManager } from './nodes.js';
-import FileHandler, { FileModel } from './fileHandler.js';
-import { estimateHops, isIp, isPrivateIP } from './utils.js';
+import { nodeFrom, NODES_PATH } from './nodes.js';
+import FileHandler from './fileHandler.js';
+import Utils from './utils.js';
 const DIRNAME = path.resolve();
 export const hashLocks = new Map();
-const handleRequest = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+const handleRequest = (req, res, config, nodes, s3, FileModel, utils) => __awaiter(void 0, void 0, void 0, function* () {
     var _a, _b, _c;
     try {
         if (req.url === '/' || req.url === null || typeof req.url === 'undefined') {
@@ -34,18 +33,18 @@ const handleRequest = (req, res) => __awaiter(void 0, void 0, void 0, function* 
         }
         else if (req.url === '/nodes' || req.url.startsWith('/nodes?')) {
             res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=300' });
-            res.end(JSON.stringify(yield nodesManager.getValidNodes()));
+            res.end(JSON.stringify(yield nodes.getValidNodes()));
         }
         else if (req.url.startsWith('/announce')) {
             const params = Object.fromEntries(new URLSearchParams(req.url.split('?')[1]));
             const host = params.host;
-            const nodes = nodesManager.getNodes();
-            if (nodes.find((node) => node.host === host) != null) {
+            const knownNodes = nodes.getNodes();
+            if (knownNodes.find((node) => node.host === host) != null) {
                 res.end('Already known\n');
                 return;
             }
-            if ((yield nodesManager.downloadFromNode(nodeFrom(host), yield FileHandler.init({ hash: '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f' }))) !== false) {
-                nodesManager.nodes.push({ host, http: true, dns: false, cf: false, hits: 0, rejects: 0, bytes: 0, duration: 0 });
+            if ((yield nodes.downloadFromNode(nodeFrom(host), yield FileHandler.init({ hash: '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f' }, config, s3, FileModel))) !== false) {
+                nodes.nodes.push({ host, http: true, dns: false, cf: false, hits: 0, rejects: 0, bytes: 0, duration: 0 });
                 fs.writeFileSync(NODES_PATH, JSON.stringify(nodes));
                 res.end('Announced\n');
             }
@@ -56,13 +55,13 @@ const handleRequest = (req, res) => __awaiter(void 0, void 0, void 0, function* 
             const hash = req.url.split('/')[2];
             const fileId = (_b = req.url.split('/')[3]) !== null && _b !== void 0 ? _b : '';
             while (hashLocks.has(hash)) {
-                if (CONFIG.log_level === 'verbose')
+                if (config.log_level === 'verbose')
                     console.log(`  ${hash}  Waiting for existing request with same hash`);
                 yield hashLocks.get(hash);
             }
             const processingPromise = (() => __awaiter(void 0, void 0, void 0, function* () {
                 var _a;
-                const file = yield FileHandler.init({ hash });
+                const file = yield FileHandler.init({ hash }, config, s3, FileModel);
                 if (fileId.length !== 0) {
                     const id = file.id;
                     if (id === undefined || id === null || id.length === 0) {
@@ -73,7 +72,7 @@ const handleRequest = (req, res) => __awaiter(void 0, void 0, void 0, function* 
                 yield file.getMetadata();
                 let fileContent;
                 try {
-                    fileContent = yield file.getFile(nodesManager);
+                    fileContent = yield file.getFile(nodes);
                 }
                 catch (e) {
                     const err = e;
@@ -94,7 +93,7 @@ const handleRequest = (req, res) => __awaiter(void 0, void 0, void 0, function* 
                     'Cache-Control': 'public, max-age=31536000'
                 };
                 headers['Signal-Strength'] = String(fileContent.signal);
-                console.log(`  ${hash}  Signal Strength:`, fileContent.signal, estimateHops(fileContent.signal));
+                console.log(`  ${hash}  Signal Strength:`, fileContent.signal, utils.estimateHops(fileContent.signal));
                 headers['Content-Length'] = String(file.size);
                 headers['Content-Disposition'] = `attachment; filename="${encodeURIComponent((_a = file.name) !== null && _a !== void 0 ? _a : 'File').replace(/%20/g, ' ').replace(/(\.\w+)$/, ' [HYDRAFILES]$1')}"`;
                 res.writeHead(200, headers);
@@ -116,11 +115,11 @@ const handleRequest = (req, res) => __awaiter(void 0, void 0, void 0, function* 
             }
             const processingPromise = (() => __awaiter(void 0, void 0, void 0, function* () {
                 var _a;
-                const file = yield FileHandler.init({ infohash });
+                const file = yield FileHandler.init({ infohash }, config, s3, FileModel);
                 yield file.getMetadata();
                 let fileContent;
                 try {
-                    fileContent = yield file.getFile(nodesManager);
+                    fileContent = yield file.getFile(nodes);
                 }
                 catch (e) {
                     const err = e;
@@ -141,7 +140,7 @@ const handleRequest = (req, res) => __awaiter(void 0, void 0, void 0, function* 
                     'Cache-Control': 'public, max-age=31536000'
                 };
                 headers['Signal-Strength'] = String(fileContent.signal);
-                console.log(`  ${file.hash}  Signal Strength:`, fileContent.signal, estimateHops(fileContent.signal));
+                console.log(`  ${file.hash}  Signal Strength:`, fileContent.signal, utils.estimateHops(fileContent.signal));
                 headers['Content-Length'] = String(file.size);
                 headers['Content-Disposition'] = `attachment; filename="${encodeURIComponent((_a = file.name) !== null && _a !== void 0 ? _a : 'File').replace(/%20/g, ' ').replace(/(\.\w+)$/, ' [HYDRAFILES]$1')}"`;
                 res.writeHead(200, headers);
@@ -157,7 +156,7 @@ const handleRequest = (req, res) => __awaiter(void 0, void 0, void 0, function* 
         }
         else if (req.url === '/upload') {
             const uploadSecret = req.headers['x-hydra-upload-secret'];
-            if (uploadSecret !== CONFIG.upload_secret) {
+            if (uploadSecret !== config.upload_secret) {
                 res.writeHead(401, { 'Content-Type': 'text/plain' });
                 res.end('401 Unauthorized\n');
                 return;
@@ -176,7 +175,7 @@ const handleRequest = (req, res) => __awaiter(void 0, void 0, void 0, function* 
                 }
                 const hash = fields.hash[0];
                 const uploadedFile = files.file[0];
-                FileHandler.init({ hash }).then((file) => __awaiter(void 0, void 0, void 0, function* () {
+                FileHandler.init({ hash }, config, s3, FileModel).then((file) => __awaiter(void 0, void 0, void 0, function* () {
                     let name = file.name;
                     if ((name === undefined || name === null || name.length === 0) && uploadedFile.originalFilename !== null) {
                         name = uploadedFile.originalFilename;
@@ -191,9 +190,9 @@ const handleRequest = (req, res) => __awaiter(void 0, void 0, void 0, function* 
                     res.end('200 OK\n');
                     return;
                 }
-                if (!CONFIG.perma_files.includes(hash))
-                    CONFIG.perma_files.push(hash);
-                fs.writeFileSync(path.join(DIRNAME, 'config.json'), JSON.stringify(CONFIG, null, 2));
+                if (!config.perma_files.includes(hash))
+                    config.perma_files.push(hash);
+                fs.writeFileSync(path.join(DIRNAME, 'config.json'), JSON.stringify(config, null, 2));
                 res.writeHead(201, { 'Content-Type': 'text/plain' });
                 res.end('200 OK\n');
             });
@@ -217,35 +216,36 @@ const handleRequest = (req, res) => __awaiter(void 0, void 0, void 0, function* 
         res.end('Internal Server Error');
     }
 });
-export const startServer = () => {
+export const startServer = (config, nodes, s3, FileModel) => {
     console.log('Starting server');
+    const utils = new Utils(config);
     const server = http.createServer((req, res) => {
         console.log('Request Received:', req.url);
-        handleRequest(req, res).catch(console.error);
+        handleRequest(req, res, config, nodes, s3, FileModel, utils).catch(console.error);
     });
-    server.listen(CONFIG.port, CONFIG.hostname, () => {
-        console.log(`Server running at ${CONFIG.public_hostname}/`);
+    server.listen(config.port, config.hostname, () => {
+        console.log(`Server running at ${config.public_hostname}/`);
         const handleListen = () => __awaiter(void 0, void 0, void 0, function* () {
             console.log('Testing network connection');
-            const file = yield nodesManager.getFile('04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f');
+            const file = yield nodes.getFile('04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f');
             if (file === false)
                 console.error('Download test failed, cannot connect to network');
             else {
                 console.log('Connected to network');
-                if (isIp(CONFIG.public_hostname) && isPrivateIP(CONFIG.public_hostname))
+                if (utils.isIp(config.public_hostname) && utils.isPrivateIP(config.public_hostname))
                     console.error('Public hostname is a private IP address, cannot announce to other nodes');
                 else {
-                    console.log(`Testing downloads ${CONFIG.public_hostname}/download/04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f`);
+                    console.log(`Testing downloads ${config.public_hostname}/download/04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f`);
                     console.log('Testing connectivity');
-                    const response = yield nodesManager.downloadFromNode(nodeFrom(`${CONFIG.public_hostname}`), yield FileHandler.init({ hash: '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f' }));
+                    const response = yield nodes.downloadFromNode(nodeFrom(`${config.public_hostname}`), yield FileHandler.init({ hash: '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f' }, config, s3, FileModel));
                     if (response === false)
                         console.error('  04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f  ERROR: Failed to download file from self');
                     else {
                         console.log('  04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f  Test Succeeded');
                         console.log('Announcing to nodes');
-                        yield nodesManager.announce();
+                        yield nodes.announce();
                     }
-                    yield nodesManager.add({ host: CONFIG.public_hostname, http: true, dns: false, cf: false, hits: 0, rejects: 0, bytes: 0, duration: 0 });
+                    yield nodes.add({ host: config.public_hostname, http: true, dns: false, cf: false, hits: 0, rejects: 0, bytes: 0, duration: 0 });
                 }
             }
         });

@@ -9,8 +9,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 };
 import fs from 'fs';
 import path from 'path';
-import CONFIG from './config.js';
-import { promiseWithTimeout, hasSufficientMemory, interfere, promiseWrapper, hashStream, bufferToStream } from './utils.js';
+import Utils from './utils.js';
 import FileHandler from './fileHandler.js';
 export var PreferNode;
 (function (PreferNode) {
@@ -35,13 +34,17 @@ export const nodeFrom = (host) => {
     return node;
 };
 export default class Nodes {
-    constructor() {
+    constructor(config, s3, FileModel) {
         this.nodesPath = path.join(DIRNAME, 'nodes.json');
         this.nodes = this.loadNodes();
+        this.config = config;
+        this.s3 = s3;
+        this.utils = new Utils(config);
+        this.FileModel = FileModel;
     }
     add(node) {
         return __awaiter(this, void 0, void 0, function* () {
-            if (node.host !== CONFIG.public_hostname && typeof this.nodes.find((existingNode) => existingNode.host === node.host) === 'undefined' && ((yield this.downloadFromNode(node, yield FileHandler.init({ hash: '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f' }))) !== false)) {
+            if (node.host !== this.config.public_hostname && typeof this.nodes.find((existingNode) => existingNode.host === node.host) === 'undefined' && ((yield this.downloadFromNode(node, yield FileHandler.init({ hash: '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f' }, this.config, this.s3, this.FileModel))) !== false)) {
                 this.nodes.push(node);
                 fs.writeFileSync(NODES_PATH, JSON.stringify(this.nodes));
             }
@@ -53,12 +56,12 @@ export default class Nodes {
     getNodes(opts = { includeSelf: true }) {
         if (opts.includeSelf === undefined)
             opts.includeSelf = true;
-        const nodes = this.nodes.filter(node => opts.includeSelf || node.host !== CONFIG.public_hostname).sort(() => Math.random() - 0.5);
-        if (CONFIG.prefer_node === PreferNode.FASTEST)
+        const nodes = this.nodes.filter(node => opts.includeSelf || node.host !== this.config.public_hostname).sort(() => Math.random() - 0.5);
+        if (this.config.prefer_node === PreferNode.FASTEST)
             return nodes.sort((a, b) => a.bytes / a.duration - b.bytes / b.duration);
-        else if (CONFIG.prefer_node === PreferNode.LEAST_USED)
+        else if (this.config.prefer_node === PreferNode.LEAST_USED)
             return nodes.sort((a, b) => a.hits - a.rejects - (b.hits - b.rejects));
-        else if (CONFIG.prefer_node === PreferNode.HIGHEST_HITRATE)
+        else if (this.config.prefer_node === PreferNode.HIGHEST_HITRATE)
             return nodes.sort((a, b) => (a.hits - a.rejects) - (b.hits - b.rejects));
         else
             return nodes;
@@ -72,16 +75,16 @@ export default class Nodes {
                 console.log(`  ${hash}  Downloading from ${node.host}`);
                 let response;
                 try {
-                    response = yield promiseWithTimeout(fetch(`${node.host}/download/${hash}`), CONFIG.timeout);
+                    response = yield this.utils.promiseWithTimeout(fetch(`${node.host}/download/${hash}`), this.config.timeout);
                 }
                 catch (e) {
-                    if (CONFIG.log_level === 'verbose')
+                    if (this.config.log_level === 'verbose')
                         console.error(e);
                     return false;
                 }
                 const buffer = Buffer.from(yield response.arrayBuffer());
                 console.log(`  ${hash}  Validating hash`);
-                const verifiedHash = yield hashStream(bufferToStream(buffer));
+                const verifiedHash = yield this.utils.hashStream(this.utils.bufferToStream(buffer));
                 if (hash !== verifiedHash)
                     return false;
                 if (file.name === undefined || file.name === null || file.name.length === 0) {
@@ -94,7 +97,7 @@ export default class Nodes {
                 node.hits++;
                 this.updateNode(node);
                 yield file.cacheFile(buffer);
-                return { file: buffer, signal: interfere(Number(response.headers.get('Signal-Strength'))) };
+                return { file: buffer, signal: this.utils.interfere(Number(response.headers.get('Signal-Strength'))) };
             }
             catch (e) {
                 console.error(e);
@@ -117,7 +120,7 @@ export default class Nodes {
             const results = [];
             const executing = [];
             for (const node of nodes) {
-                if (node.host === CONFIG.public_hostname) {
+                if (node.host === this.config.public_hostname) {
                     results.push(node);
                     continue;
                 }
@@ -126,7 +129,7 @@ export default class Nodes {
                     executing.splice(executing.indexOf(promise), 1);
                 });
                 executing.push(promise);
-                if (executing.length >= CONFIG.max_concurrent_nodes)
+                if (executing.length >= this.config.max_concurrent_nodes)
                     yield Promise.race(executing);
             }
             yield Promise.all(executing);
@@ -135,7 +138,7 @@ export default class Nodes {
     }
     validateNode(node) {
         return __awaiter(this, void 0, void 0, function* () {
-            const file = yield this.downloadFromNode(node, yield FileHandler.init({ hash: '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f' }));
+            const file = yield this.downloadFromNode(node, yield FileHandler.init({ hash: '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f' }, this.config, this.s3, this.FileModel));
             if (file !== false) {
                 node.status = true;
                 this.updateNode(node);
@@ -153,19 +156,19 @@ export default class Nodes {
             console.log(`  ${hash}  Getting file from nodes`);
             const nodes = this.getNodes({ includeSelf: false });
             let activePromises = [];
-            if (!hasSufficientMemory(size)) {
+            if (!this.utils.hasSufficientMemory(size)) {
                 console.log('Reached memory limit, waiting');
                 yield new Promise(() => {
                     const intervalId = setInterval(() => {
-                        if (hasSufficientMemory(size))
+                        if (this.utils.hasSufficientMemory(size))
                             clearInterval(intervalId);
-                    }, CONFIG.memory_threshold_reached_wait);
+                    }, this.config.memory_threshold_reached_wait);
                 });
             }
             for (const node of nodes) {
                 if (node.http && node.host.length > 0) {
                     const promise = (() => __awaiter(this, void 0, void 0, function* () {
-                        const file = yield FileHandler.init({ hash });
+                        const file = yield FileHandler.init({ hash }, this.config, this.s3, this.FileModel);
                         let fileContent = false;
                         try {
                             fileContent = yield this.downloadFromNode(node, file);
@@ -176,11 +179,11 @@ export default class Nodes {
                         return fileContent !== false ? fileContent : false;
                     }))();
                     activePromises.push(promise);
-                    if (activePromises.length >= CONFIG.max_concurrent_nodes) {
+                    if (activePromises.length >= this.config.max_concurrent_nodes) {
                         const file = yield Promise.race(activePromises);
                         if (file !== false)
                             return file;
-                        activePromises = activePromises.filter(p => !promiseWrapper(p).isFulfilled);
+                        activePromises = activePromises.filter(p => !this.utils.promiseWrapper(p).isFulfilled);
                     }
                 }
             }
@@ -198,10 +201,10 @@ export default class Nodes {
         return __awaiter(this, void 0, void 0, function* () {
             for (const node of this.getNodes({ includeSelf: false })) {
                 if (node.http) {
-                    if (node.host === CONFIG.public_hostname)
+                    if (node.host === this.config.public_hostname)
                         continue;
                     console.log('Announcing to', node.host);
-                    yield fetch(`${node.host}/announce?host=${CONFIG.public_hostname}`);
+                    yield fetch(`${node.host}/announce?host=${this.config.public_hostname}`);
                 }
             }
         });
@@ -215,7 +218,7 @@ export default class Nodes {
                 const files = yield response.json();
                 for (let i = 0; i < files.length; i++) {
                     try {
-                        const file = yield FileHandler.init({ hash: files[i].hash, infohash: (_a = files[i].infohash) !== null && _a !== void 0 ? _a : undefined });
+                        const file = yield FileHandler.init({ hash: files[i].hash, infohash: (_a = files[i].infohash) !== null && _a !== void 0 ? _a : undefined }, this.config, this.s3, this.FileModel);
                         if (((_b = file.infohash) === null || _b === void 0 ? void 0 : _b.length) === 0 && ((_c = files[i].infohash) === null || _c === void 0 ? void 0 : _c.length) !== 0)
                             file.infohash = files[i].infohash;
                         if (((_d = file.id) === null || _d === void 0 ? void 0 : _d.length) === 0 && ((_e = files[i].id) === null || _e === void 0 ? void 0 : _e.length) !== 0)
@@ -248,17 +251,17 @@ export default class Nodes {
                     if (node.host.startsWith('http://') || node.host.startsWith('https://')) {
                         console.log(`Fetching nodes from ${node.host}/nodes`);
                         try {
-                            const response = yield promiseWithTimeout(fetch(`${node.host}/nodes`), CONFIG.timeout);
+                            const response = yield this.utils.promiseWithTimeout(fetch(`${node.host}/nodes`), this.config.timeout);
                             const remoteNodes = yield response.json();
                             for (const remoteNode of remoteNodes) {
                                 this.add(remoteNode).catch((e) => {
-                                    if (CONFIG.log_level === 'verbose')
+                                    if (this.config.log_level === 'verbose')
                                         console.error(e);
                                 });
                             }
                         }
                         catch (e) {
-                            if (CONFIG.log_level === 'verbose')
+                            if (this.config.log_level === 'verbose')
                                 throw e;
                         }
                     }
@@ -268,4 +271,3 @@ export default class Nodes {
         });
     }
 }
-export const nodesManager = new Nodes();

@@ -14,25 +14,13 @@ var __asyncValues = (this && this.__asyncValues) || function (o) {
     function verb(n) { i[n] = o[n] && function (v) { return new Promise(function (resolve, reject) { v = o[n](v), settle(resolve, reject, v.done, v.value); }); }; }
     function settle(resolve, reject, d, v) { Promise.resolve(v).then(function(v) { resolve({ value: v, done: d }); }, reject); }
 };
-import { S3 } from '@aws-sdk/client-s3';
 import fs from 'fs';
 import path from 'path';
 import { Readable } from 'stream';
-import { Sequelize, DataTypes } from 'sequelize';
-import CONFIG from './config.js';
-import { hasSufficientMemory, interfere, isValidInfoHash, isValidSHA256Hash, saveBufferToFile, remainingStorage, purgeCache } from './utils.js';
-import SequelizeSimpleCache from 'sequelize-simple-cache';
+import Utils from './utils.js';
 const WebTorrentPromise = import('webtorrent');
-const DIRNAME = path.resolve();
-const s3 = new S3({
-    region: 'us-east-1',
-    credentials: {
-        accessKeyId: CONFIG.s3_access_key_id,
-        secretAccessKey: CONFIG.s3_secret_access_key
-    },
-    endpoint: CONFIG.s3_endpoint
-});
 // TODO: Log common user-agents and use the same for requests to slightly anonymise clients
+const DIRNAME = path.resolve();
 const seeding = [];
 let webtorrent = null;
 export const webtorrentClient = () => __awaiter(void 0, void 0, void 0, function* () {
@@ -43,13 +31,14 @@ export const webtorrentClient = () => __awaiter(void 0, void 0, void 0, function
     return webtorrent;
 });
 export default class FileHandler {
-    static init(opts) {
+    static init(opts, config, s3, FileModel) {
         return __awaiter(this, void 0, void 0, function* () {
+            const utils = new Utils(config);
             let hash;
             if (opts.hash !== undefined)
                 hash = opts.hash;
             else if (opts.infohash !== undefined) {
-                if (!isValidInfoHash(opts.infohash))
+                if (!utils.isValidInfoHash(opts.infohash))
                     throw new Error(`Invalid infohash provided: ${opts.infohash}`);
                 const file = yield FileModel.findOne({ where: { infohash: opts.infohash } });
                 if (typeof (file === null || file === void 0 ? void 0 : file.dataValues.hash) === 'string')
@@ -61,7 +50,7 @@ export default class FileHandler {
             }
             else
                 throw new Error('No hash or infohash provided');
-            if (hash !== undefined && !isValidSHA256Hash(hash))
+            if (hash !== undefined && !utils.isValidSHA256Hash(hash))
                 throw new Error('Invalid hash provided');
             const fileHandler = new FileHandler();
             fileHandler.hash = hash;
@@ -70,6 +59,9 @@ export default class FileHandler {
             fileHandler.name = '';
             fileHandler.found = true;
             fileHandler.size = 0;
+            fileHandler.config = config;
+            fileHandler.s3 = s3;
+            fileHandler.utils = utils;
             const existingFile = yield FileModel.findByPk(hash);
             fileHandler.file = existingFile !== null && existingFile !== void 0 ? existingFile : yield FileModel.create({ hash });
             Object.assign(fileHandler, fileHandler.file.dataValues);
@@ -87,7 +79,7 @@ export default class FileHandler {
             console.log(`  ${hash}  Getting file metadata`);
             const id = this.id;
             if (id !== undefined && id !== null && id.length > 0) {
-                const response = yield fetch(`${CONFIG.metadata_endpoint}${id}`);
+                const response = yield fetch(`${this.config.metadata_endpoint}${id}`);
                 if (response.ok) {
                     const metadata = (yield response.json()).result;
                     this.name = metadata.name;
@@ -104,9 +96,9 @@ export default class FileHandler {
                 yield this.save();
                 return this;
             }
-            if (CONFIG.s3_endpoint.length !== 0) {
+            if (this.config.s3_endpoint.length !== 0) {
                 try {
-                    const data = yield s3.headObject({ Bucket: 'uploads', Key: `${hash}.stuf` });
+                    const data = yield this.s3.headObject({ Bucket: 'uploads', Key: `${hash}.stuf` });
                     if (typeof data.ContentLength !== 'undefined') {
                         this.size = data.ContentLength;
                         yield this.save();
@@ -132,10 +124,10 @@ export default class FileHandler {
                 this.size = size;
                 yield this.save();
             }
-            const remainingSpace = remainingStorage();
-            if (CONFIG.max_storage !== -1 && size > remainingSpace)
-                purgeCache(size, remainingSpace);
-            yield saveBufferToFile(file, filePath);
+            const remainingSpace = this.utils.remainingStorage();
+            if (this.config.max_storage !== -1 && size > remainingSpace)
+                this.utils.purgeCache(size, remainingSpace);
+            yield this.utils.saveBufferToFile(file, filePath);
         });
     }
     fetchFromCache() {
@@ -144,7 +136,7 @@ export default class FileHandler {
             console.log(`  ${hash}  Checking Cache`);
             const filePath = path.join(DIRNAME, 'files', hash);
             yield this.seed();
-            return fs.existsSync(filePath) ? { file: fs.readFileSync(filePath), signal: interfere(100) } : false;
+            return fs.existsSync(filePath) ? { file: fs.readFileSync(filePath), signal: this.utils.interfere(100) } : false;
         });
     }
     fetchFromS3() {
@@ -152,11 +144,11 @@ export default class FileHandler {
             var _a, e_1, _b, _c;
             const hash = this.hash;
             console.log(`  ${hash}  Checking S3`);
-            if (CONFIG.s3_endpoint.length === 0)
+            if (this.config.s3_endpoint.length === 0)
                 return false;
             try {
                 let buffer;
-                const data = yield s3.getObject({ Bucket: 'uploads', Key: `${hash}.stuf` });
+                const data = yield this.s3.getObject({ Bucket: 'uploads', Key: `${hash}.stuf` });
                 if (data.Body instanceof Readable) {
                     const chunks = [];
                     try {
@@ -180,9 +172,9 @@ export default class FileHandler {
                     buffer = data.Body;
                 else
                     return false;
-                if (CONFIG.cache_s3)
+                if (this.config.cache_s3)
                     yield this.cacheFile(buffer);
-                return { file: buffer, signal: interfere(100) };
+                return { file: buffer, signal: this.utils.interfere(100) };
             }
             catch (e) {
                 const err = e;
@@ -199,28 +191,28 @@ export default class FileHandler {
         return __awaiter(this, arguments, void 0, function* (nodesManager, opts = {}) {
             const hash = this.hash;
             console.log(`  ${hash}  Getting file`);
-            if (!isValidSHA256Hash(hash))
+            if (!this.utils.isValidSHA256Hash(hash))
                 return false;
             if (!this.found && new Date(this.updatedAt) > new Date(new Date().getTime() - 5 * 60 * 1000))
                 return false;
             if (opts.logDownloads === undefined || opts.logDownloads)
                 yield this.increment('downloadCount');
             yield this.save();
-            if (this.size !== 0 && !hasSufficientMemory(this.size)) {
+            if (this.size !== 0 && !this.utils.hasSufficientMemory(this.size)) {
                 yield new Promise(() => {
                     const intervalId = setInterval(() => {
-                        if (CONFIG.log_level === 'verbose')
+                        if (this.config.log_level === 'verbose')
                             console.log(`  ${hash}  Reached memory limit, waiting`, this.size);
-                        if (this.size === 0 || hasSufficientMemory(this.size))
+                        if (this.size === 0 || this.utils.hasSufficientMemory(this.size))
                             clearInterval(intervalId);
-                    }, CONFIG.memory_threshold_reached_wait);
+                    }, this.config.memory_threshold_reached_wait);
                 });
             }
             let file = yield this.fetchFromCache();
             if (file !== false)
                 console.log(`  ${hash}  Serving ${this.size !== undefined ? Math.round(this.size / 1024 / 1024) : 0}MB from cache`);
             else {
-                if (CONFIG.s3_endpoint.length > 0)
+                if (this.config.s3_endpoint.length > 0)
                     file = yield this.fetchFromS3();
                 if (file !== false)
                     console.log(`  ${hash}  Serving ${this.size !== undefined ? Math.round(this.size / 1024 / 1024) : 0}MB from S3`);
@@ -277,82 +269,4 @@ export default class FileHandler {
         });
     }
 }
-const sequelize = new Sequelize({
-    dialect: 'sqlite',
-    storage: path.join(DIRNAME, 'filemanager.db'),
-    logging: (...msg) => {
-        const payload = msg[1];
-        if (payload.type === 'SELECT') {
-            if (payload.where !== undefined && CONFIG.log_level === 'verbose')
-                console.log(`  ${payload.where.split("'")[1]}  SELECTing file from database`);
-        }
-        else if (payload.type === 'INSERT') {
-            console.log(`  ${payload.instance.dataValues.hash}  INSERTing file to database`);
-        }
-        else if (payload.type === 'UPDATE') {
-            if (payload.fields !== undefined)
-                console.log(`  ${payload.instance.dataValues.hash}  UPDATEing file in database - Changing columns: ${payload.fields.join(', ')}`);
-            else if (payload.increment)
-                console.log(`  ${payload.instance.dataValues.hash}  UPDATEing file in database - Incrementing Value`);
-            else {
-                console.error('Unknown database action');
-                console.log(payload);
-            }
-        }
-    }
-});
-const UncachedFileModel = sequelize.define('File', {
-    hash: {
-        type: DataTypes.STRING,
-        primaryKey: true
-    },
-    infohash: {
-        type: DataTypes.STRING
-    },
-    downloadCount: {
-        type: DataTypes.INTEGER,
-        defaultValue: 0
-    },
-    id: {
-        type: DataTypes.STRING
-    },
-    name: {
-        type: DataTypes.STRING
-    },
-    found: {
-        type: DataTypes.BOOLEAN,
-        defaultValue: true
-    },
-    size: {
-        type: DataTypes.INTEGER
-    },
-    createdAt: {
-        type: DataTypes.DATE
-    },
-    updatedAt: {
-        type: DataTypes.DATE
-    }
-}, {
-    tableName: 'file',
-    timestamps: true,
-    modelName: 'FileHandler'
-});
-const cache = new SequelizeSimpleCache({ File: { ttl: 30 * 60 } });
-export const FileModel = cache.init(UncachedFileModel);
-export const startDatabase = () => __awaiter(void 0, void 0, void 0, function* () {
-    console.log('Starting database');
-    try {
-        yield sequelize.sync({ alter: true });
-    }
-    catch (e) {
-        const err = e;
-        if (err.original.message.includes('file_backup')) {
-            yield sequelize.query('DROP TABLE IF EXISTS file_backup');
-            yield sequelize.sync({ alter: true });
-        }
-        else
-            throw e;
-    }
-    console.log('Connected to the local DB');
-});
 // TODO: webtorrent.add() all known files
