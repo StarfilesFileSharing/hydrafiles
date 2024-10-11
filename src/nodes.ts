@@ -8,7 +8,7 @@ export interface Node { host: string, http: boolean, dns: boolean, cf: boolean, 
 export enum PreferNode { FASTEST, LEAST_USED, RANDOM, HIGHEST_HITRATE }
 
 const DIRNAME = path.resolve()
-const NODES_PATH = path.join(DIRNAME, 'nodes.json')
+export const NODES_PATH = path.join(DIRNAME, 'nodes.json')
 
 export const nodeFrom = (host: string): Node => {
   const node: Node = {
@@ -227,3 +227,5 @@ export default class Nodes {
     console.log('Done comparing node list')
   }
 }
+
+export const nodesManager = new Nodes()
