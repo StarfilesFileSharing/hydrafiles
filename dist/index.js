@@ -60,7 +60,12 @@ class Hydrafiles {
         (() => __awaiter(this, void 0, void 0, function* () {
             yield this.logState();
             setInterval(() => { this.logState().catch(console.error); }, CONFIG.summary_speed);
-            yield startDatabase();
+            try {
+                yield startDatabase();
+            }
+            catch (e) {
+                console.error(e);
+            }
             startServer();
             // setInterval(() => {
             //   this.backgroundTasks().catch(console.error)

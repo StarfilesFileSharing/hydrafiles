@@ -322,7 +322,15 @@ export const FileModel = cache.init(UncachedFileModel)
 
 export const startDatabase = async (): Promise<void> => {
   console.log('Starting database')
-  await sequelize.sync({ alter: true })
+  try {
+    await sequelize.sync({ alter: true })
+  } catch (e) {
+    const err = e as { original: { message: string } }
+    if (err.original.message.includes('file_backup')) {
+      await sequelize.query('DROP TABLE IF EXISTS file_backup')
+      await sequelize.sync({ alter: true })
+    } else throw e
+  }
   console.log('Connected to the local DB')
 }
 
