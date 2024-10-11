@@ -8,9 +8,10 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 import fs from 'fs';
-import path from 'path';
 import Utils from './utils.js';
 import FileHandler from './fileHandler.js';
+import path from 'path';
+import { fileURLToPath } from 'url';
 export var PreferNode;
 (function (PreferNode) {
     PreferNode[PreferNode["FASTEST"] = 0] = "FASTEST";
@@ -18,7 +19,7 @@ export var PreferNode;
     PreferNode[PreferNode["RANDOM"] = 2] = "RANDOM";
     PreferNode[PreferNode["HIGHEST_HITRATE"] = 3] = "HIGHEST_HITRATE";
 })(PreferNode || (PreferNode = {}));
-const DIRNAME = path.resolve();
+const DIRNAME = path.dirname(fileURLToPath(import.meta.url));
 export const NODES_PATH = path.join(DIRNAME, 'nodes.json');
 export const nodeFrom = (host) => {
     const node = {
@@ -35,7 +36,6 @@ export const nodeFrom = (host) => {
 };
 export default class Nodes {
     constructor(config, s3, FileModel) {
-        this.nodesPath = path.join(DIRNAME, 'nodes.json');
         this.nodes = this.loadNodes();
         this.config = config;
         this.s3 = s3;
@@ -51,7 +51,7 @@ export default class Nodes {
         });
     }
     loadNodes() {
-        return JSON.parse(fs.existsSync(this.nodesPath) ? fs.readFileSync(this.nodesPath).toString() : '[]');
+        return JSON.parse(fs.existsSync(NODES_PATH) ? fs.readFileSync(NODES_PATH).toString() : '[]');
     }
     getNodes(opts = { includeSelf: true }) {
         if (opts.includeSelf === undefined)
@@ -111,7 +111,7 @@ export default class Nodes {
         const index = this.nodes.findIndex(n => n.host === node.host);
         if (index !== -1) {
             this.nodes[index] = node;
-            fs.writeFileSync(this.nodesPath, JSON.stringify(this.nodes));
+            fs.writeFileSync(NODES_PATH, JSON.stringify(this.nodes));
         }
     }
     getValidNodes() {

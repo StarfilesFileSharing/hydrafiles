@@ -1,9 +1,10 @@
 import { Sequelize, DataTypes, Model, ModelCtor } from 'sequelize'
 import SequelizeSimpleCache, { SequelizeSimpleCacheModel } from 'sequelize-simple-cache'
-import path from 'path'
 import { Config } from './config'
+import path from 'path'
+import { fileURLToPath } from 'url'
 
-const DIRNAME = path.resolve()
+const DIRNAME = path.dirname(fileURLToPath(import.meta.url))
 
 const startDatabase = async (config: Config): Promise<ModelCtor<Model<any, any>> & SequelizeSimpleCacheModel<Model<any, any>>> => {
   console.log('Starting database')

@@ -1,16 +1,17 @@
 import fs from 'fs'
-import path from 'path'
 import { Config } from './config.js'
 import Utils from './utils.js'
 import FileHandler from './fileHandler.js'
 import { S3 } from '@aws-sdk/client-s3'
 import { Model, ModelCtor } from 'sequelize'
 import { SequelizeSimpleCacheModel } from 'sequelize-simple-cache'
+import path from 'path'
+import { fileURLToPath } from 'url'
 
 export interface Node { host: string, http: boolean, dns: boolean, cf: boolean, hits: number, rejects: number, bytes: number, duration: number, status?: boolean }
 export enum PreferNode { FASTEST, LEAST_USED, RANDOM, HIGHEST_HITRATE }
 
-const DIRNAME = path.resolve()
+const DIRNAME = path.dirname(fileURLToPath(import.meta.url))
 export const NODES_PATH = path.join(DIRNAME, 'nodes.json')
 
 export const nodeFrom = (host: string): Node => {
@@ -28,14 +29,12 @@ export const nodeFrom = (host: string): Node => {
 }
 
 export default class Nodes {
-  nodesPath: string
   nodes: Node[]
   config: Config
   s3: S3
   utils: Utils
   FileModel
   constructor (config: Config, s3: S3, FileModel: ModelCtor<Model<any, any>> & SequelizeSimpleCacheModel<Model<any, any>>) {
-    this.nodesPath = path.join(DIRNAME, 'nodes.json')
     this.nodes = this.loadNodes()
     this.config = config
     this.s3 = s3
@@ -51,7 +50,7 @@ export default class Nodes {
   }
 
   loadNodes (): Node[] {
-    return JSON.parse(fs.existsSync(this.nodesPath) ? fs.readFileSync(this.nodesPath).toString() : '[]')
+    return JSON.parse(fs.existsSync(NODES_PATH) ? fs.readFileSync(NODES_PATH).toString() : '[]')
   }
 
   getNodes (opts = { includeSelf: true }): Node[] {
@@ -108,7 +107,7 @@ export default class Nodes {
     const index = this.nodes.findIndex(n => n.host === node.host)
     if (index !== -1) {
       this.nodes[index] = node
-      fs.writeFileSync(this.nodesPath, JSON.stringify(this.nodes))
+      fs.writeFileSync(NODES_PATH, JSON.stringify(this.nodes))
     }
   }
 

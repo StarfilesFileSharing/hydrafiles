@@ -10,7 +10,8 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 import { Sequelize, DataTypes } from 'sequelize';
 import SequelizeSimpleCache from 'sequelize-simple-cache';
 import path from 'path';
-const DIRNAME = path.resolve();
+import { fileURLToPath } from 'url';
+const DIRNAME = path.dirname(fileURLToPath(import.meta.url));
 const startDatabase = (config) => __awaiter(void 0, void 0, void 0, function* () {
     console.log('Starting database');
     const sequelize = new Sequelize({

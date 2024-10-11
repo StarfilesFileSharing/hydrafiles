@@ -1,6 +1,6 @@
 import fs from 'fs';
-import path from 'path';
 import Hydrafiles from './hydrafiles.js';
+import path from 'path';
 import { fileURLToPath } from 'url';
 const DIRNAME = path.dirname(fileURLToPath(import.meta.url));
 if (!fs.existsSync(path.join(DIRNAME, '../config.json')))
