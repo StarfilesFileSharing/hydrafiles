@@ -3,7 +3,7 @@
   "productName": "Hydrafiles",
   "version": "0.1.0",
   "description": "The headless storage network.",
-  "main": "index.js",
+  "main": "dist/index.js",
   "scripts": {
     "format": "npx ts-standard --fix src/*.ts",
     "test": "npx tsx src/index.ts",
