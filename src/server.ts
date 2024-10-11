@@ -219,7 +219,7 @@ export const startServer = (): void => {
   const server = http.createServer((req, res) => {
     console.log('Request Received:', req.url)
 
-    void handleRequest(req, res)
+    handleRequest(req, res).catch(console.error)
   })
 
   server.listen(CONFIG.port, CONFIG.hostname, (): void => {
