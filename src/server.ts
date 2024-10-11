@@ -63,7 +63,8 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
         try {
           fileContent = await file.getFile(nodesManager)
         } catch (e) {
-          if (e.message === 'Promise timed out') fileContent = false
+          const err = e as { message: string }
+          if (err.message === 'Promise timed out') fileContent = false
           else throw e
         }
 
@@ -112,7 +113,8 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
         try {
           fileContent = await file.getFile(nodesManager)
         } catch (e) {
-          if (e.message === 'Promise timed out') fileContent = false
+          const err = e as { message: string }
+          if (err.message === 'Promise timed out') fileContent = false
           else throw e
         }
 

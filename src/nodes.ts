@@ -197,7 +197,8 @@ export default class Nodes {
         }
       }
     } catch (e) {
-      console.error(`Failed to compare file list with ${node.host} - ${e.message}`)
+      const err = e as { message: string }
+      console.error(`Failed to compare file list with ${node.host} - ${err.message}`)
       return
     }
     console.log(`Done comparing file list with ${node.host}`)
