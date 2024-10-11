@@ -34,11 +34,11 @@ class Hydrafiles {
       }
       startServer()
 
-      // setInterval(() => {
-      //   this.backgroundTasks().catch(console.error)
-      // }, CONFIG.compare_speed)
-      // this.backgroundTasks().catch(console.error)
-      // if (CONFIG.backfill) this.backfillFiles().catch(console.error)
+      setInterval(() => {
+        this.backgroundTasks().catch(console.error)
+      }, CONFIG.compare_speed)
+      this.backgroundTasks().catch(console.error)
+      if (CONFIG.backfill) this.backfillFiles().catch(console.error)
     })().catch(console.error)
   }
 
