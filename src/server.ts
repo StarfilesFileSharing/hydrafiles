@@ -4,7 +4,7 @@ import path from 'path'
 import formidable from 'formidable'
 import CONFIG from './config'
 import { nodeFrom, NODES_PATH, nodesManager } from './nodes'
-import FileHandler, { FileModel } from './fileHandler'
+import FileHandler, { FileAttributes, FileModel } from './fileHandler'
 import { estimateHops, isIp, isPrivateIP } from './utils'
 
 const DIRNAME = path.resolve()
@@ -198,7 +198,7 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
         res.end('200 OK\n')
       })
     } else if (req.url === '/files') {
-      const rows = (await FileModel.findAll()).map((row) => {
+      const rows = (await FileModel.findAll()).map((row: { dataValues: FileAttributes }) => {
         const { hash, infohash, id, name, size } = row.dataValues
         return { hash, infohash, id, name, size }
       })

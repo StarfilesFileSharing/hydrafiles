@@ -40,7 +40,7 @@ export default class Nodes {
   }
 
   loadNodes (): Node[] {
-    return JSON.parse(fs.readFileSync(this.nodesPath).toString())
+    return JSON.parse(fs.existsSync(this.nodesPath) ? fs.readFileSync(this.nodesPath).toString() : '[]')
   }
 
   getNodes (opts = { includeSelf: true }): Node[] {

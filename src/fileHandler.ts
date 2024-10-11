@@ -166,8 +166,9 @@ export default class FileHandler {
 
       if (CONFIG.cache_s3) await this.cacheFile(buffer)
       return { file: buffer, signal: interfere(100) }
-    } catch (error) {
-      if (error.message !== 'The specified key does not exist.') console.error(error)
+    } catch (e) {
+      const err = e as { message: string }
+      if (err.message !== 'The specified key does not exist.') console.error(err)
       return false
     }
   }
@@ -213,10 +214,11 @@ export default class FileHandler {
   }
 
   async save (): Promise<void> {
-    const values = Object.keys(this).reduce((acc, key) => {
-      if (key !== 'file' && key !== 'save') acc[key] = this[key as keyof FileAttributes]
-      return acc
+    const values = Object.keys(this).reduce((row: Record<string, any>, key: string) => {
+      if (key !== 'file' && key !== 'save') row[key] = this[key as keyof FileAttributes]
+      return row
     }, {})
+
     Object.assign(this.file, values)
     await this.file.save()
   }

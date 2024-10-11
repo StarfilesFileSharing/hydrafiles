@@ -27,7 +27,7 @@ export const promiseWithTimeout = async (promise: Promise<any>, timeoutDuration:
 
   return await Promise.race([
     wrappedPromise,
-    new Promise((_, reject) => setTimeout(() => {
+    new Promise((_resolve, reject) => setTimeout(() => {
       controller.abort()
       reject(new Error('Promise timed out'))
     }, timeoutDuration))
@@ -141,7 +141,7 @@ export async function saveBufferToFile (buffer: Buffer, filePath: string): Promi
   return await new Promise((resolve, reject) => {
     try {
       fs.writeFile(filePath, buffer, (err) => {
-        if (err) {
+        if (err !== null) {
           reject(err)
         } else {
           resolve()
