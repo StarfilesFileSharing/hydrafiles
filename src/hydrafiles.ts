@@ -28,7 +28,7 @@ class Hydrafiles {
   s3: S3
   utils
   FileModel: (ModelCtor<Model<any, any>> & SequelizeSimpleCacheModel<Model<any, any>>) | undefined
-  constructor (customConfig: Config) {
+  constructor (customConfig: Config | undefined) {
     this.startTime = +new Date()
     const config = getConfig(customConfig)
     this.config = config
