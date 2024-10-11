@@ -95,5 +95,6 @@ class Hydrafiles {
   }
 }
 
-export const hydrafiles = new Hydrafiles()
+const hydrafiles = new Hydrafiles()
+export default hydrafiles
 console.log('Hydrafiles Started', hydrafiles)

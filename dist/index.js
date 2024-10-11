@@ -67,11 +67,12 @@ class Hydrafiles {
                 console.error(e);
             }
             startServer();
-            // setInterval(() => {
-            //   this.backgroundTasks().catch(console.error)
-            // }, CONFIG.compare_speed)
-            // this.backgroundTasks().catch(console.error)
-            // if (CONFIG.backfill) this.backfillFiles().catch(console.error)
+            setInterval(() => {
+                this.backgroundTasks().catch(console.error);
+            }, CONFIG.compare_speed);
+            this.backgroundTasks().catch(console.error);
+            if (CONFIG.backfill)
+                this.backfillFiles().catch(console.error);
         }))().catch(console.error);
     }
     logState() {
@@ -85,5 +86,6 @@ class Hydrafiles {
         });
     }
 }
-export const hydrafiles = new Hydrafiles();
+const hydrafiles = new Hydrafiles();
+export default hydrafiles;
 console.log('Hydrafiles Started', hydrafiles);
