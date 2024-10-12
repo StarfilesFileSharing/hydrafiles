@@ -4,7 +4,7 @@ import { fileURLToPath } from 'url';
 const DIRNAME = path.dirname(fileURLToPath(import.meta.url));
 const defaultConfig = JSON.parse(fs.readFileSync(path.join(DIRNAME, '../config.default.json')).toString());
 const getConfig = (config = {}) => {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z;
     return {
         port: (_a = config === null || config === void 0 ? void 0 : config.port) !== null && _a !== void 0 ? _a : defaultConfig.port,
         hostname: (_b = config === null || config === void 0 ? void 0 : config.hostname) !== null && _b !== void 0 ? _b : defaultConfig.hostname,
@@ -28,7 +28,8 @@ const getConfig = (config = {}) => {
         s3_access_key_id: (_v = config === null || config === void 0 ? void 0 : config.s3_access_key_id) !== null && _v !== void 0 ? _v : defaultConfig.s3_access_key_id,
         s3_secret_access_key: (_w = config === null || config === void 0 ? void 0 : config.s3_secret_access_key) !== null && _w !== void 0 ? _w : defaultConfig.s3_secret_access_key,
         s3_endpoint: (_x = config === null || config === void 0 ? void 0 : config.s3_endpoint) !== null && _x !== void 0 ? _x : defaultConfig.s3_endpoint,
-        cache_s3: (_y = config === null || config === void 0 ? void 0 : config.cache_s3) !== null && _y !== void 0 ? _y : defaultConfig.cache_s3
+        cache_s3: (_y = config === null || config === void 0 ? void 0 : config.cache_s3) !== null && _y !== void 0 ? _y : defaultConfig.cache_s3,
+        database_logs: (_z = config === null || config === void 0 ? void 0 : config.database_logs) !== null && _z !== void 0 ? _z : defaultConfig.database_logs
     };
 };
 export default getConfig;

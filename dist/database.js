@@ -18,22 +18,24 @@ const startDatabase = (config) => {
         dialect: 'sqlite',
         storage: path.join(DIRNAME, '../filemanager.db'),
         logging: (...msg) => {
-            const payload = msg[1];
-            if (payload.type === 'SELECT') {
-                if (payload.where !== undefined && config.log_level === 'verbose')
-                    console.log(`  ${payload.where.split("'")[1]}  SELECTing file from database`);
-            }
-            else if (payload.type === 'INSERT') {
-                console.log(`  ${payload.instance.dataValues.hash}  INSERTing file to database`);
-            }
-            else if (payload.type === 'UPDATE') {
-                if (payload.fields !== undefined)
-                    console.log(`  ${payload.instance.dataValues.hash}  UPDATEing file in database - Changing columns: ${payload.fields.join(', ')}`);
-                else if (payload.increment)
-                    console.log(`  ${payload.instance.dataValues.hash}  UPDATEing file in database - Incrementing Value`);
-                else {
-                    console.error('Unknown database action');
-                    console.log(payload);
+            if (config.database_logs) {
+                const payload = msg[1];
+                if (payload.type === 'SELECT') {
+                    if (payload.where !== undefined && config.log_level === 'verbose')
+                        console.log(`  ${payload.where.split("'")[1]}  SELECTing file from database`);
+                }
+                else if (payload.type === 'INSERT') {
+                    console.log(`  ${payload.instance.dataValues.hash}  INSERTing file to database`);
+                }
+                else if (payload.type === 'UPDATE') {
+                    if (payload.fields !== undefined)
+                        console.log(`  ${payload.instance.dataValues.hash}  UPDATEing file in database - Changing columns: ${payload.fields.join(', ')}`);
+                    else if (payload.increment)
+                        console.log(`  ${payload.instance.dataValues.hash}  UPDATEing file in database - Incrementing Value`);
+                    else {
+                        console.error('Unknown database action');
+                        console.log(payload);
+                    }
                 }
             }
         }

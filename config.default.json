@@ -24,5 +24,6 @@
 	"compare_speed": 1800000,
 	"backfill": true,
 	"compare_nodes": true,
-	"compare_files": true
+	"compare_files": true,
+	"database_logs": false
 }

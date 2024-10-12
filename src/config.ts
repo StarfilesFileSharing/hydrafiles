@@ -26,6 +26,7 @@ export interface Config {
   s3_secret_access_key: string
   s3_endpoint: string
   cache_s3: boolean
+  database_logs: boolean
 }
 
 const DIRNAME = path.dirname(fileURLToPath(import.meta.url))
@@ -56,7 +57,8 @@ const getConfig = (config: Partial<Config> = {}): Config => {
     s3_access_key_id: config?.s3_access_key_id ?? defaultConfig.s3_access_key_id,
     s3_secret_access_key: config?.s3_secret_access_key ?? defaultConfig.s3_secret_access_key,
     s3_endpoint: config?.s3_endpoint ?? defaultConfig.s3_endpoint,
-    cache_s3: config?.cache_s3 ?? defaultConfig.cache_s3
+    cache_s3: config?.cache_s3 ?? defaultConfig.cache_s3,
+    database_logs: config?.database_logs ?? defaultConfig.database_logs
   }
 }
 
