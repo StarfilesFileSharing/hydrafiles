@@ -11,7 +11,6 @@ import fs from 'fs';
 import http from 'http';
 import path from 'path';
 import formidable from 'formidable';
-import { nodeFrom } from './nodes.js';
 import FileHandler from './fileHandler.js';
 import { fileURLToPath } from 'url';
 const DIRNAME = path.dirname(fileURLToPath(import.meta.url));
@@ -43,7 +42,7 @@ const handleRequest = (req, res, client) => __awaiter(void 0, void 0, void 0, fu
                 res.end('Already known\n');
                 return;
             }
-            if ((yield client.nodes.downloadFromNode(nodeFrom(host), yield FileHandler.init({ hash: '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f' }, client))) !== false) {
+            if ((yield client.nodes.downloadFromNode(client.nodes.nodeFrom(host), yield FileHandler.init({ hash: '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f' }, client))) !== false) {
                 yield client.nodes.add({ host, http: true, dns: false, cf: false, hits: 0, rejects: 0, bytes: 0, duration: 0 });
                 res.end('Announced\n');
             }
@@ -215,7 +214,7 @@ const handleRequest = (req, res, client) => __awaiter(void 0, void 0, void 0, fu
         res.end('Internal Server Error');
     }
 });
-export const startServer = (client) => {
+const startServer = (client) => {
     console.log('Starting server');
     const server = http.createServer((req, res) => {
         console.log('Request Received:', req.url);
@@ -235,7 +234,7 @@ export const startServer = (client) => {
                 else {
                     console.log(`Testing downloads ${client.config.public_hostname}/download/04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f`);
                     console.log('Testing connectivity');
-                    const response = yield client.nodes.downloadFromNode(nodeFrom(`${client.config.public_hostname}`), yield FileHandler.init({ hash: '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f' }, client));
+                    const response = yield client.nodes.downloadFromNode(client.nodes.nodeFrom(`${client.config.public_hostname}`), yield FileHandler.init({ hash: '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f' }, client));
                     if (response === false)
                         console.error('  04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f  ERROR: Failed to download file from self');
                     else {
@@ -250,3 +249,4 @@ export const startServer = (client) => {
         handleListen().catch(console.error);
     });
 };
+export default startServer;

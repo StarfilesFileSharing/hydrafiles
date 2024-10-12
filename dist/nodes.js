@@ -13,19 +13,6 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 const DIRNAME = path.dirname(fileURLToPath(import.meta.url));
 export const NODES_PATH = path.join(DIRNAME, '../nodes.json');
-export const nodeFrom = (host) => {
-    const node = {
-        host,
-        http: true,
-        dns: false,
-        cf: false,
-        hits: 0,
-        rejects: 0,
-        bytes: 0,
-        duration: 0
-    };
-    return node;
-};
 export default class Nodes {
     constructor(client) {
         this.getNodes = (opts = { includeSelf: true }) => {
@@ -247,5 +234,18 @@ export default class Nodes {
                 }))().catch(console.error);
             }
         });
+    }
+    nodeFrom(host) {
+        const node = {
+            host,
+            http: true,
+            dns: false,
+            cf: false,
+            hits: 0,
+            rejects: 0,
+            bytes: 0,
+            duration: 0
+        };
+        return node;
     }
 }

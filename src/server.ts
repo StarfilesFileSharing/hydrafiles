@@ -2,7 +2,6 @@ import fs from 'fs'
 import http from 'http'
 import path from 'path'
 import formidable from 'formidable'
-import { nodeFrom } from './nodes.js'
 import FileHandler, { FileAttributes } from './fileHandler.js'
 import Hydrafiles from './hydrafiles.js'
 import { fileURLToPath } from 'url'
@@ -34,7 +33,7 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
         return
       }
 
-      if (await client.nodes.downloadFromNode(nodeFrom(host), await FileHandler.init({ hash: '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f' }, client)) !== false) {
+      if (await client.nodes.downloadFromNode(client.nodes.nodeFrom(host), await FileHandler.init({ hash: '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f' }, client)) !== false) {
         await client.nodes.add({ host, http: true, dns: false, cf: false, hits: 0, rejects: 0, bytes: 0, duration: 0 })
         res.end('Announced\n')
       } else res.end('Invalid request\n')
@@ -214,7 +213,7 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
   }
 }
 
-export const startServer = (client: Hydrafiles): void => {
+const startServer = (client: Hydrafiles): void => {
   console.log('Starting server')
   const server = http.createServer((req, res) => {
     console.log('Request Received:', req.url)
@@ -237,7 +236,7 @@ export const startServer = (client: Hydrafiles): void => {
           console.log(`Testing downloads ${client.config.public_hostname}/download/04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f`)
 
           console.log('Testing connectivity')
-          const response = await client.nodes.downloadFromNode(nodeFrom(`${client.config.public_hostname}`), await FileHandler.init({ hash: '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f' }, client))
+          const response = await client.nodes.downloadFromNode(client.nodes.nodeFrom(`${client.config.public_hostname}`), await FileHandler.init({ hash: '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f' }, client))
           if (response === false) console.error('  04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f  ERROR: Failed to download file from self')
           else {
             console.log('  04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f  Test Succeeded')
@@ -251,3 +250,4 @@ export const startServer = (client: Hydrafiles): void => {
     handleListen().catch(console.error)
   })
 }
+export default startServer

@@ -13,7 +13,7 @@ import init from './init.js';
 import getConfig from './config.js';
 import Nodes from './nodes.js';
 import FileHandler, { webtorrentClient } from './fileHandler.js';
-import { hashLocks, startServer } from './server.js';
+import startServer, { hashLocks } from './server.js';
 import Utils from './utils.js';
 import { S3 } from '@aws-sdk/client-s3';
 import startDatabase from './database.js';

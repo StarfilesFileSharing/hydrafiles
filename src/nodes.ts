@@ -9,20 +9,6 @@ export interface Node { host: string, http: boolean, dns: boolean, cf: boolean, 
 const DIRNAME = path.dirname(fileURLToPath(import.meta.url))
 export const NODES_PATH = path.join(DIRNAME, '../nodes.json')
 
-export const nodeFrom = (host: string): Node => {
-  const node: Node = {
-    host,
-    http: true,
-    dns: false,
-    cf: false,
-    hits: 0,
-    rejects: 0,
-    bytes: 0,
-    duration: 0
-  }
-  return node
-}
-
 export default class Nodes {
   nodes: Node[]
   client
@@ -227,5 +213,19 @@ export default class Nodes {
         }
       })().catch(console.error)
     }
+  }
+
+  nodeFrom (host: string): Node {
+    const node: Node = {
+      host,
+      http: true,
+      dns: false,
+      cf: false,
+      hits: 0,
+      rejects: 0,
+      bytes: 0,
+      duration: 0
+    }
+    return node
   }
 }
