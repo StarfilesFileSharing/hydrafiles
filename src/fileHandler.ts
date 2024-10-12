@@ -79,8 +79,8 @@ export default class FileHandler {
     return fileHandler
   }
 
-  public static findFile = async (where: FileAttributes, client: Hydrafiles): Promise<void> => {
-    console.log(await client.FileModel.findOne({ where }))
+  public static findFiles = async (where: Partial<FileAttributes>, client: Hydrafiles): Promise<Array<Model<any, any>>> => {
+    return await client.FileModel.findAll({ where })
   }
 
   public async getMetadata (): Promise<FileHandler | false> {
