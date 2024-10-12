@@ -12,11 +12,11 @@ import SequelizeSimpleCache from 'sequelize-simple-cache';
 import path from 'path';
 import { fileURLToPath } from 'url';
 const DIRNAME = path.dirname(fileURLToPath(import.meta.url));
-const startDatabase = (config) => __awaiter(void 0, void 0, void 0, function* () {
+const startDatabase = (config) => {
     console.log('Starting database');
     const sequelize = new Sequelize({
         dialect: 'sqlite',
-        storage: path.join(DIRNAME, 'filemanager.db'),
+        storage: path.join(DIRNAME, '../filemanager.db'),
         logging: (...msg) => {
             const payload = msg[1];
             if (payload.type === 'SELECT') {
@@ -75,19 +75,21 @@ const startDatabase = (config) => __awaiter(void 0, void 0, void 0, function* ()
         modelName: 'FileHandler'
     });
     const cache = new SequelizeSimpleCache({ File: { ttl: 30 * 60 } });
-    try {
-        yield sequelize.sync({ alter: true });
-    }
-    catch (e) {
-        const err = e;
-        if (err.original.message.includes('file_backup')) {
-            yield sequelize.query('DROP TABLE IF EXISTS file_backup');
+    (() => __awaiter(void 0, void 0, void 0, function* () {
+        try {
             yield sequelize.sync({ alter: true });
         }
-        else
-            throw e;
-    }
-    console.log('Connected to the database');
+        catch (e) {
+            const err = e;
+            if (err.original.message.includes('file_backup')) {
+                yield sequelize.query('DROP TABLE IF EXISTS file_backup');
+                yield sequelize.sync({ alter: true });
+            }
+            else
+                throw e;
+        }
+        console.log('Connected to the database');
+    }))().catch(console.error);
     return cache.init(UncachedFileModel);
-});
+};
 export default startDatabase;
