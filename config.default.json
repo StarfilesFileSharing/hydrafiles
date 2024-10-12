@@ -5,7 +5,6 @@
 	"max_cache": -1,
 	"perma_files": [],
 	"prefer_node": "HIGHEST_HITRATE",
-	"max_concurrent_nodes": 5,
 	"metadata_endpoint": "https://api2.starfiles.co/file/",
 	"bootstrap_nodes": [
 		{"host": "https://hydrafiles.com", "http": true, "dns": false, "cf": false, "hits": 0, "rejects": 0, "bytes": 0, "duration": 0},
