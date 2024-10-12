@@ -164,12 +164,11 @@ export default class FileHandler {
   }
 
   async fetchFromS3 (): Promise<{ file: Buffer, signal: number } | false> {
-    const hash = this.hash
-    console.log(`  ${hash}  Checking S3`)
+    console.log(`  ${this.hash}  Checking S3`)
     if (this.client.config.s3_endpoint.length === 0) return false
     try {
       let buffer: Buffer
-      const data = await this.client.s3.getObject({ Bucket: 'uploads', Key: `${hash}.stuf` })
+      const data = await this.client.s3.getObject({ Bucket: 'uploads', Key: `${this.hash}.stuf` })
 
       if (data.Body instanceof Readable) {
         const chunks: any[] = []
@@ -181,6 +180,12 @@ export default class FileHandler {
       else return false
 
       if (this.client.config.cache_s3) await this.cacheFile(buffer)
+
+      const stream = this.client.utils.bufferToStream(buffer)
+      const hash = await this.client.utils.hashStream(stream)
+      if (hash !== this.hash) {
+        return false
+      }
       return { file: buffer, signal: this.client.utils.interfere(100) }
     } catch (e) {
       const err = e as { message: string }
