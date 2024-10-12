@@ -52,8 +52,10 @@ class Hydrafiles {
     startServer(this)
     this.FileModel = startDatabase(this.config)
 
-    this.logState().catch(console.error)
-    setInterval(() => { this.logState().catch(console.error) }, this.config.summary_speed)
+    if (this.config.summary_speed !== -1) {
+      this.logState().catch(console.error)
+      setInterval(() => { this.logState().catch(console.error) }, this.config.summary_speed)
+    }
 
     if (this.config.compare_speed !== -1) {
       setInterval(() => {

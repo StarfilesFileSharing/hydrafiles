@@ -75,8 +75,10 @@ class Hydrafiles {
         this.nodes = new Nodes(this);
         startServer(this);
         this.FileModel = startDatabase(this.config);
-        this.logState().catch(console.error);
-        setInterval(() => { this.logState().catch(console.error); }, this.config.summary_speed);
+        if (this.config.summary_speed !== -1) {
+            this.logState().catch(console.error);
+            setInterval(() => { this.logState().catch(console.error); }, this.config.summary_speed);
+        }
         if (this.config.compare_speed !== -1) {
             setInterval(() => {
                 this.backgroundTasks().catch(console.error);
@@ -92,7 +94,7 @@ class Hydrafiles {
                 return;
             }
             try {
-                console.log('\n===============================================\n========', new Date().toUTCString(), '========\n===============================================\n| Uptime: ', this.utils.convertTime(+new Date() - this.startTime), '\n| Known (Network) Files:', yield this.FileModel.noCache().count(), `(${Math.round((100 * (yield this.FileModel.noCache().sum('size'))) / 1024 / 1024 / 1024) / 100}GB)`, '\n| Stored Files:', fs.readdirSync(path.join(DIRNAME, 'files/')).length, `(${Math.round((100 * this.utils.calculateUsedStorage()) / 1024 / 1024 / 1024) / 100}GB)`, '\n| Processing Files:', hashLocks.size, '\n| Seeding Torrent Files:', (yield webtorrentClient()).torrents.length, '\n| Download Count:', yield this.FileModel.noCache().sum('downloadCount'), '\n===============================================\n');
+                console.log('\n===============================================\n========', new Date().toUTCString(), '========\n===============================================\n| Uptime: ', this.utils.convertTime(+new Date() - this.startTime), '\n| Known (Network) Files:', yield this.FileModel.noCache().count(), `(${Math.round((100 * (yield this.FileModel.noCache().sum('size'))) / 1024 / 1024 / 1024) / 100}GB)`, '\n| Stored Files:', fs.readdirSync(path.join(DIRNAME, '../files/')).length, `(${Math.round((100 * this.utils.calculateUsedStorage()) / 1024 / 1024 / 1024) / 100}GB)`, '\n| Processing Files:', hashLocks.size, '\n| Seeding Torrent Files:', (yield webtorrentClient()).torrents.length, '\n| Download Count:', yield this.FileModel.noCache().sum('downloadCount'), '\n===============================================\n');
             }
             catch (e) {
                 console.error(e);
