@@ -24,17 +24,16 @@ import { SequelizeSimpleCacheModel } from 'sequelize-simple-cache'
 class Hydrafiles {
   startTime: number
   config: Config
-  nodes: Nodes | undefined
+  nodes: Nodes
   s3: S3
   utils
-  FileHandler
-  FileModel: (ModelCtor<Model<any, any>> & SequelizeSimpleCacheModel<Model<any, any>>) | undefined
+  FileHandler = FileHandler
+  FileModel: Promise<ModelCtor<Model<any, any>> & SequelizeSimpleCacheModel<Model<any, any>>> = new Promise(() => {})
   constructor (customConfig: Config | undefined) {
     this.startTime = +new Date()
     const config = getConfig(customConfig)
     this.config = config
     this.utils = new Utils(config)
-    this.FileHandler = FileHandler
     init(this.config)
 
     const s3 = new S3({
@@ -45,18 +44,18 @@ class Hydrafiles {
       },
       endpoint: config.s3_endpoint
     })
-    this.s3 = s3;
+    this.s3 = s3
+
+    const nodes = new Nodes(this)
+    this.nodes = nodes
+
+    startServer(this);
 
     (async () => {
       await this.logState()
       setInterval(() => { this.logState().catch(console.error) }, config.summary_speed)
       const FileModel = await startDatabase(config)
-      this.FileModel = FileModel
-
-      const nodes = new Nodes(config, s3, FileModel)
-      this.nodes = nodes
-
-      startServer(config, nodes, s3, FileModel)
+      this.FileModel = Promise.resolve(FileModel)
 
       if (config.compare_speed !== -1) {
         setInterval(() => {
@@ -86,15 +85,11 @@ class Hydrafiles {
   }
 
   backfillFiles = async (): Promise<void> => {
-    if (this.FileModel === undefined) {
-      console.error('Database not open')
-      return
-    }
-    const files = await this.FileModel.findAll({ order: Sequelize.literal('RANDOM()') })
+    const files = await (await this.FileModel).findAll({ order: Sequelize.literal('RANDOM()') })
     for (let i = 0; i < files.length; i++) {
       const hash: string = files[i].dataValues.hash
       console.log(`  ${hash}  Backfilling file`)
-      const file = await this.FileHandler.init({ hash }, this.config, this.s3, this.FileModel)
+      const file = await this.FileHandler.init({ hash }, this)
       try {
         if (this.nodes === undefined) {
           console.error('Nodes manager is undefined')
@@ -120,8 +115,8 @@ class Hydrafiles {
         '========\n===============================================\n| Uptime: ',
         this.utils.convertTime(+new Date() - this.startTime),
         '\n| Known (Network) Files:',
-        await this.FileModel.noCache().count(),
-        `(${Math.round((100 * await this.FileModel.noCache().sum('size')) / 1024 / 1024 / 1024) / 100}GB)`,
+        await (await this.FileModel).noCache().count(),
+        `(${Math.round((100 * await (await this.FileModel).noCache().sum('size')) / 1024 / 1024 / 1024) / 100}GB)`,
         '\n| Stored Files:',
         fs.readdirSync('files/').length,
         `(${Math.round((100 * this.utils.calculateUsedStorage()) / 1024 / 1024 / 1024) / 100}GB)`,
@@ -130,7 +125,7 @@ class Hydrafiles {
         '\n| Seeding Torrent Files:',
         (await webtorrentClient()).torrents.length,
         '\n| Download Count:',
-        await this.FileModel.noCache().sum('downloadCount'),
+        await (await this.FileModel).noCache().sum('downloadCount'),
         '\n===============================================\n'
       )
     } catch (e) {

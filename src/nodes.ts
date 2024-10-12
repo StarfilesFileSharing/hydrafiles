@@ -1,12 +1,8 @@
 import fs from 'fs'
-import { Config } from './config.js'
-import Utils from './utils.js'
 import FileHandler from './fileHandler.js'
-import { S3 } from '@aws-sdk/client-s3'
-import { Model, ModelCtor } from 'sequelize'
-import { SequelizeSimpleCacheModel } from 'sequelize-simple-cache'
 import path from 'path'
 import { fileURLToPath } from 'url'
+import Hydrafiles from './hydrafiles.js'
 
 export interface Node { host: string, http: boolean, dns: boolean, cf: boolean, hits: number, rejects: number, bytes: number, duration: number, status?: boolean }
 
@@ -29,20 +25,14 @@ export const nodeFrom = (host: string): Node => {
 
 export default class Nodes {
   nodes: Node[]
-  config: Config
-  s3: S3
-  utils: Utils
-  FileModel
-  constructor (config: Config, s3: S3, FileModel: ModelCtor<Model<any, any>> & SequelizeSimpleCacheModel<Model<any, any>>) {
+  client
+  constructor (client: Hydrafiles) {
     this.nodes = this.loadNodes()
-    this.config = config
-    this.s3 = s3
-    this.utils = new Utils(config)
-    this.FileModel = FileModel
+    this.client = client
   }
 
   async add (node: Node): Promise<void> {
-    if (node.host !== this.config.public_hostname && typeof this.nodes.find((existingNode) => existingNode.host === node.host) === 'undefined' && (await this.downloadFromNode(node, await FileHandler.init({ hash: '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f' }, this.config, this.s3, this.FileModel)) !== false)) {
+    if (node.host !== this.client.config.public_hostname && typeof this.nodes.find((existingNode) => existingNode.host === node.host) === 'undefined' && (await this.downloadFromNode(node, await FileHandler.init({ hash: '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f' }, this.client)) !== false)) {
       this.nodes.push(node)
       fs.writeFileSync(NODES_PATH, JSON.stringify(this.nodes))
     }
@@ -54,11 +44,11 @@ export default class Nodes {
 
   getNodes (opts = { includeSelf: true }): Node[] {
     if (opts.includeSelf === undefined) opts.includeSelf = true
-    const nodes = this.nodes.filter(node => opts.includeSelf || node.host !== this.config.public_hostname).sort(() => Math.random() - 0.5)
+    const nodes = this.nodes.filter(node => opts.includeSelf || node.host !== this.client.config.public_hostname).sort(() => Math.random() - 0.5)
 
-    if (this.config.prefer_node === 'FASTEST') return nodes.sort((a: { bytes: number, duration: number }, b: { bytes: number, duration: number }) => a.bytes / a.duration - b.bytes / b.duration)
-    else if (this.config.prefer_node === 'LEAST_USED') return nodes.sort((a: { hits: number, rejects: number }, b: { hits: number, rejects: number }) => a.hits - a.rejects - (b.hits - b.rejects))
-    else if (this.config.prefer_node === 'HIGHEST_HITRATE') return nodes.sort((a: { hits: number, rejects: number }, b: { hits: number, rejects: number }) => (a.hits - a.rejects) - (b.hits - b.rejects))
+    if (this.client.config.prefer_node === 'FASTEST') return nodes.sort((a: { bytes: number, duration: number }, b: { bytes: number, duration: number }) => a.bytes / a.duration - b.bytes / b.duration)
+    else if (this.client.config.prefer_node === 'LEAST_USED') return nodes.sort((a: { hits: number, rejects: number }, b: { hits: number, rejects: number }) => a.hits - a.rejects - (b.hits - b.rejects))
+    else if (this.client.config.prefer_node === 'HIGHEST_HITRATE') return nodes.sort((a: { hits: number, rejects: number }, b: { hits: number, rejects: number }) => (a.hits - a.rejects) - (b.hits - b.rejects))
     else return nodes
   }
 
@@ -70,14 +60,14 @@ export default class Nodes {
       console.log(`  ${hash}  Downloading from ${node.host}`)
       let response
       try {
-        response = await this.utils.promiseWithTimeout(fetch(`${node.host}/download/${hash}`), this.config.timeout)
+        response = await this.client.utils.promiseWithTimeout(fetch(`${node.host}/download/${hash}`), this.client.config.timeout)
       } catch (e) {
-        if (this.config.log_level === 'verbose') console.error(e)
+        if (this.client.config.log_level === 'verbose') console.error(e)
         return false
       }
       const buffer: Buffer = Buffer.from(await response.arrayBuffer())
       console.log(`  ${hash}  Validating hash`)
-      const verifiedHash = await this.utils.hashStream(this.utils.bufferToStream(buffer))
+      const verifiedHash = await this.client.utils.hashStream(this.client.utils.bufferToStream(buffer))
       if (hash !== verifiedHash) return false
 
       if (file.name === undefined || file.name === null || file.name.length === 0) {
@@ -92,7 +82,7 @@ export default class Nodes {
       this.updateNode(node)
 
       await file.cacheFile(buffer)
-      return { file: buffer, signal: this.utils.interfere(Number(response.headers.get('Signal-Strength'))) }
+      return { file: buffer, signal: this.client.utils.interfere(Number(response.headers.get('Signal-Strength'))) }
     } catch (e) {
       console.error(e)
       node.rejects++
@@ -116,7 +106,7 @@ export default class Nodes {
     const executing: Array<Promise<void>> = []
 
     for (const node of nodes) {
-      if (node.host === this.config.public_hostname) {
+      if (node.host === this.client.config.public_hostname) {
         results.push(node)
         continue
       }
@@ -125,14 +115,14 @@ export default class Nodes {
         executing.splice(executing.indexOf(promise), 1)
       })
       executing.push(promise)
-      if (executing.length >= this.config.max_concurrent_nodes) await Promise.race(executing)
+      if (executing.length >= this.client.config.max_concurrent_nodes) await Promise.race(executing)
     }
     await Promise.all(executing)
     return results
   }
 
   async validateNode (node: Node): Promise<Node> {
-    const file = await this.downloadFromNode(node, await FileHandler.init({ hash: '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f' }, this.config, this.s3, this.FileModel))
+    const file = await this.downloadFromNode(node, await FileHandler.init({ hash: '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f' }, this.client))
     if (file !== false) {
       node.status = true
       this.updateNode(node)
@@ -149,19 +139,19 @@ export default class Nodes {
     const nodes = this.getNodes({ includeSelf: false })
     let activePromises: Array<Promise<{ file: Buffer, signal: number } | false>> = []
 
-    if (!this.utils.hasSufficientMemory(size)) {
+    if (!this.client.utils.hasSufficientMemory(size)) {
       console.log('Reached memory limit, waiting')
       await new Promise(() => {
         const intervalId = setInterval(() => {
-          if (this.utils.hasSufficientMemory(size)) clearInterval(intervalId)
-        }, this.config.memory_threshold_reached_wait)
+          if (this.client.utils.hasSufficientMemory(size)) clearInterval(intervalId)
+        }, this.client.config.memory_threshold_reached_wait)
       })
     }
 
     for (const node of nodes) {
       if (node.http && node.host.length > 0) {
         const promise = (async (): Promise<{ file: Buffer, signal: number } | false> => {
-          const file = await FileHandler.init({ hash }, this.config, this.s3, this.FileModel)
+          const file = await FileHandler.init({ hash }, this.client)
           let fileContent: { file: Buffer, signal: number } | false = false
           try {
             fileContent = await this.downloadFromNode(node, file)
@@ -172,10 +162,10 @@ export default class Nodes {
         })()
         activePromises.push(promise)
 
-        if (activePromises.length >= this.config.max_concurrent_nodes) {
+        if (activePromises.length >= this.client.config.max_concurrent_nodes) {
           const file = await Promise.race(activePromises)
           if (file !== false) return file
-          activePromises = activePromises.filter(p => !this.utils.promiseWrapper(p).isFulfilled)
+          activePromises = activePromises.filter(p => !this.client.utils.promiseWrapper(p).isFulfilled)
         }
       }
     }
@@ -193,9 +183,9 @@ export default class Nodes {
   async announce (): Promise<void> {
     for (const node of this.getNodes({ includeSelf: false })) {
       if (node.http) {
-        if (node.host === this.config.public_hostname) continue
+        if (node.host === this.client.config.public_hostname) continue
         console.log('Announcing to', node.host)
-        await fetch(`${node.host}/announce?host=${this.config.public_hostname}`)
+        await fetch(`${node.host}/announce?host=${this.client.config.public_hostname}`)
       }
     }
   }
@@ -207,7 +197,7 @@ export default class Nodes {
       const files = await response.json() as Array<{ hash: string, infohash: string | null, id: string | null, name: string | null, size: number }>
       for (let i = 0; i < files.length; i++) {
         try {
-          const file = await FileHandler.init({ hash: files[i].hash, infohash: files[i].infohash ?? undefined }, this.config, this.s3, this.FileModel)
+          const file = await FileHandler.init({ hash: files[i].hash, infohash: files[i].infohash ?? undefined }, this.client)
           if (file.infohash?.length === 0 && files[i].infohash?.length !== 0) file.infohash = files[i].infohash
           if (file.id?.length === 0 && files[i].id?.length !== 0) file.id = files[i].id
           if (file.name?.length === 0 && files[i].name?.length !== 0) file.name = files[i].name
@@ -233,15 +223,15 @@ export default class Nodes {
         if (node.host.startsWith('http://') || node.host.startsWith('https://')) {
           console.log(`Fetching nodes from ${node.host}/nodes`)
           try {
-            const response = await this.utils.promiseWithTimeout(fetch(`${node.host}/nodes`), this.config.timeout)
+            const response = await this.client.utils.promiseWithTimeout(fetch(`${node.host}/nodes`), this.client.config.timeout)
             const remoteNodes = await response.json() as Node[]
             for (const remoteNode of remoteNodes) {
               this.add(remoteNode).catch((e) => {
-                if (this.config.log_level === 'verbose') console.error(e)
+                if (this.client.config.log_level === 'verbose') console.error(e)
               })
             }
           } catch (e) {
-            if (this.config.log_level === 'verbose') throw e
+            if (this.client.config.log_level === 'verbose') throw e
           }
         }
       })().catch(console.error)

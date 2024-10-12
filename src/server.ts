@@ -2,18 +2,14 @@ import fs from 'fs'
 import http from 'http'
 import path from 'path'
 import formidable from 'formidable'
-import { Config } from './config.js'
-import Nodes, { nodeFrom, NODES_PATH } from './nodes.js'
+import { nodeFrom } from './nodes.js'
 import FileHandler, { FileAttributes } from './fileHandler.js'
-import Utils from './utils.js'
-import { S3 } from '@aws-sdk/client-s3'
-import { SequelizeSimpleCacheModel } from 'sequelize-simple-cache'
-import { Model, ModelCtor } from 'sequelize'
+import Hydrafiles from './hydrafiles.js'
 
 const DIRNAME = path.resolve()
 export const hashLocks = new Map<string, Promise<any>>()
 
-const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse<http.IncomingMessage>, config: Config, nodes: Nodes, s3: S3, FileModel: ModelCtor<Model<any, any>> & SequelizeSimpleCacheModel<Model<any, any>>, utils: Utils): Promise<void> => {
+const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse<http.IncomingMessage>, client: Hydrafiles): Promise<void> => {
   try {
     if (req.url === '/' || req.url === null || typeof req.url === 'undefined') {
       res.writeHead(200, { 'Content-Type': 'text/html', 'Cache-Control': 'public, max-age=604800' })
@@ -26,20 +22,19 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
       res.end(JSON.stringify({ status: true }))
     } else if (req.url === '/nodes' || req.url.startsWith('/nodes?')) {
       res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=300' })
-      res.end(JSON.stringify(await nodes.getValidNodes()))
+      res.end(JSON.stringify(await client.nodes.getValidNodes()))
     } else if (req.url.startsWith('/announce')) {
       const params = Object.fromEntries(new URLSearchParams(req.url.split('?')[1]))
       const host = params.host
 
-      const knownNodes = nodes.getNodes()
+      const knownNodes = client.nodes.getNodes()
       if (knownNodes.find((node) => node.host === host) != null) {
         res.end('Already known\n')
         return
       }
 
-      if (await nodes.downloadFromNode(nodeFrom(host), await FileHandler.init({ hash: '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f' }, config, s3, FileModel)) !== false) {
-        nodes.nodes.push({ host, http: true, dns: false, cf: false, hits: 0, rejects: 0, bytes: 0, duration: 0 })
-        fs.writeFileSync(NODES_PATH, JSON.stringify(nodes))
+      if (await client.nodes.downloadFromNode(nodeFrom(host), await FileHandler.init({ hash: '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f' }, client)) !== false) {
+        await client.nodes.add({ host, http: true, dns: false, cf: false, hits: 0, rejects: 0, bytes: 0, duration: 0 })
         res.end('Announced\n')
       } else res.end('Invalid request\n')
     } else if (req.url?.startsWith('/download/')) {
@@ -47,11 +42,11 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
       const fileId = req.url.split('/')[3] ?? ''
 
       while (hashLocks.has(hash)) {
-        if (config.log_level === 'verbose') console.log(`  ${hash}  Waiting for existing request with same hash`)
+        if (client.config.log_level === 'verbose') console.log(`  ${hash}  Waiting for existing request with same hash`)
         await hashLocks.get(hash)
       }
       const processingPromise = (async () => {
-        const file = await FileHandler.init({ hash }, config, s3, FileModel)
+        const file = await FileHandler.init({ hash }, client)
 
         if (fileId.length !== 0) {
           const id = file.id
@@ -64,7 +59,7 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
         await file.getMetadata()
         let fileContent: { file: Buffer, signal: number } | false
         try {
-          fileContent = await file.getFile(nodes)
+          fileContent = await file.getFile(client.nodes)
         } catch (e) {
           const err = e as { message: string }
           if (err.message === 'Promise timed out') fileContent = false
@@ -85,7 +80,7 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
         }
 
         headers['Signal-Strength'] = String(fileContent.signal)
-        console.log(`  ${hash}  Signal Strength:`, fileContent.signal, utils.estimateHops(fileContent.signal))
+        console.log(`  ${hash}  Signal Strength:`, fileContent.signal, client.utils.estimateHops(fileContent.signal))
 
         headers['Content-Length'] = String(file.size)
         headers['Content-Disposition'] = `attachment; filename="${encodeURIComponent(file.name ?? 'File').replace(/%20/g, ' ').replace(/(\.\w+)$/, ' [HYDRAFILES]$1')}"`
@@ -109,12 +104,12 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
         await hashLocks.get(infohash)
       }
       const processingPromise = (async () => {
-        const file = await FileHandler.init({ infohash }, config, s3, FileModel)
+        const file = await FileHandler.init({ infohash }, client)
 
         await file.getMetadata()
         let fileContent: { file: Buffer, signal: number } | false
         try {
-          fileContent = await file.getFile(nodes)
+          fileContent = await file.getFile(client.nodes)
         } catch (e) {
           const err = e as { message: string }
           if (err.message === 'Promise timed out') fileContent = false
@@ -135,7 +130,7 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
         }
 
         headers['Signal-Strength'] = String(fileContent.signal)
-        console.log(`  ${file.hash}  Signal Strength:`, fileContent.signal, utils.estimateHops(fileContent.signal))
+        console.log(`  ${file.hash}  Signal Strength:`, fileContent.signal, client.utils.estimateHops(fileContent.signal))
 
         headers['Content-Length'] = String(file.size)
         headers['Content-Disposition'] = `attachment; filename="${encodeURIComponent(file.name ?? 'File').replace(/%20/g, ' ').replace(/(\.\w+)$/, ' [HYDRAFILES]$1')}"`
@@ -153,7 +148,7 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
       }
     } else if (req.url === '/upload') {
       const uploadSecret = req.headers['x-hydra-upload-secret']
-      if (uploadSecret !== config.upload_secret) {
+      if (uploadSecret !== client.config.upload_secret) {
         res.writeHead(401, { 'Content-Type': 'text/plain' })
         res.end('401 Unauthorized\n')
         return
@@ -176,7 +171,7 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
         const hash = fields.hash[0]
         const uploadedFile = files.file[0]
 
-        FileHandler.init({ hash }, config, s3, FileModel).then(async file => {
+        FileHandler.init({ hash }, client).then(async file => {
           let name = file.name
           if ((name === undefined || name === null || name.length === 0) && uploadedFile.originalFilename !== null) {
             name = uploadedFile.originalFilename
@@ -194,14 +189,14 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
           return
         }
 
-        if (!config.perma_files.includes(hash)) config.perma_files.push(hash)
-        fs.writeFileSync(path.join(DIRNAME, 'config.json'), JSON.stringify(config, null, 2))
+        if (!client.config.perma_files.includes(hash)) client.config.perma_files.push(hash)
+        fs.writeFileSync(path.join(DIRNAME, 'client.config.json'), JSON.stringify(client.config, null, 2))
 
         res.writeHead(201, { 'Content-Type': 'text/plain' })
         res.end('200 OK\n')
       })
     } else if (req.url === '/files') {
-      const rows = (await FileModel.findAll()).map((row: { dataValues: FileAttributes }) => {
+      const rows = (await (await client.FileModel).findAll()).map((row: { dataValues: FileAttributes }) => {
         const { hash, infohash, id, name, size } = row.dataValues
         return { hash, infohash, id, name, size }
       })
@@ -218,38 +213,37 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
   }
 }
 
-export const startServer = (config: Config, nodes: Nodes, s3: S3, FileModel: ModelCtor<Model<any, any>> & SequelizeSimpleCacheModel<Model<any, any>>): void => {
+export const startServer = (client: Hydrafiles): void => {
   console.log('Starting server')
-  const utils = new Utils(config)
   const server = http.createServer((req, res) => {
     console.log('Request Received:', req.url)
 
-    handleRequest(req, res, config, nodes, s3, FileModel, utils).catch(console.error)
+    handleRequest(req, res, client).catch(console.error)
   })
 
-  server.listen(config.port, config.hostname, (): void => {
-    console.log(`Server running at ${config.public_hostname}/`)
+  server.listen(client.config.port, client.config.hostname, (): void => {
+    console.log(`Server running at ${client.config.public_hostname}/`)
 
     const handleListen = async (): Promise<void> => {
       console.log('Testing network connection')
-      const file = await nodes.getFile('04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f')
+      const file = await client.nodes.getFile('04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f')
       if (file === false) console.error('Download test failed, cannot connect to network')
       else {
         console.log('Connected to network')
 
-        if (utils.isIp(config.public_hostname) && utils.isPrivateIP(config.public_hostname)) console.error('Public hostname is a private IP address, cannot announce to other nodes')
+        if (client.utils.isIp(client.config.public_hostname) && client.utils.isPrivateIP(client.config.public_hostname)) console.error('Public hostname is a private IP address, cannot announce to other nodes')
         else {
-          console.log(`Testing downloads ${config.public_hostname}/download/04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f`)
+          console.log(`Testing downloads ${client.config.public_hostname}/download/04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f`)
 
           console.log('Testing connectivity')
-          const response = await nodes.downloadFromNode(nodeFrom(`${config.public_hostname}`), await FileHandler.init({ hash: '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f' }, config, s3, FileModel))
+          const response = await client.nodes.downloadFromNode(nodeFrom(`${client.config.public_hostname}`), await FileHandler.init({ hash: '04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f' }, client))
           if (response === false) console.error('  04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f  ERROR: Failed to download file from self')
           else {
             console.log('  04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f  Test Succeeded')
             console.log('Announcing to nodes')
-            await nodes.announce()
+            await client.nodes.announce()
           }
-          await nodes.add({ host: config.public_hostname, http: true, dns: false, cf: false, hits: 0, rejects: 0, bytes: 0, duration: 0 })
+          await client.nodes.add({ host: client.config.public_hostname, http: true, dns: false, cf: false, hits: 0, rejects: 0, bytes: 0, duration: 0 })
         }
       }
     }

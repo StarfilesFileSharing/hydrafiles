@@ -1,13 +1,10 @@
 import fs from 'fs'
 import path from 'path'
 import { Readable } from 'stream'
-import { Model, ModelCtor } from 'sequelize'
-import { Config } from './config.js'
-import Utils from './utils.js'
+import { Model } from 'sequelize'
 import Nodes from './nodes.js'
 import { Instance } from 'webtorrent'
-import { S3 } from '@aws-sdk/client-s3'
-import { SequelizeSimpleCacheModel } from 'sequelize-simple-cache'
+import Hydrafiles from './hydrafiles.js'
 const WebTorrentPromise = import('webtorrent')
 
 interface Metadata { name: string, size: number, type: string, hash: string, id: string, infohash: string }
@@ -49,24 +46,21 @@ export default class FileHandler {
   createdAt!: Date
   updatedAt!: Date
   file!: Model<any, any>
-  config!: Config
-  s3!: S3
-  utils!: Utils
+  client!: Hydrafiles
 
-  public static async init (opts: { hash?: string, infohash?: string }, config: Config, s3: S3, FileModel: ModelCtor<Model<any, any>> & SequelizeSimpleCacheModel<Model<any, any>>): Promise<FileHandler> {
-    const utils = new Utils(config)
+  public static async init (opts: { hash?: string, infohash?: string }, client: Hydrafiles): Promise<FileHandler> {
     let hash: string
     if (opts.hash !== undefined) hash = opts.hash
     else if (opts.infohash !== undefined) {
-      if (!utils.isValidInfoHash(opts.infohash)) throw new Error(`Invalid infohash provided: ${opts.infohash}`)
-      const file = await FileModel.findOne({ where: { infohash: opts.infohash } })
+      if (!client.utils.isValidInfoHash(opts.infohash)) throw new Error(`Invalid infohash provided: ${opts.infohash}`)
+      const file = await (await client.FileModel).findOne({ where: { infohash: opts.infohash } })
       if (typeof file?.dataValues.hash === 'string') hash = file?.dataValues.hash
       else {
         // TODO: Check against other nodes
         hash = ''
       }
     } else throw new Error('No hash or infohash provided')
-    if (hash !== undefined && !utils.isValidSHA256Hash(hash)) throw new Error('Invalid hash provided')
+    if (hash !== undefined && !client.utils.isValidSHA256Hash(hash)) throw new Error('Invalid hash provided')
 
     const fileHandler = new FileHandler()
     fileHandler.hash = hash
@@ -75,16 +69,18 @@ export default class FileHandler {
     fileHandler.name = ''
     fileHandler.found = true
     fileHandler.size = 0
-    fileHandler.config = config
-    fileHandler.s3 = s3
-    fileHandler.utils = utils
+    fileHandler.client = client
 
-    const existingFile = await FileModel.findByPk(hash)
-    fileHandler.file = existingFile ?? await FileModel.create({ hash })
+    const existingFile = await (await client.FileModel).findByPk(hash)
+    fileHandler.file = existingFile ?? await (await client.FileModel).create({ hash })
     Object.assign(fileHandler, fileHandler.file.dataValues)
     if (Number(fileHandler.size) === 0) fileHandler.size = 0
 
     return fileHandler
+  }
+
+  public static findFile = async (where: FileAttributes, client: Hydrafiles): Promise<void> => {
+    await (await client.FileModel).findOne({ where })
   }
 
   public async getMetadata (): Promise<FileHandler | false> {
@@ -96,7 +92,7 @@ export default class FileHandler {
 
     const id = this.id
     if (id !== undefined && id !== null && id.length > 0) {
-      const response = await fetch(`${this.config.metadata_endpoint}${id}`)
+      const response = await fetch(`${this.client.config.metadata_endpoint}${id}`)
       if (response.ok) {
         const metadata = (await response.json()).result as Metadata
         this.name = metadata.name
@@ -114,9 +110,9 @@ export default class FileHandler {
       return this
     }
 
-    if (this.config.s3_endpoint.length !== 0) {
+    if (this.client.config.s3_endpoint.length !== 0) {
       try {
-        const data = await this.s3.headObject({ Bucket: 'uploads', Key: `${hash}.stuf` })
+        const data = await this.client.s3.headObject({ Bucket: 'uploads', Key: `${hash}.stuf` })
         if (typeof data.ContentLength !== 'undefined') {
           this.size = data.ContentLength
           await this.save()
@@ -141,10 +137,10 @@ export default class FileHandler {
       this.size = size
       await this.save()
     }
-    const remainingSpace = this.utils.remainingStorage()
-    if (this.config.max_cache !== -1 && size > remainingSpace) this.utils.purgeCache(size, remainingSpace)
+    const remainingSpace = this.client.utils.remainingStorage()
+    if (this.client.config.max_cache !== -1 && size > remainingSpace) this.client.utils.purgeCache(size, remainingSpace)
 
-    await this.utils.saveBufferToFile(file, filePath)
+    await this.client.utils.saveBufferToFile(file, filePath)
   }
 
   private async fetchFromCache (): Promise<{ file: Buffer, signal: number } | false> {
@@ -152,16 +148,16 @@ export default class FileHandler {
     console.log(`  ${hash}  Checking Cache`)
     const filePath = path.join(DIRNAME, 'files', hash)
     await this.seed()
-    return fs.existsSync(filePath) ? { file: fs.readFileSync(filePath), signal: this.utils.interfere(100) } : false
+    return fs.existsSync(filePath) ? { file: fs.readFileSync(filePath), signal: this.client.utils.interfere(100) } : false
   }
 
   async fetchFromS3 (): Promise<{ file: Buffer, signal: number } | false> {
     const hash = this.hash
     console.log(`  ${hash}  Checking S3`)
-    if (this.config.s3_endpoint.length === 0) return false
+    if (this.client.config.s3_endpoint.length === 0) return false
     try {
       let buffer: Buffer
-      const data = await this.s3.getObject({ Bucket: 'uploads', Key: `${hash}.stuf` })
+      const data = await this.client.s3.getObject({ Bucket: 'uploads', Key: `${hash}.stuf` })
 
       if (data.Body instanceof Readable) {
         const chunks: any[] = []
@@ -172,8 +168,8 @@ export default class FileHandler {
       } else if (data.Body instanceof Buffer) buffer = data.Body
       else return false
 
-      if (this.config.cache_s3) await this.cacheFile(buffer)
-      return { file: buffer, signal: this.utils.interfere(100) }
+      if (this.client.config.cache_s3) await this.cacheFile(buffer)
+      return { file: buffer, signal: this.client.utils.interfere(100) }
     } catch (e) {
       const err = e as { message: string }
       if (err.message !== 'The specified key does not exist.') console.error(err)
@@ -188,24 +184,24 @@ export default class FileHandler {
   async getFile (nodesManager: Nodes, opts: { logDownloads?: boolean } = {}): Promise<{ file: Buffer, signal: number } | false> {
     const hash = this.hash
     console.log(`  ${hash}  Getting file`)
-    if (!this.utils.isValidSHA256Hash(hash)) return false
+    if (!this.client.utils.isValidSHA256Hash(hash)) return false
     if (!this.found && new Date(this.updatedAt) > new Date(new Date().getTime() - 5 * 60 * 1000)) return false
     if (opts.logDownloads === undefined || opts.logDownloads) await this.increment('downloadCount')
     await this.save()
 
-    if (this.size !== 0 && !this.utils.hasSufficientMemory(this.size)) {
+    if (this.size !== 0 && !this.client.utils.hasSufficientMemory(this.size)) {
       await new Promise(() => {
         const intervalId = setInterval(() => {
-          if (this.config.log_level === 'verbose') console.log(`  ${hash}  Reached memory limit, waiting`, this.size)
-          if (this.size === 0 || this.utils.hasSufficientMemory(this.size)) clearInterval(intervalId)
-        }, this.config.memory_threshold_reached_wait)
+          if (this.client.config.log_level === 'verbose') console.log(`  ${hash}  Reached memory limit, waiting`, this.size)
+          if (this.size === 0 || this.client.utils.hasSufficientMemory(this.size)) clearInterval(intervalId)
+        }, this.client.config.memory_threshold_reached_wait)
       })
     }
 
     let file = await this.fetchFromCache()
     if (file !== false) console.log(`  ${hash}  Serving ${this.size !== undefined ? Math.round(this.size / 1024 / 1024) : 0}MB from cache`)
     else {
-      if (this.config.s3_endpoint.length > 0) file = await this.fetchFromS3()
+      if (this.client.config.s3_endpoint.length > 0) file = await this.fetchFromS3()
       if (file !== false) console.log(`  ${hash}  Serving ${this.size !== undefined ? Math.round(this.size / 1024 / 1024) : 0}MB from S3`)
       else {
         file = await nodesManager.getFile(hash, this.size)
