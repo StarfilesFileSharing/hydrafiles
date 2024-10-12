@@ -1,14 +1,22 @@
 import fs from 'fs'
-import Hydrafiles from './hydrafiles.js'
-import { Config } from './config.js'
 import path from 'path'
 import { fileURLToPath } from 'url'
+import Hydrafiles from './hydrafiles.js'
 
 const DIRNAME = path.dirname(fileURLToPath(import.meta.url))
-
-if (!fs.existsSync(path.join(DIRNAME, '../config.json'))) fs.writeFileSync(path.join(DIRNAME, '../config.json'), '{}')
-const config: Config = JSON.parse(fs.readFileSync(path.join(DIRNAME, '../config.json')).toString())
+const config = JSON.parse(fs.existsSync(path.join(DIRNAME, '../config.json')) ? fs.readFileSync(path.join(DIRNAME, '../config.json')).toString() : '{}')
 
 const hydrafiles = new Hydrafiles(config)
-export default hydrafiles
 console.log('Hydrafiles Started', hydrafiles)
+
+// (async () => {
+//   // Example Search
+//   const files = await hydrafiles.FileHandler.findFiles({ where: { name: 'i-am-spartacus-its-me.gif' } }, hydrafiles, false)
+//   if (files.length === 0) console.error('File not found')
+//   else {
+//     // Example Download
+//     const file = await hydrafiles.FileHandler.init(files[0], hydrafiles)
+//     const fileContent = await file.getFile()
+//     console.log(fileContent)
+//   }
+// })().catch(console.error)
