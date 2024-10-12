@@ -143,6 +143,9 @@ export default class FileHandler {
     if (this.client.config.max_cache !== -1 && size > remainingSpace) this.client.utils.purgeCache(size, remainingSpace)
 
     await this.client.utils.saveBufferToFile(file, filePath)
+    const fileContents = fs.createReadStream(filePath)
+    const savedHash = await this.client.utils.hashStream(fileContents)
+    if (savedHash !== hash) fs.rmSync(filePath) // In case of broken file
   }
 
   private async fetchFromCache (): Promise<{ file: Buffer, signal: number } | false> {
@@ -150,7 +153,14 @@ export default class FileHandler {
     console.log(`  ${hash}  Checking Cache`)
     const filePath = path.join(FILESPATH, hash)
     await this.seed()
-    return fs.existsSync(filePath) ? { file: fs.readFileSync(filePath), signal: this.client.utils.interfere(100) } : false
+    if (!fs.existsSync(filePath)) return false
+    const fileContents = fs.createReadStream(filePath)
+    const savedHash = await this.client.utils.hashStream(fileContents)
+    if (savedHash !== this.hash) {
+      fs.rmSync(filePath)
+      return false
+    }
+    return { file: fs.readFileSync(filePath), signal: this.client.utils.interfere(100) }
   }
 
   async fetchFromS3 (): Promise<{ file: Buffer, signal: number } | false> {
