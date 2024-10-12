@@ -56,10 +56,12 @@ class Hydrafiles {
 
       startServer(config, nodes, s3, FileModel)
 
-      setInterval(() => {
+      if (config.compare_speed !== -1) {
+        setInterval(() => {
+          this.backgroundTasks().catch(console.error)
+        }, config.compare_speed)
         this.backgroundTasks().catch(console.error)
-      }, config.compare_speed)
-      this.backgroundTasks().catch(console.error)
+      }
       if (config.backfill) this.backfillFiles().catch(console.error)
     })().catch(console.error)
   }
