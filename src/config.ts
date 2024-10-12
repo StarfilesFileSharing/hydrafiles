@@ -12,7 +12,6 @@ export interface Config {
   bootstrap_nodes: string[]
   public_hostname: string
   prefer_node: 'FASTEST' | 'LEAST_USED' | 'RANDOM' | 'HIGHEST_HITRATE'
-  max_concurrent_nodes: number
   upload_secret: string
   memory_threshold: number
   memory_threshold_reached_wait: number
@@ -44,7 +43,6 @@ const getConfig = (config: Partial<Config> = {}): Config => {
     bootstrap_nodes: config?.bootstrap_nodes ?? defaultConfig.bootstrap_nodes,
     public_hostname: config?.public_hostname ?? defaultConfig.public_hostname,
     prefer_node: config?.prefer_node ?? defaultConfig.prefer_node,
-    max_concurrent_nodes: config?.max_concurrent_nodes ?? defaultConfig.max_concurrent_nodes,
     upload_secret: config?.upload_secret ?? defaultConfig.upload_secret,
     memory_threshold: config?.memory_threshold ?? defaultConfig.memory_threshold,
     memory_threshold_reached_wait: config?.memory_threshold_reached_wait ?? defaultConfig.memory_threshold_reached_wait,

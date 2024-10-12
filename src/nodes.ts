@@ -115,7 +115,6 @@ export default class Nodes {
         executing.splice(executing.indexOf(promise), 1)
       })
       executing.push(promise)
-      if (executing.length >= this.client.config.max_concurrent_nodes) await Promise.race(executing)
     }
     await Promise.all(executing)
     return results
@@ -137,7 +136,7 @@ export default class Nodes {
   async getFile (hash: string, size: number = 0): Promise<{ file: Buffer, signal: number } | false> {
     console.log(`  ${hash}  Getting file from nodes`)
     const nodes = this.getNodes({ includeSelf: false })
-    let activePromises: Array<Promise<{ file: Buffer, signal: number } | false>> = []
+    const activePromises: Array<Promise<{ file: Buffer, signal: number } | false>> = []
 
     if (!this.client.utils.hasSufficientMemory(size)) {
       console.log('Reached memory limit, waiting')
@@ -161,20 +160,12 @@ export default class Nodes {
           return fileContent !== false ? fileContent : false
         })()
         activePromises.push(promise)
-
-        if (activePromises.length >= this.client.config.max_concurrent_nodes) {
-          const file = await Promise.race(activePromises)
-          if (file !== false) return file
-          activePromises = activePromises.filter(p => !this.client.utils.promiseWrapper(p).isFulfilled)
-        }
       }
     }
 
-    if (activePromises.length > 0) {
-      const files = await Promise.all(activePromises)
-      for (let i = 0; i < files.length; i++) {
-        if (files[i] !== false) return files[i]
-      }
+    const files = await Promise.all(activePromises)
+    for (let i = 0; i < files.length; i++) {
+      if (files[i] !== false) return files[i]
     }
 
     return false
@@ -190,7 +181,7 @@ export default class Nodes {
     }
   }
 
-  async compareFileList (node: Node): Promise<void> {
+  async compareFileList (node: Node): Promise<void> { // TODO: Compare list between all nodes and give score based on how similar they are. 100% = all exactly the same, 0% = no items in list were shared. The lower the score, the lower the propagation times, the lower the decentralisation
     try {
       console.log(`Comparing file list with ${node.host}`)
       const response = await fetch(`${node.host}/files`)
@@ -215,7 +206,7 @@ export default class Nodes {
     console.log(`Done comparing file list with ${node.host}`)
   }
 
-  async compareNodeList (): Promise<void> {
+  async compareNodeList (): Promise<void> { // TODO: Compare list between all nodes and give score based on how similar they are. 100% = all exactly the same, 0% = no items in list were shared. The lower the score, the lower the propagation times, the lower the decentralisation
     console.log('Comparing node list')
     const nodes = this.getNodes({ includeSelf: false })
     for (const node of nodes) {
@@ -236,6 +227,5 @@ export default class Nodes {
         }
       })().catch(console.error)
     }
-    console.log('Done comparing node list')
   }
 }
