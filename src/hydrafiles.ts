@@ -82,7 +82,7 @@ class Hydrafiles {
   }
 
   backfillFiles = async (): Promise<void> => {
-    const files = await (await this.FileModel).findAll({ order: Sequelize.literal('RANDOM()') })
+    const files = await this.FileModel.findAll({ order: Sequelize.literal('RANDOM()') })
     for (let i = 0; i < files.length; i++) {
       const hash: string = files[i].dataValues.hash
       console.log(`  ${hash}  Backfilling file`)
@@ -112,8 +112,8 @@ class Hydrafiles {
         '========\n===============================================\n| Uptime: ',
         this.utils.convertTime(+new Date() - this.startTime),
         '\n| Known (Network) Files:',
-        await (await this.FileModel).noCache().count(),
-        `(${Math.round((100 * await (await this.FileModel).noCache().sum('size')) / 1024 / 1024 / 1024) / 100}GB)`,
+        await this.FileModel.noCache().count(),
+        `(${Math.round((100 * await this.FileModel.noCache().sum('size')) / 1024 / 1024 / 1024) / 100}GB)`,
         '\n| Stored Files:',
         fs.readdirSync('files/').length,
         `(${Math.round((100 * this.utils.calculateUsedStorage()) / 1024 / 1024 / 1024) / 100}GB)`,
@@ -122,7 +122,7 @@ class Hydrafiles {
         '\n| Seeding Torrent Files:',
         (await webtorrentClient()).torrents.length,
         '\n| Download Count:',
-        await (await this.FileModel).noCache().sum('downloadCount'),
+        await this.FileModel.noCache().sum('downloadCount'),
         '\n===============================================\n'
       )
     } catch (e) {
