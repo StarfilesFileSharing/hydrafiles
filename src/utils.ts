@@ -148,7 +148,7 @@ class Utils {
   }
 
   calculateUsedStorage = (): number => {
-    const filesPath = path.join(this.DIRNAME, 'files')
+    const filesPath = path.join(this.DIRNAME, '../files')
     let usedStorage = 0
     if (fs.existsSync(filesPath)) {
       const files = fs.readdirSync(filesPath)
@@ -162,12 +162,12 @@ class Utils {
 
   purgeCache = (requiredSpace: number, remainingSpace: number): void => {
     console.warn('WARNING: Your node has reached max storage, some files are getting purged. To prevent this, increase your limit at config.json or add more storage to your machine.')
-    const files = fs.readdirSync(path.join(process.cwd(), 'files'))
+    const files = fs.readdirSync(path.join(process.cwd(), '../files'))
     for (const file of files) {
       if (this.config.perma_files.includes(file)) continue
 
-      const size = fs.statSync(path.join(process.cwd(), 'files', file)).size
-      fs.unlinkSync(path.join(process.cwd(), 'files', file))
+      const size = fs.statSync(path.join(process.cwd(), '../files', file)).size
+      fs.unlinkSync(path.join(process.cwd(), '../files', file))
       remainingSpace += size
 
       if (requiredSpace <= remainingSpace && this.calculateUsedStorage() * (1 - this.config.burn_rate) <= remainingSpace) break
