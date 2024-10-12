@@ -7,7 +7,7 @@ import Hydrafiles from './hydrafiles.js'
 export interface Node { host: string, http: boolean, dns: boolean, cf: boolean, hits: number, rejects: number, bytes: number, duration: number, status?: boolean }
 
 const DIRNAME = path.dirname(fileURLToPath(import.meta.url))
-export const NODES_PATH = path.join(DIRNAME, 'nodes.json')
+export const NODES_PATH = path.join(DIRNAME, '../nodes.json')
 
 export const nodeFrom = (host: string): Node => {
   const node: Node = {

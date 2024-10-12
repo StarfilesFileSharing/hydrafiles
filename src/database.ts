@@ -11,7 +11,7 @@ const startDatabase = (config: Config): ModelCtor<Model<any, any>> & SequelizeSi
 
   const sequelize = new Sequelize({
     dialect: 'sqlite',
-    storage: path.join(DIRNAME, 'filemanager.db'),
+    storage: path.join(DIRNAME, '../filemanager.db'),
     logging: (...msg) => {
       const payload = msg[1] as unknown as { type: string, where?: string, instance: { dataValues: { hash: string } }, fields?: string[], increment: boolean }
       if (payload.type === 'SELECT') {
