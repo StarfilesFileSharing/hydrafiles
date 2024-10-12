@@ -55,7 +55,7 @@ class Hydrafiles {
             for (let i = 0; i < files.length; i++) {
                 const hash = files[i].dataValues.hash;
                 console.log(`  ${hash}  Backfilling file`);
-                const file = yield FileHandler.init({ hash }, this.config, this.s3, this.FileModel);
+                const file = yield this.FileHandler.init({ hash }, this.config, this.s3, this.FileModel);
                 try {
                     if (this.nodes === undefined) {
                         console.error('Nodes manager is undefined');
@@ -75,6 +75,7 @@ class Hydrafiles {
         const config = getConfig(customConfig);
         this.config = config;
         this.utils = new Utils(config);
+        this.FileHandler = FileHandler;
         init(this.config);
         const s3 = new S3({
             region: 'us-east-1',
@@ -93,10 +94,12 @@ class Hydrafiles {
             const nodes = new Nodes(config, s3, FileModel);
             this.nodes = nodes;
             startServer(config, nodes, s3, FileModel);
-            setInterval(() => {
+            if (config.compare_speed !== -1) {
+                setInterval(() => {
+                    this.backgroundTasks().catch(console.error);
+                }, config.compare_speed);
                 this.backgroundTasks().catch(console.error);
-            }, config.compare_speed);
-            this.backgroundTasks().catch(console.error);
+            }
             if (config.backfill)
                 this.backfillFiles().catch(console.error);
         }))().catch(console.error);

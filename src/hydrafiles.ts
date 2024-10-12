@@ -27,12 +27,14 @@ class Hydrafiles {
   nodes: Nodes | undefined
   s3: S3
   utils
+  FileHandler
   FileModel: (ModelCtor<Model<any, any>> & SequelizeSimpleCacheModel<Model<any, any>>) | undefined
   constructor (customConfig: Config | undefined) {
     this.startTime = +new Date()
     const config = getConfig(customConfig)
     this.config = config
     this.utils = new Utils(config)
+    this.FileHandler = FileHandler
     init(this.config)
 
     const s3 = new S3({
@@ -92,7 +94,7 @@ class Hydrafiles {
     for (let i = 0; i < files.length; i++) {
       const hash: string = files[i].dataValues.hash
       console.log(`  ${hash}  Backfilling file`)
-      const file = await FileHandler.init({ hash }, this.config, this.s3, this.FileModel)
+      const file = await this.FileHandler.init({ hash }, this.config, this.s3, this.FileModel)
       try {
         if (this.nodes === undefined) {
           console.error('Nodes manager is undefined')
