@@ -13,7 +13,8 @@ import path from 'path';
 import formidable from 'formidable';
 import { nodeFrom } from './nodes.js';
 import FileHandler from './fileHandler.js';
-const DIRNAME = path.resolve();
+import { fileURLToPath } from 'url';
+const DIRNAME = path.dirname(fileURLToPath(import.meta.url));
 export const hashLocks = new Map();
 const handleRequest = (req, res, client) => __awaiter(void 0, void 0, void 0, function* () {
     var _a, _b, _c;
@@ -183,14 +184,14 @@ const handleRequest = (req, res, client) => __awaiter(void 0, void 0, void 0, fu
                     }
                 })).catch(console.error);
                 console.log('Uploading', hash);
-                if (fs.existsSync(path.join(DIRNAME, 'files', hash))) {
+                if (fs.existsSync(path.join(DIRNAME, '../files', hash))) {
                     res.writeHead(200, { 'Content-Type': 'text/plain' });
                     res.end('200 OK\n');
                     return;
                 }
                 if (!client.config.perma_files.includes(hash))
                     client.config.perma_files.push(hash);
-                fs.writeFileSync(path.join(DIRNAME, 'client.config.json'), JSON.stringify(client.config, null, 2));
+                fs.writeFileSync(path.join(DIRNAME, 'config.json'), JSON.stringify(client.config, null, 2));
                 res.writeHead(201, { 'Content-Type': 'text/plain' });
                 res.end('200 OK\n');
             });

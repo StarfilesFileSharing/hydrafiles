@@ -5,9 +5,10 @@ import { Config } from './config.js'
 import { Readable } from 'stream'
 import { pipeline } from 'stream/promises'
 import path from 'path'
+import { fileURLToPath } from 'url'
 
 class Utils {
-  DIRNAME = path.resolve()
+  DIRNAME = path.dirname(fileURLToPath(import.meta.url))
   config: Config
   constructor (config: Config) {
     this.config = config

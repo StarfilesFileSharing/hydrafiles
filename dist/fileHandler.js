@@ -18,9 +18,11 @@ var _a;
 import fs from 'fs';
 import path from 'path';
 import { Readable } from 'stream';
+import { fileURLToPath } from 'url';
 const WebTorrentPromise = import('webtorrent');
 // TODO: Log common user-agents and use the same for requests to slightly anonymise clients
-const DIRNAME = path.resolve();
+const DIRNAME = path.dirname(fileURLToPath(import.meta.url));
+const FILESPATH = path.join(DIRNAME, '../files');
 const seeding = [];
 let webtorrent = null;
 export const webtorrentClient = () => __awaiter(void 0, void 0, void 0, function* () {
@@ -87,7 +89,7 @@ class FileHandler {
                     return this;
                 }
             }
-            const filePath = path.join(DIRNAME, 'files', hash);
+            const filePath = path.join(FILESPATH, hash);
             if (fs.existsSync(filePath)) {
                 this.size = fs.statSync(filePath).size;
                 yield this.save();
@@ -112,7 +114,7 @@ class FileHandler {
     cacheFile(file) {
         return __awaiter(this, void 0, void 0, function* () {
             const hash = this.hash;
-            const filePath = path.join(DIRNAME, 'files', hash);
+            const filePath = path.join(FILESPATH, hash);
             if (fs.existsSync(filePath))
                 return;
             let size = this.size;
@@ -131,7 +133,7 @@ class FileHandler {
         return __awaiter(this, void 0, void 0, function* () {
             const hash = this.hash;
             console.log(`  ${hash}  Checking Cache`);
-            const filePath = path.join(DIRNAME, 'files', hash);
+            const filePath = path.join(FILESPATH, hash);
             yield this.seed();
             return fs.existsSync(filePath) ? { file: fs.readFileSync(filePath), signal: this.client.utils.interfere(100) } : false;
         });
@@ -247,7 +249,7 @@ class FileHandler {
             if (seeding.includes(this.hash))
                 return;
             seeding.push(this.hash);
-            const filePath = path.join(DIRNAME, 'files', this.hash);
+            const filePath = path.join(FILESPATH, this.hash);
             if (!fs.existsSync(filePath))
                 return;
             (yield webtorrentClient()).seed(filePath, {

@@ -33,9 +33,10 @@ import { createHash } from 'crypto';
 import { Readable } from 'stream';
 import { pipeline } from 'stream/promises';
 import path from 'path';
+import { fileURLToPath } from 'url';
 class Utils {
     constructor(config) {
-        this.DIRNAME = path.resolve();
+        this.DIRNAME = path.dirname(fileURLToPath(import.meta.url));
         this.getRandomNumber = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
         this.isValidSHA256Hash = (hash) => /^[a-f0-9]{64}$/.test(hash);
         this.isValidInfoHash = (hash) => /^[a-f0-9]{40}$/.test(hash);

@@ -4,13 +4,15 @@ import { Readable } from 'stream'
 import { FindOptions, Model } from 'sequelize'
 import { Instance } from 'webtorrent'
 import Hydrafiles from './hydrafiles.js'
+import { fileURLToPath } from 'url'
 const WebTorrentPromise = import('webtorrent')
 
 interface Metadata { name: string, size: number, type: string, hash: string, id: string, infohash: string }
 
 // TODO: Log common user-agents and use the same for requests to slightly anonymise clients
 
-const DIRNAME = path.resolve()
+const DIRNAME = path.dirname(fileURLToPath(import.meta.url))
+const FILESPATH = path.join(DIRNAME, '../files')
 const seeding: string[] = []
 
 let webtorrent: Instance | null = null
@@ -103,7 +105,7 @@ export default class FileHandler {
       }
     }
 
-    const filePath = path.join(DIRNAME, 'files', hash)
+    const filePath = path.join(FILESPATH, hash)
     if (fs.existsSync(filePath)) {
       this.size = fs.statSync(filePath).size
       await this.save()
@@ -128,7 +130,7 @@ export default class FileHandler {
 
   async cacheFile (file: Buffer): Promise<void> {
     const hash = this.hash
-    const filePath = path.join(DIRNAME, 'files', hash)
+    const filePath = path.join(FILESPATH, hash)
     if (fs.existsSync(filePath)) return
 
     let size = this.size
@@ -146,7 +148,7 @@ export default class FileHandler {
   private async fetchFromCache (): Promise<{ file: Buffer, signal: number } | false> {
     const hash = this.hash
     console.log(`  ${hash}  Checking Cache`)
-    const filePath = path.join(DIRNAME, 'files', hash)
+    const filePath = path.join(FILESPATH, hash)
     await this.seed()
     return fs.existsSync(filePath) ? { file: fs.readFileSync(filePath), signal: this.client.utils.interfere(100) } : false
   }
@@ -236,7 +238,7 @@ export default class FileHandler {
   async seed (): Promise<void> {
     if (seeding.includes(this.hash)) return
     seeding.push(this.hash)
-    const filePath = path.join(DIRNAME, 'files', this.hash)
+    const filePath = path.join(FILESPATH, this.hash)
     if (!fs.existsSync(filePath)) return
     (await webtorrentClient()).seed(filePath, {
       // @ts-expect-error
