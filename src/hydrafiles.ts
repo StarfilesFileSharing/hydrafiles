@@ -31,53 +31,45 @@ class Hydrafiles {
   FileModel: ModelCtor<Model<any, any>> & SequelizeSimpleCacheModel<Model<any, any>>
   constructor (customConfig: Partial<Config> = {}) {
     this.startTime = +new Date()
-    const config = getConfig(customConfig)
-    this.config = config
-    this.utils = new Utils(config)
+    this.config = getConfig(customConfig)
+    this.utils = new Utils(this.config)
     init(this.config)
 
-    const s3 = new S3({
+    this.s3 = new S3({
       region: 'us-east-1',
       credentials: {
-        accessKeyId: config.s3_access_key_id,
-        secretAccessKey: config.s3_secret_access_key
+        accessKeyId: this.config.s3_access_key_id,
+        secretAccessKey: this.config.s3_secret_access_key
       },
-      endpoint: config.s3_endpoint
+      endpoint: this.config.s3_endpoint
     })
-    this.s3 = s3
 
     const nodes = new Nodes(this)
     this.nodes = nodes
 
     startServer(this)
-    this.FileModel = startDatabase(config)
+    this.FileModel = startDatabase(this.config)
 
     this.logState().catch(console.error)
-    setInterval(() => { this.logState().catch(console.error) }, config.summary_speed)
+    setInterval(() => { this.logState().catch(console.error) }, this.config.summary_speed)
 
-    if (config.compare_speed !== -1) {
+    if (this.config.compare_speed !== -1) {
       setInterval(() => {
         this.backgroundTasks().catch(console.error)
-      }, config.compare_speed)
+      }, this.config.compare_speed)
       this.backgroundTasks().catch(console.error)
     }
-    if (config.backfill) this.backfillFiles().catch(console.error)
+    // if (this.config.backfill) this.backfillFiles().catch(console.error)
   }
 
   backgroundTasks = async (): Promise<void> => {
-    if (this.nodes === undefined) {
-      console.error('Nodes manager is undefined')
-      return
-    }
     const nodes = this.nodes
     if (this.config.compare_nodes) nodes.compareNodeList().catch(console.error)
     if (this.config.compare_files) {
-      (async () => {
-        const knownNodes = nodes.getNodes({ includeSelf: false })
-        for (let i = 0; i < knownNodes.length; i++) {
-          await nodes.compareFileList(knownNodes[i])
-        }
-      })().catch(console.error)
+      const knownNodes = nodes.getNodes({ includeSelf: false })
+      for (let i = 0; i < knownNodes.length; i++) {
+        nodes.compareFileList(knownNodes[i]).catch(console.error)
+      }
     }
   }
 
@@ -88,11 +80,7 @@ class Hydrafiles {
       console.log(`  ${hash}  Backfilling file`)
       const file = await this.FileHandler.init({ hash }, this)
       try {
-        if (this.nodes === undefined) {
-          console.error('Nodes manager is undefined')
-          return
-        }
-        await file.getFile(this.nodes, { logDownloads: false }).catch((e) => { if (this.config.log_level === 'verbose') console.error(e) })
+        await file.getFile({ logDownloads: false })
       } catch (e) {
         if (this.config.log_level === 'verbose') throw e
       }

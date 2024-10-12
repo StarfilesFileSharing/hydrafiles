@@ -1,8 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { Readable } from 'stream'
-import { Model } from 'sequelize'
-import Nodes from './nodes.js'
+import { FindOptions, Model } from 'sequelize'
 import { Instance } from 'webtorrent'
 import Hydrafiles from './hydrafiles.js'
 const WebTorrentPromise = import('webtorrent')
@@ -79,8 +78,9 @@ export default class FileHandler {
     return fileHandler
   }
 
-  public static findFiles = async (where: Partial<FileAttributes>, client: Hydrafiles): Promise<Array<Model<any, any>>> => {
-    return await client.FileModel.findAll({ where })
+  public static findFiles = async (where: FindOptions<any>, client: Hydrafiles, cache: boolean = true): Promise<FileAttributes[]> => {
+    const files = cache ? await client.FileModel.findAll(where) : await client.FileModel.noCache().findAll(where)
+    return files.map((values) => values.dataValues as FileAttributes)
   }
 
   public async getMetadata (): Promise<FileHandler | false> {
@@ -181,11 +181,17 @@ export default class FileHandler {
   // TODO: Connect to other hydrafiles nodes as webseed
   // TODO: Check other nodes file lists to find other claimed infohashes for the file, leech off all of them and copy the metadata from the healthiest torrent
 
-  async getFile (nodesManager: Nodes, opts: { logDownloads?: boolean } = {}): Promise<{ file: Buffer, signal: number } | false> {
+  async getFile (opts: { logDownloads?: boolean } = {}): Promise<{ file: Buffer, signal: number } | false> {
     const hash = this.hash
     console.log(`  ${hash}  Getting file`)
-    if (!this.client.utils.isValidSHA256Hash(hash)) return false
-    if (!this.found && new Date(this.updatedAt) > new Date(new Date().getTime() - 5 * 60 * 1000)) return false
+    if (!this.client.utils.isValidSHA256Hash(hash)) {
+      console.log(`  ${hash}  Invalid hash`)
+      return false
+    }
+    if (!this.found && new Date(this.updatedAt) > new Date(new Date().getTime() - 5 * 60 * 1000)) {
+      console.log(`  ${hash}  404 cached`)
+      return false
+    }
     if (opts.logDownloads === undefined || opts.logDownloads) await this.increment('downloadCount')
     await this.save()
 
@@ -204,7 +210,7 @@ export default class FileHandler {
       if (this.client.config.s3_endpoint.length > 0) file = await this.fetchFromS3()
       if (file !== false) console.log(`  ${hash}  Serving ${this.size !== undefined ? Math.round(this.size / 1024 / 1024) : 0}MB from S3`)
       else {
-        file = await nodesManager.getFile(hash, this.size)
+        file = await this.client.nodes.getFile(hash, this.size)
         if (file === false) {
           this.found = false
           await this.save()

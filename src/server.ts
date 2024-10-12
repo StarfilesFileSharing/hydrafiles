@@ -59,7 +59,7 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
         await file.getMetadata()
         let fileContent: { file: Buffer, signal: number } | false
         try {
-          fileContent = await file.getFile(client.nodes)
+          fileContent = await file.getFile()
         } catch (e) {
           const err = e as { message: string }
           if (err.message === 'Promise timed out') fileContent = false
@@ -109,7 +109,7 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
         await file.getMetadata()
         let fileContent: { file: Buffer, signal: number } | false
         try {
-          fileContent = await file.getFile(client.nodes)
+          fileContent = await file.getFile()
         } catch (e) {
           const err = e as { message: string }
           if (err.message === 'Promise timed out') fileContent = false
