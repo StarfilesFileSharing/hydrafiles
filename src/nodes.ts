@@ -42,7 +42,7 @@ export default class Nodes {
     return JSON.parse(fs.existsSync(NODES_PATH) ? fs.readFileSync(NODES_PATH).toString() : '[]')
   }
 
-  getNodes (opts = { includeSelf: true }): Node[] {
+  public getNodes = (opts = { includeSelf: true }): Node[] => {
     if (opts.includeSelf === undefined) opts.includeSelf = true
     const nodes = this.nodes.filter(node => opts.includeSelf || node.host !== this.client.config.public_hostname).sort(() => Math.random() - 0.5)
 

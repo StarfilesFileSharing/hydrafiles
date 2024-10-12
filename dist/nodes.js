@@ -28,6 +28,19 @@ export const nodeFrom = (host) => {
 };
 export default class Nodes {
     constructor(client) {
+        this.getNodes = (opts = { includeSelf: true }) => {
+            if (opts.includeSelf === undefined)
+                opts.includeSelf = true;
+            const nodes = this.nodes.filter(node => opts.includeSelf || node.host !== this.client.config.public_hostname).sort(() => Math.random() - 0.5);
+            if (this.client.config.prefer_node === 'FASTEST')
+                return nodes.sort((a, b) => a.bytes / a.duration - b.bytes / b.duration);
+            else if (this.client.config.prefer_node === 'LEAST_USED')
+                return nodes.sort((a, b) => a.hits - a.rejects - (b.hits - b.rejects));
+            else if (this.client.config.prefer_node === 'HIGHEST_HITRATE')
+                return nodes.sort((a, b) => (a.hits - a.rejects) - (b.hits - b.rejects));
+            else
+                return nodes;
+        };
         this.nodes = this.loadNodes();
         this.client = client;
     }
@@ -41,19 +54,6 @@ export default class Nodes {
     }
     loadNodes() {
         return JSON.parse(fs.existsSync(NODES_PATH) ? fs.readFileSync(NODES_PATH).toString() : '[]');
-    }
-    getNodes(opts = { includeSelf: true }) {
-        if (opts.includeSelf === undefined)
-            opts.includeSelf = true;
-        const nodes = this.nodes.filter(node => opts.includeSelf || node.host !== this.client.config.public_hostname).sort(() => Math.random() - 0.5);
-        if (this.client.config.prefer_node === 'FASTEST')
-            return nodes.sort((a, b) => a.bytes / a.duration - b.bytes / b.duration);
-        else if (this.client.config.prefer_node === 'LEAST_USED')
-            return nodes.sort((a, b) => a.hits - a.rejects - (b.hits - b.rejects));
-        else if (this.client.config.prefer_node === 'HIGHEST_HITRATE')
-            return nodes.sort((a, b) => (a.hits - a.rejects) - (b.hits - b.rejects));
-        else
-            return nodes;
     }
     downloadFromNode(node, file) {
         return __awaiter(this, void 0, void 0, function* () {
