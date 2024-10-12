@@ -29,7 +29,7 @@ class Hydrafiles {
   utils
   FileHandler = FileHandler
   FileModel: ModelCtor<Model<any, any>> & SequelizeSimpleCacheModel<Model<any, any>>
-  constructor (customConfig: Config | undefined) {
+  constructor (customConfig: Partial<Config> = {}) {
     this.startTime = +new Date()
     const config = getConfig(customConfig)
     this.config = config

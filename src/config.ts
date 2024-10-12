@@ -33,7 +33,7 @@ const DIRNAME = path.dirname(fileURLToPath(import.meta.url))
 
 const defaultConfig: Config = JSON.parse(fs.readFileSync(path.join(DIRNAME, '../config.default.json')).toString())
 
-const getConfig = (config: Config | undefined): Config => {
+const getConfig = (config: Partial<Config> = {}): Config => {
   return {
     port: config?.port ?? defaultConfig.port,
     hostname: config?.hostname ?? defaultConfig.hostname,
