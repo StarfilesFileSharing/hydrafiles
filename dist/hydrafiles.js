@@ -17,6 +17,8 @@ import { hashLocks, startServer } from './server.js';
 import Utils from './utils.js';
 import { S3 } from '@aws-sdk/client-s3';
 import startDatabase from './database.js';
+import path from 'path';
+import { fileURLToPath } from 'url';
 // TODO: IDEA: HydraTorrent - New Github repo - "Hydrafiles + WebTorrent Compatibility Layer" - Hydrafiles noes can optionally run HydraTorrent to seed files via webtorrent
 // Change index hash from sha256 to infohash, then allow nodes to leech files from webtorrent + normal torrent
 // HydraTorrent is a WebTorrent hybrid client that plugs into Hydrafiles
@@ -27,6 +29,7 @@ import startDatabase from './database.js';
 // Torrent clients can connect to the Hydrafiles network and claim they dont host any of the files they seed
 // bittorrent to http proxy
 // starfiles.co would use webtorrent to download files
+const DIRNAME = path.dirname(fileURLToPath(import.meta.url));
 class Hydrafiles {
     constructor(customConfig = {}) {
         this.FileHandler = FileHandler;
@@ -60,7 +63,6 @@ class Hydrafiles {
         this.startTime = +new Date();
         this.config = getConfig(customConfig);
         this.utils = new Utils(this.config);
-        init(this.config);
         this.s3 = new S3({
             region: 'us-east-1',
             credentials: {
@@ -69,8 +71,8 @@ class Hydrafiles {
             },
             endpoint: this.config.s3_endpoint
         });
-        const nodes = new Nodes(this);
-        this.nodes = nodes;
+        init(this.config);
+        this.nodes = new Nodes(this);
         startServer(this);
         this.FileModel = startDatabase(this.config);
         this.logState().catch(console.error);
@@ -90,7 +92,7 @@ class Hydrafiles {
                 return;
             }
             try {
-                console.log('\n===============================================\n========', new Date().toUTCString(), '========\n===============================================\n| Uptime: ', this.utils.convertTime(+new Date() - this.startTime), '\n| Known (Network) Files:', yield this.FileModel.noCache().count(), `(${Math.round((100 * (yield this.FileModel.noCache().sum('size'))) / 1024 / 1024 / 1024) / 100}GB)`, '\n| Stored Files:', fs.readdirSync('files/').length, `(${Math.round((100 * this.utils.calculateUsedStorage()) / 1024 / 1024 / 1024) / 100}GB)`, '\n| Processing Files:', hashLocks.size, '\n| Seeding Torrent Files:', (yield webtorrentClient()).torrents.length, '\n| Download Count:', yield this.FileModel.noCache().sum('downloadCount'), '\n===============================================\n');
+                console.log('\n===============================================\n========', new Date().toUTCString(), '========\n===============================================\n| Uptime: ', this.utils.convertTime(+new Date() - this.startTime), '\n| Known (Network) Files:', yield this.FileModel.noCache().count(), `(${Math.round((100 * (yield this.FileModel.noCache().sum('size'))) / 1024 / 1024 / 1024) / 100}GB)`, '\n| Stored Files:', fs.readdirSync(path.join(DIRNAME, 'files/')).length, `(${Math.round((100 * this.utils.calculateUsedStorage()) / 1024 / 1024 / 1024) / 100}GB)`, '\n| Processing Files:', hashLocks.size, '\n| Seeding Torrent Files:', (yield webtorrentClient()).torrents.length, '\n| Download Count:', yield this.FileModel.noCache().sum('downloadCount'), '\n===============================================\n');
             }
             catch (e) {
                 console.error(e);

@@ -9,6 +9,8 @@ import Utils from './utils.js'
 import { S3 } from '@aws-sdk/client-s3'
 import startDatabase from './database.js'
 import { SequelizeSimpleCacheModel } from 'sequelize-simple-cache'
+import path from 'path'
+import { fileURLToPath } from 'url'
 
 // TODO: IDEA: HydraTorrent - New Github repo - "Hydrafiles + WebTorrent Compatibility Layer" - Hydrafiles noes can optionally run HydraTorrent to seed files via webtorrent
 // Change index hash from sha256 to infohash, then allow nodes to leech files from webtorrent + normal torrent
@@ -20,6 +22,8 @@ import { SequelizeSimpleCacheModel } from 'sequelize-simple-cache'
 // Torrent clients can connect to the Hydrafiles network and claim they dont host any of the files they seed
 // bittorrent to http proxy
 // starfiles.co would use webtorrent to download files
+
+const DIRNAME = path.dirname(fileURLToPath(import.meta.url))
 
 class Hydrafiles {
   startTime: number
@@ -33,8 +37,6 @@ class Hydrafiles {
     this.startTime = +new Date()
     this.config = getConfig(customConfig)
     this.utils = new Utils(this.config)
-    init(this.config)
-
     this.s3 = new S3({
       region: 'us-east-1',
       credentials: {
@@ -43,9 +45,9 @@ class Hydrafiles {
       },
       endpoint: this.config.s3_endpoint
     })
+    init(this.config)
 
-    const nodes = new Nodes(this)
-    this.nodes = nodes
+    this.nodes = new Nodes(this)
 
     startServer(this)
     this.FileModel = startDatabase(this.config)
@@ -103,7 +105,7 @@ class Hydrafiles {
         await this.FileModel.noCache().count(),
         `(${Math.round((100 * await this.FileModel.noCache().sum('size')) / 1024 / 1024 / 1024) / 100}GB)`,
         '\n| Stored Files:',
-        fs.readdirSync('files/').length,
+        fs.readdirSync(path.join(DIRNAME, 'files/')).length,
         `(${Math.round((100 * this.utils.calculateUsedStorage()) / 1024 / 1024 / 1024) / 100}GB)`,
         '\n| Processing Files:',
         hashLocks.size,
