@@ -53,7 +53,7 @@ export default class FileHandler {
     if (opts.hash !== undefined) hash = opts.hash
     else if (opts.infohash !== undefined) {
       if (!client.utils.isValidInfoHash(opts.infohash)) throw new Error(`Invalid infohash provided: ${opts.infohash}`)
-      const file = await (await client.FileModel).findOne({ where: { infohash: opts.infohash } })
+      const file = await client.FileModel.findOne({ where: { infohash: opts.infohash } })
       if (typeof file?.dataValues.hash === 'string') hash = file?.dataValues.hash
       else {
         // TODO: Check against other nodes
@@ -71,8 +71,8 @@ export default class FileHandler {
     fileHandler.size = 0
     fileHandler.client = client
 
-    const existingFile = await (await client.FileModel).findByPk(hash)
-    fileHandler.file = existingFile ?? await (await client.FileModel).create({ hash })
+    const existingFile = await client.FileModel.findByPk(hash)
+    fileHandler.file = existingFile ?? await client.FileModel.create({ hash })
     Object.assign(fileHandler, fileHandler.file.dataValues)
     if (Number(fileHandler.size) === 0) fileHandler.size = 0
 
@@ -80,7 +80,7 @@ export default class FileHandler {
   }
 
   public static findFile = async (where: FileAttributes, client: Hydrafiles): Promise<void> => {
-    await (await client.FileModel).findOne({ where })
+    console.log(await client.FileModel.findOne({ where }))
   }
 
   public async getMetadata (): Promise<FileHandler | false> {

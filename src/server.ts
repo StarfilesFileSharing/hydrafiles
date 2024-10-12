@@ -196,7 +196,7 @@ const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse
         res.end('200 OK\n')
       })
     } else if (req.url === '/files') {
-      const rows = (await (await client.FileModel).findAll()).map((row: { dataValues: FileAttributes }) => {
+      const rows = (await client.FileModel.findAll()).map((row: { dataValues: FileAttributes }) => {
         const { hash, infohash, id, name, size } = row.dataValues
         return { hash, infohash, id, name, size }
       })

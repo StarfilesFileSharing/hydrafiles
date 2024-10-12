@@ -6,7 +6,7 @@ import { fileURLToPath } from 'url'
 
 const DIRNAME = path.dirname(fileURLToPath(import.meta.url))
 
-const startDatabase = async (config: Config): Promise<ModelCtor<Model<any, any>> & SequelizeSimpleCacheModel<Model<any, any>>> => {
+const startDatabase = (config: Config): ModelCtor<Model<any, any>> & SequelizeSimpleCacheModel<Model<any, any>> => {
   console.log('Starting database')
 
   const sequelize = new Sequelize({
@@ -69,18 +69,20 @@ const startDatabase = async (config: Config): Promise<ModelCtor<Model<any, any>>
     }
   )
 
-  const cache = new SequelizeSimpleCache({ File: { ttl: 30 * 60 } })
+  const cache = new SequelizeSimpleCache({ File: { ttl: 30 * 60 } });
 
-  try {
-    await sequelize.sync({ alter: true })
-  } catch (e) {
-    const err = e as { original: { message: string } }
-    if (err.original.message.includes('file_backup')) {
-      await sequelize.query('DROP TABLE IF EXISTS file_backup')
+  (async () => {
+    try {
       await sequelize.sync({ alter: true })
-    } else throw e
-  }
-  console.log('Connected to the database')
+    } catch (e) {
+      const err = e as { original: { message: string } }
+      if (err.original.message.includes('file_backup')) {
+        await sequelize.query('DROP TABLE IF EXISTS file_backup')
+        await sequelize.sync({ alter: true })
+      } else throw e
+    }
+    console.log('Connected to the database')
+  })().catch(console.error)
   return cache.init(UncachedFileModel)
 }
 export default startDatabase

@@ -28,7 +28,7 @@ class Hydrafiles {
   s3: S3
   utils
   FileHandler = FileHandler
-  FileModel: Promise<ModelCtor<Model<any, any>> & SequelizeSimpleCacheModel<Model<any, any>>> = new Promise(() => {})
+  FileModel: ModelCtor<Model<any, any>> & SequelizeSimpleCacheModel<Model<any, any>>
   constructor (customConfig: Config | undefined) {
     this.startTime = +new Date()
     const config = getConfig(customConfig)
@@ -49,22 +49,19 @@ class Hydrafiles {
     const nodes = new Nodes(this)
     this.nodes = nodes
 
-    startServer(this);
+    startServer(this)
+    this.FileModel = startDatabase(config)
 
-    (async () => {
-      await this.logState()
-      setInterval(() => { this.logState().catch(console.error) }, config.summary_speed)
-      const FileModel = await startDatabase(config)
-      this.FileModel = Promise.resolve(FileModel)
+    this.logState().catch(console.error)
+    setInterval(() => { this.logState().catch(console.error) }, config.summary_speed)
 
-      if (config.compare_speed !== -1) {
-        setInterval(() => {
-          this.backgroundTasks().catch(console.error)
-        }, config.compare_speed)
+    if (config.compare_speed !== -1) {
+      setInterval(() => {
         this.backgroundTasks().catch(console.error)
-      }
-      if (config.backfill) this.backfillFiles().catch(console.error)
-    })().catch(console.error)
+      }, config.compare_speed)
+      this.backgroundTasks().catch(console.error)
+    }
+    if (config.backfill) this.backfillFiles().catch(console.error)
   }
 
   backgroundTasks = async (): Promise<void> => {
