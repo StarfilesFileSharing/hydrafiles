@@ -2,7 +2,7 @@
 	"hostname": "0.0.0.0",
 	"port": 80,
 	"public_hostname": "http://127.0.0.1:80",
-	"max_storage": -1,
+	"max_cache": -1,
 	"perma_files": [],
 	"prefer_node": "HIGHEST_HITRATE",
 	"max_concurrent_nodes": 5,

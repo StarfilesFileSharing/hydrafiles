@@ -143,7 +143,7 @@ class Utils {
   }
 
   remainingStorage = (): number => {
-    return this.config.max_storage - this.calculateUsedStorage()
+    return this.config.max_cache - this.calculateUsedStorage()
   }
 
   calculateUsedStorage = (): number => {
@@ -169,7 +169,7 @@ class Utils {
       fs.unlinkSync(path.join(process.cwd(), 'files', file))
       remainingSpace += size
 
-      if (requiredSpace <= remainingSpace) break
+      if (requiredSpace <= remainingSpace && this.calculateUsedStorage() * (1 - this.config.burn_rate) <= remainingSpace) break
     }
   }
 

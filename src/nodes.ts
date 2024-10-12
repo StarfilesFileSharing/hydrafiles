@@ -9,7 +9,6 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 
 export interface Node { host: string, http: boolean, dns: boolean, cf: boolean, hits: number, rejects: number, bytes: number, duration: number, status?: boolean }
-export enum PreferNode { FASTEST, LEAST_USED, RANDOM, HIGHEST_HITRATE }
 
 const DIRNAME = path.dirname(fileURLToPath(import.meta.url))
 export const NODES_PATH = path.join(DIRNAME, 'nodes.json')
@@ -57,9 +56,9 @@ export default class Nodes {
     if (opts.includeSelf === undefined) opts.includeSelf = true
     const nodes = this.nodes.filter(node => opts.includeSelf || node.host !== this.config.public_hostname).sort(() => Math.random() - 0.5)
 
-    if (this.config.prefer_node === PreferNode.FASTEST) return nodes.sort((a: { bytes: number, duration: number }, b: { bytes: number, duration: number }) => a.bytes / a.duration - b.bytes / b.duration)
-    else if (this.config.prefer_node === PreferNode.LEAST_USED) return nodes.sort((a: { hits: number, rejects: number }, b: { hits: number, rejects: number }) => a.hits - a.rejects - (b.hits - b.rejects))
-    else if (this.config.prefer_node === PreferNode.HIGHEST_HITRATE) return nodes.sort((a: { hits: number, rejects: number }, b: { hits: number, rejects: number }) => (a.hits - a.rejects) - (b.hits - b.rejects))
+    if (this.config.prefer_node === 'FASTEST') return nodes.sort((a: { bytes: number, duration: number }, b: { bytes: number, duration: number }) => a.bytes / a.duration - b.bytes / b.duration)
+    else if (this.config.prefer_node === 'LEAST_USED') return nodes.sort((a: { hits: number, rejects: number }, b: { hits: number, rejects: number }) => a.hits - a.rejects - (b.hits - b.rejects))
+    else if (this.config.prefer_node === 'HIGHEST_HITRATE') return nodes.sort((a: { hits: number, rejects: number }, b: { hits: number, rejects: number }) => (a.hits - a.rejects) - (b.hits - b.rejects))
     else return nodes
   }
 

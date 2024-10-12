@@ -120,7 +120,7 @@ class Utils {
             return hash.digest('hex');
         });
         this.remainingStorage = () => {
-            return this.config.max_storage - this.calculateUsedStorage();
+            return this.config.max_cache - this.calculateUsedStorage();
         };
         this.calculateUsedStorage = () => {
             const filesPath = path.join(this.DIRNAME, 'files');
@@ -143,7 +143,7 @@ class Utils {
                 const size = fs.statSync(path.join(process.cwd(), 'files', file)).size;
                 fs.unlinkSync(path.join(process.cwd(), 'files', file));
                 remainingSpace += size;
-                if (requiredSpace <= remainingSpace)
+                if (requiredSpace <= remainingSpace && this.calculateUsedStorage() * (1 - this.config.burn_rate) <= remainingSpace)
                     break;
             }
         };

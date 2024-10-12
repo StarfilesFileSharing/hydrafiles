@@ -12,13 +12,6 @@ import Utils from './utils.js';
 import FileHandler from './fileHandler.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
-export var PreferNode;
-(function (PreferNode) {
-    PreferNode[PreferNode["FASTEST"] = 0] = "FASTEST";
-    PreferNode[PreferNode["LEAST_USED"] = 1] = "LEAST_USED";
-    PreferNode[PreferNode["RANDOM"] = 2] = "RANDOM";
-    PreferNode[PreferNode["HIGHEST_HITRATE"] = 3] = "HIGHEST_HITRATE";
-})(PreferNode || (PreferNode = {}));
 const DIRNAME = path.dirname(fileURLToPath(import.meta.url));
 export const NODES_PATH = path.join(DIRNAME, 'nodes.json');
 export const nodeFrom = (host) => {
@@ -57,11 +50,11 @@ export default class Nodes {
         if (opts.includeSelf === undefined)
             opts.includeSelf = true;
         const nodes = this.nodes.filter(node => opts.includeSelf || node.host !== this.config.public_hostname).sort(() => Math.random() - 0.5);
-        if (this.config.prefer_node === PreferNode.FASTEST)
+        if (this.config.prefer_node === 'FASTEST')
             return nodes.sort((a, b) => a.bytes / a.duration - b.bytes / b.duration);
-        else if (this.config.prefer_node === PreferNode.LEAST_USED)
+        else if (this.config.prefer_node === 'LEAST_USED')
             return nodes.sort((a, b) => a.hits - a.rejects - (b.hits - b.rejects));
-        else if (this.config.prefer_node === PreferNode.HIGHEST_HITRATE)
+        else if (this.config.prefer_node === 'HIGHEST_HITRATE')
             return nodes.sort((a, b) => (a.hits - a.rejects) - (b.hits - b.rejects));
         else
             return nodes;

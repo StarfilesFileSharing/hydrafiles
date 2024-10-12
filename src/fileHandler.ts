@@ -142,7 +142,7 @@ export default class FileHandler {
       await this.save()
     }
     const remainingSpace = this.utils.remainingStorage()
-    if (this.config.max_storage !== -1 && size > remainingSpace) this.utils.purgeCache(size, remainingSpace)
+    if (this.config.max_cache !== -1 && size > remainingSpace) this.utils.purgeCache(size, remainingSpace)
 
     await this.utils.saveBufferToFile(file, filePath)
   }
