@@ -156,13 +156,4 @@ yarn start
 **If you intend to run this in production**, run as a service to ensure uptime.
 
 ### Configuration
-Set config at `config.json`, advanced options can be found at the top of `index.ts`.
-
-### Serving files
-#### Local
-Move your file to the `files/` dir (creaetd on first run), and change the filename to the SHA256 checksum of the file.
-#### S3
-To maintain anonymity, ensure your S3 bucket is not publicly accessible, and only your node can access it. To serve files directly from S3, set the following config values:
-- `S3ACCESSKEYID`
-- `S3SECRETACCESSKEY`
-- `S3ENDPOINT`
+For a list of options and their explanations with instructions on how to use them, check [our Wiki](https://github.com/StarfilesFileSharing/Hydrafiles/wiki/Configuration).
