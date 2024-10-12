@@ -105,7 +105,7 @@ class Hydrafiles {
         await this.FileModel.noCache().count(),
         `(${Math.round((100 * await this.FileModel.noCache().sum('size')) / 1024 / 1024 / 1024) / 100}GB)`,
         '\n| Stored Files:',
-        fs.readdirSync(path.join(DIRNAME, 'files/')).length,
+        fs.readdirSync(path.join(DIRNAME, '../files/')).length,
         `(${Math.round((100 * this.utils.calculateUsedStorage()) / 1024 / 1024 / 1024) / 100}GB)`,
         '\n| Processing Files:',
         hashLocks.size,
