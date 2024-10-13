@@ -122,7 +122,7 @@ class Hydrafiles {
     }
   }
 
-  async search (where: FindOptions<any>, cache: boolean): Promise<Promise<FileAttributes[]>> {
+  search = async (where: FindOptions<any>, cache: boolean): Promise<Promise<FileAttributes[]>> => {
     const files = cache ? await this.FileModel.findAll(where) : await this.FileModel.noCache().findAll(where)
     return files.map((values) => values.dataValues as FileAttributes)
   }

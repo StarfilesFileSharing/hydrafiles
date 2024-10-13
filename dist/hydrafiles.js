@@ -60,6 +60,10 @@ class Hydrafiles {
             }
             this.backfillFiles().catch(console.error);
         });
+        this.search = (where, cache) => __awaiter(this, void 0, void 0, function* () {
+            const files = cache ? yield this.FileModel.findAll(where) : yield this.FileModel.noCache().findAll(where);
+            return files.map((values) => values.dataValues);
+        });
         this.startTime = +new Date();
         this.config = getConfig(customConfig);
         this.utils = new Utils(this.config);
@@ -99,12 +103,6 @@ class Hydrafiles {
             catch (e) {
                 console.error(e);
             }
-        });
-    }
-    search(where, cache) {
-        return __awaiter(this, void 0, void 0, function* () {
-            const files = cache ? yield this.FileModel.findAll(where) : yield this.FileModel.noCache().findAll(where);
-            return files.map((values) => values.dataValues);
         });
     }
 }
