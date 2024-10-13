@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { Readable } from 'stream'
-import { FindOptions, Model } from 'sequelize'
+import { Model } from 'sequelize'
 import { Instance } from 'webtorrent'
 import Hydrafiles from './hydrafiles.js'
 import { fileURLToPath } from 'url'
@@ -78,11 +78,6 @@ export default class FileHandler {
     if (Number(fileHandler.size) === 0) fileHandler.size = 0
 
     return fileHandler
-  }
-
-  public static findFiles = async (where: FindOptions<any>, client: Hydrafiles, cache: boolean = true): Promise<FileAttributes[]> => {
-    const files = cache ? await client.FileModel.findAll(where) : await client.FileModel.noCache().findAll(where)
-    return files.map((values) => values.dataValues as FileAttributes)
   }
 
   public async getMetadata (): Promise<FileHandler | false> {

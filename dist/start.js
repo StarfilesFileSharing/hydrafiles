@@ -8,7 +8,7 @@ const hydrafiles = new Hydrafiles(config);
 console.log('Hydrafiles Started', hydrafiles);
 // (async () => {
 //   // Example Search
-//   const files = await hydrafiles.FileHandler.findFiles({ where: { name: 'i-am-spartacus-its-me.gif' } }, hydrafiles, false)
+//   const files = await hydrafiles.search({ where: { name: 'i-am-spartacus-its-me.gif' } }, false)
 //   if (files.length === 0) console.error('File not found')
 //   else {
 //     // Example Download

@@ -1,9 +1,9 @@
 import fs from 'fs'
-import Sequelize, { Model, ModelCtor } from 'sequelize'
+import Sequelize, { FindOptions, Model, ModelCtor } from 'sequelize'
 import init from './init.js'
 import getConfig, { Config } from './config.js'
 import Nodes from './nodes.js'
-import FileHandler, { webtorrentClient } from './fileHandler.js'
+import FileHandler, { FileAttributes, webtorrentClient } from './fileHandler.js'
 import startServer, { hashLocks } from './server.js'
 import Utils from './utils.js'
 import { S3 } from '@aws-sdk/client-s3'
@@ -120,6 +120,11 @@ class Hydrafiles {
     } catch (e) {
       console.error(e)
     }
+  }
+
+  async search (where: FindOptions<any>, cache: boolean): Promise<Promise<FileAttributes[]>> {
+    const files = cache ? await this.FileModel.findAll(where) : await this.FileModel.noCache().findAll(where)
+    return files.map((values) => values.dataValues as FileAttributes)
   }
 }
 

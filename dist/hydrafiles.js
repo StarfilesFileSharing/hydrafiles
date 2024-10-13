@@ -101,5 +101,11 @@ class Hydrafiles {
             }
         });
     }
+    search(where, cache) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const files = cache ? yield this.FileModel.findAll(where) : yield this.FileModel.noCache().findAll(where);
+            return files.map((values) => values.dataValues);
+        });
+    }
 }
 export default Hydrafiles;

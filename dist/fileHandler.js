@@ -14,7 +14,6 @@ var __asyncValues = (this && this.__asyncValues) || function (o) {
     function verb(n) { i[n] = o[n] && function (v) { return new Promise(function (resolve, reject) { v = o[n](v), settle(resolve, reject, v.done, v.value); }); }; }
     function settle(resolve, reject, d, v) { Promise.resolve(v).then(function(v) { resolve({ value: v, done: d }); }, reject); }
 };
-var _a;
 import fs from 'fs';
 import path from 'path';
 import { Readable } from 'stream';
@@ -32,7 +31,7 @@ export const webtorrentClient = () => __awaiter(void 0, void 0, void 0, function
     }
     return webtorrent;
 });
-class FileHandler {
+export default class FileHandler {
     static init(opts, client) {
         return __awaiter(this, void 0, void 0, function* () {
             let hash;
@@ -53,7 +52,7 @@ class FileHandler {
                 throw new Error('No hash or infohash provided');
             if (hash !== undefined && !client.utils.isValidSHA256Hash(hash))
                 throw new Error('Invalid hash provided');
-            const fileHandler = new _a();
+            const fileHandler = new FileHandler();
             fileHandler.hash = hash;
             fileHandler.infohash = '';
             fileHandler.id = '';
@@ -71,7 +70,7 @@ class FileHandler {
     }
     getMetadata() {
         return __awaiter(this, void 0, void 0, function* () {
-            var _b;
+            var _a;
             if (this.size > 0 && this.name !== undefined && this.name !== null && this.name.length > 0)
                 return this;
             const hash = this.hash;
@@ -83,7 +82,7 @@ class FileHandler {
                     const metadata = (yield response.json()).result;
                     this.name = metadata.name;
                     this.size = metadata.size;
-                    if (((_b = this.infohash) === null || _b === void 0 ? void 0 : _b.length) === 0)
+                    if (((_a = this.infohash) === null || _a === void 0 ? void 0 : _a.length) === 0)
                         this.infohash = metadata.infohash;
                     yield this.save();
                     return this;
@@ -152,7 +151,7 @@ class FileHandler {
     }
     fetchFromS3() {
         return __awaiter(this, void 0, void 0, function* () {
-            var _b, e_1, _c, _d;
+            var _a, e_1, _b, _c;
             console.log(`  ${this.hash}  Checking S3`);
             if (this.client.config.s3_endpoint.length === 0)
                 return false;
@@ -162,17 +161,17 @@ class FileHandler {
                 if (data.Body instanceof Readable) {
                     const chunks = [];
                     try {
-                        for (var _e = true, _f = __asyncValues(data.Body), _g; _g = yield _f.next(), _b = _g.done, !_b; _e = true) {
-                            _d = _g.value;
-                            _e = false;
-                            const chunk = _d;
+                        for (var _d = true, _e = __asyncValues(data.Body), _f; _f = yield _e.next(), _a = _f.done, !_a; _d = true) {
+                            _c = _f.value;
+                            _d = false;
+                            const chunk = _c;
                             chunks.push(chunk);
                         }
                     }
                     catch (e_1_1) { e_1 = { error: e_1_1 }; }
                     finally {
                         try {
-                            if (!_e && !_b && (_c = _f.return)) yield _c.call(_f);
+                            if (!_d && !_a && (_b = _e.return)) yield _b.call(_e);
                         }
                         finally { if (e_1) throw e_1.error; }
                     }
@@ -261,7 +260,7 @@ class FileHandler {
     }
     seed() {
         return __awaiter(this, void 0, void 0, function* () {
-            var _b;
+            var _a;
             if (seeding.includes(this.hash))
                 return;
             seeding.push(this.hash);
@@ -271,7 +270,7 @@ class FileHandler {
             (yield webtorrentClient()).seed(filePath, {
                 // @ts-expect-error
                 createdBy: 'Hydrafiles/0.1',
-                name: ((_b = this.name) !== null && _b !== void 0 ? _b : this.hash).replace(/(\.\w+)$/, ' [HYDRAFILES]$1'),
+                name: ((_a = this.name) !== null && _a !== void 0 ? _a : this.hash).replace(/(\.\w+)$/, ' [HYDRAFILES]$1'),
                 destroyStoreOnDestroy: true,
                 addUID: true,
                 comment: 'Anonymously seeded with Hydrafiles'
@@ -288,10 +287,4 @@ class FileHandler {
         });
     }
 }
-_a = FileHandler;
-FileHandler.findFiles = (where_1, client_1, ...args_1) => __awaiter(void 0, [where_1, client_1, ...args_1], void 0, function* (where, client, cache = true) {
-    const files = cache ? yield client.FileModel.findAll(where) : yield client.FileModel.noCache().findAll(where);
-    return files.map((values) => values.dataValues);
-});
-export default FileHandler;
 // TODO: webtorrent.add() all known files
