@@ -233,8 +233,8 @@ docker run -p 80:80 hydrafiles
 ```bash
 git clone https://github.com/StarfilesFileSharing/Hydrafiles
 cd Hydrafiles
-yarn
-yarn start
+deno install --allow-scripts=npm:sqlite3@5.1.7,npm:utp-native@2.5.3,npm:node-datachannel@0.10.1,npm:bufferutil@4.0.8,npm:utf-8-validate@6.0.4
+deno task start
 ```
 
 **If you intend to run this in production**, run as a service to ensure uptime.
