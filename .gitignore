@@ -97,8 +97,9 @@ typings/
 # Electron-Forge
 out/
 
+# Lockfiles
 pnpm-lock.yaml
-
+yarn.lock
 package-lock.json
 
 filemanager.db

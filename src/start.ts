@@ -1,13 +1,17 @@
-import fs from 'fs'
-import path from 'path'
-import { fileURLToPath } from 'url'
-import Hydrafiles from './hydrafiles.js'
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import Hydrafiles from "./hydrafiles.ts";
 
-const DIRNAME = path.dirname(fileURLToPath(import.meta.url))
-const config = JSON.parse(fs.existsSync(path.join(DIRNAME, '../config.json')) ? fs.readFileSync(path.join(DIRNAME, '../config.json')).toString() : '{}')
+const DIRNAME = path.dirname(fileURLToPath(import.meta.url));
+const config = JSON.parse(
+  fs.existsSync(path.join(DIRNAME, "../config.json"))
+    ? fs.readFileSync(path.join(DIRNAME, "../config.json")).toString()
+    : "{}",
+);
 
-const hydrafiles = new Hydrafiles(config)
-console.log('Hydrafiles Started', hydrafiles)
+const hydrafiles = new Hydrafiles(config);
+console.log("Hydrafiles Started", hydrafiles);
 
 // (async () => {
 //   // Example Search
