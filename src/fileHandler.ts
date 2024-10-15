@@ -5,6 +5,7 @@ import type { Model } from "sequelize";
 import type Hydrafiles from "./hydrafiles.ts";
 import { fileURLToPath } from "node:url";
 import { Buffer } from "node:buffer";
+import { Block } from "./block.ts";
 
 interface Metadata {
   name: string;
@@ -19,7 +20,7 @@ interface Metadata {
 
 const DIRNAME = path.dirname(fileURLToPath(import.meta.url));
 const FILESPATH = path.join(DIRNAME, "../files");
-const seeding: string[] = [];
+// const seeding: string[] = [];
 
 export interface FileAttributes {
   hash: string;
@@ -44,7 +45,7 @@ export default class FileHandler {
   createdAt!: Date;
   updatedAt!: Date;
   file!: Model<FileAttributes, Partial<FileAttributes>>;
-  client!: Hydrafiles;
+  _client!: Hydrafiles;
 
   public static async init(
     opts: { hash?: string; infohash?: string },
@@ -77,7 +78,7 @@ export default class FileHandler {
     fileHandler.name = "";
     fileHandler.found = true;
     fileHandler.size = 0;
-    fileHandler.client = client;
+    fileHandler._client = client;
 
     const existingFile = await client.FileModel.findByPk(hash);
     fileHandler.file = existingFile ?? await client.FileModel.create({ hash });
@@ -100,7 +101,7 @@ export default class FileHandler {
     const id = this.id;
     if (id !== undefined && id !== null && id.length > 0) {
       const response = await fetch(
-        `${this.client.config.metadata_endpoint}${id}`,
+        `${this._client.config.metadata_endpoint}${id}`,
       );
       if (response.ok) {
         const metadata = (await response.json()).result as Metadata;
@@ -119,9 +120,9 @@ export default class FileHandler {
       return this;
     }
 
-    if (this.client.config.s3_endpoint.length !== 0) {
+    if (this._client.config.s3_endpoint.length !== 0) {
       try {
-        const data = await this.client.s3.headObject({
+        const data = await this._client.s3.headObject({
           Bucket: "uploads",
           Key: `${hash}.stuf`,
         });
@@ -149,14 +150,14 @@ export default class FileHandler {
       this.size = size;
       await this.save();
     }
-    const remainingSpace = this.client.utils.remainingStorage();
-    if (this.client.config.max_cache !== -1 && size > remainingSpace) {
-      this.client.utils.purgeCache(size, remainingSpace);
+    const remainingSpace = this._client.utils.remainingStorage();
+    if (this._client.config.max_cache !== -1 && size > remainingSpace) {
+      this._client.utils.purgeCache(size, remainingSpace);
     }
 
-    await this.client.utils.saveBufferToFile(file, filePath);
+    await this._client.utils.saveBufferToFile(file, filePath);
     const fileContents = fs.createReadStream(filePath);
-    const savedHash = await this.client.utils.hashStream(fileContents);
+    const savedHash = await this._client.utils.hashStream(fileContents);
     if (savedHash !== hash) fs.rmSync(filePath); // In case of broken file
   }
 
@@ -169,23 +170,23 @@ export default class FileHandler {
     await this.seed();
     if (!fs.existsSync(filePath)) return false;
     const fileContents = fs.createReadStream(filePath);
-    const savedHash = await this.client.utils.hashStream(fileContents);
+    const savedHash = await this._client.utils.hashStream(fileContents);
     if (savedHash !== this.hash) {
       fs.rmSync(filePath);
       return false;
     }
     return {
       file: fs.readFileSync(filePath),
-      signal: this.client.utils.interfere(100),
+      signal: this._client.utils.interfere(100),
     };
   }
 
   async fetchFromS3(): Promise<{ file: Buffer; signal: number } | false> {
     console.log(`  ${this.hash}  Checking S3`);
-    if (this.client.config.s3_endpoint.length === 0) return false;
+    if (this._client.config.s3_endpoint.length === 0) return false;
     try {
       let buffer: Buffer;
-      const data = await this.client.s3.getObject({
+      const data = await this._client.s3.getObject({
         Bucket: "uploads",
         Key: `${this.hash}.stuf`,
       });
@@ -199,14 +200,14 @@ export default class FileHandler {
       } else if (data.Body instanceof Buffer) buffer = data.Body;
       else return false;
 
-      if (this.client.config.cache_s3) await this.cacheFile(buffer);
+      if (this._client.config.cache_s3) await this.cacheFile(buffer);
 
-      const stream = this.client.utils.bufferToStream(buffer);
-      const hash = await this.client.utils.hashStream(stream);
+      const stream = this._client.utils.bufferToStream(buffer);
+      const hash = await this._client.utils.hashStream(stream);
       if (hash !== this.hash) {
         return false;
       }
-      return { file: buffer, signal: this.client.utils.interfere(100) };
+      return { file: buffer, signal: this._client.utils.interfere(100) };
     } catch (e) {
       const err = e as { message: string };
       if (err.message !== "The specified key does not exist.") {
@@ -223,9 +224,19 @@ export default class FileHandler {
   async getFile(
     opts: { logDownloads?: boolean } = {},
   ): Promise<{ file: Buffer; signal: number } | false> {
+    if (this._client.blockchain.mempoolBlock === null)
+      this._client.blockchain.mempoolBlock = new Block(await (this._client.blockchain.lastBlock() ?? new Block('genesis', this._client)).getHash(), this._client)
+
+    const keyPair = await this._client.utils.generateKeyPair(); // TODO: Actually manage keypairs
+    const peer = await this._client.utils.exportPublicKey(keyPair.publicKey) // TODO: Replace this with actual peer
+    const receipt = await this._client.blockchain.mempoolBlock.signReceipt(peer, keyPair);
+    await this._client.blockchain.mempoolBlock.addReceipt(receipt)
+    if (this._client.blockchain.mempoolBlock.receipts.length > 10)
+      await this._client.blockchain.announceMempoolBlock(this._client)
+
     const hash = this.hash;
     console.log(`  ${hash}  Getting file`);
-    if (!this.client.utils.isValidSHA256Hash(hash)) {
+    if (!this._client.utils.isValidSHA256Hash(hash)) {
       console.log(`  ${hash}  Invalid hash`);
       return false;
     }
@@ -241,16 +252,16 @@ export default class FileHandler {
     }
     await this.save();
 
-    if (this.size !== 0 && !this.client.utils.hasSufficientMemory(this.size)) {
+    if (this.size !== 0 && !this._client.utils.hasSufficientMemory(this.size)) {
       await new Promise(() => {
         const intervalId = setInterval(() => {
-          if (this.client.config.log_level === "verbose") {
+          if (this._client.config.log_level === "verbose") {
             console.log(`  ${hash}  Reached memory limit, waiting`, this.size);
           }
           if (
-            this.size === 0 || this.client.utils.hasSufficientMemory(this.size)
+            this.size === 0 || this._client.utils.hasSufficientMemory(this.size)
           ) clearInterval(intervalId);
-        }, this.client.config.memory_threshold_reached_wait);
+        }, this._client.config.memory_threshold_reached_wait);
       });
     }
 
@@ -262,7 +273,7 @@ export default class FileHandler {
         }MB from cache`,
       );
     } else {
-      if (this.client.config.s3_endpoint.length > 0) {
+      if (this._client.config.s3_endpoint.length > 0) {
         file = await this.fetchFromS3();
       }
       if (file !== false) {
@@ -272,7 +283,7 @@ export default class FileHandler {
           }MB from S3`,
         );
       } else {
-        file = await this.client.nodes.getFile(hash, this.size);
+        file = await this._client.nodes.getFile(hash, this.size);
         if (file === false) {
           this.found = false;
           await this.save();
@@ -305,7 +316,7 @@ export default class FileHandler {
     // seeding.push(this.hash);
     // const filePath = path.join(FILESPATH, this.hash);
     // if (!fs.existsSync(filePath)) return;
-    // this.client.webtorrent.seed(filePath, {
+    // this._client.webtorrent.seed(filePath, {
     //   createdBy: "Hydrafiles/0.1",
     //   name: (this.name ?? this.hash).replace(/(\.\w+)$/, " [HYDRAFILES]$1"),
     //   destroyStoreOnDestroy: true,

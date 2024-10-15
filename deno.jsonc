@@ -26,9 +26,9 @@
     "sqlite3": "npm:sqlite3@^5.1.7"
   },
   "tasks": {
-    "start": "deno run --allow-read --allow-env --allow-net --allow-sys --allow-ffi --allow-write --allow-run src/start.ts",
-    "dev": "deno run --watch-hmr --unstable --allow-read --allow-env --allow-net --allow-sys --allow-ffi --allow-write --allow-run src/start.ts",
-    "build": "deno fmt --ignore='public/*.html' && deno lint" // && deno compile --allow-read --allow-env --allow-net --allow-sys --allow-ffi --allow-write --allow-run src/start.ts"
+    "start": "deno run --allow-read --allow-env --allow-net --allow-sys --allow-ffi --allow-write --allow-run --allow-import src/start.ts",
+    "dev": "deno run --watch-hmr --unstable --allow-read --allow-env --allow-net --allow-sys --allow-ffi --allow-write --allow-run --allow-import src/start.ts",
+    "build": "deno fmt --ignore='public/*.html' && deno lint" // && deno compile --allow-read --allow-env --allow-net --allow-sys --allow-ffi --allow-write --allow-run --allow-import src/start.ts"
   },
   "devDependencies": {
     "typescript": "https://deno.land/x/typescript@5.6.3/mod.ts",

@@ -103,3 +103,4 @@ yarn.lock
 package-lock.json
 
 filemanager.db
+blocks/*

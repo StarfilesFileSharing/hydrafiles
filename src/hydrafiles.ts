@@ -15,7 +15,8 @@ import startDatabase from "./database.ts";
 import type { SequelizeSimpleCacheModel } from "npm:sequelize-simple-cache";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import WebTorrent from 'npm:webtorrent'
+import type WebTorrent from "npm:webtorrent";
+import Blockchain, { Block } from "./block.ts";
 
 // TODO: IDEA: HydraTorrent - New Github repo - "Hydrafiles + WebTorrent Compatibility Layer" - Hydrafiles noes can optionally run HydraTorrent to seed files via webtorrent
 // Change index hash from sha256 to infohash, then allow nodes to leech files from webtorrent + normal torrent
@@ -41,6 +42,7 @@ class Hydrafiles {
     & ModelCtor<Model<FileAttributes, Partial<FileAttributes>>>
     & SequelizeSimpleCacheModel<Model<FileAttributes, Partial<FileAttributes>>>;
   webtorrent: WebTorrent;
+  blockchain: Blockchain;
   constructor(customConfig: Partial<Config> = {}) {
     this.startTime = +new Date();
     this.config = getConfig(customConfig);
@@ -60,6 +62,7 @@ class Hydrafiles {
     this.FileModel = startDatabase(this.config);
     startServer(this);
     // this.webtorrent = new WebTorrent()
+    this.blockchain = new Blockchain(this);
 
     if (this.config.summary_speed !== -1) {
       this.logState().catch(console.error);

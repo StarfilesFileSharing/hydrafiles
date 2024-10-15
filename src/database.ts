@@ -1,4 +1,9 @@
-import { DataTypes, type Model, type ModelCtor, Sequelize } from "npm:sequelize";
+import {
+  DataTypes,
+  type Model,
+  type ModelCtor,
+  Sequelize,
+} from "npm:sequelize";
 import SequelizeSimpleCache, {
   type SequelizeSimpleCacheModel,
 } from "npm:sequelize-simple-cache";

@@ -9,6 +9,9 @@ import { Buffer } from "node:buffer";
 import process from "node:process";
 import { crypto } from "jsr:@std/crypto";
 import { encodeHex } from "jsr:@std/encoding/hex";
+import type { Receipt } from "./block.ts";
+
+type Base64 = string & { __brand: "Base64" };
 
 const DIRNAME = path.dirname(fileURLToPath(import.meta.url));
 
@@ -21,7 +24,8 @@ class Utils {
   getRandomNumber = (min: number, max: number): number =>
     Math.floor(Math.random() * (max - min + 1)) + min;
   isValidSHA256Hash = (hash: string): boolean => /^[a-f0-9]{64}$/.test(hash);
-  hashStream = async (stream: Readable): Promise<string> =>  encodeHex(await crypto.subtle.digest("SHA-256", stream));
+  hashStream = async (stream: Readable): Promise<string> =>
+    encodeHex(await crypto.subtle.digest("SHA-256", stream));
   isValidInfoHash = (hash: string): boolean => /^[a-f0-9]{40}$/.test(hash);
   isIp = (host: string): boolean =>
     /^https?:\/\/(?:\d+\.){3}\d+(?::\d+)?$/.test(host);
@@ -225,6 +229,59 @@ class Utils {
       return (duration / msPerHour).toFixed(2) + " hours";
     } else return (duration / msPerDay).toFixed(2) + " days";
   };
+
+
+bufferToBase64(buffer: ArrayBuffer): string {
+  const byteArray = new Uint8Array(buffer);
+  let binary = '';
+  byteArray.forEach((byte) => {
+    binary += String.fromCharCode(byte);
+  });
+  return btoa(binary);
+}
+
+base64ToBuffer(base64: Base64): ArrayBuffer {
+  const binaryString = atob(base64);
+  const byteArray = new Uint8Array(binaryString.length);
+  for (let i = 0; i < binaryString.length; i++) {
+    byteArray[i] = binaryString.charCodeAt(i);
+  }
+  return byteArray.buffer;
+}
+
+async hashString (input: string) {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(input);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hashArray = new Uint8Array(hashBuffer);
+    const hexHash = Array.from(hashArray)
+        .map(byte => byte.toString(16).padStart(2, '0'))
+        .join('');
+    return hexHash
+}
+
+async generateKeyPair(): Promise<CryptoKeyPair> {
+  return await crypto.subtle.generateKey({ name: "Ed25519" }, true, ["sign", "verify"]) as CryptoKeyPair;
+}
+
+exportPublicKey = async (keyPair: CryptoKey) => (await crypto.subtle.exportKey("jwk", keyPair))['x'] as string
+buildJWT = (key: string) => { return {"kty":"OKP","crv":"Ed25519","x":key,"key_ops":["verify"],"ext":true} }
+
+async signMessage(privateKey: CryptoKey, message: string): Promise<Base64> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(message);
+  return this.bufferToBase64(await crypto.subtle.sign({ name: "Ed25519" }, privateKey, data )) as Base64
+}
+
+async verifySignature(receipt: Receipt): Promise<boolean> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(receipt.message);
+
+  const importedPublicKey = await crypto.subtle.importKey("jwk", this.buildJWT(receipt.issuer), { name: "Ed25519" }, true, ["verify"]);
+
+  return await crypto.subtle.verify({ name: "Ed25519" }, importedPublicKey, this.base64ToBuffer(receipt.signature), data);
+}
+
 }
 
 export default Utils;
