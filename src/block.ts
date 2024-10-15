@@ -102,7 +102,7 @@ class Blockchain {
   async newMempoolBlock(client: Hydrafiles) {
     if (this.mempoolBlock !== null) {
       this.mempoolBlock.announce()
-      this.blocks.push(this.mempoolBlock)
+      this.addBlock(this.mempoolBlock)
     }
     const block = new Block(await (this.mempoolBlock ?? new Block('genesis', client)).getHash(), client)
     block.state = State.Mempool
