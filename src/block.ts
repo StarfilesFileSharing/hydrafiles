@@ -104,8 +104,9 @@ class Blockchain {
       this.mempoolBlock.announce()
       this.blocks.push(this.mempoolBlock)
     }
-    this.mempoolBlock = new Block(await (this.mempoolBlock ?? new Block('genesis', client)).getHash(), client)
-    this.mempoolBlock.state = State.Mempool
+    const block = new Block(await (this.mempoolBlock ?? new Block('genesis', client)).getHash(), client)
+    block.state = State.Mempool
+    return block
   }
 }
 
