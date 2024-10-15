@@ -224,14 +224,13 @@ export default class FileHandler {
   async getFile(
     opts: { logDownloads?: boolean } = {},
   ): Promise<{ file: Buffer; signal: number } | false> {
-    if (this._client.blockchain.mempoolBlock === null) this._client.blockchain.mempoolBlock = await this._client.blockchain.newMempoolBlock(this._client)
-
-    const keyPair = await this._client.utils.generateKeyPair(); // TODO: Actually manage keypairs
-    const peer = await this._client.utils.exportPublicKey(keyPair.publicKey) // TODO: Replace this with actual peer
-    const receipt = await this._client.blockchain.mempoolBlock.signReceipt(peer, keyPair);
-    await this._client.blockchain.mempoolBlock.addReceipt(receipt)
-    if (this._client.blockchain.mempoolBlock.receipts.length > 10)
-      await this._client.blockchain.newMempoolBlock(this._client)
+    // if (this._client.blockchain.mempoolBlock === null) this._client.blockchain.mempoolBlock = await this._client.blockchain.newMempoolBlock(this._client)
+    // const keyPair = await this._client.utils.generateKeyPair(); // TODO: Actually manage keypairs
+    // const peer = await this._client.utils.exportPublicKey(keyPair.publicKey) // TODO: Replace this with actual peer
+    // const receipt = await this._client.blockchain.mempoolBlock.signReceipt(peer, keyPair);
+    // await this._client.blockchain.mempoolBlock.addReceipt(receipt)
+    // if (this._client.blockchain.mempoolBlock.receipts.length > 10)
+    //   await this._client.blockchain.newMempoolBlock(this._client)
 
     const hash = this.hash;
     console.log(`  ${hash}  Getting file`);
