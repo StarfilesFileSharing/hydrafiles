@@ -99,11 +99,13 @@ class Blockchain {
     return this.blocks[this.blocks.length - 1]
   }
 
-  async announceMempoolBlock(client: Hydrafiles) {
-    if (this.mempoolBlock === null) return
-    this.mempoolBlock.announce()
-    this.blocks.push(this.mempoolBlock)
-    this.mempoolBlock = new Block(await this.mempoolBlock.getHash(), client)
+  async newMempoolBlock(client: Hydrafiles) {
+    if (this.mempoolBlock !== null) {
+      this.mempoolBlock.announce()
+      this.blocks.push(this.mempoolBlock)
+    }
+    this.mempoolBlock = new Block(await (this.mempoolBlock ?? new Block('genesis', client)).getHash(), client)
+    this.mempoolBlock.state = State.Mempool
   }
 }
 
