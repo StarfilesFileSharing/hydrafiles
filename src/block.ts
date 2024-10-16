@@ -145,7 +145,12 @@ class Blockchain {
           if (i < this.lastBlock().height) continue;
           for (let j = 0; j < nodes.length; j++) {
             console.log(`Fetch block ${i} from ${nodes[j]}`);
-            const response = await fetch(`${nodes[j]}/block/${i}`);
+            let response;
+            try {
+              response = await fetch(`${nodes[j]}/block/${i}`);
+            } catch (_) {
+              continue
+            }
             const blockContent = await response.text();
             let blockPaylod;
             try {
