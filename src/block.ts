@@ -105,7 +105,7 @@ class Blockchain {
     this.mempoolBlock = new Block("genesis", this._client);
     this.mempoolBlock.state = State.Mempool;
 
-    this.syncBlocks().then(() => this.proposeBlocks)
+    // this.syncBlocks().then(() => this.proposeBlocks)
   }
 
   async proposeBlocks() {
