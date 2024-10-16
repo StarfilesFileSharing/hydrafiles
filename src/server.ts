@@ -288,10 +288,18 @@ const handleRequest = async (
       });
       res.end(JSON.stringify(rows));
     } else if (req.path.startsWith("/block/")) {
-      const blockNumber = req.path.split("/")[2];
-      const block = Deno.readFileSync(path.join(BLOCKSDIR, blockNumber));
+      const blockHeight = req.path.split("/")[2];
+      res.writeHead(200, {
+        "Content-Type": "application/json",
+        "Cache-Control": "public, max-age=" + (Number(blockHeight) > client.blockchain.lastBlock().height ? 0 : 604800),
+      });
+      const block = Deno.readFileSync(path.join(BLOCKSDIR, blockHeight));
       res.end(block);
     } else if (req.path === "/block_height") {
+      res.writeHead(200, {
+        "Content-Type": "application/json",
+        "Cache-Control": "public, max-age=30",
+      });
       res.end(String(client.blockchain.lastBlock().height));
     } else {
       res.writeHead(404, { "Content-Type": "text/plain" });
