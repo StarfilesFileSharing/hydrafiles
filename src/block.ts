@@ -121,7 +121,7 @@ class Blockchain {
       while (this.lastBlock().time + 5 * 1000 > +new Date()) {
         await new Promise((resolve) => setTimeout(resolve, 100));
       }
-      if (
+      if (peer === undefined ||
         peer ===
           await this._client.utils.exportPublicKey(
             (await this._client.keyPair).publicKey,
