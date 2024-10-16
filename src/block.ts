@@ -88,12 +88,11 @@ class Blockchain {
   _client: Hydrafiles;
   constructor (client: Hydrafiles) {
     for (const dirEntry of Deno.readDirSync(BLOCKSDIR)) { // TODO: Validate block prev is valid
-      this.blocks.push(Block.init(dirEntry.name, client))
+      this.addBlock(Block.init(dirEntry.name, client))
     }
     this._client = client;
     this.mempoolBlock = new Block('genesis', this._client)
     this.mempoolBlock.state = State.Mempool
-    this.newMempoolBlock()
   }
 
   async addBlock (block: Block) {
