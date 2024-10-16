@@ -79,11 +79,8 @@ const handleRequest = async (
       const hash = req.path.split("/")[2];
       const fileId = req.path.split("/")[3] ?? "";
 
-      const infoHash = params.get("info_hash");
-      if (infoHash) {
-        const decodedInfoHash = decodeURIComponent(infoHash);
-        console.log('Requested infohash:', decodedInfoHash);
-      }
+      const infohash = Array.from(decodeURIComponent(params.get("info_hash") ?? '')).map(char => char.charCodeAt(0).toString(16).padStart(2, '0')).join('');
+      console.log('Provided infohash', infohash);
 
       while (hashLocks.has(hash)) {
         if (client.config.log_level === "verbose") {
