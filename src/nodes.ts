@@ -22,15 +22,15 @@ export const NODES_PATH = path.join(DIRNAME, "../nodes.json");
 
 export default class Nodes {
   nodes: Node[];
-  client: Hydrafiles;
+  _client: Hydrafiles;
   constructor(client: Hydrafiles) {
     this.nodes = this.loadNodes();
-    this.client = client;
+    this._client = client;
   }
 
   async add(node: Node): Promise<void> {
     if (
-      node.host !== this.client.config.public_hostname &&
+      node.host !== this._client.config.public_hostname &&
       typeof this.nodes.find((existingNode) =>
           existingNode.host === node.host
         ) === "undefined" &&
@@ -39,7 +39,7 @@ export default class Nodes {
         await FileHandler.init({
           hash:
             "04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f",
-        }, this.client),
+        }, this._client),
       ) !== false)
     ) {
       this.nodes.push(node);
@@ -56,20 +56,20 @@ export default class Nodes {
   public getNodes = (opts = { includeSelf: true }): Node[] => {
     if (opts.includeSelf === undefined) opts.includeSelf = true;
     const nodes = this.nodes.filter((node) =>
-      opts.includeSelf || node.host !== this.client.config.public_hostname
+      opts.includeSelf || node.host !== this._client.config.public_hostname
     ).sort(() => Math.random() - 0.5);
 
-    if (this.client.config.prefer_node === "FASTEST") {
+    if (this._client.config.prefer_node === "FASTEST") {
       return nodes.sort((
         a: { bytes: number; duration: number },
         b: { bytes: number; duration: number },
       ) => a.bytes / a.duration - b.bytes / b.duration);
-    } else if (this.client.config.prefer_node === "LEAST_USED") {
+    } else if (this._client.config.prefer_node === "LEAST_USED") {
       return nodes.sort((
         a: { hits: number; rejects: number },
         b: { hits: number; rejects: number },
       ) => a.hits - a.rejects - (b.hits - b.rejects));
-    } else if (this.client.config.prefer_node === "HIGHEST_HITRATE") {
+    } else if (this._client.config.prefer_node === "HIGHEST_HITRATE") {
       return nodes.sort((
         a: { hits: number; rejects: number },
         b: { hits: number; rejects: number },
@@ -88,18 +88,18 @@ export default class Nodes {
       console.log(`  ${hash}  Downloading from ${node.host}`);
       let response;
       try {
-        response = await this.client.utils.promiseWithTimeout(
+        response = await this._client.utils.promiseWithTimeout(
           fetch(`${node.host}/download/${hash}`),
-          this.client.config.timeout,
+          this._client.config.timeout,
         );
       } catch (e) {
-        if (this.client.config.log_level === "verbose") console.error(e);
+        if (this._client.config.log_level === "verbose") console.error(e);
         return false;
       }
       const buffer: Buffer = Buffer.from(await response.arrayBuffer());
       console.log(`  ${hash}  Validating hash`);
-      const verifiedHash = await this.client.utils.hashStream(
-        this.client.utils.bufferToStream(buffer),
+      const verifiedHash = await this._client.utils.hashStream(
+        this._client.utils.bufferToStream(buffer),
       );
       if (hash !== verifiedHash) return false;
 
@@ -124,7 +124,7 @@ export default class Nodes {
       await file.cacheFile(buffer);
       return {
         file: buffer,
-        signal: this.client.utils.interfere(
+        signal: this._client.utils.interfere(
           Number(response.headers.get("Signal-Strength")),
         ),
       };
@@ -151,7 +151,7 @@ export default class Nodes {
     const executing: Array<Promise<void>> = [];
 
     for (const node of nodes) {
-      if (node.host === this.client.config.public_hostname) {
+      if (node.host === this._client.config.public_hostname) {
         results.push(node);
         continue;
       }
@@ -171,7 +171,7 @@ export default class Nodes {
       await FileHandler.init({
         hash:
           "04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f",
-      }, this.client),
+      }, this._client),
     );
     if (file !== false) {
       node.status = true;
@@ -194,14 +194,14 @@ export default class Nodes {
       Promise<{ file: Buffer; signal: number } | false>
     > = [];
 
-    if (!this.client.utils.hasSufficientMemory(size)) {
+    if (!this._client.utils.hasSufficientMemory(size)) {
       console.log("Reached memory limit, waiting");
       await new Promise(() => {
         const intervalId = setInterval(() => {
-          if (this.client.utils.hasSufficientMemory(size)) {
+          if (this._client.utils.hasSufficientMemory(size)) {
             clearInterval(intervalId);
           }
-        }, this.client.config.memory_threshold_reached_wait);
+        }, this._client.config.memory_threshold_reached_wait);
       });
     }
 
@@ -209,7 +209,7 @@ export default class Nodes {
       if (node.http && node.host.length > 0) {
         const promise =
           (async (): Promise<{ file: Buffer; signal: number } | false> => {
-            const file = await FileHandler.init({ hash }, this.client);
+            const file = await FileHandler.init({ hash }, this._client);
             let fileContent: { file: Buffer; signal: number } | false = false;
             try {
               fileContent = await this.downloadFromNode(node, file);
@@ -233,10 +233,10 @@ export default class Nodes {
   async announce(): Promise<void> {
     for (const node of this.getNodes({ includeSelf: false })) {
       if (node.http) {
-        if (node.host === this.client.config.public_hostname) continue;
+        if (node.host === this._client.config.public_hostname) continue;
         console.log("Announcing to", node.host);
         await fetch(
-          `${node.host}/announce?host=${this.client.config.public_hostname}`,
+          `${node.host}/announce?host=${this._client.config.public_hostname}`,
         );
       }
     }
@@ -260,7 +260,7 @@ export default class Nodes {
           const file = await FileHandler.init({
             hash: files[i].hash,
             infohash: files[i].infohash ?? undefined,
-          }, this.client);
+          }, this._client);
           if (file.infohash?.length === 0 && files[i].infohash?.length !== 0) {
             file.infohash = files[i].infohash;
           }
@@ -296,20 +296,20 @@ export default class Nodes {
         ) {
           console.log(`Fetching nodes from ${node.host}/nodes`);
           try {
-            const response = await this.client.utils.promiseWithTimeout(
+            const response = await this._client.utils.promiseWithTimeout(
               fetch(`${node.host}/nodes`),
-              this.client.config.timeout,
+              this._client.config.timeout,
             );
             const remoteNodes = await response.json() as Node[];
             for (const remoteNode of remoteNodes) {
               this.add(remoteNode).catch((e) => {
-                if (this.client.config.log_level === "verbose") {
+                if (this._client.config.log_level === "verbose") {
                   console.error(e);
                 }
               });
             }
           } catch (e) {
-            if (this.client.config.log_level === "verbose") throw e;
+            if (this._client.config.log_level === "verbose") throw e;
           }
         }
       })().catch(console.error);

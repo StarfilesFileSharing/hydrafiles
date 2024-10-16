@@ -16,9 +16,9 @@ type Base64 = string & { __brand: "Base64" };
 const DIRNAME = path.dirname(fileURLToPath(import.meta.url));
 
 class Utils {
-  config: Config;
+  _config: Config;
   constructor(config: Config) {
-    this.config = config;
+    this._config = config;
   }
 
   getRandomNumber = (min: number, max: number): number =>
@@ -37,7 +37,7 @@ class Utils {
       ? this.getRandomNumber(90, 100)
       : Math.ceil(signalStrength * (1 - (this.getRandomNumber(0, 10) / 100)));
   hasSufficientMemory = (fileSize: number): boolean =>
-    os.freemem() > (fileSize + this.config.memory_threshold);
+    os.freemem() > (fileSize + this._config.memory_threshold);
   promiseWithTimeout = async <T>(
     promise: Promise<T>,
     timeoutDuration: number,
@@ -179,7 +179,7 @@ class Utils {
   }
 
   remainingStorage = (): number => {
-    return this.config.max_cache - this.calculateUsedStorage();
+    return this._config.max_cache - this.calculateUsedStorage();
   };
 
   calculateUsedStorage = (): number => {
@@ -201,7 +201,7 @@ class Utils {
     );
     const files = fs.readdirSync(path.join(process.cwd(), "../files"));
     for (const file of files) {
-      if (this.config.perma_files.includes(file)) continue;
+      if (this._config.perma_files.includes(file)) continue;
 
       const size = fs.statSync(path.join(process.cwd(), "../files", file)).size;
       fs.unlinkSync(path.join(process.cwd(), "../files", file));
@@ -209,7 +209,7 @@ class Utils {
 
       if (
         requiredSpace <= remainingSpace &&
-        this.calculateUsedStorage() * (1 - this.config.burn_rate) <=
+        this.calculateUsedStorage() * (1 - this._config.burn_rate) <=
           remainingSpace
       ) break;
     }
@@ -280,6 +280,12 @@ async verifySignature(receipt: Receipt): Promise<boolean> {
   const importedPublicKey = await crypto.subtle.importKey("jwk", this.buildJWT(receipt.issuer), { name: "Ed25519" }, true, ["verify"]);
 
   return await crypto.subtle.verify({ name: "Ed25519" }, importedPublicKey, this.base64ToBuffer(receipt.signature), data);
+}
+extractBufferSection(buffer: Uint8Array, start: number, end: number): Uint8Array {
+  if (start < 0 || end >= buffer.length || start > end) {
+    throw new RangeError('Invalid start or end range.');
+  }
+  return buffer.subarray(start, end + 1);
 }
 
 }
