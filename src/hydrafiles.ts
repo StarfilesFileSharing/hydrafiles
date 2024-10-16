@@ -75,7 +75,13 @@ class Hydrafiles {
       setInterval(this.backgroundTasks, this.config.compare_speed);
       this.backgroundTasks();
     }
+
+    this.consensus()
     // if (this.config.backfill) this.backfillFiles().catch(console.error)
+  }
+  async consensus() {
+    const peers = this.blockchain.getPeers(await (this.blockchain.lastBlock() ?? new Block('genesis', this)).getHash())
+    console.log(peers)
   }
 
   backgroundTasks = (): void => {

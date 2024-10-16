@@ -111,6 +111,12 @@ class Blockchain {
     block.state = State.Mempool
     return block
   }
+
+  getPeers (lastHash: string) {
+    const peers = this.blocks.map(block => block.getPeers()).flat()
+    const sortedPeers = peers.sort(i => seedrandom(lastHash + i)() - 0.5)
+    return sortedPeers
+  }
 }
 
 export default Blockchain
