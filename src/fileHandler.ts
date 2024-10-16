@@ -230,7 +230,7 @@ export default class FileHandler {
     const receipt = await this._client.blockchain.mempoolBlock.signReceipt(peer, keyPair);
     await this._client.blockchain.mempoolBlock.addReceipt(receipt)
     if (this._client.blockchain.mempoolBlock.receipts.length > 10)
-      await this._client.blockchain.newMempoolBlock(this._client)
+      this._client.blockchain.mempoolBlock = await this._client.blockchain.newMempoolBlock(this._client)
     console.log(this._client.blockchain.blocks.length, this._client.blockchain.mempoolBlock.receipts.length)
 
     const hash = this.hash;
