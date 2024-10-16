@@ -109,36 +109,54 @@ class Blockchain {
   }
 
   async proposeBlocks() {
+    const lastBlock = this.lastBlock();
     let peer = await this.nextBlockProposer(0);
     console.log(`Block Proposer is ${peer}`);
-    if (peer === undefined ||
-      peer ===
-        await this._client.utils.exportPublicKey(
-          (await this._client.keyPair).publicKey,
-        )
-    ) {
+    if (peer === undefined || peer === await this._client.utils.exportPublicKey((await this._client.keyPair).publicKey)) {
       console.log("YOU ARE BLOCK PROPOSER");
-      const lastBlock = this.lastBlock()
       while (lastBlock.time + 60 * 1000 > +new Date()) {
         await new Promise((resolve) => setTimeout(resolve, 100));
       }
       peer = await this.nextBlockProposer(0)
-      if (peer === undefined ||
-        peer ===
-          await this._client.utils.exportPublicKey(
-            (await this._client.keyPair).publicKey,
-          )
-      )
+      if (peer === undefined || peer === await this._client.utils.exportPublicKey((await this._client.keyPair).publicKey))
         this.newMempoolBlock();
     } else {
-      const lastBlock = this.lastBlock();
       while (lastBlock.time + 120 * 1000 > +new Date()) {
+        await this.syncBlocks()
         await new Promise((resolve) => setTimeout(resolve, 100));
       }
       if (lastBlock.getHash() === this.lastBlock().getHash())
         console.log("Unclaimed block")
     }
     await this.proposeBlocks();
+  }
+
+  async syncBlocks () {
+    const blockHeights = await this._client.nodes.getBlockHeights();
+    for (const key in blockHeights) {
+      const claimedBlockHeight = Number(key);
+      if (claimedBlockHeight > this.lastBlock().height) {
+        const nodes = blockHeights[claimedBlockHeight];
+        for (let i = 1; i < claimedBlockHeight; i++) {
+          if (i < this.lastBlock().height) continue;
+          for (let j = 0; j < nodes.length; j++) {
+            console.log(`Fetch block ${i} from ${nodes[j]}`);
+            const response = await fetch(`${nodes[j]}/block/${i}`);
+            const blockContent = await response.text();
+            let blockPaylod;
+            try {
+              blockPaylod = JSON.parse(blockContent);
+            } catch (_) {
+              continue;
+            }
+            const block = new Block(blockPaylod.prevBlock, this._client);
+            block.time = blockPaylod.time;
+            block.receipts = blockPaylod.receipts;
+            this.addBlock(block);
+          }
+        }
+      }
+    }
   }
 
   addBlock(block: Block) {
