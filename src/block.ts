@@ -24,6 +24,7 @@ export class Block {
   receipts: Receipt[] = []
   state: State = State.Locked
   _client: Hydrafiles
+  time: number | undefined;
   constructor (prevBlock: string, client: Hydrafiles) {
     this.prevBlock = prevBlock
     this._client = client
@@ -58,7 +59,8 @@ export class Block {
   toString () {
     return JSON.stringify({
       receipts: this.receipts,
-      prevBlock: this.prevBlock
+      prevBlock: this.prevBlock,
+      time: this.time
     })
   }
 
@@ -73,6 +75,7 @@ export class Block {
   }
 
   announce () { // TODO: P2P announce/receive blocks
+    this.time = +new Date()
     this.state = State.Locked
   }
 }
