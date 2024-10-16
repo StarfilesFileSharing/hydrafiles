@@ -83,8 +83,8 @@ class Hydrafiles {
   }
   async consensus() {
     const peers = this.blockchain.getPeers(await (this.blockchain.lastBlock() ?? new Block('genesis', this)).getHash())
-    console.log(peers)
 
+    // Sync Blocks
     const blockHeights = await this.nodes.getBlockHeights()
     for (const key in blockHeights) {
       const claimedBlockHeight = Number(key)
@@ -99,7 +99,7 @@ class Hydrafiles {
             let blockPaylod;
             try {
               blockPaylod = JSON.parse(blockContent)
-            } catch (e) {
+            } catch (_) {
               continue
             }
             const block = new Block(blockPaylod.prevBlock, this)
@@ -110,6 +110,11 @@ class Hydrafiles {
         }
       }
     }
+
+    const peer = peers[0]
+    console.log('block proposing peer', peer)
+
+    console.log('my peer id:', await this.utils.exportPublicKey((await this.keyPair).publicKey))
   }
 
   backgroundTasks = (): void => {
