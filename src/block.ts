@@ -118,22 +118,18 @@ class Blockchain {
         )
     ) {
       console.log("YOU ARE BLOCK PROPOSER");
-      while (this.lastBlock().time + 60 * 1000 > +new Date()) {
+      const lastBlock = this.lastBlock()
+      while (lastBlock.time + 60 * 1000 > +new Date()) {
         await new Promise((resolve) => setTimeout(resolve, 100));
       }
-      console.log('Confirming proposer')
       peer = await this.nextBlockProposer(0)
       if (peer === undefined ||
         peer ===
           await this._client.utils.exportPublicKey(
             (await this._client.keyPair).publicKey,
           )
-      ) {
-        console.log('Confirmed')
+      )
         this.newMempoolBlock();
-      }
-      else
-        console.log('unconfirmed')
     } else {
       const lastBlock = this.lastBlock();
       while (lastBlock.time + 120 * 1000 > +new Date()) {
