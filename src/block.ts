@@ -121,10 +121,14 @@ class Blockchain {
       if (peer === undefined || peer === await this._client.utils.exportPublicKey((await this._client.keyPair).publicKey))
         this.newMempoolBlock();
     } else {
-      while (lastBlock.time + 120 * 1000 > +new Date()) {
-        await this.syncBlocks()
+      while (lastBlock.time + 60 * 1000 > +new Date()) {
         await new Promise((resolve) => setTimeout(resolve, 100));
       }
+      await this.syncBlocks()
+      while (lastBlock.time + 60 * 1000 > +new Date()) {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+      await this.syncBlocks()
       if (lastBlock.getHash() === this.lastBlock().getHash())
         console.log("Unclaimed block")
     }
