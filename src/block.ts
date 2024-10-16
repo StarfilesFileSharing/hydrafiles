@@ -84,13 +84,14 @@ export class Block {
 
 class Blockchain {
   blocks: Block[] = []
-  mempoolBlock: Block | null = null;
+  mempoolBlock: Block;
   _client: Hydrafiles;
   constructor (client: Hydrafiles) {
     for (const dirEntry of Deno.readDirSync(BLOCKSDIR)) { // TODO: Validate block prev is valid
       this.blocks.push(Block.init(dirEntry.name, client))
     }
     this._client = client;
+    this.mempoolBlock = new Block('genesis', this._client)
   }
 
   async addBlock (block: Block) {
@@ -98,7 +99,7 @@ class Blockchain {
     block.announce()
     Deno.writeFileSync(path.join(BLOCKSDIR, this.blocks.length.toString()), new TextEncoder().encode(block.toString()))
 
-    const peers = this.getPeers(await (this.lastBlock() ?? new Block('genesis', this._client)).getHash())
+    const peers = this.getPeers(await this.lastBlock().getHash())
     console.log(`Block Proposer is ${peers[0]}`)
     if (peers[0] === await this._client.utils.exportPublicKey((await this._client.keyPair).publicKey)) {
       console.log("YOU ARE BLOCK PROPOSER")
@@ -109,8 +110,8 @@ class Blockchain {
     }
   }
 
-  lastBlock () {
-    return this.blocks[this.blocks.length - 1]
+  lastBlock (): Block {
+    return this.blocks[this.blocks.length - 1] ?? new Block('genesis', this._client)
   }
 
   async newMempoolBlock(client: Hydrafiles) {
