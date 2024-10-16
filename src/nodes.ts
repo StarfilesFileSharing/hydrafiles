@@ -331,7 +331,16 @@ export default class Nodes {
   }
 
   async getBlockHeights() {
-    const blockHeights = (await Promise.all(this.getNodes().map(node => this._client.utils.promiseWithTimeout(fetch(`${node.host}/block_height?c`), this._client.config.timeout).then(response => response.text())))).map(blockHeight => isNaN(Number(blockHeight)) ? 0 : Number(blockHeight))
+    const blockHeights = (await Promise.all(this.getNodes().map(async (node) => {
+      try {
+        const response = await this._client.utils.promiseWithTimeout(fetch(`${node.host}/block_height`), this._client.config.timeout);
+        const blockHeight = await response.text();
+        return isNaN(Number(blockHeight)) ? 0 : Number(blockHeight);
+      } catch (error) {
+        console.error(`Error fetching block height from ${node.host}:`, error);
+        return 0;
+      }
+    })));
     const result = this.getNodes().reduce((acc: {[key: number]: string[]}, node, index) => {
       if (typeof acc[blockHeights[index]] === 'undefined') acc[blockHeights[index]] = [];
       acc[blockHeights[index]].push(node.host)
