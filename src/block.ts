@@ -109,7 +109,7 @@ class Blockchain {
   }
 
   async proposeBlocks() {
-    const peer = await this.nextBlockProposer();
+    let peer = await this.nextBlockProposer(0);
     console.log(`Block Proposer is ${peer}`);
     if (peer === undefined ||
       peer ===
@@ -118,9 +118,10 @@ class Blockchain {
         )
     ) {
       console.log("YOU ARE BLOCK PROPOSER");
-      while (this.lastBlock().time + 5 * 1000 > +new Date()) {
+      while (this.lastBlock().time + 60 * 1000 > +new Date()) {
         await new Promise((resolve) => setTimeout(resolve, 100));
       }
+      peer = await this.nextBlockProposer(0)
       if (peer === undefined ||
         peer ===
           await this._client.utils.exportPublicKey(
@@ -129,6 +130,13 @@ class Blockchain {
       ) {
         this.newMempoolBlock();
       }
+    } else {
+      const lastBlock = this.lastBlock();
+      while (lastBlock.time + 120 * 1000 > +new Date()) {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+      if (lastBlock.getHash() === this.lastBlock().getHash())
+        console.log("Unclaimed block")
     }
     await this.proposeBlocks();
   }
@@ -160,13 +168,13 @@ class Blockchain {
     this.mempoolBlock = block;
   }
 
-  async nextBlockProposer() {
+  async nextBlockProposer(level = 0) {
     const lastBlockHash = await this.lastBlock().getHash();
     const peers = this.blocks.map((block) => block.getPeers()).flat();
     const sortedPeers = peers.sort((i) =>
       seedrandom(lastBlockHash + i)() - 0.5
     );
-    return sortedPeers[0];
+    return sortedPeers[level];
   }
 }
 
