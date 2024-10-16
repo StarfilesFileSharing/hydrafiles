@@ -43,6 +43,7 @@ class Hydrafiles {
     & SequelizeSimpleCacheModel<Model<FileAttributes, Partial<FileAttributes>>>;
   webtorrent: WebTorrent;
   blockchain: Blockchain;
+  keyPair: Promise<CryptoKeyPair>;
   constructor(customConfig: Partial<Config> = {}) {
     this.startTime = +new Date();
     this.config = getConfig(customConfig);
@@ -55,6 +56,7 @@ class Hydrafiles {
       },
       endpoint: this.config.s3_endpoint,
     });
+    this.keyPair = this.utils.generateKeyPair() // TODO: Save keypair to fs
     init(this.config);
 
     this.nodes = new Nodes(this);
@@ -83,19 +85,23 @@ class Hydrafiles {
     const peers = this.blockchain.getPeers(await (this.blockchain.lastBlock() ?? new Block('genesis', this)).getHash())
     console.log(peers)
 
-    const blockHeight = this.blockchain.getBlockHeight()
     const blockHeights = await this.nodes.getBlockHeights()
     for (const key in blockHeights) {
       const claimedBlockHeight = Number(key)
-      if (claimedBlockHeight > blockHeight) {
+      if (claimedBlockHeight > this.blockchain.getBlockHeight()) {
         const nodes = blockHeights[claimedBlockHeight]
         for (let i = 0; i < claimedBlockHeight; i++) {
-          if (i < blockHeight) continue
+          if (i < this.blockchain.getBlockHeight()) continue
           for (let j = 0; j < nodes.length; j++) {
             console.log(`Fetch block ${i} from ${nodes[j]}`)
             const response = await fetch(`${nodes[j]}/block/${i}`)
             const blockContent = await response.text()
-            const blockPaylod = JSON.parse(blockContent)
+            let blockPaylod;
+            try {
+              blockPaylod = JSON.parse(blockContent)
+            } catch (e) {
+              continue
+            }
             const block = new Block(blockPaylod.prevBlock, this)
             block.time = blockPaylod.time
             block.receipts = blockPaylod.receipts
