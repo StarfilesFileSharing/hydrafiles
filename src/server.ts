@@ -16,7 +16,7 @@ const handleRequest = async (
   res: http.ServerResponse<http.IncomingMessage>,
   client: Hydrafiles,
 ): Promise<void> => {
-  req.path = req.url?.split('?')[0]
+  req.path = req.url?.split("?")[0];
   const urlObject = new URL(`${client.config.public_hostname}${req.url}`);
   const params = new URLSearchParams(urlObject.search);
 
@@ -78,7 +78,11 @@ const handleRequest = async (
     } else if (req.path?.startsWith("/download/")) {
       const hash = req.path.split("/")[2];
       const fileId = req.path.split("/")[3] ?? "";
-      const infohash = Array.from(decodeURIComponent(params.get("info_hash") ?? '')).map(char => char.charCodeAt(0).toString(16).padStart(2, '0')).join('');
+      const infohash = Array.from(
+        decodeURIComponent(params.get("info_hash") ?? ""),
+      ).map((char) => char.charCodeAt(0).toString(16).padStart(2, "0")).join(
+        "",
+      );
 
       while (hashLocks.has(hash)) {
         if (client.config.log_level === "verbose") {
@@ -118,7 +122,7 @@ const handleRequest = async (
         const headers: { [key: string]: string } = {
           "Content-Type": "application/octet-stream",
           "Cache-Control": "public, max-age=31536000",
-          "Content-Length": fileContent.file.byteLength.toString()
+          "Content-Length": fileContent.file.byteLength.toString(),
         };
 
         headers["Signal-Strength"] = String(fileContent.signal);
@@ -284,11 +288,11 @@ const handleRequest = async (
       });
       res.end(JSON.stringify(rows));
     } else if (req.path.startsWith("/block/")) {
-      const blockNumber = req.path.split('/')[2];
+      const blockNumber = req.path.split("/")[2];
       const block = Deno.readFileSync(path.join(BLOCKSDIR, blockNumber));
-      res.end(block)
+      res.end(block);
     } else if (req.path === "/block_height") {
-      res.end(String(client.blockchain.getBlockHeight()))
+      res.end(String(client.blockchain.lastBlock().height));
     } else {
       res.writeHead(404, { "Content-Type": "text/plain" });
       res.end("404 Page Not Found\n");

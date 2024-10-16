@@ -230,64 +230,91 @@ class Utils {
     } else return (duration / msPerDay).toFixed(2) + " days";
   };
 
-
-bufferToBase64(buffer: ArrayBuffer): string {
-  const byteArray = new Uint8Array(buffer);
-  let binary = '';
-  byteArray.forEach((byte) => {
-    binary += String.fromCharCode(byte);
-  });
-  return btoa(binary);
-}
-
-base64ToBuffer(base64: Base64): ArrayBuffer {
-  const binaryString = atob(base64);
-  const byteArray = new Uint8Array(binaryString.length);
-  for (let i = 0; i < binaryString.length; i++) {
-    byteArray[i] = binaryString.charCodeAt(i);
+  bufferToBase64(buffer: ArrayBuffer): string {
+    const byteArray = new Uint8Array(buffer);
+    let binary = "";
+    byteArray.forEach((byte) => {
+      binary += String.fromCharCode(byte);
+    });
+    return btoa(binary);
   }
-  return byteArray.buffer;
-}
 
-async hashString (input: string) {
+  base64ToBuffer(base64: Base64): ArrayBuffer {
+    const binaryString = atob(base64);
+    const byteArray = new Uint8Array(binaryString.length);
+    for (let i = 0; i < binaryString.length; i++) {
+      byteArray[i] = binaryString.charCodeAt(i);
+    }
+    return byteArray.buffer;
+  }
+
+  async hashString(input: string) {
     const encoder = new TextEncoder();
     const data = encoder.encode(input);
-    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hashBuffer = await crypto.subtle.digest("SHA-256", data);
     const hashArray = new Uint8Array(hashBuffer);
     const hexHash = Array.from(hashArray)
-        .map(byte => byte.toString(16).padStart(2, '0'))
-        .join('');
-    return hexHash
-}
-
-async generateKeyPair(): Promise<CryptoKeyPair> {
-  return await crypto.subtle.generateKey({ name: "Ed25519" }, true, ["sign", "verify"]) as CryptoKeyPair;
-}
-
-exportPublicKey = async (keyPair: CryptoKey) => (await crypto.subtle.exportKey("jwk", keyPair))['x'] as string
-buildJWT = (key: string) => { return {"kty":"OKP","crv":"Ed25519","x":key,"key_ops":["verify"],"ext":true} }
-
-async signMessage(privateKey: CryptoKey, message: string): Promise<Base64> {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(message);
-  return this.bufferToBase64(await crypto.subtle.sign({ name: "Ed25519" }, privateKey, data )) as Base64
-}
-
-async verifySignature(receipt: Receipt): Promise<boolean> {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(receipt.message);
-
-  const importedPublicKey = await crypto.subtle.importKey("jwk", this.buildJWT(receipt.issuer), { name: "Ed25519" }, true, ["verify"]);
-
-  return await crypto.subtle.verify({ name: "Ed25519" }, importedPublicKey, this.base64ToBuffer(receipt.signature), data);
-}
-extractBufferSection(buffer: Uint8Array, start: number, end: number): Uint8Array {
-  if (start < 0 || end >= buffer.length || start > end) {
-    throw new RangeError('Invalid start or end range.');
+      .map((byte) => byte.toString(16).padStart(2, "0"))
+      .join("");
+    return hexHash;
   }
-  return buffer.subarray(start, end + 1);
-}
 
+  async generateKeyPair(): Promise<CryptoKeyPair> {
+    return await crypto.subtle.generateKey({ name: "Ed25519" }, true, [
+      "sign",
+      "verify",
+    ]) as CryptoKeyPair;
+  }
+
+  exportPublicKey = async (keyPair: CryptoKey) =>
+    (await crypto.subtle.exportKey("jwk", keyPair))["x"] as string;
+  buildJWT = (key: string) => {
+    return {
+      "kty": "OKP",
+      "crv": "Ed25519",
+      "x": key,
+      "key_ops": ["verify"],
+      "ext": true,
+    };
+  };
+
+  async signMessage(privateKey: CryptoKey, message: string): Promise<Base64> {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(message);
+    return this.bufferToBase64(
+      await crypto.subtle.sign({ name: "Ed25519" }, privateKey, data),
+    ) as Base64;
+  }
+
+  async verifySignature(receipt: Receipt): Promise<boolean> {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(receipt.message);
+
+    const importedPublicKey = await crypto.subtle.importKey(
+      "jwk",
+      this.buildJWT(receipt.issuer),
+      { name: "Ed25519" },
+      true,
+      ["verify"],
+    );
+
+    return await crypto.subtle.verify(
+      { name: "Ed25519" },
+      importedPublicKey,
+      this.base64ToBuffer(receipt.signature),
+      data,
+    );
+  }
+  extractBufferSection(
+    buffer: Uint8Array,
+    start: number,
+    end: number,
+  ): Uint8Array {
+    if (start < 0 || end >= buffer.length || start > end) {
+      throw new RangeError("Invalid start or end range.");
+    }
+    return buffer.subarray(start, end + 1);
+  }
 }
 
 export default Utils;

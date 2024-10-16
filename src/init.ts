@@ -14,7 +14,7 @@ function init(config: Config): void {
   if (!fs.existsSync(NODES_PATH)) {
     fs.writeFileSync(NODES_PATH, JSON.stringify(config.bootstrap_nodes));
   }
-  Deno.mkdir(BLOCKSDIR).catch(err => {
+  Deno.mkdir(BLOCKSDIR).catch((err) => {
     if (!(err instanceof Deno.errors.AlreadyExists)) throw err;
   });
 }

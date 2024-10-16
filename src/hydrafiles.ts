@@ -56,7 +56,7 @@ class Hydrafiles {
       },
       endpoint: this.config.s3_endpoint,
     });
-    this.keyPair = this.utils.generateKeyPair() // TODO: Save keypair to fs
+    this.keyPair = this.utils.generateKeyPair(); // TODO: Save keypair to fs
     init(this.config);
 
     this.nodes = new Nodes(this);
@@ -78,32 +78,32 @@ class Hydrafiles {
       this.backgroundTasks();
     }
 
-    this.consensus()
+    this.consensus();
     // if (this.config.backfill) this.backfillFiles().catch(console.error)
   }
   async consensus() {
     // Sync Blocks
-    const blockHeights = await this.nodes.getBlockHeights()
+    const blockHeights = await this.nodes.getBlockHeights();
     for (const key in blockHeights) {
-      const claimedBlockHeight = Number(key)
-      if (claimedBlockHeight > this.blockchain.getBlockHeight()) {
-        const nodes = blockHeights[claimedBlockHeight]
-        for (let i = 0; i < claimedBlockHeight; i++) {
-          if (i < this.blockchain.getBlockHeight()) continue
+      const claimedBlockHeight = Number(key);
+      if (claimedBlockHeight > this.blockchain.lastBlock().height) {
+        const nodes = blockHeights[claimedBlockHeight];
+        for (let i = 1; i < claimedBlockHeight; i++) {
+          if (i < this.blockchain.lastBlock().height) continue;
           for (let j = 0; j < nodes.length; j++) {
-            console.log(`Fetch block ${i} from ${nodes[j]}`)
-            const response = await fetch(`${nodes[j]}/block/${i}`)
-            const blockContent = await response.text()
+            console.log(`Fetch block ${i} from ${nodes[j]}`);
+            const response = await fetch(`${nodes[j]}/block/${i}`);
+            const blockContent = await response.text();
             let blockPaylod;
             try {
-              blockPaylod = JSON.parse(blockContent)
+              blockPaylod = JSON.parse(blockContent);
             } catch (_) {
-              continue
+              continue;
             }
-            const block = new Block(blockPaylod.prevBlock, this)
-            block.time = blockPaylod.time
-            block.receipts = blockPaylod.receipts
-            this.blockchain.addBlock(block)
+            const block = new Block(blockPaylod.prevBlock, this);
+            block.time = blockPaylod.time;
+            block.receipts = blockPaylod.receipts;
+            this.blockchain.addBlock(block);
           }
         }
       }

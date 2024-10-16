@@ -5,7 +5,6 @@ import type { Model } from "sequelize";
 import type Hydrafiles from "./hydrafiles.ts";
 import { fileURLToPath } from "node:url";
 import { Buffer } from "node:buffer";
-import { Block } from "./block.ts";
 
 interface Metadata {
   name: string;
@@ -221,11 +220,21 @@ export default class FileHandler {
   // TODO: Connect to other hydrafiles nodes as webseed
   // TODO: Check other nodes file lists to find other claimed infohashes for the file, leech off all of them and copy the metadata from the healthiest torrent
 
-  async getFile(opts: { logDownloads?: boolean } = {}): Promise<{ file: Buffer; signal: number } | false> {
-    const peer = await this._client.utils.exportPublicKey((await this._client.keyPair).publicKey) // TODO: Replace this with actual peer
-    const receipt = await this._client.blockchain.mempoolBlock.signReceipt(peer, await this._client.keyPair);
-    await this._client.blockchain.mempoolBlock.addReceipt(receipt)
-    console.log(this._client.blockchain.blocks.length, this._client.blockchain.mempoolBlock.receipts.length)
+  async getFile(
+    opts: { logDownloads?: boolean } = {},
+  ): Promise<{ file: Buffer; signal: number } | false> {
+    const peer = await this._client.utils.exportPublicKey(
+      (await this._client.keyPair).publicKey,
+    ); // TODO: Replace this with actual peer
+    const receipt = await this._client.blockchain.mempoolBlock.signReceipt(
+      peer,
+      await this._client.keyPair,
+    );
+    await this._client.blockchain.mempoolBlock.addReceipt(receipt);
+    console.log(
+      this._client.blockchain.blocks.length,
+      this._client.blockchain.mempoolBlock.receipts.length,
+    );
 
     const hash = this.hash;
     console.log(`  ${hash}  Getting file`);
