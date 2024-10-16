@@ -6,7 +6,6 @@ import FileHandler, { type FileAttributes } from "./fileHandler.ts";
 import type Hydrafiles from "./hydrafiles.ts";
 import { fileURLToPath } from "node:url";
 import type { Buffer } from "node:buffer";
-import { config } from "node:process";
 
 const DIRNAME = path.dirname(fileURLToPath(import.meta.url));
 export const hashLocks = new Map<string, Promise<void>>();
@@ -78,9 +77,7 @@ const handleRequest = async (
     } else if (req.path?.startsWith("/download/")) {
       const hash = req.path.split("/")[2];
       const fileId = req.path.split("/")[3] ?? "";
-
       const infohash = Array.from(decodeURIComponent(params.get("info_hash") ?? '')).map(char => char.charCodeAt(0).toString(16).padStart(2, '0')).join('');
-      console.log('Provided infohash', infohash);
 
       while (hashLocks.has(hash)) {
         if (client.config.log_level === "verbose") {
