@@ -93,6 +93,7 @@ class Blockchain {
     this._client = client;
     this.mempoolBlock = new Block('genesis', this._client)
     this.mempoolBlock.state = State.Mempool
+    this.newMempoolBlock()
   }
 
   async addBlock (block: Block) {
@@ -107,7 +108,7 @@ class Blockchain {
       while (this.lastBlock().time + 5 * 100 > +new Date()) {
         await new Promise(resolve => setTimeout(resolve, 100));
       }
-      this.newMempoolBlock(this._client)
+      this.newMempoolBlock()
     }
   }
 
@@ -115,12 +116,12 @@ class Blockchain {
     return this.blocks[this.blocks.length - 1] ?? new Block('genesis', this._client)
   }
 
-  async newMempoolBlock(client: Hydrafiles) {
+  async newMempoolBlock() {
     if (this.mempoolBlock !== null) {
       this.mempoolBlock.announce()
       this.addBlock(this.mempoolBlock)
     }
-    const block = new Block(await (this.mempoolBlock ?? new Block('genesis', client)).getHash(), client)
+    const block = new Block(await (this.mempoolBlock ?? new Block('genesis', this._client)).getHash(), this._client)
     block.state = State.Mempool
     this.mempoolBlock = block
   }

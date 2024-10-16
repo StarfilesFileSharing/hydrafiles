@@ -221,9 +221,7 @@ export default class FileHandler {
   // TODO: Connect to other hydrafiles nodes as webseed
   // TODO: Check other nodes file lists to find other claimed infohashes for the file, leech off all of them and copy the metadata from the healthiest torrent
 
-  async getFile(
-    opts: { logDownloads?: boolean } = {},
-  ): Promise<{ file: Buffer; signal: number } | false> {
+  async getFile(opts: { logDownloads?: boolean } = {}): Promise<{ file: Buffer; signal: number } | false> {
     const peer = await this._client.utils.exportPublicKey((await this._client.keyPair).publicKey) // TODO: Replace this with actual peer
     const receipt = await this._client.blockchain.mempoolBlock.signReceipt(peer, await this._client.keyPair);
     await this._client.blockchain.mempoolBlock.addReceipt(receipt)
