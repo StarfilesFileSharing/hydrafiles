@@ -82,6 +82,28 @@ class Hydrafiles {
   async consensus() {
     const peers = this.blockchain.getPeers(await (this.blockchain.lastBlock() ?? new Block('genesis', this)).getHash())
     console.log(peers)
+
+    const blockHeight = this.blockchain.getBlockHeight()
+    const blockHeights = await this.nodes.getBlockHeights()
+    for (const key in blockHeights) {
+      const claimedBlockHeight = Number(key)
+      if (claimedBlockHeight > blockHeight) {
+        const nodes = blockHeights[claimedBlockHeight]
+        for (let i = 0; i < claimedBlockHeight; i++) {
+          if (i < blockHeight) continue
+          for (let j = 0; j < nodes.length; j++) {
+            console.log(`Fetch block ${i} from ${nodes[j]}`)
+            const response = await fetch(`${nodes[j]}/block/${i}`)
+            const blockContent = await response.text()
+            const blockPaylod = JSON.parse(blockContent)
+            const block = new Block(blockPaylod.prevBlock, this)
+            block.time = blockPaylod.time
+            block.receipts = blockPaylod.receipts
+            this.blockchain.addBlock(block)
+          }
+        }
+      }
+    }
   }
 
   backgroundTasks = (): void => {
