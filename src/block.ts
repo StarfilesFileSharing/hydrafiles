@@ -92,6 +92,7 @@ class Blockchain {
     }
     this._client = client;
     this.mempoolBlock = new Block('genesis', this._client)
+    this.mempoolBlock.state = State.Mempool
   }
 
   async addBlock (block: Block) {

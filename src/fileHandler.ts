@@ -167,7 +167,7 @@ export default class FileHandler {
     const hash = this.hash;
     console.log(`  ${hash}  Checking Cache`);
     const filePath = path.join(FILESPATH, hash);
-    await this.seed();
+    this.seed();
     if (!fs.existsSync(filePath)) return false;
     const fileContents = fs.createReadStream(filePath);
     const savedHash = await this._client.utils.hashStream(fileContents);
