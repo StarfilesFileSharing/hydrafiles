@@ -3,6 +3,7 @@ import path from "node:path";
 import type { Config } from "./config.ts";
 import { NODES_PATH } from "./nodes.ts";
 import { fileURLToPath } from "node:url";
+import { BLOCKSDIR } from "./block.ts";
 
 const DIRNAME = path.dirname(fileURLToPath(import.meta.url));
 
@@ -13,6 +14,9 @@ function init(config: Config): void {
   if (!fs.existsSync(NODES_PATH)) {
     fs.writeFileSync(NODES_PATH, JSON.stringify(config.bootstrap_nodes));
   }
+  Deno.mkdir(BLOCKSDIR).catch(err => {
+    if (!(err instanceof Deno.errors.AlreadyExists)) throw err;
+  });
 }
 
 export default init;
