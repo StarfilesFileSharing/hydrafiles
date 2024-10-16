@@ -36,6 +36,7 @@
   },
   "nodeModulesDir": "auto",
   "compilerOptions": {
-    "lib": ["dom", "deno.ns"]
+		"lib": ["dom", "deno.ns"],
+		"checkJs": true
   }
 }

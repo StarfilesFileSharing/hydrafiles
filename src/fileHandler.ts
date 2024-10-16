@@ -223,18 +223,16 @@ export default class FileHandler {
   async getFile(
     opts: { logDownloads?: boolean } = {},
   ): Promise<{ file: Buffer; signal: number } | false> {
-    const peer = await this._client.utils.exportPublicKey(
-      (await this._client.keyPair).publicKey,
-    ); // TODO: Replace this with actual peer
-    const receipt = await this._client.blockchain.mempoolBlock.signReceipt(
-      peer,
-      await this._client.keyPair,
-    );
-    await this._client.blockchain.mempoolBlock.addReceipt(receipt);
-    console.log(
-      this._client.blockchain.blocks.length,
-      this._client.blockchain.mempoolBlock.receipts.length,
-    );
+    // const peer = await this._client.utils.exportPublicKey((await this._client.keyPair).publicKey); // TODO: Replace this with actual peer
+    // const receipt = await this._client.blockchain.mempoolBlock.signReceipt(
+    //   peer,
+    //   await this._client.keyPair,
+    // );
+    // await this._client.blockchain.mempoolBlock.addReceipt(receipt);
+    // console.log(
+    //   this._client.blockchain.blocks.length,
+    //   this._client.blockchain.mempoolBlock.receipts.length,
+    // );
 
     const hash = this.hash;
     console.log(`  ${hash}  Getting file`);

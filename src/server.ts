@@ -291,7 +291,7 @@ const handleRequest = async (
       const blockHeight = req.path.split("/")[2];
       res.writeHead(200, {
         "Content-Type": "application/json",
-        "Cache-Control": "public, max-age=" + (Number(blockHeight) > client.blockchain.lastBlock().height ? 0 : 604800),
+        // "Cache-Control": "public, max-age=" + (Number(blockHeight) > client.blockchain.lastBlock().height ? 0 : 604800),
       });
       const block = Deno.readFileSync(path.join(BLOCKSDIR, blockHeight));
       res.end(block);
@@ -300,7 +300,7 @@ const handleRequest = async (
         "Content-Type": "application/json",
         "Cache-Control": "public, max-age=30",
       });
-      res.end(String(client.blockchain.lastBlock().height));
+      // res.end(String(client.blockchain.lastBlock().height));
     } else {
       res.writeHead(404, { "Content-Type": "text/plain" });
       res.end("404 Page Not Found\n");

@@ -42,7 +42,7 @@ class Hydrafiles {
     & ModelCtor<Model<FileAttributes, Partial<FileAttributes>>>
     & SequelizeSimpleCacheModel<Model<FileAttributes, Partial<FileAttributes>>>;
   webtorrent: WebTorrent;
-  blockchain: Blockchain;
+  // blockchain: Blockchain;
   keyPair: Promise<CryptoKeyPair>;
   constructor(customConfig: Partial<Config> = {}) {
     this.startTime = +new Date();
@@ -64,7 +64,7 @@ class Hydrafiles {
     this.FileModel = startDatabase(this.config);
     startServer(this);
     // this.webtorrent = new WebTorrent()
-    this.blockchain = new Blockchain(this);
+    // this.blockchain = new Blockchain(this);
 
     if (this.config.summary_speed !== -1) {
       this.logState().catch(console.error);
