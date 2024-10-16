@@ -89,7 +89,7 @@ const handleRequest = async (
         await hashLocks.get(hash);
       }
       const processingPromise = (async () => {
-        const file = await FileHandler.init({ hash }, client);
+        const file = await FileHandler.init({ hash, infohash }, client);
 
         if (fileId.length !== 0) {
           const id = file.id;
