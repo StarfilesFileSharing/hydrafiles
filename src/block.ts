@@ -25,7 +25,7 @@ export class Block {
   receipts: Receipt[] = []
   state: State = State.Locked
   _client: Hydrafiles
-  time: number | undefined;
+  time: number = +new Date();
   constructor (prevBlock: string, client: Hydrafiles) {
     this.prevBlock = prevBlock
     this._client = client
@@ -85,16 +85,28 @@ export class Block {
 class Blockchain {
   blocks: Block[] = []
   mempoolBlock: Block | null = null;
+  _client: Hydrafiles;
   constructor (client: Hydrafiles) {
     for (const dirEntry of Deno.readDirSync(BLOCKSDIR)) { // TODO: Validate block prev is valid
       this.blocks.push(Block.init(dirEntry.name, client))
     }
+    this._client = client;
   }
 
-  addBlock (block: Block) {
+  async addBlock (block: Block) {
     this.blocks.push(block)
     block.announce()
     Deno.writeFileSync(path.join(BLOCKSDIR, this.blocks.length.toString()), new TextEncoder().encode(block.toString()))
+
+    const peers = this.getPeers(await (this.lastBlock() ?? new Block('genesis', this._client)).getHash())
+    console.log(`Block Proposer is ${peers[0]}`)
+    if (peers[0] === await this._client.utils.exportPublicKey((await this._client.keyPair).publicKey)) {
+      console.log("YOU ARE BLOCK PROPOSER")
+      while (this.lastBlock().time + 5 * 100 > +new Date()) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+      this.newMempoolBlock(this._client)
+    }
   }
 
   lastBlock () {
@@ -108,7 +120,7 @@ class Blockchain {
     }
     const block = new Block(await (this.mempoolBlock ?? new Block('genesis', client)).getHash(), client)
     block.state = State.Mempool
-    return block
+    this.mempoolBlock = block
   }
 
   getPeers (lastHash: string) {
