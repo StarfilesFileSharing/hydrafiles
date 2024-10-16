@@ -9,6 +9,7 @@ export interface Receipt {
   issuer: string;
   message: string;
   signature: Base64;
+  nonce: number;
 }
 
 enum State {
@@ -46,8 +47,9 @@ export class Block {
     const message = JSON.stringify(receipt);
     const signature = await this._client.utils.signMessage(keyPair.privateKey, message);
     const issuer = await this._client.utils.exportPublicKey(keyPair.publicKey)
+    const nonce = Math.random()
 
-    return { issuer, message, signature };
+    return { issuer, message, signature, nonce };
   }
 
   async addReceipt (receipt: Receipt) { // TODO: Validate added transactions
@@ -84,9 +86,6 @@ class Blockchain {
   blocks: Block[] = []
   mempoolBlock: Block | null = null;
   constructor (client: Hydrafiles) {
-    Deno.mkdir(BLOCKSDIR).catch(err => {
-      if (!(err instanceof Deno.errors.AlreadyExists)) throw err;
-    });
     for (const dirEntry of Deno.readDirSync(BLOCKSDIR)) { // TODO: Validate block prev is valid
       this.blocks.push(Block.init(dirEntry.name, client))
     }
