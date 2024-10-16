@@ -129,8 +129,8 @@ class Blockchain {
         await new Promise((resolve) => setTimeout(resolve, 100));
       }
       await this.syncBlocks()
-      if (lastBlock.getHash() === this.lastBlock().getHash())
-        console.log("Unclaimed block")
+      console.log("Unclaimed block")
+      this.newMempoolBlock()
     }
     await this.proposeBlocks();
   }
