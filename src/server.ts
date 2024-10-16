@@ -15,31 +15,32 @@ const handleRequest = async (
   res: http.ServerResponse<http.IncomingMessage>,
   client: Hydrafiles,
 ): Promise<void> => {
+  req.path = req.url?.split('?')[0]
   try {
-    if (req.url === "/" || req.url === null || typeof req.url === "undefined") {
+    if (req.path === "/" || req.path === undefined) {
       res.writeHead(200, {
         "Content-Type": "text/html",
         "Cache-Control": "public, max-age=604800",
       });
       fs.createReadStream("public/index.html").pipe(res);
-    } else if (req.url === "/favicon.ico") {
+    } else if (req.path === "/favicon.ico") {
       res.writeHead(200, {
         "Content-Type": "image/x-icon",
         "Cache-Control": "public, max-age=604800",
       });
       fs.createReadStream("public/favicon.ico").pipe(res);
-    } else if (req.url === "/status") {
+    } else if (req.path === "/status") {
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ status: true }));
-    } else if (req.url === "/nodes" || req.url.startsWith("/nodes?")) {
+    } else if (req.path === "/nodes") {
       res.writeHead(200, {
         "Content-Type": "application/json",
         "Cache-Control": "public, max-age=300",
       });
       res.end(JSON.stringify(await client.nodes.getValidNodes()));
-    } else if (req.url.startsWith("/announce")) {
+    } else if (req.path.startsWith("/announce")) {
       const params = Object.fromEntries(
-        new URLSearchParams(req.url.split("?")[1]),
+        new URLSearchParams(req.path.split("?")[1]),
       );
       const host = params.host;
 
@@ -70,9 +71,9 @@ const handleRequest = async (
         });
         res.end("Announced\n");
       } else res.end("Invalid request\n");
-    } else if (req.url?.startsWith("/download/")) {
-      const hash = req.url.split("/")[2];
-      const fileId = req.url.split("/")[3] ?? "";
+    } else if (req.path?.startsWith("/download/")) {
+      const hash = req.path.split("/")[2];
+      const fileId = req.path.split("/")[3] ?? "";
 
       while (hashLocks.has(hash)) {
         if (client.config.log_level === "verbose") {
@@ -140,8 +141,8 @@ const handleRequest = async (
       } finally {
         hashLocks.delete(hash);
       }
-    } else if (req.url?.startsWith("/infohash/")) {
-      const infohash = req.url.split("/")[2];
+    } else if (req.path?.startsWith("/infohash/")) {
+      const infohash = req.path.split("/")[2];
 
       while (hashLocks.has(infohash)) {
         console.log(
@@ -201,7 +202,7 @@ const handleRequest = async (
       } finally {
         hashLocks.delete(infohash);
       }
-    } else if (req.url === "/upload") {
+    } else if (req.path === "/upload") {
       const uploadSecret = req.headers["x-hydra-upload-secret"];
       if (uploadSecret !== client.config.upload_secret) {
         res.writeHead(401, { "Content-Type": "text/plain" });
@@ -264,7 +265,7 @@ const handleRequest = async (
           res.end("200 OK\n");
         },
       );
-    } else if (req.url === "/files") {
+    } else if (req.path === "/files") {
       const rows = (await client.FileModel.findAll()).map(
         (row: { dataValues: FileAttributes }) => {
           const { hash, infohash, id, name, size } = row.dataValues;
