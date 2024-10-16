@@ -21,7 +21,7 @@ const DIRNAME = path.dirname(fileURLToPath(import.meta.url));
 export const NODES_PATH = path.join(DIRNAME, "../nodes.json");
 
 export default class Nodes {
-  nodes: Node[];
+  private nodes: Node[];
   _client: Hydrafiles;
   constructor(client: Hydrafiles) {
     this.nodes = this.loadNodes();
@@ -328,5 +328,16 @@ export default class Nodes {
       duration: 0,
     };
     return node;
+  }
+
+  async getBlockHeights() {
+    const fetchPromises = this.getNodes().map(node => this._client.utils.promiseWithTimeout(fetch(`${node.host}/block_height`), this._client.config.timeout).then(response => Number(response.text())));
+    const blockHeights = await Promise.all(fetchPromises);
+    const result = this.getNodes().reduce((acc: {[key: number]: string[]}, node, index) => {
+      if (typeof acc[blockHeights[index]] === 'undefined') acc[blockHeights[index]] = [];
+      acc[blockHeights[index]].push(node.host)
+      return acc;
+    }, {});
+    return result;
   }
 }

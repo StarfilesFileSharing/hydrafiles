@@ -287,6 +287,8 @@ const handleRequest = async (
       const blockNumber = req.path.split('/')[2];
       const block = Deno.readFileSync(path.join(BLOCKSDIR, blockNumber));
       res.end(block)
+    } else if (req.path === "/block_height") {
+      res.end(client.blockchain.getBlockHeight())
     } else {
       res.writeHead(404, { "Content-Type": "text/plain" });
       res.end("404 Page Not Found\n");

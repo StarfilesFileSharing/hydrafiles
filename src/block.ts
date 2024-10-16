@@ -117,6 +117,10 @@ class Blockchain {
     const sortedPeers = peers.sort(i => seedrandom(lastHash + i)() - 0.5)
     return sortedPeers
   }
+
+  getBlockHeight () {
+    return this.blocks.length
+  }
 }
 
 export default Blockchain
