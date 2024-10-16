@@ -6,6 +6,7 @@ import FileHandler, { type FileAttributes } from "./fileHandler.ts";
 import type Hydrafiles from "./hydrafiles.ts";
 import { fileURLToPath } from "node:url";
 import type { Buffer } from "node:buffer";
+import { BLOCKSDIR } from "./block.ts";
 
 const DIRNAME = path.dirname(fileURLToPath(import.meta.url));
 export const hashLocks = new Map<string, Promise<void>>();
@@ -282,6 +283,10 @@ const handleRequest = async (
         "Cache-Control": "public, max-age=10800",
       });
       res.end(JSON.stringify(rows));
+    } else if (req.path.startsWith("/block/")) {
+      const blockNumber = req.path.split('/')[2];
+      const block = Deno.readFileSync(path.join(BLOCKSDIR, blockNumber));
+      res.end(block)
     } else {
       res.writeHead(404, { "Content-Type": "text/plain" });
       res.end("404 Page Not Found\n");

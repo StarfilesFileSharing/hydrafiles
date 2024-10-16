@@ -17,7 +17,7 @@ enum State {
 }
 
 const DIRNAME = path.dirname(fileURLToPath(import.meta.url));
-const BLOCKSDIR = path.join(DIRNAME, '../blocks/')
+export const BLOCKSDIR = path.join(DIRNAME, '../blocks/')
 
 export class Block {
   prevBlock: string
