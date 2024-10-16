@@ -117,6 +117,7 @@ const handleRequest = async (
         const headers: { [key: string]: string } = {
           "Content-Type": "application/octet-stream",
           "Cache-Control": "public, max-age=31536000",
+          "Content-Length": fileContent.file.byteLength.toString()
         };
 
         headers["Signal-Strength"] = String(fileContent.signal);
