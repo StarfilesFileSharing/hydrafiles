@@ -132,10 +132,12 @@ class Hydrafiles {
         }GB)`,
         "\n| Processing Files:",
         hashLocks.size,
+        "\n| Known Nodes:",
+        this.nodes.getNodes({ includeSelf: false }).length,
         // '\n| Seeding Torrent Files:',
         // (await webtorrentClient()).torrents.length,
-        "\n| Download Count:",
-        await this.FileModel.noCache().sum("downloadCount"),
+        "\n| Downloads Served:",
+        await this.FileModel.noCache().sum("downloadCount") + ` (${Math.round((await this.FileModel.findOne({ attributes: [ [Sequelize.fn('SUM', Sequelize.literal('downloadCount * size')), 'sum']]})).dataValues.sum/1024/1024/1024*100)/100}GB)`,
         "\n===============================================\n",
       );
     } catch (e) {
