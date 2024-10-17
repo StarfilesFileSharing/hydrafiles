@@ -1,9 +1,9 @@
 import { Readable } from "node:stream";
 
-import type { Model } from "sequelize";
 import type Hydrafiles from "./hydrafiles.ts";
 import { existsSync } from "https://deno.land/std/fs/mod.ts";
 import { join } from "https://deno.land/std/path/mod.ts";
+import type { File } from "./database.ts";
 
 interface Metadata {
   name: string;
@@ -19,46 +19,32 @@ interface Metadata {
 const FILESPATH = join(Deno.cwd(), "../files");
 // const seeding: string[] = [];
 
-export interface FileAttributes {
-  hash: string;
-  infohash: string;
-  downloadCount: number | undefined;
-  id: string;
-  name: string;
-  found: boolean;
-  size: number;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-export default class FileHandler {
+export default class FileHandler implements File {
   hash!: string;
-  infohash: string | null | undefined;
-  downloadCount: number | undefined;
-  id: string | null | undefined;
-  name: string | null | undefined;
-  found!: boolean;
-  size!: number;
-  createdAt!: Date;
-  updatedAt!: Date;
-  file!: Model<FileAttributes, Partial<FileAttributes>>;
+  infohash: string | null = null;
+  downloadCount = 0;
+  id: string | null = null;
+  name: string | null = null;
+  found = true;
+  size = 0;
+  createdAt!: string;
   _client!: Hydrafiles;
 
-  public static async init(
+  constructor(
     opts: { hash?: string; infohash?: string },
     client: Hydrafiles,
-  ): Promise<FileHandler> {
+  ) {
     let hash: string;
     if (opts.hash !== undefined) hash = opts.hash;
     else if (opts.infohash !== undefined) {
       if (!client.utils.isValidInfoHash(opts.infohash)) {
         throw new Error(`Invalid infohash provided: ${opts.infohash}`);
       }
-      const file = await client.FileModel.findOne({
-        where: { infohash: opts.infohash },
-      });
-      if (typeof file?.dataValues.hash === "string") {
-        hash = file?.dataValues.hash;
+      const file = client.FileManager.select({
+        where: { key: "infohash", value: opts.infohash },
+      })[0];
+      if (typeof file?.hash === "string") {
+        hash = file?.hash;
       } else {
         // TODO: Check against other nodes
         hash = "";
@@ -68,21 +54,13 @@ export default class FileHandler {
       throw new Error("Invalid hash provided");
     }
 
-    const fileHandler = new FileHandler();
-    fileHandler.hash = hash;
-    fileHandler.infohash = "";
-    fileHandler.id = "";
-    fileHandler.name = "";
-    fileHandler.found = true;
-    fileHandler.size = 0;
-    fileHandler._client = client;
+    this.hash = hash;
+    this._client = client;
 
-    const existingFile = await client.FileModel.findByPk(hash);
-    fileHandler.file = existingFile ?? await client.FileModel.create({ hash });
-    Object.assign(fileHandler, fileHandler.file.dataValues);
-    if (Number(fileHandler.size) === 0) fileHandler.size = 0;
-
-    return fileHandler;
+    const file =
+      client.FileManager.select({ where: { key: "hash", value: hash } })[0] ??
+        client.FileManager.insert(this);
+    Object.assign(this, file);
   }
 
   public async getMetadata(): Promise<FileHandler | false> {
@@ -98,7 +76,7 @@ export default class FileHandler {
     const id = this.id;
     if (id !== undefined && id !== null && id.length > 0) {
       const response = await fetch(
-        `${this._client.config.metadata_endpoint}${id}`,
+        `${this._client.config.metadataEndpoint}${id}`,
       );
       if (response.ok) {
         const metadata = (await response.json()).result as Metadata;
@@ -117,7 +95,7 @@ export default class FileHandler {
       return this;
     }
 
-    if (this._client.config.s3_endpoint.length !== 0) {
+    if (this._client.config.s3Endpoint.length !== 0) {
       try {
         const data = await this._client.s3.headObject({
           Bucket: "uploads",
@@ -148,12 +126,14 @@ export default class FileHandler {
       await this.save();
     }
     const remainingSpace = this._client.utils.remainingStorage();
-    if (this._client.config.max_cache !== -1 && size > remainingSpace) {
+    if (this._client.config.maxCache !== -1 && size > remainingSpace) {
       this._client.utils.purgeCache(size, remainingSpace);
     }
 
-    Deno.writeFileSync(filePath, file)
-    const savedHash = await this._client.utils.hashUint8Array(Deno.readFileSync(filePath));
+    Deno.writeFileSync(filePath, file);
+    const savedHash = await this._client.utils.hashUint8Array(
+      Deno.readFileSync(filePath),
+    );
     if (savedHash !== hash) await Deno.remove(filePath); // In case of broken file
   }
 
@@ -179,7 +159,7 @@ export default class FileHandler {
 
   async fetchFromS3(): Promise<{ file: Uint8Array; signal: number } | false> {
     console.log(`  ${this.hash}  Checking S3`);
-    if (this._client.config.s3_endpoint.length === 0) return false;
+    if (this._client.config.s3Endpoint.length === 0) return false;
     try {
       let file: Uint8Array;
       const data = await this._client.s3.getObject({
@@ -193,19 +173,19 @@ export default class FileHandler {
           chunks.push(chunk);
         }
 
-        const length = chunks.reduce((acc, chunk) => acc + chunk.length, 0)
-        file = new Uint8Array(length)
-        let offset = 0
+        const length = chunks.reduce((acc, chunk) => acc + chunk.length, 0);
+        file = new Uint8Array(length);
+        let offset = 0;
         for (const chunk of chunks) {
-          file.set(chunk, offset)
-          offset += chunk.length
+          file.set(chunk, offset);
+          offset += chunk.length;
         }
       } else {
-        console.error('Unknown S3 return type')
-        return false
+        console.error("Unknown S3 return type");
+        return false;
       }
 
-      if (this._client.config.cache_s3) await this.cacheFile(file);
+      if (this._client.config.cacheS3) await this.cacheFile(file);
 
       const hash = await this._client.utils.hashUint8Array(file);
       if (hash !== this.hash) {
@@ -245,13 +225,13 @@ export default class FileHandler {
       console.log(`  ${hash}  Invalid hash`);
       return false;
     }
-    if (
-      !this.found &&
-      new Date(this.updatedAt) > new Date(new Date().getTime() - 5 * 60 * 1000)
-    ) {
-      console.log(`  ${hash}  404 cached`);
-      return false;
-    }
+    // if (
+    //   !this.found &&
+    //   new Date(this.updatedAt) > new Date(new Date().getTime() - 5 * 60 * 1000)
+    // ) {
+    //   console.log(`  ${hash}  404 cached`);
+    //   return false;
+    // }
     if (opts.logDownloads === undefined || opts.logDownloads) {
       await this.increment("downloadCount");
     }
@@ -260,13 +240,13 @@ export default class FileHandler {
     if (this.size !== 0 && !this._client.utils.hasSufficientMemory(this.size)) {
       await new Promise(() => {
         const intervalId = setInterval(() => {
-          if (this._client.config.log_level === "verbose") {
+          if (this._client.config.logLevel === "verbose") {
             console.log(`  ${hash}  Reached memory limit, waiting`, this.size);
           }
           if (
             this.size === 0 || this._client.utils.hasSufficientMemory(this.size)
           ) clearInterval(intervalId);
-        }, this._client.config.memory_threshold_reached_wait);
+        }, this._client.config.memoryThresholdReachedWait);
       });
     }
 
@@ -278,7 +258,7 @@ export default class FileHandler {
         }MB from cache`,
       );
     } else {
-      if (this._client.config.s3_endpoint.length > 0) {
+      if (this._client.config.s3Endpoint.length > 0) {
         file = await this.fetchFromS3();
       }
       if (file !== false) {
@@ -301,19 +281,8 @@ export default class FileHandler {
     return file;
   }
 
-  async save(): Promise<void> {
-    const values = Object.keys(this).reduce(
-      (row: Record<string, unknown>, key: string) => {
-        if (key !== "file" && key !== "save") {
-          row[key] = this[key as keyof FileAttributes];
-        }
-        return row;
-      },
-      {},
-    );
-
-    Object.assign(this.file, values);
-    await this.file.save();
+  save(): void {
+    this._client.FileManager.update(this.hash, this);
   }
 
   seed(): void {
@@ -334,8 +303,8 @@ export default class FileHandler {
     // });
   }
 
-  async increment(column: keyof FileAttributes): Promise<void> {
-    await this.file.increment(column);
+  increment(column: keyof File): void {
+    this._client.FileManager.increment(this.hash, column);
   }
 }
 

@@ -1,10 +1,11 @@
 import formidable from "npm:formidable";
 
-import FileHandler, { type FileAttributes } from "./fileHandler.ts";
+import FileHandler from "./fileHandler.ts";
 import type Hydrafiles from "./hydrafiles.ts";
 import { BLOCKSDIR } from "./block.ts";
 import { join } from "https://deno.land/std/path/mod.ts";
 import { existsSync } from "https://deno.land/std/fs/mod.ts";
+import type { File } from "./database.ts";
 
 export const hashLocks = new Map<string, Promise<Response>>();
 
@@ -12,24 +13,24 @@ const handleRequest = async (
   req: Request,
   client: Hydrafiles,
 ): Promise<Response> => {
-  const url = new URL(req.url)
-  const headers = new Headers()
+  const url = new URL(req.url);
+  const headers = new Headers();
 
   try {
     if (url.pathname === "/" || url.pathname === undefined) {
-      headers.set("Content-Type", "text/html")
-      headers.set("Cache-Control", "public, max-age=604800")
-      return new Response(Deno.readFileSync("public/index.html"), { headers });
+      headers.set("Content-Type", "text/html");
+      headers.set("Cache-Control", "public, max-age=604800");
+      return new Response(await Deno.readFile("public/index.html"), { headers });
     } else if (url.pathname === "/favicon.ico") {
-      headers.set("Content-Type", "image/x-icon")
-      headers.set("Cache-Control", "public, max-age=604800")
-      return new Response(Deno.readFileSync("public/favicon.ico"), { headers });
+      headers.set("Content-Type", "image/x-icon");
+      headers.set("Cache-Control", "public, max-age=604800");
+      return new Response(await Deno.readFile("public/favicon.ico"), { headers });
     } else if (url.pathname === "/status") {
-      headers.set("Content-Type", "application/json")
+      headers.set("Content-Type", "application/json");
       return new Response(JSON.stringify({ status: true }));
     } else if (url.pathname === "/nodes") {
-      headers.set("Content-Type", "application/json")
-      headers.set("Cache-Control", "public, max-age=300")
+      headers.set("Content-Type", "application/json");
+      headers.set("Cache-Control", "public, max-age=300");
       return new Response(JSON.stringify(await client.nodes.getValidNodes()));
     } else if (url.pathname.startsWith("/announce")) {
       const params = Object.fromEntries(
@@ -38,12 +39,17 @@ const handleRequest = async (
       const host = params.host;
 
       const knownNodes = client.nodes.getNodes();
-      if (knownNodes.find((node) => node.host === host) != null) return new Response("Already known\n");
+      if (knownNodes.find((node) => node.host === host) !== null) {
+        return new Response("Already known\n");
+      }
 
       if (
         await client.nodes.downloadFromNode(
           client.nodes.nodeFrom(host),
-          await FileHandler.init({ hash: "04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f" }, client),
+          new FileHandler({
+            hash:
+              "04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f",
+          }, client),
         ) !== false
       ) {
         await client.nodes.add(client.nodes.nodeFrom(host));
@@ -58,14 +64,14 @@ const handleRequest = async (
         "",
       );
 
-      while (hashLocks.has(hash)) {
-        if (client.config.log_level === "verbose") {
+      if (hashLocks.has(hash)) {
+        if (client.config.logLevel === "verbose") {
           console.log(`  ${hash}  Waiting for existing request with same hash`);
         }
         await hashLocks.get(hash);
       }
       const processingPromise = (async () => {
-        const file = await FileHandler.init({ hash, infohash }, client);
+        const file = new FileHandler({ hash, infohash }, client);
 
         if (fileId.length !== 0) {
           const id = file.id;
@@ -91,14 +97,24 @@ const handleRequest = async (
           return new Response("404 File Not Found\n", { status: 404 });
         }
 
-        headers.set("Content-Type", "application/octet-stream")
-        headers.set("Cache-Control", "public, max-age=31536000")
-        headers.set("Content-Length", fileContent.file.byteLength.toString())
-        headers.set("Signal-Strength", String(fileContent.signal))
-        console.log(`  ${hash}  Signal Strength:`, fileContent.signal, client.utils.estimateHops(fileContent.signal));
+        headers.set("Content-Type", "application/octet-stream");
+        headers.set("Cache-Control", "public, max-age=31536000");
+        headers.set("Content-Length", fileContent.file.byteLength.toString());
+        headers.set("Signal-Strength", String(fileContent.signal));
+        console.log(
+          `  ${hash}  Signal Strength:`,
+          fileContent.signal,
+          client.utils.estimateHops(fileContent.signal),
+        );
 
-        headers.set("Content-Length", String(file.size))
-        headers.set("Content-Disposition", `attachment; filename="${encodeURIComponent(file.name ?? "File").replace(/%20/g, " ").replace(/(\.\w+)$/, " [HYDRAFILES]$1")}`)
+        headers.set("Content-Length", String(file.size));
+        headers.set(
+          "Content-Disposition",
+          `attachment; filename="${
+            encodeURIComponent(file.name ?? "File").replace(/%20/g, " ")
+              .replace(/(\.\w+)$/, " [HYDRAFILES]$1")
+          }`,
+        );
 
         return new Response(fileContent.file, { headers });
       })();
@@ -113,14 +129,14 @@ const handleRequest = async (
     } else if (url.pathname?.startsWith("/infohash/")) {
       const infohash = url.pathname.split("/")[2];
 
-      while (hashLocks.has(infohash)) {
+      if (hashLocks.has(infohash)) {
         console.log(
           `  ${infohash}  Waiting for existing request with same infohash`,
         );
         await hashLocks.get(infohash);
       }
       const processingPromise = (async () => {
-        const file = await FileHandler.init({ infohash }, client);
+        const file = new FileHandler({ infohash }, client);
 
         await file.getMetadata();
         let fileContent: { file: Uint8Array; signal: number } | false;
@@ -138,14 +154,24 @@ const handleRequest = async (
           return new Response("404 File Not Found\n", { status: 404 });
         }
 
-        headers.set("Content-Type", "application/octet-stream")
-        headers.set("Cache-Control", "public, max-age=31536000")
+        headers.set("Content-Type", "application/octet-stream");
+        headers.set("Cache-Control", "public, max-age=31536000");
 
         headers.set("Signal-Strength", String(fileContent.signal));
-        console.log(`  ${file.hash}  Signal Strength:`, fileContent.signal, client.utils.estimateHops(fileContent.signal));
+        console.log(
+          `  ${file.hash}  Signal Strength:`,
+          fileContent.signal,
+          client.utils.estimateHops(fileContent.signal),
+        );
 
         headers.set("Content-Length", String(file.size));
-        headers.set("Content-Disposition", `attachment; filename="${encodeURIComponent(file.name ?? "File").replace(/%20/g, " ").replace(/(\.\w+)$/, " [HYDRAFILES]$1")}"`);
+        headers.set(
+          "Content-Disposition",
+          `attachment; filename="${
+            encodeURIComponent(file.name ?? "File").replace(/%20/g, " ")
+              .replace(/(\.\w+)$/, " [HYDRAFILES]$1")
+          }"`,
+        );
 
         return new Response(fileContent.file, { headers });
       })();
@@ -159,7 +185,7 @@ const handleRequest = async (
       }
     } else if (url.pathname === "/upload") {
       const uploadSecret = req.headers.get("x-hydra-upload-secret");
-      if (uploadSecret !== client.config.upload_secret) {
+      if (uploadSecret !== client.config.uploadSecret) {
         return new Response("401 Unauthorized\n", { status: 401 });
       }
 
@@ -168,31 +194,30 @@ const handleRequest = async (
         req,
         (err: unknown, fields: formidable.Fields, files: formidable.Files) => {
           if (err !== undefined && err !== null) {
-            return new Response("500 Internal Server Error\n", { status: 500 })
+            return new Response("500 Internal Server Error\n", { status: 500 });
           }
 
           if (
             typeof fields.hash === "undefined" ||
             typeof files.file === "undefined"
           ) {
-            return new Response("400 Bad Request\n", { status: 400 })
+            return new Response("400 Bad Request\n", { status: 400 });
           }
 
           const hash = fields.hash[0];
           const uploadedFile = files.file[0];
 
-          FileHandler.init({ hash }, client).then(async (file) => {
-            let name = file.name;
-            if (
-              (name === undefined || name === null || name.length === 0) &&
-              uploadedFile.originalFilename !== null
-            ) {
-              name = uploadedFile.originalFilename;
-              file.name = name;
-              await file.cacheFile(Deno.readFileSync(uploadedFile.filepath));
-              await file.save();
-            }
-          }).catch(console.error);
+          const file = new FileHandler({ hash }, client);
+          let name = file.name;
+          if (
+            (name === undefined || name === null || name.length === 0) &&
+            uploadedFile.originalFilename !== null
+          ) {
+            name = uploadedFile.originalFilename;
+            file.name = name;
+            file.cacheFile(Deno.readFileSync(uploadedFile.filepath));
+            file.save();
+          }
 
           console.log("Uploading", hash);
 
@@ -200,8 +225,8 @@ const handleRequest = async (
             return new Response("200 OK\n");
           }
 
-          if (!client.config.perma_files.includes(hash)) {
-            client.config.perma_files.push(hash);
+          if (!client.config.permaFiles.includes(hash)) {
+            client.config.permaFiles.push(hash);
           }
           Deno.writeFileSync(
             join(Deno.cwd(), "config.json"),
@@ -211,24 +236,24 @@ const handleRequest = async (
         },
       );
     } else if (url.pathname === "/files") {
-      const rows = (await client.FileModel.findAll()).map(
-        (row: { dataValues: FileAttributes }) => {
-          const { hash, infohash, id, name, size } = row.dataValues;
+      const rows = (client.FileManager.select()).map(
+        (row: File) => {
+          const { hash, infohash, id, name, size } = row;
           return { hash, infohash, id, name, size };
         },
       );
-      headers.set("Content-Type", "application/json")
-      headers.set("Cache-Control", "public, max-age=10800")
+      headers.set("Content-Type", "application/json");
+      headers.set("Cache-Control", "public, max-age=10800");
       return new Response(JSON.stringify(rows), { headers });
     } else if (url.pathname.startsWith("/block/")) {
       const blockHeight = url.pathname.split("/")[2];
-      headers.set("Content-Type", "application/json")
+      headers.set("Content-Type", "application/json");
       // "Cache-Control": "public, max-age=" + (Number(blockHeight) > client.blockchain.lastBlock().height ? 0 : 604800),
-      const block = Deno.readFileSync(join(BLOCKSDIR, blockHeight));
+      const block = await Deno.readFile(join(BLOCKSDIR, blockHeight));
       return new Response(block, { headers });
     } else if (url.pathname === "/block_height") {
-      headers.set("Content-Type", "application/json")
-      headers.set("Cache-Control", "public, max-age=30")
+      headers.set("Content-Type", "application/json");
+      headers.set("Cache-Control", "public, max-age=30");
       // return new Response(String(client.blockchain.lastBlock().height));
     } else {
       return new Response("404 Page Not Found\n", { status: 404 });
@@ -241,7 +266,7 @@ const handleRequest = async (
 };
 
 const onListen = (client: Hydrafiles): void => {
-  console.log(`Server running at ${client.config.public_hostname}/`);
+  console.log(`Server running at ${client.config.publicHostname}/`);
 
   const handleListen = async (): Promise<void> => {
     console.log("Testing network connection");
@@ -254,21 +279,21 @@ const onListen = (client: Hydrafiles): void => {
       console.log("Connected to network");
 
       if (
-        client.utils.isIp(client.config.public_hostname) &&
-        client.utils.isPrivateIP(client.config.public_hostname)
+        client.utils.isIp(client.config.publicHostname) &&
+        client.utils.isPrivateIP(client.config.publicHostname)
       ) {
         console.error(
           "Public hostname is a private IP address, cannot announce to other nodes",
         );
       } else {
         console.log(
-          `Testing downloads ${client.config.public_hostname}/download/04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f`,
+          `Testing downloads ${client.config.publicHostname}/download/04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f`,
         );
 
         console.log("Testing connectivity");
         const response = await client.nodes.downloadFromNode(
-          client.nodes.nodeFrom(`${client.config.public_hostname}`),
-          await FileHandler.init({
+          client.nodes.nodeFrom(`${client.config.publicHostname}`),
+          new FileHandler({
             hash:
               "04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f",
           }, client),
@@ -285,7 +310,7 @@ const onListen = (client: Hydrafiles): void => {
           await client.nodes.announce();
         }
         await client.nodes.add({
-          host: client.config.public_hostname,
+          host: client.config.publicHostname,
           http: true,
           dns: false,
           cf: false,
@@ -298,7 +323,7 @@ const onListen = (client: Hydrafiles): void => {
     }
   };
   handleListen().catch(console.error);
-}
+};
 
 const startServer = (client: Hydrafiles): void => {
   console.log("Starting server");
@@ -306,12 +331,12 @@ const startServer = (client: Hydrafiles): void => {
   Deno.serve({
     port: client.config.port,
     hostname: client.config.hostname,
-    onListen({ hostname, port }) {
-      onListen(client)
+    onListen({ hostname, port }): void {
+      onListen(client);
       console.log(`Server started at ${hostname}:${port}`);
-      // ... more info specific to your server ..
     },
-    handler: async (req: Request): Promise<Response> => await handleRequest(req, client)
-  })
+    handler: async (req: Request): Promise<Response> =>
+      await handleRequest(req, client),
+  });
 };
 export default startServer;

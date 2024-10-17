@@ -2,6 +2,7 @@ import FileHandler from "./fileHandler.ts";
 import type Hydrafiles from "./hydrafiles.ts";
 import { existsSync } from "https://deno.land/std/fs/mod.ts";
 import { join } from "https://deno.land/std/path/mod.ts";
+import type { File } from "./database.ts"
 
 export interface Node {
   host: string;
@@ -27,46 +28,51 @@ export default class Nodes {
 
   async add(node: Node): Promise<void> {
     if (
-      node.host !== this._client.config.public_hostname &&
+      node.host !== this._client.config.publicHostname &&
       typeof this.nodes.find((existingNode) =>
           existingNode.host === node.host
         ) === "undefined" &&
       (await this.downloadFromNode(
         node,
-        await FileHandler.init({
+        new FileHandler({
           hash:
             "04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f",
         }, this._client),
       ) !== false)
     ) {
       this.nodes.push(node);
-      Deno.writeFileSync(NODES_PATH, new TextEncoder().encode(JSON.stringify(this.nodes)));
+      Deno.writeFileSync(
+        NODES_PATH,
+        new TextEncoder().encode(JSON.stringify(this.nodes)),
+      );
     }
   }
 
   loadNodes(): Node[] {
     return JSON.parse(
-      existsSync(NODES_PATH) ? new TextDecoder().decode(Deno.readFileSync(NODES_PATH)) : "[]",
+      existsSync(NODES_PATH)
+        ? new TextDecoder().decode(Deno.readFileSync(NODES_PATH))
+        : "[]",
     );
   }
 
   public getNodes = (opts = { includeSelf: true }): Node[] => {
     if (opts.includeSelf === undefined) opts.includeSelf = true;
     const nodes = this.nodes.filter((node) =>
-      opts.includeSelf || node.host !== this._client.config.public_hostname
+      opts.includeSelf || node.host !== this._client.config.publicHostname
     ).sort(() => Math.random() - 0.5);
 
-    if (this._client.config.prefer_node === "FASTEST") {
+    if (this._client.config.preferNode === "FASTEST") {
       return nodes.sort((
         a: { bytes: number; duration: number },
         b: { bytes: number; duration: number },
       ) => a.bytes / a.duration - b.bytes / b.duration);
-    } else if (this._client.config.prefer_node === "LEAST_USED") {
+    } else if (this._client.config.preferNode === "LEAST_USED") {
       return nodes.sort((
         a: { hits: number; rejects: number },
         b: { hits: number; rejects: number },
       ) => a.hits - a.rejects - (b.hits - b.rejects));
-    } else if (this._client.config.prefer_node === "HIGHEST_HITRATE") {
+    } else if (this._client.config.preferNode === "HIGHEST_HITRATE") {
       return nodes.sort((
         a: { hits: number; rejects: number },
         b: { hits: number; rejects: number },
@@ -90,10 +96,10 @@ export default class Nodes {
           this._client.config.timeout,
         );
       } catch (e) {
-        if (this._client.config.log_level === "verbose") console.error(e);
+        if (this._client.config.logLevel === "verbose") console.error(e);
         return false;
       }
-      const fileContent = new Uint8Array(await response.arrayBuffer())
+      const fileContent = new Uint8Array(await response.arrayBuffer());
       console.log(`  ${hash}  Validating hash`);
       const verifiedHash = await this._client.utils.hashUint8Array(fileContent);
       if (hash !== verifiedHash) return false;
@@ -136,7 +142,10 @@ export default class Nodes {
     const index = this.nodes.findIndex((n) => n.host === node.host);
     if (index !== -1) {
       this.nodes[index] = node;
-      Deno.writeFileSync(NODES_PATH, new TextEncoder().encode(JSON.stringify(this.nodes)));
+      Deno.writeFileSync(
+        NODES_PATH,
+        new TextEncoder().encode(JSON.stringify(this.nodes)),
+      );
     }
   }
 
@@ -146,7 +155,7 @@ export default class Nodes {
     const executing: Array<Promise<void>> = [];
 
     for (const node of nodes) {
-      if (node.host === this._client.config.public_hostname) {
+      if (node.host === this._client.config.publicHostname) {
         results.push(node);
         continue;
       }
@@ -163,7 +172,7 @@ export default class Nodes {
   async validateNode(node: Node): Promise<Node> {
     const file = await this.downloadFromNode(
       node,
-      await FileHandler.init({
+      new FileHandler({
         hash:
           "04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f",
       }, this._client),
@@ -181,7 +190,7 @@ export default class Nodes {
 
   async getFile(
     hash: string,
-    size: number = 0,
+    size = 0,
   ): Promise<{ file: Uint8Array; signal: number } | false> {
     console.log(`  ${hash}  Getting file from nodes`);
     const nodes = this.getNodes({ includeSelf: false });
@@ -196,7 +205,7 @@ export default class Nodes {
           if (this._client.utils.hasSufficientMemory(size)) {
             clearInterval(intervalId);
           }
-        }, this._client.config.memory_threshold_reached_wait);
+        }, this._client.config.memoryThresholdReachedWait);
       });
     }
 
@@ -204,8 +213,9 @@ export default class Nodes {
       if (node.http && node.host.length > 0) {
         const promise =
           (async (): Promise<{ file: Uint8Array; signal: number } | false> => {
-            const file = await FileHandler.init({ hash }, this._client);
-            let fileContent: { file: Uint8Array; signal: number } | false = false;
+            const file = new FileHandler({ hash }, this._client);
+            let fileContent: { file: Uint8Array; signal: number } | false =
+              false;
             try {
               fileContent = await this.downloadFromNode(node, file);
             } catch (e) {
@@ -228,10 +238,10 @@ export default class Nodes {
   async announce(): Promise<void> {
     for (const node of this.getNodes({ includeSelf: false })) {
       if (node.http) {
-        if (node.host === this._client.config.public_hostname) continue;
+        if (node.host === this._client.config.publicHostname) continue;
         console.log("Announcing to", node.host);
         await fetch(
-          `${node.host}/announce?host=${this._client.config.public_hostname}`,
+          `${node.host}/announce?host=${this._client.config.publicHostname}`,
         );
       }
     }
@@ -241,18 +251,10 @@ export default class Nodes {
     try {
       console.log(`Comparing file list with ${node.host}`);
       const response = await fetch(`${node.host}/files`);
-      const files = await response.json() as Array<
-        {
-          hash: string;
-          infohash: string | null;
-          id: string | null;
-          name: string | null;
-          size: number;
-        }
-      >;
+      const files = await response.json() as File[];
       for (let i = 0; i < files.length; i++) {
         try {
-          const file = await FileHandler.init({
+          const file = new FileHandler({
             hash: files[i].hash,
             infohash: files[i].infohash ?? undefined,
           }, this._client);
@@ -266,7 +268,7 @@ export default class Nodes {
             file.name = files[i].name;
           }
           if (file.size === 0 && files[i].size !== 0) file.size = files[i].size;
-          await file.save();
+          file.save();
         } catch (e) {
           console.error(e);
         }
@@ -298,13 +300,13 @@ export default class Nodes {
             const remoteNodes = await response.json() as Node[];
             for (const remoteNode of remoteNodes) {
               this.add(remoteNode).catch((e) => {
-                if (this._client.config.log_level === "verbose") {
+                if (this._client.config.logLevel === "verbose") {
                   console.error(e);
                 }
               });
             }
           } catch (e) {
-            if (this._client.config.log_level === "verbose") throw e;
+            if (this._client.config.logLevel === "verbose") throw e;
           }
         }
       })().catch(console.error);
@@ -325,7 +327,7 @@ export default class Nodes {
     return node;
   }
 
-  async getBlockHeights() {
+  async getBlockHeights(): Promise<{ [key: number]: string[] }> {
     const blockHeights = await Promise.all(
       this.getNodes().map(async (node) => {
         try {

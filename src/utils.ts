@@ -4,8 +4,8 @@ import { crypto } from "jsr:@std/crypto";
 import { encodeHex } from "jsr:@std/encoding/hex";
 import type { Config } from "./config.ts";
 import type { Receipt } from "./block.ts";
-import {existsSync} from "https://deno.land/std/fs/mod.ts";
-import {join} from "https://deno.land/std/path/mod.ts";
+import { existsSync } from "https://deno.land/std/fs/mod.ts";
+import { join } from "https://deno.land/std/path/mod.ts";
 
 type Base64 = string & { __brand: "Base64" };
 
@@ -31,7 +31,8 @@ class Utils {
       ? this.getRandomNumber(90, 100)
       : Math.ceil(signalStrength * (1 - (this.getRandomNumber(0, 10) / 100)));
   hasSufficientMemory = (fileSize: number): boolean =>
-    Deno.memoryUsage().heapUsed / Deno.memoryUsage().heapTotal > (fileSize + this._config.memory_threshold);
+    Deno.memoryUsage().heapUsed / Deno.memoryUsage().heapTotal >
+      (fileSize + this._config.memoryThreshold);
   promiseWithTimeout = async <T>(
     promise: Promise<T>,
     timeoutDuration: number,
@@ -86,8 +87,8 @@ class Utils {
     ) / hopData.length;
 
     let closestHop: number | null = null;
-    let closestDistance: number = Infinity; // Diff between signal strength and avg
-    let closestCertainty: number = Infinity;
+    let closestDistance = Infinity; // Diff between signal strength and avg
+    let closestCertainty = Infinity;
 
     for (const hop of hopData) {
       if (signalStrength < hop.min) continue;
@@ -115,7 +116,7 @@ class Utils {
   };
 
   remainingStorage = (): number => {
-    return this._config.max_cache - this.calculateUsedStorage();
+    return this._config.maxCache - this.calculateUsedStorage();
   };
 
   calculateUsedStorage = (): number => {
@@ -137,15 +138,15 @@ class Utils {
     );
     const files = fs.readdirSync(join(Deno.cwd(), "../files"));
     for (const file of files) {
-      if (this._config.perma_files.includes(file)) continue;
+      if (this._config.permaFiles.includes(file)) continue;
 
       const size = Deno.statSync(join(Deno.cwd(), "../files", file)).size;
-      Deno.remove(join(Deno.cwd(), "../files", file)).catch(console.error)
+      Deno.remove(join(Deno.cwd(), "../files", file)).catch(console.error);
       remainingSpace += size;
 
       if (
         requiredSpace <= remainingSpace &&
-        this.calculateUsedStorage() * (1 - this._config.burn_rate) <=
+        this.calculateUsedStorage() * (1 - this._config.burnRate) <=
           remainingSpace
       ) break;
     }
@@ -184,7 +185,7 @@ class Utils {
     return byteArray.buffer;
   }
 
-  async hashString(input: string) {
+  async hashString(input: string): Promise<string> {
     const encoder = new TextEncoder();
     const data = encoder.encode(input);
     const hashBuffer = await crypto.subtle.digest("SHA-256", data);

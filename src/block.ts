@@ -24,14 +24,16 @@ export class Block {
   state: State = State.Locked;
   private _client: Hydrafiles;
   time: number = +new Date();
-  height: number = 0;
+  height = 0;
   constructor(prevBlock: string, client: Hydrafiles) {
     this.prevBlock = prevBlock;
     this._client = client;
   }
 
-  static init(hash: string, client: Hydrafiles) {
-    const blockContent = JSON.parse(new TextDecoder().decode(Deno.readFileSync(join(BLOCKSDIR, hash))));
+  static init(hash: string, client: Hydrafiles): Block {
+    const blockContent = JSON.parse(
+      new TextDecoder().decode(Deno.readFileSync(join(BLOCKSDIR, hash))),
+    );
     const block = new Block(blockContent.prevBlock, client);
     block.receipts = blockContent.receipts;
     return block;
@@ -54,14 +56,14 @@ export class Block {
     return { issuer, message, signature, nonce };
   }
 
-  async addReceipt(receipt: Receipt) { // TODO: Validate added transactions
+  async addReceipt(receipt: Receipt): Promise<void> { // TODO: Validate added transactions
     if (this.state !== State.Mempool) throw new Error("Block not in mempool");
     if (await this._client.utils.verifySignature(receipt)) {
       this.receipts.push(receipt);
     }
   }
 
-  toString() {
+  toString(): string {
     return JSON.stringify({
       receipts: this.receipts,
       prevBlock: this.prevBlock,
@@ -69,13 +71,13 @@ export class Block {
     });
   }
 
-  async getHash() {
+  async getHash(): Promise<string> {
     return await this._client.utils.hashString(this.toString());
   }
 
-  getPeers() {
+  getPeers(): string[] {
     const peers = this.receipts.map((receipt) =>
-      JSON.parse(receipt.message).peer
+      JSON.parse(receipt.message).peer as string
     );
     const sortedPeers = peers.sort((i) =>
       seedrandom(this.getHash() + i)() - 0.5
@@ -83,7 +85,7 @@ export class Block {
     return sortedPeers;
   }
 
-  announce() { // TODO: P2P announce/receive blocks
+  announce(): void { // TODO: P2P announce/receive blocks
     this.time = +new Date();
     this.state = State.Locked;
   }
@@ -104,48 +106,61 @@ class Blockchain {
     // this.syncBlocks().then(() => this.proposeBlocks)
   }
 
-  async proposeBlocks() {
+  async proposeBlocks(): Promise<void> {
     const lastBlock = this.lastBlock();
     let peer = await this.nextBlockProposer(0);
     console.log(`Block Proposer is ${peer}`);
-    if (peer === undefined || peer === await this._client.utils.exportPublicKey((await this._client.keyPair).publicKey)) {
+    if (
+      peer === undefined ||
+      peer ===
+        await this._client.utils.exportPublicKey(
+          (await this._client.keyPair).publicKey,
+        )
+    ) {
       console.log("YOU ARE BLOCK PROPOSER");
       while (lastBlock.time + 60 * 1000 > +new Date()) {
         await new Promise((resolve) => setTimeout(resolve, 100));
       }
-      peer = await this.nextBlockProposer(0)
-      if (peer === undefined || peer === await this._client.utils.exportPublicKey((await this._client.keyPair).publicKey))
+      peer = await this.nextBlockProposer(0);
+      if (
+        peer === undefined ||
+        peer ===
+          await this._client.utils.exportPublicKey(
+            (await this._client.keyPair).publicKey,
+          )
+      ) {
         this.newMempoolBlock();
+      }
     } else {
       while (lastBlock.time + 60 * 1000 > +new Date()) {
         await new Promise((resolve) => setTimeout(resolve, 100));
       }
-      await this.syncBlocks()
+      await this.syncBlocks();
       while (lastBlock.time + 60 * 1000 > +new Date()) {
         await new Promise((resolve) => setTimeout(resolve, 100));
       }
-      await this.syncBlocks()
-      console.log("Unclaimed block")
-      this.newMempoolBlock()
+      await this.syncBlocks();
+      console.log("Unclaimed block");
+      this.newMempoolBlock();
     }
     await this.proposeBlocks();
   }
 
-  async syncBlocks () {
+  async syncBlocks(): Promise<void> {
     const blockHeights = await this._client.nodes.getBlockHeights();
-    for (const key in blockHeights) {
-      const claimedBlockHeight = Number(key);
+    for (let i = 0; i < Object.keys(blockHeights).length; i++) {
+      const claimedBlockHeight = Number(Object.keys(blockHeights)[i]);
       if (claimedBlockHeight > this.lastBlock().height) {
         const nodes = blockHeights[claimedBlockHeight];
-        for (let i = 1; i < claimedBlockHeight; i++) {
+        for (let j = 0; j < claimedBlockHeight; j++) {
           if (i < this.lastBlock().height) continue;
-          for (let j = 0; j < nodes.length; j++) {
-            console.log(`Fetch block ${i} from ${nodes[j]}`);
+          for (let k = 0; k < nodes.length; k++) {
+            console.log(`Fetch block ${i} from ${nodes[k]}`);
             let response;
             try {
-              response = await fetch(`${nodes[j]}/block/${i}`);
+              response = await fetch(`${nodes[k]}/block/${j}`);
             } catch (_) {
-              continue
+              continue;
             }
             const blockContent = await response.text();
             let blockPaylod;
@@ -164,7 +179,7 @@ class Blockchain {
     }
   }
 
-  addBlock(block: Block) {
+  addBlock(block: Block): void {
     block.height = this.blocks.length;
     this.blocks.push(block);
     block.announce();
@@ -174,11 +189,12 @@ class Blockchain {
     );
   }
 
-  lastBlock() {
-    return this.blocks[this.blocks.length - 1] ?? new Block('Genesis', this._client);
+  lastBlock(): Block {
+    return this.blocks[this.blocks.length - 1] ??
+      new Block("Genesis", this._client);
   }
 
-  async newMempoolBlock() {
+  async newMempoolBlock(): Promise<void> {
     if (this.mempoolBlock !== null) {
       this.mempoolBlock.announce();
       this.addBlock(this.mempoolBlock);
@@ -191,7 +207,7 @@ class Blockchain {
     this.mempoolBlock = block;
   }
 
-  async nextBlockProposer(level = 0) {
+  async nextBlockProposer(level = 0): Promise<string> {
     const lastBlockHash = await this.lastBlock().getHash();
     const peers = this.blocks.map((block) => block.getPeers()).flat();
     const sortedPeers = peers.sort((i) =>

@@ -1,18 +1,16 @@
-import fs from 'node:fs'
+import fs from "node:fs";
 
-import type { SequelizeSimpleCacheModel } from "npm:sequelize-simple-cache";
-import Sequelize, {type FindOptions, type Model, type ModelCtor } from "npm:sequelize";
 import { S3 } from "npm:@aws-sdk/client-s3";
 import type WebTorrent from "npm:webtorrent";
 import init from "./init.ts";
 import getConfig, { type Config } from "./config.ts";
 import Nodes from "./nodes.ts";
-import FileHandler, { type FileAttributes } from "./fileHandler.ts";
+import FileHandler from "./fileHandler.ts";
 import startServer, { hashLocks } from "./server.ts";
 import Utils from "./utils.ts";
-import startDatabase from "./database.ts";
-import Blockchain, { Block } from "./block.ts";
+// import Blockchain, { Block } from "./block.ts";
 import { join } from "https://deno.land/std/path/mod.ts";
+import FileManager, { type File } from "./database.ts";
 
 // TODO: IDEA: HydraTorrent - New Github repo - "Hydrafiles + WebTorrent Compatibility Layer" - Hydrafiles noes can optionally run HydraTorrent to seed files via webtorrent
 // Change index hash from sha256 to infohash, then allow nodes to leech files from webtorrent + normal torrent
@@ -25,7 +23,6 @@ import { join } from "https://deno.land/std/path/mod.ts";
 // bittorrent to http proxy
 // starfiles.co would use webtorrent to download files
 
-
 class Hydrafiles {
   startTime: number;
   config: Config;
@@ -33,9 +30,7 @@ class Hydrafiles {
   s3: S3;
   utils: Utils;
   FileHandler = FileHandler;
-  FileModel:
-    & ModelCtor<Model<FileAttributes, Partial<FileAttributes>>>
-    & SequelizeSimpleCacheModel<Model<FileAttributes, Partial<FileAttributes>>>;
+  FileManager: FileManager;
   webtorrent: WebTorrent;
   // blockchain: Blockchain;
   keyPair: Promise<CryptoKeyPair>;
@@ -46,30 +41,28 @@ class Hydrafiles {
     this.s3 = new S3({
       region: "us-east-1",
       credentials: {
-        accessKeyId: this.config.s3_access_key_id,
-        secretAccessKey: this.config.s3_secret_access_key,
+        accessKeyId: this.config.s3AccessKeyId,
+        secretAccessKey: this.config.s3SecretAccessKey,
       },
-      endpoint: this.config.s3_endpoint,
+      endpoint: this.config.s3Endpoint,
     });
     this.keyPair = this.utils.generateKeyPair(); // TODO: Save keypair to fs
     init(this.config);
 
     this.nodes = new Nodes(this);
 
-    this.FileModel = startDatabase(this.config);
+    this.FileManager = new FileManager();
     startServer(this);
     // this.webtorrent = new WebTorrent()
     // this.blockchain = new Blockchain(this);
 
-    if (this.config.summary_speed !== -1) {
-      this.logState().catch(console.error);
-      setInterval(() => {
-        this.logState().catch(console.error);
-      }, this.config.summary_speed);
+    if (this.config.summarySpeed !== -1) {
+      this.logState();
+      setInterval(this.logState, this.config.summarySpeed);
     }
 
-    if (this.config.compare_speed !== -1) {
-      setInterval(this.backgroundTasks, this.config.compare_speed);
+    if (this.config.compareSpeed !== -1) {
+      setInterval(this.backgroundTasks, this.config.compareSpeed);
       this.backgroundTasks();
     }
     // if (this.config.backfill) this.backfillFiles().catch(console.error)
@@ -77,8 +70,8 @@ class Hydrafiles {
 
   backgroundTasks = (): void => {
     const nodes = this.nodes;
-    if (this.config.compare_nodes) nodes.compareNodeList();
-    if (this.config.compare_files) {
+    if (this.config.compareNodes) nodes.compareNodeList();
+    if (this.config.compareFiles) {
       const knownNodes = nodes.getNodes({ includeSelf: false });
       for (let i = 0; i < knownNodes.length; i++) {
         nodes.compareFileList(knownNodes[i]).catch(console.error);
@@ -87,23 +80,21 @@ class Hydrafiles {
   };
 
   backfillFiles = async (): Promise<void> => {
-    const files = await this.FileModel.findAll({
-      order: Sequelize.literal("RANDOM()"),
-    });
+    const files = this.FileManager.select({ orderBy: "RANDOM()" });
     for (let i = 0; i < files.length; i++) {
-      const hash: string = files[i].dataValues.hash;
+      const hash: string = files[i].hash;
       console.log(`  ${hash}  Backfilling file`);
-      const file = await this.FileHandler.init({ hash }, this);
+      const file = new this.FileHandler({ hash }, this);
       try {
         await file.getFile({ logDownloads: false });
       } catch (e) {
-        if (this.config.log_level === "verbose") throw e;
+        if (this.config.logLevel === "verbose") throw e;
       }
     }
     this.backfillFiles().catch(console.error);
   };
 
-  async logState(): Promise<void> {
+  logState(): void {
     try {
       console.log(
         "\n===============================================\n========",
@@ -111,10 +102,10 @@ class Hydrafiles {
         "========\n===============================================\n| Uptime: ",
         this.utils.convertTime(+new Date() - this.startTime),
         "\n| Known (Network) Files:",
-        await this.FileModel.noCache().count(),
+        this.FileManager.count(),
         `(${
           Math.round(
-            (100 * await this.FileModel.noCache().sum("size")) / 1024 / 1024 /
+            (100 * this.FileManager.sum("size")) / 1024 / 1024 /
               1024,
           ) / 100
         }GB)`,
@@ -132,7 +123,13 @@ class Hydrafiles {
         // '\n| Seeding Torrent Files:',
         // (await webtorrentClient()).torrents.length,
         "\n| Downloads Served:",
-        await this.FileModel.noCache().sum("downloadCount") + ` (${Math.round((await this.FileModel.findOne({ attributes: [ [Sequelize.fn('SUM', Sequelize.literal('downloadCount * size')), 'sum']]})).dataValues.sum/1024/1024/1024*100)/100}GB)`,
+        this.FileManager.sum("downloadCount") +
+          ` (${
+            Math.round(
+              (this.FileManager.sum("downloadCount * size") / 1024 / 1024 /
+                1024 * 100) / 100,
+            )
+          }GB)`,
         "\n===============================================\n",
       );
     } catch (e) {
@@ -140,14 +137,13 @@ class Hydrafiles {
     }
   }
 
-  search = async <T>(
-    where: FindOptions<T>,
-    cache: boolean,
-  ): Promise<Promise<FileAttributes[]>> => {
-    const files = cache
-      ? await this.FileModel.findAll(where)
-      : await this.FileModel.noCache().findAll(where);
-    return files.map((values) => values.dataValues);
+  search = <T>(
+    where: {
+      where?: { key: keyof File; value: NonNullable<keyof File> } | undefined;
+      orderBy?: string;
+    } | undefined,
+  ): File[] => {
+    return this.FileManager.select(where);
   };
 }
 
