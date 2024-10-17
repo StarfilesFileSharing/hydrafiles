@@ -1,22 +1,18 @@
-import fs from "node:fs";
-import Sequelize, {
-  type FindOptions,
-  type Model,
-  type ModelCtor,
-} from "npm:sequelize";
+import fs from 'node:fs'
+
+import type { SequelizeSimpleCacheModel } from "npm:sequelize-simple-cache";
+import Sequelize, {type FindOptions, type Model, type ModelCtor } from "npm:sequelize";
+import { S3 } from "npm:@aws-sdk/client-s3";
+import type WebTorrent from "npm:webtorrent";
 import init from "./init.ts";
 import getConfig, { type Config } from "./config.ts";
 import Nodes from "./nodes.ts";
 import FileHandler, { type FileAttributes } from "./fileHandler.ts";
 import startServer, { hashLocks } from "./server.ts";
 import Utils from "./utils.ts";
-import { S3 } from "npm:@aws-sdk/client-s3";
 import startDatabase from "./database.ts";
-import type { SequelizeSimpleCacheModel } from "npm:sequelize-simple-cache";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-import type WebTorrent from "npm:webtorrent";
 import Blockchain, { Block } from "./block.ts";
+import { join } from "https://deno.land/std/path/mod.ts";
 
 // TODO: IDEA: HydraTorrent - New Github repo - "Hydrafiles + WebTorrent Compatibility Layer" - Hydrafiles noes can optionally run HydraTorrent to seed files via webtorrent
 // Change index hash from sha256 to infohash, then allow nodes to leech files from webtorrent + normal torrent
@@ -29,7 +25,6 @@ import Blockchain, { Block } from "./block.ts";
 // bittorrent to http proxy
 // starfiles.co would use webtorrent to download files
 
-const DIRNAME = path.dirname(fileURLToPath(import.meta.url));
 
 class Hydrafiles {
   startTime: number;
@@ -124,7 +119,7 @@ class Hydrafiles {
           ) / 100
         }GB)`,
         "\n| Stored Files:",
-        fs.readdirSync(path.join(DIRNAME, "../files/")).length,
+        fs.readdirSync(join(Deno.cwd(), "../files/")).length,
         `(${
           Math.round(
             (100 * this.utils.calculateUsedStorage()) / 1024 / 1024 / 1024,

@@ -1,18 +1,11 @@
-import {
-  DataTypes,
-  type Model,
-  type ModelCtor,
-  Sequelize,
-} from "npm:sequelize";
-import SequelizeSimpleCache, {
-  type SequelizeSimpleCacheModel,
-} from "npm:sequelize-simple-cache";
-import type { Config } from "./config.ts";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-import type { FileAttributes } from "./fileHandler.ts";
+// TODO: Rewrite ORM and DIY cache
+import SequelizeSimpleCache, { type SequelizeSimpleCacheModel } from "npm:sequelize-simple-cache";
+import { Sequelize, DataTypes, type Model, type ModelCtor } from "npm:sequelize";
 
-const DIRNAME = path.dirname(fileURLToPath(import.meta.url));
+import type { Config } from "./config.ts";
+import type { FileAttributes } from "./fileHandler.ts";
+import { join } from "https://deno.land/std/path/mod.ts";
+
 
 const startDatabase = (
   config: Config,
@@ -25,7 +18,7 @@ const startDatabase = (
 
   const sequelize = new Sequelize({
     dialect: "sqlite",
-    storage: path.join(DIRNAME, "../filemanager.db"),
+    storage: join(Deno.cwd(), "../filemanager.db"),
     logging: (...msg) => {
       if (config.database_logs) {
         const payload = msg[1] as unknown as {

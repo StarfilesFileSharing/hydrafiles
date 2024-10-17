@@ -1,9 +1,7 @@
-import fs from "node:fs";
 import FileHandler from "./fileHandler.ts";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import type Hydrafiles from "./hydrafiles.ts";
-import { Buffer } from "node:buffer";
+import { existsSync } from "https://deno.land/std/fs/mod.ts";
+import { join } from "https://deno.land/std/path/mod.ts";
 
 export interface Node {
   host: string;
@@ -17,8 +15,7 @@ export interface Node {
   status?: boolean;
 }
 
-const DIRNAME = path.dirname(fileURLToPath(import.meta.url));
-export const NODES_PATH = path.join(DIRNAME, "../nodes.json");
+export const NODES_PATH = join(Deno.cwd(), "../nodes.json");
 
 export default class Nodes {
   private nodes: Node[];
@@ -43,13 +40,13 @@ export default class Nodes {
       ) !== false)
     ) {
       this.nodes.push(node);
-      fs.writeFileSync(NODES_PATH, JSON.stringify(this.nodes));
+      Deno.writeFileSync(NODES_PATH, new TextEncoder().encode(JSON.stringify(this.nodes)));
     }
   }
 
   loadNodes(): Node[] {
     return JSON.parse(
-      fs.existsSync(NODES_PATH) ? fs.readFileSync(NODES_PATH).toString() : "[]",
+      existsSync(NODES_PATH) ? new TextDecoder().decode(Deno.readFileSync(NODES_PATH)) : "[]",
     );
   }
 
@@ -80,7 +77,7 @@ export default class Nodes {
   async downloadFromNode(
     node: Node,
     file: FileHandler,
-  ): Promise<{ file: Buffer; signal: number } | false> {
+  ): Promise<{ file: Uint8Array; signal: number } | false> {
     try {
       const startTime = Date.now();
 
@@ -96,11 +93,9 @@ export default class Nodes {
         if (this._client.config.log_level === "verbose") console.error(e);
         return false;
       }
-      const buffer: Buffer = Buffer.from(await response.arrayBuffer());
+      const fileContent = new Uint8Array(await response.arrayBuffer())
       console.log(`  ${hash}  Validating hash`);
-      const verifiedHash = await this._client.utils.hashStream(
-        this._client.utils.bufferToStream(buffer),
-      );
+      const verifiedHash = await this._client.utils.hashUint8Array(fileContent);
       if (hash !== verifiedHash) return false;
 
       if (
@@ -117,13 +112,13 @@ export default class Nodes {
 
       node.status = true;
       node.duration += Date.now() - startTime;
-      node.bytes += buffer.byteLength;
+      node.bytes += fileContent.byteLength;
       node.hits++;
       this.updateNode(node);
 
-      await file.cacheFile(buffer);
+      await file.cacheFile(fileContent);
       return {
-        file: buffer,
+        file: fileContent,
         signal: this._client.utils.interfere(
           Number(response.headers.get("Signal-Strength")),
         ),
@@ -141,7 +136,7 @@ export default class Nodes {
     const index = this.nodes.findIndex((n) => n.host === node.host);
     if (index !== -1) {
       this.nodes[index] = node;
-      fs.writeFileSync(NODES_PATH, JSON.stringify(this.nodes));
+      Deno.writeFileSync(NODES_PATH, new TextEncoder().encode(JSON.stringify(this.nodes)));
     }
   }
 
@@ -187,11 +182,11 @@ export default class Nodes {
   async getFile(
     hash: string,
     size: number = 0,
-  ): Promise<{ file: Buffer; signal: number } | false> {
+  ): Promise<{ file: Uint8Array; signal: number } | false> {
     console.log(`  ${hash}  Getting file from nodes`);
     const nodes = this.getNodes({ includeSelf: false });
     const activePromises: Array<
-      Promise<{ file: Buffer; signal: number } | false>
+      Promise<{ file: Uint8Array; signal: number } | false>
     > = [];
 
     if (!this._client.utils.hasSufficientMemory(size)) {
@@ -208,9 +203,9 @@ export default class Nodes {
     for (const node of nodes) {
       if (node.http && node.host.length > 0) {
         const promise =
-          (async (): Promise<{ file: Buffer; signal: number } | false> => {
+          (async (): Promise<{ file: Uint8Array; signal: number } | false> => {
             const file = await FileHandler.init({ hash }, this._client);
-            let fileContent: { file: Buffer; signal: number } | false = false;
+            let fileContent: { file: Uint8Array; signal: number } | false = false;
             try {
               fileContent = await this.downloadFromNode(node, file);
             } catch (e) {

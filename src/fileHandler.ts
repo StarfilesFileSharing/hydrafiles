@@ -1,10 +1,9 @@
-import fs from "node:fs";
-import path from "node:path";
 import { Readable } from "node:stream";
+
 import type { Model } from "sequelize";
 import type Hydrafiles from "./hydrafiles.ts";
-import { fileURLToPath } from "node:url";
-import { Buffer } from "node:buffer";
+import { existsSync } from "https://deno.land/std/fs/mod.ts";
+import { join } from "https://deno.land/std/path/mod.ts";
 
 interface Metadata {
   name: string;
@@ -17,8 +16,7 @@ interface Metadata {
 
 // TODO: Log common user-agents and use the same for requests to slightly anonymise clients
 
-const DIRNAME = path.dirname(fileURLToPath(import.meta.url));
-const FILESPATH = path.join(DIRNAME, "../files");
+const FILESPATH = join(Deno.cwd(), "../files");
 // const seeding: string[] = [];
 
 export interface FileAttributes {
@@ -112,9 +110,9 @@ export default class FileHandler {
       }
     }
 
-    const filePath = path.join(FILESPATH, hash);
-    if (fs.existsSync(filePath)) {
-      this.size = fs.statSync(filePath).size;
+    const filePath = join(FILESPATH, hash);
+    if (existsSync(filePath)) {
+      this.size = Deno.statSync(filePath).size;
       await this.save();
       return this;
     }
@@ -138,10 +136,10 @@ export default class FileHandler {
     return false;
   }
 
-  async cacheFile(file: Buffer): Promise<void> {
+  async cacheFile(file: Uint8Array): Promise<void> {
     const hash = this.hash;
-    const filePath = path.join(FILESPATH, hash);
-    if (fs.existsSync(filePath)) return;
+    const filePath = join(FILESPATH, hash);
+    if (existsSync(filePath)) return;
 
     let size = this.size;
     if (size === 0) {
@@ -154,37 +152,36 @@ export default class FileHandler {
       this._client.utils.purgeCache(size, remainingSpace);
     }
 
-    await this._client.utils.saveBufferToFile(file, filePath);
-    const fileContents = fs.createReadStream(filePath);
-    const savedHash = await this._client.utils.hashStream(fileContents);
-    if (savedHash !== hash) fs.rmSync(filePath); // In case of broken file
+    Deno.writeFileSync(filePath, file)
+    const savedHash = await this._client.utils.hashUint8Array(Deno.readFileSync(filePath));
+    if (savedHash !== hash) await Deno.remove(filePath); // In case of broken file
   }
 
   private async fetchFromCache(): Promise<
-    { file: Buffer; signal: number } | false
+    { file: Uint8Array; signal: number } | false
   > {
     const hash = this.hash;
     console.log(`  ${hash}  Checking Cache`);
-    const filePath = path.join(FILESPATH, hash);
+    const filePath = join(FILESPATH, hash);
     this.seed();
-    if (!fs.existsSync(filePath)) return false;
-    const fileContents = fs.createReadStream(filePath);
-    const savedHash = await this._client.utils.hashStream(fileContents);
+    if (!existsSync(filePath)) return false;
+    const fileContents = Deno.readFileSync(filePath);
+    const savedHash = await this._client.utils.hashUint8Array(fileContents);
     if (savedHash !== this.hash) {
-      fs.rmSync(filePath);
+      await Deno.remove(filePath);
       return false;
     }
     return {
-      file: fs.readFileSync(filePath),
+      file: fileContents,
       signal: this._client.utils.interfere(100),
     };
   }
 
-  async fetchFromS3(): Promise<{ file: Buffer; signal: number } | false> {
+  async fetchFromS3(): Promise<{ file: Uint8Array; signal: number } | false> {
     console.log(`  ${this.hash}  Checking S3`);
     if (this._client.config.s3_endpoint.length === 0) return false;
     try {
-      let buffer: Buffer;
+      let file: Uint8Array;
       const data = await this._client.s3.getObject({
         Bucket: "uploads",
         Key: `${this.hash}.stuf`,
@@ -195,18 +192,26 @@ export default class FileHandler {
         for await (const chunk of data.Body) {
           chunks.push(chunk);
         }
-        buffer = Buffer.concat(chunks);
-      } else if (data.Body instanceof Buffer) buffer = data.Body;
-      else return false;
 
-      if (this._client.config.cache_s3) await this.cacheFile(buffer);
+        const length = chunks.reduce((acc, chunk) => acc + chunk.length, 0)
+        file = new Uint8Array(length)
+        let offset = 0
+        for (const chunk of chunks) {
+          file.set(chunk, offset)
+          offset += chunk.length
+        }
+      } else {
+        console.error('Unknown S3 return type')
+        return false
+      }
 
-      const stream = this._client.utils.bufferToStream(buffer);
-      const hash = await this._client.utils.hashStream(stream);
+      if (this._client.config.cache_s3) await this.cacheFile(file);
+
+      const hash = await this._client.utils.hashUint8Array(file);
       if (hash !== this.hash) {
         return false;
       }
-      return { file: buffer, signal: this._client.utils.interfere(100) };
+      return { file, signal: this._client.utils.interfere(100) };
     } catch (e) {
       const err = e as { message: string };
       if (err.message !== "The specified key does not exist.") {
@@ -222,7 +227,7 @@ export default class FileHandler {
 
   async getFile(
     opts: { logDownloads?: boolean } = {},
-  ): Promise<{ file: Buffer; signal: number } | false> {
+  ): Promise<{ file: Uint8Array; signal: number } | false> {
     // const peer = await this._client.utils.exportPublicKey((await this._client.keyPair).publicKey); // TODO: Replace this with actual peer
     // const receipt = await this._client.blockchain.mempoolBlock.signReceipt(
     //   peer,
@@ -314,8 +319,8 @@ export default class FileHandler {
   seed(): void {
     // if (seeding.includes(this.hash)) return;
     // seeding.push(this.hash);
-    // const filePath = path.join(FILESPATH, this.hash);
-    // if (!fs.existsSync(filePath)) return;
+    // const filePath = join(FILESPATH, this.hash);
+    // if (!existsSync(filePath)) return;
     // this._client.webtorrent.seed(filePath, {
     //   createdBy: "Hydrafiles/0.1",
     //   name: (this.name ?? this.hash).replace(/(\.\w+)$/, " [HYDRAFILES]$1"),

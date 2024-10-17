@@ -1,19 +1,13 @@
-import os from "node:os";
 import fs from "node:fs";
-import type { Config } from "./config.ts";
-import { Readable } from "node:stream";
-import { pipeline } from "node:stream/promises";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-import { Buffer } from "node:buffer";
-import process from "node:process";
+
 import { crypto } from "jsr:@std/crypto";
 import { encodeHex } from "jsr:@std/encoding/hex";
+import type { Config } from "./config.ts";
 import type { Receipt } from "./block.ts";
+import {existsSync} from "https://deno.land/std/fs/mod.ts";
+import {join} from "https://deno.land/std/path/mod.ts";
 
 type Base64 = string & { __brand: "Base64" };
-
-const DIRNAME = path.dirname(fileURLToPath(import.meta.url));
 
 class Utils {
   _config: Config;
@@ -24,8 +18,8 @@ class Utils {
   getRandomNumber = (min: number, max: number): number =>
     Math.floor(Math.random() * (max - min + 1)) + min;
   isValidSHA256Hash = (hash: string): boolean => /^[a-f0-9]{64}$/.test(hash);
-  hashStream = async (stream: Readable): Promise<string> =>
-    encodeHex(await crypto.subtle.digest("SHA-256", stream));
+  hashUint8Array = async (uint8Array: Uint8Array): Promise<string> =>
+    encodeHex(await crypto.subtle.digest("SHA-256", uint8Array));
   isValidInfoHash = (hash: string): boolean => /^[a-f0-9]{40}$/.test(hash);
   isIp = (host: string): boolean =>
     /^https?:\/\/(?:\d+\.){3}\d+(?::\d+)?$/.test(host);
@@ -37,7 +31,7 @@ class Utils {
       ? this.getRandomNumber(90, 100)
       : Math.ceil(signalStrength * (1 - (this.getRandomNumber(0, 10) / 100)));
   hasSufficientMemory = (fileSize: number): boolean =>
-    os.freemem() > (fileSize + this._config.memory_threshold);
+    Deno.memoryUsage().heapUsed / Deno.memoryUsage().heapTotal > (fileSize + this._config.memory_threshold);
   promiseWithTimeout = async <T>(
     promise: Promise<T>,
     timeoutDuration: number,
@@ -120,75 +114,17 @@ class Utils {
     };
   };
 
-  async streamLength(stream: Readable): Promise<number> {
-    const chunks: Uint8Array[] = [];
-
-    await pipeline(stream, async function (source) {
-      for await (const chunk of source) {
-        chunks.push(chunk);
-      }
-    });
-
-    const completeBuffer = Buffer.concat(chunks);
-    return completeBuffer.buffer.slice(
-      completeBuffer.byteOffset,
-      completeBuffer.byteOffset + completeBuffer.byteLength,
-    ).byteLength;
-  }
-
-  async streamToBuffer(stream: Readable): Promise<ArrayBuffer> {
-    const chunks: Uint8Array[] = [];
-
-    await pipeline(stream, async function (source) {
-      for await (const chunk of source) {
-        chunks.push(chunk);
-      }
-    });
-
-    const completeBuffer = Buffer.concat(chunks);
-    return completeBuffer.buffer.slice(
-      completeBuffer.byteOffset,
-      completeBuffer.byteOffset + completeBuffer.byteLength,
-    );
-  }
-
-  bufferToStream(buffer: Buffer): Readable {
-    const readable = new Readable({
-      read() {
-        this.push(buffer);
-        this.push(null);
-      },
-    });
-    return readable;
-  }
-
-  async saveBufferToFile(buffer: Buffer, filePath: string): Promise<void> {
-    return await new Promise((resolve, reject) => {
-      try {
-        fs.writeFile(filePath, buffer, (err) => {
-          if (err !== null) {
-            reject(err);
-          } else {
-            resolve();
-          }
-        });
-      } catch (error) {
-        reject(error);
-      }
-    });
-  }
-
   remainingStorage = (): number => {
     return this._config.max_cache - this.calculateUsedStorage();
   };
 
   calculateUsedStorage = (): number => {
-    const filesPath = path.join(DIRNAME, "../files");
+    const filesPath = join(Deno.cwd(), "../files");
     let usedStorage = 0;
-    if (fs.existsSync(filesPath)) {
+    if (existsSync(filesPath)) {
       const files = fs.readdirSync(filesPath);
       for (const file of files) {
-        const stats = fs.statSync(path.join(filesPath, file));
+        const stats = Deno.statSync(join(filesPath, file));
         usedStorage += stats.size;
       }
     }
@@ -199,12 +135,12 @@ class Utils {
     console.warn(
       "WARNING: Your node has reached max storage, some files are getting purged. To prevent this, increase your limit at config.json or add more storage to your machine.",
     );
-    const files = fs.readdirSync(path.join(process.cwd(), "../files"));
+    const files = fs.readdirSync(join(Deno.cwd(), "../files"));
     for (const file of files) {
       if (this._config.perma_files.includes(file)) continue;
 
-      const size = fs.statSync(path.join(process.cwd(), "../files", file)).size;
-      fs.unlinkSync(path.join(process.cwd(), "../files", file));
+      const size = Deno.statSync(join(Deno.cwd(), "../files", file)).size;
+      Deno.remove(join(Deno.cwd(), "../files", file)).catch(console.error)
       remainingSpace += size;
 
       if (

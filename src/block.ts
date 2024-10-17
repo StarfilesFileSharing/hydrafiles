@@ -1,7 +1,6 @@
-import seedrandom from "https://cdn.skypack.dev/seedrandom";
 import type Hydrafiles from "./hydrafiles.ts";
-import { fileURLToPath } from "node:url";
-import path from "node:path";
+import seedrandom from "https://cdn.skypack.dev/seedrandom";
+import { join } from "https://deno.land/std/path/mod.ts";
 
 type Base64 = string & { __brand: "Base64" };
 
@@ -17,8 +16,7 @@ enum State {
   Mempool = "MEMPOOL",
 }
 
-const DIRNAME = path.dirname(fileURLToPath(import.meta.url));
-export const BLOCKSDIR = path.join(DIRNAME, "../blocks/");
+export const BLOCKSDIR = join(Deno.cwd(), "../blocks/");
 
 export class Block {
   prevBlock: string;
@@ -33,9 +31,7 @@ export class Block {
   }
 
   static init(hash: string, client: Hydrafiles) {
-    const blockContent = JSON.parse(
-      new TextDecoder().decode(Deno.readFileSync(path.join(BLOCKSDIR, hash))),
-    );
+    const blockContent = JSON.parse(new TextDecoder().decode(Deno.readFileSync(join(BLOCKSDIR, hash))));
     const block = new Block(blockContent.prevBlock, client);
     block.receipts = blockContent.receipts;
     return block;
@@ -173,7 +169,7 @@ class Blockchain {
     this.blocks.push(block);
     block.announce();
     Deno.writeFileSync(
-      path.join(BLOCKSDIR, this.blocks.length.toString()),
+      join(BLOCKSDIR, this.blocks.length.toString()),
       new TextEncoder().encode(block.toString()),
     );
   }
