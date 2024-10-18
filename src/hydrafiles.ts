@@ -57,8 +57,8 @@ class Hydrafiles {
     // this.blockchain = new Blockchain(this);
 
     if (this.config.summarySpeed !== -1) {
-      this.logState();
-      setInterval(this.logState, this.config.summarySpeed);
+      // this.logState();
+      // setInterval(this.logState, this.config.summarySpeed);
     }
 
     if (this.config.compareSpeed !== -1) {
@@ -99,7 +99,8 @@ class Hydrafiles {
       console.log(
         "\n===============================================\n========",
         new Date().toUTCString(),
-        "========\n===============================================\n| Uptime: ",
+        "========\n===============================================",
+        "\n| Uptime: ",
         this.utils.convertTime(+new Date() - this.startTime),
         "\n| Known (Network) Files:",
         this.FileManager.count(),
@@ -110,7 +111,7 @@ class Hydrafiles {
           ) / 100
         }GB)`,
         "\n| Stored Files:",
-        fs.readdirSync(join(Deno.cwd(), "../files/")).length,
+        fs.readdirSync(join(new URL('.', import.meta.url).pathname, "../files/")).length,
         `(${
           Math.round(
             (100 * this.utils.calculateUsedStorage()) / 1024 / 1024 / 1024,

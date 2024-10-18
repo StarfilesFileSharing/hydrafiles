@@ -120,7 +120,7 @@ class Utils {
   };
 
   calculateUsedStorage = (): number => {
-    const filesPath = join(Deno.cwd(), "../files");
+    const filesPath = join(new URL('.', import.meta.url).pathname, "../files");
     let usedStorage = 0;
     if (existsSync(filesPath)) {
       const files = fs.readdirSync(filesPath);
@@ -136,12 +136,12 @@ class Utils {
     console.warn(
       "WARNING: Your node has reached max storage, some files are getting purged. To prevent this, increase your limit at config.json or add more storage to your machine.",
     );
-    const files = fs.readdirSync(join(Deno.cwd(), "../files"));
+    const files = fs.readdirSync(join(new URL('.', import.meta.url).pathname, "../files"));
     for (const file of files) {
       if (this._config.permaFiles.includes(file)) continue;
 
-      const size = Deno.statSync(join(Deno.cwd(), "../files", file)).size;
-      Deno.remove(join(Deno.cwd(), "../files", file)).catch(console.error);
+      const size = Deno.statSync(join(new URL('.', import.meta.url).pathname, "../files", file)).size;
+      Deno.remove(join(new URL('.', import.meta.url).pathname, "../files", file)).catch(console.error);
       remainingSpace += size;
 
       if (

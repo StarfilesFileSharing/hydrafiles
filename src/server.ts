@@ -221,7 +221,7 @@ const handleRequest = async (
 
           console.log("Uploading", hash);
 
-          if (existsSync(join(Deno.cwd(), "../files", hash))) {
+          if (existsSync(join(new URL('.', import.meta.url).pathname, "../files", hash))) {
             return new Response("200 OK\n");
           }
 
@@ -229,7 +229,7 @@ const handleRequest = async (
             client.config.permaFiles.push(hash);
           }
           Deno.writeFileSync(
-            join(Deno.cwd(), "config.json"),
+            join(new URL('.', import.meta.url).pathname, "config.json"),
             new TextEncoder().encode(JSON.stringify(client.config, null, 2)),
           );
           return new Response("200 OK\n");
@@ -307,7 +307,7 @@ const onListen = (client: Hydrafiles): void => {
             "  04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f  Test Succeeded",
           );
           console.log("Announcing to nodes");
-          await client.nodes.announce();
+          client.nodes.announce();
         }
         await client.nodes.add({
           host: client.config.publicHostname,

@@ -3,9 +3,9 @@ import { existsSync } from "https://deno.land/std/fs/mod.ts";
 import { join } from "https://deno.land/std/path/mod.ts";
 
 const config = JSON.parse(
-  existsSync(join(Deno.cwd(), "../config.json"))
+  existsSync(join(new URL('.', import.meta.url).pathname, "../config.json"))
     ? new TextDecoder().decode(
-      Deno.readFileSync(join(Deno.cwd(), "../config.json")),
+      Deno.readFileSync(join(new URL('.', import.meta.url).pathname, "../config.json")),
     )
     : "{}",
 );

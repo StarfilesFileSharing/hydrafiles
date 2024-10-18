@@ -5,8 +5,8 @@ import { join } from "https://deno.land/std/path/mod.ts";
 import { existsSync } from "https://deno.land/std/fs/mod.ts";
 
 function init(config: Config): void {
-  if (!existsSync(join(Deno.cwd(), "../files"))) {
-    Deno.mkdir(join(Deno.cwd(), "../files"), { recursive: true });
+  if (!existsSync(join(new URL('.', import.meta.url).pathname, "../files"))) {
+    Deno.mkdir(join(new URL('.', import.meta.url).pathname, "../files"), { recursive: true });
   }
   if (!existsSync(NODES_PATH)) {
     Deno.writeFileSync(

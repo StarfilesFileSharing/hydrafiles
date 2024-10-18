@@ -16,7 +16,7 @@ export interface Node {
   status?: boolean;
 }
 
-export const NODES_PATH = join(Deno.cwd(), "../nodes.json");
+export const NODES_PATH = join(new URL('.', import.meta.url).pathname, "../nodes.json");
 
 export default class Nodes {
   private nodes: Node[];
@@ -235,14 +235,12 @@ export default class Nodes {
     return false;
   }
 
-  async announce(): Promise<void> {
+  announce(): void {
     for (const node of this.getNodes({ includeSelf: false })) {
       if (node.http) {
         if (node.host === this._client.config.publicHostname) continue;
         console.log("Announcing to", node.host);
-        await fetch(
-          `${node.host}/announce?host=${this._client.config.publicHostname}`,
-        );
+        fetch(`${node.host}/announce?host=${this._client.config.publicHostname}`).catch(console.error)
       }
     }
   }

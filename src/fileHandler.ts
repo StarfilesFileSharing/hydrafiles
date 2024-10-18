@@ -16,7 +16,7 @@ interface Metadata {
 
 // TODO: Log common user-agents and use the same for requests to slightly anonymise clients
 
-const FILESPATH = join(Deno.cwd(), "../files");
+const FILESPATH = join(new URL('.', import.meta.url).pathname, "../files");
 // const seeding: string[] = [];
 
 export default class FileHandler implements File {
@@ -37,12 +37,8 @@ export default class FileHandler implements File {
     let hash: string;
     if (opts.hash !== undefined) hash = opts.hash;
     else if (opts.infohash !== undefined) {
-      if (!client.utils.isValidInfoHash(opts.infohash)) {
-        throw new Error(`Invalid infohash provided: ${opts.infohash}`);
-      }
-      const file = client.FileManager.select({
-        where: { key: "infohash", value: opts.infohash },
-      })[0];
+      if (!client.utils.isValidInfoHash(opts.infohash)) throw new Error(`Invalid infohash provided: ${opts.infohash}`);
+      const file = client.FileManager.select({where: { key: "infohash", value: opts.infohash }})[0];
       if (typeof file?.hash === "string") {
         hash = file?.hash;
       } else {
@@ -271,12 +267,12 @@ export default class FileHandler implements File {
         file = await this._client.nodes.getFile(hash, this.size);
         if (file === false) {
           this.found = false;
-          await this.save();
+          this.save();
         }
       }
     }
 
-    if (file !== false) await this.seed();
+    if (file !== false) this.seed();
 
     return file;
   }

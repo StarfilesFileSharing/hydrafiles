@@ -16,7 +16,7 @@ enum State {
   Mempool = "MEMPOOL",
 }
 
-export const BLOCKSDIR = join(Deno.cwd(), "../blocks/");
+export const BLOCKSDIR = join(new URL('.', import.meta.url).pathname, "../blocks/");
 
 export class Block {
   prevBlock: string;
