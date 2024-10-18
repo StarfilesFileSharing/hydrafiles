@@ -5,12 +5,11 @@ import type WebTorrent from "npm:webtorrent";
 import init from "./init.ts";
 import getConfig, { type Config } from "./config.ts";
 import Nodes from "./nodes.ts";
-import FileHandler from "./fileHandler.ts";
+import File, { fileManager, type FileAttributes } from "./file.ts";
 import startServer, { hashLocks } from "./server.ts";
 import Utils from "./utils.ts";
 // import Blockchain, { Block } from "./block.ts";
 import { join } from "https://deno.land/std/path/mod.ts";
-import FileManager, { type File } from "./database.ts";
 
 // TODO: IDEA: HydraTorrent - New Github repo - "Hydrafiles + WebTorrent Compatibility Layer" - Hydrafiles noes can optionally run HydraTorrent to seed files via webtorrent
 // Change index hash from sha256 to infohash, then allow nodes to leech files from webtorrent + normal torrent
@@ -29,8 +28,6 @@ class Hydrafiles {
   nodes: Nodes;
   s3: S3;
   utils: Utils;
-  FileHandler = FileHandler;
-  FileManager: FileManager;
   webtorrent: WebTorrent;
   // blockchain: Blockchain;
   keyPair: Promise<CryptoKeyPair>;
@@ -51,7 +48,6 @@ class Hydrafiles {
 
     this.nodes = new Nodes(this);
 
-    this.FileManager = new FileManager();
     startServer(this);
     // this.webtorrent = new WebTorrent()
     // this.blockchain = new Blockchain(this);
@@ -80,16 +76,12 @@ class Hydrafiles {
   };
 
   backfillFiles = async (): Promise<void> => {
-    const files = this.FileManager.select({ orderBy: "RANDOM()" });
-    for (let i = 0; i < files.length; i++) {
-      const hash: string = files[i].hash;
-      console.log(`  ${hash}  Backfilling file`);
-      const file = new this.FileHandler({ hash }, this);
-      try {
-        await file.getFile({ logDownloads: false });
-      } catch (e) {
-        if (this.config.logLevel === "verbose") throw e;
-      }
+    const file = fileManager.select({ orderBy: "RANDOM()" })[0];
+    console.log(`  ${file.hash}  Backfilling file`);
+    try {
+      await file.getFile({ logDownloads: false });
+    } catch (e) {
+      if (this.config.logLevel === "verbose") throw e;
     }
     this.backfillFiles().catch(console.error);
   };
@@ -103,10 +95,10 @@ class Hydrafiles {
         "\n| Uptime: ",
         this.utils.convertTime(+new Date() - this.startTime),
         "\n| Known (Network) Files:",
-        this.FileManager.count(),
+        fileManager.count(),
         `(${
           Math.round(
-            (100 * this.FileManager.sum("size")) / 1024 / 1024 /
+            (100 * fileManager.sum("size")) / 1024 / 1024 /
               1024,
           ) / 100
         }GB)`,
@@ -124,10 +116,10 @@ class Hydrafiles {
         // '\n| Seeding Torrent Files:',
         // (await webtorrentClient()).torrents.length,
         "\n| Downloads Served:",
-        this.FileManager.sum("downloadCount") +
+        fileManager.sum("downloadCount") +
           ` (${
             Math.round(
-              (this.FileManager.sum("downloadCount * size") / 1024 / 1024 /
+              (fileManager.sum("downloadCount * size") / 1024 / 1024 /
                 1024 * 100) / 100,
             )
           }GB)`,
@@ -140,11 +132,11 @@ class Hydrafiles {
 
   search = <T>(
     where: {
-      where?: { key: keyof File; value: NonNullable<keyof File> } | undefined;
+      where?: { key: keyof FileAttributes; value: NonNullable<keyof FileAttributes> } | undefined;
       orderBy?: string;
     } | undefined,
   ): File[] => {
-    return this.FileManager.select(where);
+    return fileManager.select(where);
   };
 }
 

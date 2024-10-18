@@ -1,8 +1,7 @@
-import FileHandler from "./fileHandler.ts";
 import type Hydrafiles from "./hydrafiles.ts";
 import { existsSync } from "https://deno.land/std/fs/mod.ts";
 import { join } from "https://deno.land/std/path/mod.ts";
-import type { File } from "./database.ts"
+import File from "./file.ts"
 
 export interface Node {
   host: string;
@@ -18,6 +17,7 @@ export interface Node {
 
 export const NODES_PATH = join(new URL('.', import.meta.url).pathname, "../nodes.json");
 
+// TODO: Log common user-agents and re-use them to help anonimise non Hydrafiles nodes
 export default class Nodes {
   private nodes: Node[];
   private _client: Hydrafiles;
@@ -34,7 +34,7 @@ export default class Nodes {
         ) === "undefined" &&
       (await this.downloadFromNode(
         node,
-        new FileHandler({
+        new File({
           hash:
             "04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f",
         }, this._client),
@@ -82,7 +82,7 @@ export default class Nodes {
 
   async downloadFromNode(
     node: Node,
-    file: FileHandler,
+    file: File,
   ): Promise<{ file: Uint8Array; signal: number } | false> {
     try {
       const startTime = Date.now();
@@ -172,7 +172,7 @@ export default class Nodes {
   async validateNode(node: Node): Promise<Node> {
     const file = await this.downloadFromNode(
       node,
-      new FileHandler({
+      new File({
         hash:
           "04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f",
       }, this._client),
@@ -213,7 +213,7 @@ export default class Nodes {
       if (node.http && node.host.length > 0) {
         const promise =
           (async (): Promise<{ file: Uint8Array; signal: number } | false> => {
-            const file = new FileHandler({ hash }, this._client);
+            const file = new File({ hash }, this._client);
             let fileContent: { file: Uint8Array; signal: number } | false =
               false;
             try {
@@ -252,7 +252,7 @@ export default class Nodes {
       const files = await response.json() as File[];
       for (let i = 0; i < files.length; i++) {
         try {
-          const file = new FileHandler({
+          const file = new File({
             hash: files[i].hash,
             infohash: files[i].infohash ?? undefined,
           }, this._client);

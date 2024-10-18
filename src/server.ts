@@ -1,11 +1,10 @@
 import formidable from "npm:formidable";
 
-import FileHandler from "./fileHandler.ts";
 import type Hydrafiles from "./hydrafiles.ts";
 import { BLOCKSDIR } from "./block.ts";
 import { join } from "https://deno.land/std/path/mod.ts";
 import { existsSync } from "https://deno.land/std/fs/mod.ts";
-import type { File } from "./database.ts";
+import File, { fileManager } from "./file.ts";
 
 export const hashLocks = new Map<string, Promise<Response>>();
 
@@ -46,7 +45,7 @@ const handleRequest = async (
       if (
         await client.nodes.downloadFromNode(
           client.nodes.nodeFrom(host),
-          new FileHandler({
+          new File({
             hash:
               "04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f",
           }, client),
@@ -71,13 +70,13 @@ const handleRequest = async (
         await hashLocks.get(hash);
       }
       const processingPromise = (async () => {
-        const file = new FileHandler({ hash, infohash }, client);
+        const file = new File({ hash, infohash }, client);
 
         if (fileId.length !== 0) {
           const id = file.id;
           if (id === undefined || id === null || id.length === 0) {
             file.id = fileId;
-            await file.save();
+            file.save();
           }
         }
 
@@ -121,11 +120,13 @@ const handleRequest = async (
 
       hashLocks.set(hash, processingPromise);
 
+      let response: Response
       try {
-        await processingPromise;
+        response = await processingPromise;
       } finally {
         hashLocks.delete(hash);
       }
+      return response
     } else if (url.pathname?.startsWith("/infohash/")) {
       const infohash = url.pathname.split("/")[2];
 
@@ -136,7 +137,7 @@ const handleRequest = async (
         await hashLocks.get(infohash);
       }
       const processingPromise = (async () => {
-        const file = new FileHandler({ infohash }, client);
+        const file = new File({ infohash }, client);
 
         await file.getMetadata();
         let fileContent: { file: Uint8Array; signal: number } | false;
@@ -207,7 +208,7 @@ const handleRequest = async (
           const hash = fields.hash[0];
           const uploadedFile = files.file[0];
 
-          const file = new FileHandler({ hash }, client);
+          const file = new File({ hash }, client);
           let name = file.name;
           if (
             (name === undefined || name === null || name.length === 0) &&
@@ -236,12 +237,7 @@ const handleRequest = async (
         },
       );
     } else if (url.pathname === "/files") {
-      const rows = (client.FileManager.select()).map(
-        (row: File) => {
-          const { hash, infohash, id, name, size } = row;
-          return { hash, infohash, id, name, size };
-        },
-      );
+      const rows = fileManager.select()
       headers.set("Content-Type", "application/json");
       headers.set("Cache-Control", "public, max-age=10800");
       return new Response(JSON.stringify(rows), { headers });
@@ -293,7 +289,7 @@ const onListen = (client: Hydrafiles): void => {
         console.log("Testing connectivity");
         const response = await client.nodes.downloadFromNode(
           client.nodes.nodeFrom(`${client.config.publicHostname}`),
-          new FileHandler({
+          new File({
             hash:
               "04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f",
           }, client),

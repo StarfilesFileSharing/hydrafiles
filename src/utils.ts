@@ -6,6 +6,7 @@ import type { Config } from "./config.ts";
 import type { Receipt } from "./block.ts";
 import { existsSync } from "https://deno.land/std/fs/mod.ts";
 import { join } from "https://deno.land/std/path/mod.ts";
+import * as os from "https://deno.land/std@0.170.0/node/os.ts";
 
 type Base64 = string & { __brand: "Base64" };
 
@@ -30,9 +31,7 @@ class Utils {
     signalStrength >= 95
       ? this.getRandomNumber(90, 100)
       : Math.ceil(signalStrength * (1 - (this.getRandomNumber(0, 10) / 100)));
-  hasSufficientMemory = (fileSize: number): boolean =>
-    Deno.memoryUsage().heapUsed / Deno.memoryUsage().heapTotal >
-      (fileSize + this._config.memoryThreshold);
+  hasSufficientMemory = (fileSize: number): boolean => os.freemem() > (fileSize + this._config.memoryThreshold);
   promiseWithTimeout = async <T>(
     promise: Promise<T>,
     timeoutDuration: number,

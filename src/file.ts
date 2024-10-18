@@ -1,9 +1,8 @@
-import { Readable } from "node:stream";
-
-import type Hydrafiles from "./hydrafiles.ts";
-import { existsSync } from "https://deno.land/std/fs/mod.ts";
+import { Database } from "jsr:@db/sqlite@0.11";
 import { join } from "https://deno.land/std/path/mod.ts";
-import type { File } from "./database.ts";
+import type Hydrafiles from "./hydrafiles.ts";
+import { existsSync } from "https://deno.land/std@0.224.0/fs/exists.ts";
+import { Readable } from "node:stream";
 
 interface Metadata {
   name: string;
@@ -14,56 +13,216 @@ interface Metadata {
   infohash: string;
 }
 
-// TODO: Log common user-agents and use the same for requests to slightly anonymise clients
+export interface FileAttributes {
+  hash: string;
+  infohash: string | null;
+  downloadCount: number;
+  id: string | null;
+  name: string | null;
+  found: boolean;
+  size: number;
+}
 
 const FILESPATH = join(new URL('.', import.meta.url).pathname, "../files");
-// const seeding: string[] = [];
 
-export default class FileHandler implements File {
-  hash!: string;
-  infohash: string | null = null;
-  downloadCount = 0;
-  id: string | null = null;
-  name: string | null = null;
-  found = true;
-  size = 0;
-  createdAt!: string;
-  _client!: Hydrafiles;
+class FileManager {
+  private db: Database;
 
-  constructor(
-    opts: { hash?: string; infohash?: string },
+  constructor() {
+    console.log(join(new URL('.', import.meta.url).pathname, "../filemanager.db"))
+    console.log("Starting database connection...");
+    this.db = new Database(join(new URL('.', import.meta.url).pathname, "../filemanager.db"));
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS file (
+        hash TEXT PRIMARY KEY,
+        infohash TEXT,
+        downloadCount INTEGER DEFAULT 0,
+        id TEXT,
+        name TEXT,
+        found BOOLEAN DEFAULT 1,
+        size INTEGER DEFAULT 0,
+        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+  }
+
+  select<T extends keyof FileAttributes>(
+    opts: {
+      where?: { key: T; value: NonNullable<File[T]> };
+      orderBy?: string;
+    } = {},
+  ): File[] {
+    let query = "SELECT * FROM file";
+    const params: (string | number | boolean)[] = [];
+
+    if (opts.where) {
+      query += ` WHERE ${opts.where.key} = ?`;
+      params.push(opts.where.value);
+    }
+
+    if (opts.orderBy) {
+      query += ` ORDER BY ${opts.orderBy}`;
+    }
+
+    try {
+      const results = this.db.prepare(query).values(...params);
+      return results.map((row) => ({
+        hash: row[0],
+        infohash: row[1],
+        downloadCount: row[2],
+        id: row[3],
+        name: row[4],
+        found: row[5] === 1,
+        size: row[6],
+      })) as File[];
+    } catch (err) {
+      console.error("Error executing SELECT query:", err);
+      return [];
+    }
+  }
+
+  insert(values: Partial<FileAttributes>): File {
+    const query = `
+      INSERT INTO file (hash, infohash, downloadCount, id, name, found, size)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `;
+    if (values.hash === undefined) throw new Error('No filehash provided');
+
+    const file: FileAttributes = {
+      hash: values.hash,
+      infohash: values.infohash || null,
+      downloadCount: values.downloadCount || 0,
+      id: values.id || null,
+      name: values.name || null,
+      found: values.found !== undefined ? values.found : true,
+      size: values.size || 0
+    };
+    this.db.exec(
+      query,
+      file.hash,
+      file.infohash,
+      file.downloadCount,
+      file.id,
+      file.name,
+      file.found ? 1 : 0,
+      file.size,
+    );
+    console.log(`  ${file.hash}  File INSERTed`);
+    return this.select({ where: { key: "hash", value: file.hash } })[0];
+  }
+
+  update(hash: string, updates: Partial<FileAttributes>): void { // TODO: If row has changed
+    const currentFile = this.select({ where: { key: "hash", value: hash } })[0];
+    if (!currentFile) {
+      console.error(`File with hash ${hash} not found.`);
+      return;
+    }
+
+    const updatedColumn: string[] = [];
+    const params: (string | number | boolean)[] = [];
+
+    if (updates.infohash !== undefined && updates.infohash !== null && updates.infohash !== currentFile.infohash) {
+      updatedColumn.push("infohash");
+      params.push(updates.infohash);
+    }
+    if (updates.downloadCount !== undefined && updates.downloadCount !== currentFile.downloadCount) {
+      updatedColumn.push("downloadCount");
+      params.push(updates.downloadCount);
+    }
+    if (updates.id !== undefined && updates.id !== null && updates.id !== currentFile.id) {
+      updatedColumn.push("id");
+      params.push(updates.id);
+    }
+    if (updates.name !== undefined && updates.name !== null && updates.name !== currentFile.name) {
+      updatedColumn.push("name");
+      params.push(updates.name);
+    }
+    if (updates.found !== undefined && updates.found !== currentFile.found) {
+      updatedColumn.push("found");
+      params.push(updates.found ? 1 : 0);
+    }
+    if (updates.size !== undefined && updates.size !== currentFile.size) {
+      updatedColumn.push("size");
+      params.push(updates.size);
+    }
+    if(updatedColumn.length === 0) return;
+    params.push(hash)
+
+    const query = `UPDATE file SET ${updatedColumn.map(column => `${column} = ?`).join(", ")} WHERE hash = ?`;
+
+    this.db.prepare(query).values(params)
+    console.log(`  ${hash}  File UPDATEd - Updated Columns: ${updatedColumn.join(", ")}`);
+  }
+
+  delete(hash: string): void {
+    const query = `DELETE FROM file WHERE hash = ?`;
+
+    try {
+      this.db.exec(query, hash);
+      console.log(`${hash} File DELETEd`);
+    } catch (err) {
+      console.error("Error executing DELETE query:", err);
+    }
+  }
+
+  increment<T>(hash: string, column: string): void {
+    this.db.prepare(`UPDATE file set ${column} = ${column}+1 WHERE hash = ?`).values(hash);
+  }
+
+  count(): number {
+    return this.db.exec("SELECT COUNT(*) FROM files");
+  }
+
+  sum(column: string): number {
+    // @ts-expect-error:
+    return this.db.exec(`SELECT sum(${column}) as sum FROM files`).sum;
+  }
+}
+
+export const fileManager = new FileManager()
+
+class File implements FileAttributes {
+  hash: string;
+  infohash: string | null;
+  downloadCount: number;
+  id: string | null;
+  name: string | null;
+  found: boolean;
+  size: number;
+  _client: Hydrafiles;
+
+  constructor (
+    values: { hash?: string; infohash?: string },
     client: Hydrafiles,
   ) {
+    this._client = client;
+
     let hash: string;
-    if (opts.hash !== undefined) hash = opts.hash;
-    else if (opts.infohash !== undefined) {
-      if (!client.utils.isValidInfoHash(opts.infohash)) throw new Error(`Invalid infohash provided: ${opts.infohash}`);
-      const file = client.FileManager.select({where: { key: "infohash", value: opts.infohash }})[0];
+    if (values.hash !== undefined) hash = values.hash;
+    else if (values.infohash !== undefined) {
+      if (!this._client.utils.isValidInfoHash(values.infohash)) throw new Error(`Invalid infohash provided: ${values.infohash}`);
+      const file = fileManager.select({where: { key: "infohash", value: values.infohash }})[0];
       if (typeof file?.hash === "string") {
         hash = file?.hash;
-      } else {
-        // TODO: Check against other nodes
+      } else { // TODO: Check against other nodes
         hash = "";
       }
     } else throw new Error("No hash or infohash provided");
-    if (hash !== undefined && !client.utils.isValidSHA256Hash(hash)) {
-      throw new Error("Invalid hash provided");
-    }
+    if (hash !== undefined && !this._client.utils.isValidSHA256Hash(hash)) throw new Error("Invalid hash provided");
 
     this.hash = hash;
-    this._client = client;
 
-    const file =
-      client.FileManager.select({ where: { key: "hash", value: hash } })[0] ??
-        client.FileManager.insert(this);
-    Object.assign(this, file);
+    const file = fileManager.select({ where: { key: "hash", value: hash } })[0] ?? fileManager.insert(this);
+    this.infohash = file.infohash
+    this.downloadCount = file.downloadCount
+    this.id = file.id
+    this.name = file.name
+    this.found = file.found
+    this.size = file.size
   }
 
-  public async getMetadata(): Promise<FileHandler | false> {
-    if (
-      this.size > 0 && this.name !== undefined && this.name !== null &&
-      this.name.length > 0
-    ) return this;
+  public async getMetadata(): Promise<this | false> {
+    if (this.size > 0 && this.name !== undefined && this.name !== null && this.name.length > 0) return this;
 
     const hash = this.hash;
 
@@ -79,7 +238,7 @@ export default class FileHandler implements File {
         this.name = metadata.name;
         this.size = metadata.size;
         if (this.infohash?.length === 0) this.infohash = metadata.infohash;
-        await this.save();
+        this.save();
         return this;
       }
     }
@@ -87,7 +246,7 @@ export default class FileHandler implements File {
     const filePath = join(FILESPATH, hash);
     if (existsSync(filePath)) {
       this.size = Deno.statSync(filePath).size;
-      await this.save();
+      this.save();
       return this;
     }
 
@@ -99,7 +258,7 @@ export default class FileHandler implements File {
         });
         if (typeof data.ContentLength !== "undefined") {
           this.size = data.ContentLength;
-          await this.save();
+          this.save();
           return this;
         }
       } catch (error) {
@@ -119,7 +278,7 @@ export default class FileHandler implements File {
     if (size === 0) {
       size = file.byteLength;
       this.size = size;
-      await this.save();
+      this.save();
     }
     const remainingSpace = this._client.utils.remainingStorage();
     if (this._client.config.maxCache !== -1 && size > remainingSpace) {
@@ -144,7 +303,7 @@ export default class FileHandler implements File {
     const fileContents = Deno.readFileSync(filePath);
     const savedHash = await this._client.utils.hashUint8Array(fileContents);
     if (savedHash !== this.hash) {
-      await Deno.remove(filePath);
+      Deno.remove(filePath).catch(console.error)
       return false;
     }
     return {
@@ -229,9 +388,9 @@ export default class FileHandler implements File {
     //   return false;
     // }
     if (opts.logDownloads === undefined || opts.logDownloads) {
-      await this.increment("downloadCount");
+      this.increment("downloadCount");
     }
-    await this.save();
+    this.save();
 
     if (this.size !== 0 && !this._client.utils.hasSufficientMemory(this.size)) {
       await new Promise(() => {
@@ -278,10 +437,10 @@ export default class FileHandler implements File {
   }
 
   save(): void {
-    this._client.FileManager.update(this.hash, this);
+    fileManager.update(this.hash, this);
   }
 
-  seed(): void {
+  seed(): void { // TODO: webtorrent.add() all known files
     // if (seeding.includes(this.hash)) return;
     // seeding.push(this.hash);
     // const filePath = join(FILESPATH, this.hash);
@@ -300,8 +459,8 @@ export default class FileHandler implements File {
   }
 
   increment(column: keyof File): void {
-    this._client.FileManager.increment(this.hash, column);
+    fileManager.increment(this.hash, column);
   }
 }
 
-// TODO: webtorrent.add() all known files
+export default File;
