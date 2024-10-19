@@ -21,9 +21,21 @@ export interface FileAttributes {
   name: string | null;
   found: boolean;
   size: number;
+  voteNonce: number;
+  voteDifficulty: number;
 }
 
 const FILESPATH = join(new URL('.', import.meta.url).pathname, "../files");
+
+function addColumnIfNotExists(db: Database, tableName: string, columnName: string, columnDefinition: string): void {
+  const result = db.prepare(`SELECT COUNT(*) as count FROM pragma_table_info(?) WHERE name = ?`).value<[number]>(tableName, columnName);
+  const columnExists = result && result[0] === 1
+
+  if (!columnExists) {
+    db.exec(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${columnDefinition}`);
+    console.log(`Column '${columnName}' added to table '${tableName}'.`);
+  }
+}
 
 class FileManager {
   private db: Database;
@@ -41,9 +53,13 @@ class FileManager {
         name TEXT,
         found BOOLEAN DEFAULT 1,
         size INTEGER DEFAULT 0,
+        voteNonce REAL,
+        voteDifficulty REAL,
         createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
       )
     `);
+    addColumnIfNotExists(this.db, 'file', 'voteNonce', 'REAL');
+    addColumnIfNotExists(this.db, 'file', 'voteDifficulty', 'REAL');
   }
 
   select<T extends keyof FileAttributes>(
@@ -95,7 +111,9 @@ class FileManager {
       id: values.id || null,
       name: values.name || null,
       found: values.found !== undefined ? values.found : true,
-      size: values.size || 0
+      size: values.size || 0,
+      voteNonce: values.voteNonce || 0,
+      voteDifficulty: values.voteDifficulty || 0
     };
     this.db.exec(
       query,
@@ -189,6 +207,8 @@ class File implements FileAttributes {
   name: string | null;
   found: boolean;
   size: number;
+  voteNonce: number;
+  voteDifficulty: number;
   _client: Hydrafiles;
 
   constructor (
@@ -219,6 +239,10 @@ class File implements FileAttributes {
     this.name = file.name
     this.found = file.found
     this.size = file.size
+    this.voteNonce = file.voteNonce
+    this.voteDifficulty = file.voteDifficulty
+
+    this.vote()
   }
 
   public async getMetadata(): Promise<this | false> {
@@ -460,6 +484,19 @@ class File implements FileAttributes {
 
   increment(column: keyof File): void {
     fileManager.increment(this.hash, column);
+  }
+
+  async vote(): Promise<void> {
+    const nonce = Number(crypto.getRandomValues(new Uint32Array(1)));
+    const voteHash = await this._client.utils.hashString(this.hash + nonce);
+    const decimalValue = BigInt("0x" + voteHash).toString(10);
+    const difficulty = Number(decimalValue) / Number(BigInt("0x" + "f".repeat(64)));
+    this.voteNonce = nonce;
+    if (difficulty > this.voteDifficulty) {
+      console.log(` ${this.hash}  Found rarer difficulty`);
+      this.voteDifficulty = difficulty;
+    }
+    this.save();
   }
 }
 
