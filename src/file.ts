@@ -242,7 +242,7 @@ class File implements FileAttributes {
     this.voteNonce = file.voteNonce
     this.voteDifficulty = file.voteDifficulty
 
-    this.vote()
+    this.vote().catch(console.error)
   }
 
   public async getMetadata(): Promise<this | false> {
