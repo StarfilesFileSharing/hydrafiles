@@ -73,7 +73,7 @@ class FileManager {
         found BOOLEAN DEFAULT 1,
         size INTEGER DEFAULT 0,
         voteHash STRING,
-        voteNonce INTEGER,
+        voteNonce INTEGER DEFAULT 0,
         voteDifficulty REAL DEFAULT 0,
         createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
       )
@@ -140,7 +140,7 @@ class FileManager {
   }
 
   update(hash: string, updates: Partial<FileAttributes>): void { // TODO: If row has changed
-    const currentFile = this.select({ where: { key: "hash", value: hash } })[0];
+    const currentFile = fileAttributesDefaults(this.select({ where: { key: "hash", value: hash } })[0]);
     if (!currentFile) {
       console.error(`File with hash ${hash} not found.`);
       return;
@@ -154,6 +154,7 @@ class FileManager {
     for (let i = 0; i < keys.length; i++) {
       const key = keys[i] as keyof FileAttributes
       if (newFile[key] !== undefined && newFile[key] !== null && newFile[key] !== currentFile[key]) {
+        // console.log(key, newFile[key], currentFile[key])
         updatedColumn.push(key)
         params.push(newFile[key])
       }
@@ -164,7 +165,7 @@ class FileManager {
     const query = `UPDATE file SET ${updatedColumn.map(column => `${column} = ?`).join(", ")} WHERE hash = ?`;
 
     this.db.prepare(query).values(params)
-    console.log(`  ${hash}  File UPDATEd - Updated Columns: ${updatedColumn.join(", ")}`);
+    console.log(`  ${hash}  File UPDATEd - Updated Columns: ${updatedColumn.join(", ")}`);// - Query: ${query} - Params: ${params.join(", ")}`);
   }
 
   delete(hash: string): void {
@@ -203,8 +204,8 @@ class File implements FileAttributes {
   found: boolean;
   size: number;
   voteHash: string | null;
-  voteNonce: number;
-  voteDifficulty: number;
+  voteNonce = 0;
+  voteDifficulty = 0;
   _client: Hydrafiles;
 
   constructor (
@@ -239,6 +240,8 @@ class File implements FileAttributes {
     this.voteHash = file.voteHash
     this.voteNonce = file.voteNonce
     this.voteDifficulty = file.voteDifficulty
+
+    this.vote().catch(console.error)
   }
 
   public async getMetadata(): Promise<this | false> {
@@ -396,7 +399,6 @@ class File implements FileAttributes {
 
     const hash = this.hash;
     console.log(`  ${hash}  Getting file`);
-    await this.vote()
     // if (
     //   !this.found &&
     //   new Date(this.updatedAt) > new Date(new Date().getTime() - 5 * 60 * 1000)
@@ -484,10 +486,9 @@ class File implements FileAttributes {
     const voteHash = await this._client.utils.hashString(this.hash + nonce);
     const decimalValue = BigInt("0x" + voteHash).toString(10);
     const difficulty = Number(decimalValue) / Number(BigInt("0x" + "f".repeat(64)));
-    this.voteNonce = nonce;
-    console.log(difficulty, this.voteDifficulty)
     if (difficulty > this.voteDifficulty) {
       console.log(` ${this.hash}  Found rarer difficulty`);
+      this.voteNonce = nonce;
       this.voteHash = voteHash;
       this.voteDifficulty = difficulty;
       this.save();
