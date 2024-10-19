@@ -103,15 +103,7 @@ class FileManager {
 
     try {
       const results = this.db.prepare(query).values(...params);
-      return results.map((row) => ({
-        hash: row[0],
-        infohash: row[1],
-        downloadCount: row[2],
-        id: row[3],
-        name: row[4],
-        found: row[5] === 1,
-        size: row[6],
-      })) as File[];
+      return results as File[];
     } catch (err) {
       console.error("Error executing SELECT query:", err);
       return [];
