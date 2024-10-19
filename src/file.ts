@@ -102,17 +102,9 @@ class FileManager {
     }
 
     try {
-      const stmt = this.db.prepare(query);
-      const results = stmt.run(...params); // Execute query
-      const columns = stmt.columns().map(col => col.name); // Get column names dynamically
-    
-      return results.map((row: any) => {
-        const obj: any = {};
-        columns.forEach((col, index) => {
-          obj[col] = row[index];
-        });
-        return obj
-      });
+      const results = this.db.prepare(query).all(...params);
+      console.log(results)
+      return results as File[]
     } catch (err) {
       console.error("Error executing SELECT query:", err);
       return [];
