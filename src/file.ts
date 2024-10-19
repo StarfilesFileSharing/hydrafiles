@@ -495,8 +495,8 @@ class File implements FileAttributes {
     if (difficulty > this.voteDifficulty) {
       console.log(` ${this.hash}  Found rarer difficulty`);
       this.voteDifficulty = difficulty;
+      this.save();
     }
-    this.save();
   }
 }
 
