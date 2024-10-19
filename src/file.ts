@@ -103,7 +103,6 @@ class FileManager {
 
     try {
       const results = this.db.prepare(query).all(...params);
-      console.log(results)
       return results as File[]
     } catch (err) {
       console.error("Error executing SELECT query:", err);
