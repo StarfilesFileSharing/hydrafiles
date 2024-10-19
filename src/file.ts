@@ -1,8 +1,9 @@
+import { Readable } from "node:stream";
+
+import type Hydrafiles from "./hydrafiles.ts";
 import { Database } from "jsr:@db/sqlite@0.11";
 import { join } from "https://deno.land/std/path/mod.ts";
-import type Hydrafiles from "./hydrafiles.ts";
 import { existsSync } from "https://deno.land/std@0.224.0/fs/exists.ts";
-import { Readable } from "node:stream";
 
 interface Metadata {
   name: string;
@@ -37,6 +38,22 @@ function addColumnIfNotExists(db: Database, tableName: string, columnName: strin
   }
 }
 
+function fileAttributesDefaults (values: Partial<FileAttributes>): FileAttributes {
+  if (values.hash === undefined) throw new Error('Hash is required');
+
+  return {
+    hash: values.hash,
+    infohash: values.infohash ?? null,
+    downloadCount: values.downloadCount ?? 0,
+    id: values.id ?? null,
+    name: values.name ?? null,
+    found: values.found !== undefined ? values.found : true,
+    size: values.size ?? 0,
+    voteNonce: values.voteNonce ?? 0,
+    voteDifficulty: values.voteDifficulty ?? 0
+  };
+}
+
 class FileManager {
   private db: Database;
 
@@ -54,12 +71,12 @@ class FileManager {
         found BOOLEAN DEFAULT 1,
         size INTEGER DEFAULT 0,
         voteNonce REAL,
-        voteDifficulty REAL,
+        voteDifficulty REAL DEFAULT 0,
         createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
       )
     `);
     addColumnIfNotExists(this.db, 'file', 'voteNonce', 'REAL');
-    addColumnIfNotExists(this.db, 'file', 'voteDifficulty', 'REAL');
+    addColumnIfNotExists(this.db, 'file', 'voteDifficulty', 'REAL DEFAULT 0');
   }
 
   select<T extends keyof FileAttributes>(
@@ -102,19 +119,8 @@ class FileManager {
       INSERT INTO file (hash, infohash, downloadCount, id, name, found, size)
       VALUES (?, ?, ?, ?, ?, ?, ?)
     `;
-    if (values.hash === undefined) throw new Error('No filehash provided');
 
-    const file: FileAttributes = {
-      hash: values.hash,
-      infohash: values.infohash || null,
-      downloadCount: values.downloadCount || 0,
-      id: values.id || null,
-      name: values.name || null,
-      found: values.found !== undefined ? values.found : true,
-      size: values.size || 0,
-      voteNonce: values.voteNonce || 0,
-      voteDifficulty: values.voteDifficulty || 0
-    };
+    const file = fileAttributesDefaults(values);
     this.db.exec(
       query,
       file.hash,
@@ -139,29 +145,14 @@ class FileManager {
     const updatedColumn: string[] = [];
     const params: (string | number | boolean)[] = [];
 
-    if (updates.infohash !== undefined && updates.infohash !== null && updates.infohash !== currentFile.infohash) {
-      updatedColumn.push("infohash");
-      params.push(updates.infohash);
-    }
-    if (updates.downloadCount !== undefined && updates.downloadCount !== currentFile.downloadCount) {
-      updatedColumn.push("downloadCount");
-      params.push(updates.downloadCount);
-    }
-    if (updates.id !== undefined && updates.id !== null && updates.id !== currentFile.id) {
-      updatedColumn.push("id");
-      params.push(updates.id);
-    }
-    if (updates.name !== undefined && updates.name !== null && updates.name !== currentFile.name) {
-      updatedColumn.push("name");
-      params.push(updates.name);
-    }
-    if (updates.found !== undefined && updates.found !== currentFile.found) {
-      updatedColumn.push("found");
-      params.push(updates.found ? 1 : 0);
-    }
-    if (updates.size !== undefined && updates.size !== currentFile.size) {
-      updatedColumn.push("size");
-      params.push(updates.size);
+    const newFile = fileAttributesDefaults(updates)
+    const keys = Object.keys(newFile)
+    for (let i = 0; i < keys.length; i++) {
+      const key = keys[i] as keyof FileAttributes
+      if (newFile[key] !== undefined && newFile[key] !== null && newFile[key] !== currentFile[key]) {
+        updatedColumn.push(key)
+        params.push(newFile[key])
+      }
     }
     if(updatedColumn.length === 0) return;
     params.push(hash)
@@ -232,7 +223,8 @@ class File implements FileAttributes {
 
     this.hash = hash;
 
-    const file = fileManager.select({ where: { key: "hash", value: hash } })[0] ?? fileManager.insert(this);
+    const fileAttributes = fileManager.select({ where: { key: "hash", value: hash } })[0] ?? fileManager.insert(this);
+    const file = fileAttributesDefaults(fileAttributes);
     this.infohash = file.infohash
     this.downloadCount = file.downloadCount
     this.id = file.id
@@ -241,8 +233,6 @@ class File implements FileAttributes {
     this.size = file.size
     this.voteNonce = file.voteNonce
     this.voteDifficulty = file.voteDifficulty
-
-    this.vote().catch(console.error)
   }
 
   public async getMetadata(): Promise<this | false> {
@@ -400,10 +390,7 @@ class File implements FileAttributes {
 
     const hash = this.hash;
     console.log(`  ${hash}  Getting file`);
-    if (!this._client.utils.isValidSHA256Hash(hash)) {
-      console.log(`  ${hash}  Invalid hash`);
-      return false;
-    }
+    await this.vote()
     // if (
     //   !this.found &&
     //   new Date(this.updatedAt) > new Date(new Date().getTime() - 5 * 60 * 1000)
@@ -492,6 +479,7 @@ class File implements FileAttributes {
     const decimalValue = BigInt("0x" + voteHash).toString(10);
     const difficulty = Number(decimalValue) / Number(BigInt("0x" + "f".repeat(64)));
     this.voteNonce = nonce;
+    console.log(difficulty, this.voteDifficulty)
     if (difficulty > this.voteDifficulty) {
       console.log(` ${this.hash}  Found rarer difficulty`);
       this.voteDifficulty = difficulty;
