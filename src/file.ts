@@ -102,10 +102,17 @@ class FileManager {
     }
 
     try {
-      const results = this.db.prepare(query).values(...params);
-      return results.map((row) => {
-        return fileAttributesDefaults(row)
-      }) as File[];
+      const stmt = this.db.prepare(query);
+      const results = stmt.run(...params); // Execute query
+      const columns = stmt.columns().map(col => col.name); // Get column names dynamically
+    
+      return results.map((row: any) => {
+        const obj: any = {};
+        columns.forEach((col, index) => {
+          obj[col] = row[index];
+        });
+        return obj
+      });
     } catch (err) {
       console.error("Error executing SELECT query:", err);
       return [];
