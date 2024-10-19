@@ -22,6 +22,7 @@ export interface FileAttributes {
   name: string | null;
   found: boolean;
   size: number;
+  voteHash: string | null;
   voteNonce: number;
   voteDifficulty: number;
 }
@@ -49,6 +50,7 @@ function fileAttributesDefaults (values: Partial<FileAttributes>): FileAttribute
     name: values.name ?? null,
     found: values.found !== undefined ? values.found : true,
     size: values.size ?? 0,
+    voteHash: values.voteHash ?? null,
     voteNonce: values.voteNonce ?? 0,
     voteDifficulty: values.voteDifficulty ?? 0
   };
@@ -70,12 +72,14 @@ class FileManager {
         name TEXT,
         found BOOLEAN DEFAULT 1,
         size INTEGER DEFAULT 0,
-        voteNonce REAL,
+        voteHash STRING,
+        voteNonce INTEGER,
         voteDifficulty REAL DEFAULT 0,
         createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
       )
     `);
-    addColumnIfNotExists(this.db, 'file', 'voteNonce', 'REAL');
+    addColumnIfNotExists(this.db, 'file', 'voteHash', 'STRING');
+    addColumnIfNotExists(this.db, 'file', 'voteNonce', 'INTEGER');
     addColumnIfNotExists(this.db, 'file', 'voteDifficulty', 'REAL DEFAULT 0');
   }
 
@@ -198,6 +202,7 @@ class File implements FileAttributes {
   name: string | null;
   found: boolean;
   size: number;
+  voteHash: string | null;
   voteNonce: number;
   voteDifficulty: number;
   _client: Hydrafiles;
@@ -231,6 +236,7 @@ class File implements FileAttributes {
     this.name = file.name
     this.found = file.found
     this.size = file.size
+    this.voteHash = file.voteHash
     this.voteNonce = file.voteNonce
     this.voteDifficulty = file.voteDifficulty
   }
@@ -482,6 +488,7 @@ class File implements FileAttributes {
     console.log(difficulty, this.voteDifficulty)
     if (difficulty > this.voteDifficulty) {
       console.log(` ${this.hash}  Found rarer difficulty`);
+      this.voteHash = voteHash;
       this.voteDifficulty = difficulty;
       this.save();
     }
