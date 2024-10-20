@@ -171,17 +171,17 @@ class FileManager {
     }
   }
 
-  increment<T>(hash: string, column: string): void {
+  increment<T>(hash: string, column: keyof FileAttributes): void {
     this.db.prepare(`UPDATE file set ${column} = ${column}+1 WHERE hash = ?`).values(hash);
   }
 
   count(): number {
-    return this.db.exec("SELECT COUNT(*) FROM files");
+    return this.db.exec("SELECT COUNT(*) FROM file");
   }
 
   sum(column: string): number {
-    // @ts-expect-error:
-    return this.db.exec(`SELECT sum(${column}) as sum FROM files`).sum;
+    const result = this.db.prepare(`SELECT SUM(${column}) as sum FROM file`).value() as number[];
+    return result === undefined ? 0 : result[0];
   }
 }
 
@@ -469,8 +469,9 @@ class File implements FileAttributes {
     // });
   }
 
-  increment(column: keyof File): void {
+  increment(column: keyof FileAttributes): void {
     fileManager.increment(this.hash, column);
+    this[column]++;
   }
 
   async vote(): Promise<void> {
@@ -479,7 +480,6 @@ class File implements FileAttributes {
     const decimalValue = BigInt("0x" + voteHash).toString(10);
     const difficulty = Number(decimalValue) / Number(BigInt("0x" + "f".repeat(64)));
     if (difficulty > this.voteDifficulty) {
-      console.log(` ${this.hash}  Found rarer difficulty`);
       this.voteNonce = nonce;
       this.voteHash = voteHash;
       this.voteDifficulty = difficulty;
