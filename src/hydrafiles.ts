@@ -53,8 +53,8 @@ class Hydrafiles {
     // this.blockchain = new Blockchain(this);
 
     if (this.config.summarySpeed !== -1) {
-      // this.logState();
-      // setInterval(this.logState, this.config.summarySpeed);
+      this.logState();
+      setInterval(() => { this.logState() }, this.config.summarySpeed);
     }
 
     if (this.config.compareSpeed !== -1) {
