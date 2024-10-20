@@ -14,7 +14,7 @@
 
 ## Popular Nodes
 
-Please send a Pull Request to get your node listed here.
+**We are looking for bootstrap nodes:** Hydrafiles is a new project. To improve availability and reduce downtime, we are looking for additional bootstrap nodes. If you use or plan to use Hydrafiles in production and are running a Hydrafiles node, send a PR and we'd love to add you as a boostrap node!
 
 - https://hydrafiles.com
 - https://hydra.starfiles.co
