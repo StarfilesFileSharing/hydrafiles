@@ -12,7 +12,7 @@
   If you're a developer, you can check our issues for ideas on how to help. Otherwise, check <a href="#contribute-to-hydrafiles">here</a> on how else you can contribute.
 </p>
 
-## Popular Nodes
+## Boostrap Nodes
 
 **We are looking for bootstrap nodes:** Hydrafiles is a new project. To improve availability and reduce downtime, we are looking for additional bootstrap nodes. If you use or plan to use Hydrafiles in production and are running a Hydrafiles node, send a PR and we'd love to add you as a boostrap node!
 
