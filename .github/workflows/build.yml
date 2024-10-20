@@ -38,15 +38,8 @@ jobs:
           if [[ $GITHUB_EVENT_NAME == "pull_request" ]]; then
             pr_title="${{ github.event.pull_request.title }}"
             echo "PR Title: $pr_title"
-            # Sanitize the title to ensure it is a valid tag
-            pr_title=$(echo "$pr_title" | tr -cd '[:alnum:]._-')
-            echo "Sanitized PR Title: $pr_title"
             echo "version=$pr_title" >> $GITHUB_ENV
           fi
-
-      - name: Debug PR Version
-        run: |
-          echo "Version for Release: ${{ env.version }}"
 
       - name: Create GitHub Release
         uses: ncipollo/release-action@v1
@@ -54,12 +47,5 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           name: Release ${{ env.version }}
           tag: ${{ env.version }}
-          artifacts: "./release/your_app"
+          artifacts: "./release/hydrafiles"
           allowUpdates: true
-
-      - name: Push New Tag
-        run: |
-          new_version=$(cat next_version.txt)
-          git tag $new_version
-          git push origin $new_version
-
