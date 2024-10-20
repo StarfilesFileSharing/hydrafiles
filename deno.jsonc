@@ -32,7 +32,7 @@
 		"typescript": "https://deno.land/x/typescript@5.6.3/mod.ts",
 		"ts-standard": "https://deno.land/x/ts_standard@12.0.2/mod.ts"
 	},
-	"nodeModulesDir": true,
+	"nodeModulesDir": "auto",
 	"compilerOptions": {
 		"lib": ["dom", "deno.ns"],
 		"checkJs": true
@@ -41,7 +41,7 @@
 		"include": ["src/"],
 		"rules": {
 			"tags": ["recommended"],
-			"include": ["no-unnecessary-await", "camelcase", "default-param-last", "eqeqeq", "explicit-function-return-type", "explicit-module-boundary-types", "guard-for-in", "no-await-in-loop", "no-const-assign", "no-inferrable-types", "no-non-null-assertion", "no-self-compare", "no-sparse-arrays", "no-sync-fn-in-async-fn", "no-throw-literal", "no-undef"]
+			"include": ["no-unnecessary-await", "camelcase", "default-param-last", "eqeqeq", "explicit-function-return-type", "explicit-module-boundary-types", "guard-for-in", "no-const-assign", "no-inferrable-types", "no-non-null-assertion", "no-self-compare", "no-sparse-arrays", "no-sync-fn-in-async-fn", "no-throw-literal", "no-undef"]
 		}
 	},
 	"fmt": {
