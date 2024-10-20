@@ -32,7 +32,7 @@
 		"typescript": "https://deno.land/x/typescript@5.6.3/mod.ts",
 		"ts-standard": "https://deno.land/x/ts_standard@12.0.2/mod.ts"
 	},
-	"nodeModulesDir": "auto",
+	"nodeModulesDir": true,
 	"compilerOptions": {
 		"lib": ["dom", "deno.ns"],
 		"checkJs": true
