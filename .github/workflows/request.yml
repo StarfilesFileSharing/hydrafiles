@@ -41,6 +41,9 @@ jobs:
             echo "version=default-version" >> $GITHUB_ENV
           fi
 
+      - name: log
+        run: echo  "Version ${{ env.version }}"
+
       - name: Create Tag
         run: |
           git config user.name "github-actions"
