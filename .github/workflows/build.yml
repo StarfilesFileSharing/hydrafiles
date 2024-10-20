@@ -32,50 +32,22 @@ jobs:
           name: compiled-app
           path: ./release/
 
-      - name: Get Latest Release Tag
-        id: get_latest_release
+      - name: Get PR Title
+        id: get_pr_title
         run: |
-          latest_tag=$(git tag --sort=-v:refname | head -n 1)
-          echo "Latest tag: $latest_tag"
-          if [[ -z "$latest_tag" ]]; then
-            echo "No tags found. Starting with v0.1.0"
-            echo "v0.1.0" > latest_version.txt
-          else
-            echo "$latest_tag" > latest_version.txt
+          if [[ $GITHUB_EVENT_NAME == "pull_request" ]]; then
+            pr_title="${{ github.event.pull_request.title }}"
+            echo "PR Title: $pr_title"
+            echo "version=$pr_title" >> $GITHUB_ENV
           fi
-
-      - name: Calculate Next Version
-        id: next_version
-        run: |
-          latest_version=$(cat latest_version.txt)
-          echo "Latest version: $latest_version"
-          
-          # Extract the major, minor, and patch versions
-          version_regex="^v([0-9]+)\.([0-9]+)\.([0-9]+)$"
-          if [[ $latest_version =~ $version_regex ]]; then
-            major="${BASH_REMATCH[1]}"
-            minor="${BASH_REMATCH[2]}"
-            patch="${BASH_REMATCH[3]}"
-          else
-            major=0
-            minor=0
-            patch=0
-          fi
-          
-          # Increment the minor version (for example)
-          new_minor=$((minor + 1))
-          new_version="v${major}.${new_minor}.0"
-          
-          echo "Next version: $new_version"
-          echo $new_version > next_version.txt
 
       - name: Create GitHub Release
         uses: ncipollo/release-action@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          name: Release ${{ steps.next_version.outputs.new_version }}
-          tag: ${{ steps.next_version.outputs.new_version }}
-          artifacts: "./release/hydrafiles"
+          name: Release ${{ env.version }}
+          tag: ${{ env.version }}
+          artifacts: "./release/your_app"
           allowUpdates: true
 
       - name: Push New Tag
