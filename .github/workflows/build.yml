@@ -1,9 +1,6 @@
 name: Deno Compile Workflow
 
 on:
-  push:
-    branches:
-      - main
   pull_request:
     branches:
       - main
@@ -23,3 +20,65 @@ jobs:
 
       - name: Compile TypeScript file with Deno
         run: deno run build
+
+      - name: Archive Build Artifact
+        run: |
+          mkdir -p release
+          mv ./start ./release/hydrafiles
+
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: compiled-app
+          path: ./release/
+
+      - name: Get Latest Release Tag
+        id: get_latest_release
+        run: |
+          latest_tag=$(git describe --tags --abbrev=0)
+          echo "Latest tag: $latest_tag"
+          if [[ -z "$latest_tag" ]]; then
+            echo "v0.0.0" > latest_version.txt
+          else
+            echo "$latest_tag" > latest_version.txt
+          fi
+
+      - name: Calculate Next Version
+        id: next_version
+        run: |
+          latest_version=$(cat latest_version.txt)
+          echo "Latest version: $latest_version"
+          
+          # Extract the major, minor, and patch versions
+          version_regex="^v([0-9]+)\.([0-9]+)\.([0-9]+)$"
+          if [[ $latest_version =~ $version_regex ]]; then
+            major="${BASH_REMATCH[1]}"
+            minor="${BASH_REMATCH[2]}"
+            patch="${BASH_REMATCH[3]}"
+          else
+            major=0
+            minor=0
+            patch=0
+          fi
+          
+          # Increment the minor version (for example)
+          new_minor=$((minor + 1))
+          new_version="v${major}.${new_minor}.0"
+          
+          echo "Next version: $new_version"
+          echo $new_version > next_version.txt
+
+      - name: Create GitHub Release
+        uses: ncipollo/release-action@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          name: Release ${{ steps.next_version.outputs.new_version }}
+          tag: ${{ steps.next_version.outputs.new_version }}
+          artifacts: "./release/hydrafiles"
+          allowUpdates: true
+
+      - name: Push New Tag
+        run: |
+          new_version=$(cat next_version.txt)
+          git tag $new_version
+          git push origin $new_version
