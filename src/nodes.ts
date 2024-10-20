@@ -260,6 +260,7 @@ export default class Nodes {
         const keys = Object.keys(newFile) as unknown as (keyof File)[]
         for (let i = 0; i < keys.length; i++) {
           const key = keys[i] as keyof FileAttributes
+          if (key === "downloadCount") continue
           if (newFile[key] !== undefined && newFile[key] !== null && newFile[key] !== 0 && (currentFile[key] === undefined || currentFile[key] === null || currentFile[key] === 0)) {
             currentFile[key] = newFile[key]
           }
