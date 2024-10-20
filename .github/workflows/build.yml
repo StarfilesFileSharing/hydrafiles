@@ -1,4 +1,4 @@
-name: Deno Compile Workflow
+name: Release
 
 on:
   push:
@@ -32,13 +32,13 @@ jobs:
           name: compiled-app
           path: ./release/
 
-      - name: Get PR Title
-        id: get_pr_title
+      - name: Get Version Number
+        id: get_version
         run: |
-          if [[ $GITHUB_EVENT_NAME == "pull_request" ]]; then
-            pr_title="${{ github.event.pull_request.title }}"
-            echo "PR Title: $pr_title"
-            echo "version=$pr_title" >> $GITHUB_ENV
+          if [[ "${{ github.event.pull_request }}" != "null" ]]; then
+            echo "version=${{ github.event.pull_request.title }}" >> $GITHUB_ENV
+          else
+            echo "version=default-version" >> $GITHUB_ENV
           fi
 
       - name: Create Tag
