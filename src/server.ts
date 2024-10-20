@@ -4,7 +4,7 @@ import type Hydrafiles from "./hydrafiles.ts";
 import { BLOCKSDIR } from "./block.ts";
 import { join } from "https://deno.land/std/path/mod.ts";
 import { existsSync } from "https://deno.land/std/fs/mod.ts";
-import File, { fileManager } from "./file.ts";
+import File from "./file.ts";
 
 export const hashLocks = new Map<string, Promise<Response>>();
 
@@ -237,7 +237,7 @@ const handleRequest = async (
         },
       );
     } else if (url.pathname === "/files") {
-      const rows = fileManager.select()
+      const rows = client.fileManager.select()
       headers.set("Content-Type", "application/json");
       headers.set("Cache-Control", "public, max-age=10800");
       return new Response(JSON.stringify(rows), { headers });

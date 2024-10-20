@@ -56,10 +56,12 @@ function fileAttributesDefaults (values: Partial<FileAttributes>): FileAttribute
   };
 }
 
-class FileManager {
+export class FileManager {
   private db: Database;
+  private _client: Hydrafiles;
 
-  constructor() {
+  constructor(client: Hydrafiles) {
+    this._client = client;
     console.log(join(new URL('.', import.meta.url).pathname, "../filemanager.db"))
     console.log("Starting database connection...");
     this.db = new Database(join(new URL('.', import.meta.url).pathname, "../filemanager.db"));
@@ -157,7 +159,7 @@ class FileManager {
     const query = `UPDATE file SET ${updatedColumn.map(column => `${column} = ?`).join(", ")} WHERE hash = ?`;
 
     this.db.prepare(query).values(params)
-    console.log(`  ${hash}  File UPDATEd - Updated Columns: ${updatedColumn.join(", ")}`);// - Query: ${query} - Params: ${params.join(", ")}`);
+    console.log(`  ${hash}  File UPDATEd - Updated Columns: ${updatedColumn.join(", ")}` + (this._client.config.logLevel === 'verbose' ? ` - Query: ${query} - Params: ${params.join(", ")}` : ''));
   }
 
   delete(hash: string): void {
@@ -185,8 +187,6 @@ class FileManager {
   }
 }
 
-export const fileManager = new FileManager()
-
 class File implements FileAttributes {
   hash: string;
   infohash: string | null;
@@ -210,7 +210,7 @@ class File implements FileAttributes {
     if (values.hash !== undefined) hash = values.hash;
     else if (values.infohash !== undefined) {
       if (!this._client.utils.isValidInfoHash(values.infohash)) throw new Error(`Invalid infohash provided: ${values.infohash}`);
-      const file = fileManager.select({where: { key: "infohash", value: values.infohash }})[0];
+      const file = this._client.fileManager.select({where: { key: "infohash", value: values.infohash }})[0];
       if (typeof file?.hash === "string") {
         hash = file?.hash;
       } else { // TODO: Check against other nodes
@@ -221,7 +221,7 @@ class File implements FileAttributes {
 
     this.hash = hash;
 
-    const fileAttributes = fileManager.select({ where: { key: "hash", value: hash } })[0] ?? fileManager.insert(this);
+    const fileAttributes = this._client.fileManager.select({ where: { key: "hash", value: hash } })[0] ?? this._client.fileManager.insert(this);
     const file = fileAttributesDefaults(fileAttributes);
     this.infohash = file.infohash
     this.downloadCount = file.downloadCount
@@ -448,7 +448,7 @@ class File implements FileAttributes {
   }
 
   save(): void {
-    fileManager.update(this.hash, this);
+    this._client.fileManager.update(this.hash, this);
   }
 
   seed(): void { // TODO: webtorrent.add() all known files
@@ -470,7 +470,7 @@ class File implements FileAttributes {
   }
 
   increment(column: keyof FileAttributes): void {
-    fileManager.increment(this.hash, column);
+    this._client.fileManager.increment(this.hash, column);
     this[column]++;
   }
 
@@ -480,6 +480,7 @@ class File implements FileAttributes {
     const decimalValue = BigInt("0x" + voteHash).toString(10);
     const difficulty = Number(decimalValue) / Number(BigInt("0x" + "f".repeat(64)));
     if (difficulty > this.voteDifficulty) {
+      console.log(`  ${this.hash}  Found Difficulty ${difficulty}`);
       this.voteNonce = nonce;
       this.voteHash = voteHash;
       this.voteDifficulty = difficulty;

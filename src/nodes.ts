@@ -1,7 +1,7 @@
 import type Hydrafiles from "./hydrafiles.ts";
 import { existsSync } from "https://deno.land/std/fs/mod.ts";
 import { join } from "https://deno.land/std/path/mod.ts";
-import File from "./file.ts"
+import File, { type FileAttributes } from "./file.ts"
 
 export interface Node {
   host: string;
@@ -251,25 +251,21 @@ export default class Nodes {
       const response = await fetch(`${node.host}/files`);
       const files = await response.json() as File[];
       for (let i = 0; i < files.length; i++) {
-        try {
-          const file = new File({
-            hash: files[i].hash,
-            infohash: files[i].infohash ?? undefined,
-          }, this._client);
-          if (file.infohash?.length === 0 && files[i].infohash?.length !== 0) {
-            file.infohash = files[i].infohash;
+        const newFile = files[i];
+        const currentFile = new File({
+          hash: files[i].hash,
+          infohash: files[i].infohash ?? undefined,
+        }, this._client);
+
+        const keys = Object.keys(newFile) as unknown as (keyof File)[]
+        for (let i = 0; i < keys.length; i++) {
+          const key = keys[i] as keyof FileAttributes
+          if (newFile[key] !== undefined && newFile[key] !== null && newFile[key] !== 0 && (currentFile[key] === undefined || currentFile[key] === null || currentFile[key] === 0)) {
+            currentFile[key] = newFile[key]
           }
-          if (file.id?.length === 0 && files[i].id?.length !== 0) {
-            file.id = files[i].id;
-          }
-          if (file.name?.length === 0 && files[i].name?.length !== 0) {
-            file.name = files[i].name;
-          }
-          if (file.size === 0 && files[i].size !== 0) file.size = files[i].size;
-          file.save();
-        } catch (e) {
-          console.error(e);
         }
+
+        currentFile.save();
       }
     } catch (e) {
       const err = e as { message: string };

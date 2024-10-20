@@ -5,7 +5,7 @@ import type WebTorrent from "npm:webtorrent";
 import init from "./init.ts";
 import getConfig, { type Config } from "./config.ts";
 import Nodes from "./nodes.ts";
-import File, { fileManager, type FileAttributes } from "./file.ts";
+import File, { FileManager, type FileAttributes } from "./file.ts";
 import startServer, { hashLocks } from "./server.ts";
 import Utils from "./utils.ts";
 // import Blockchain, { Block } from "./block.ts";
@@ -31,6 +31,7 @@ class Hydrafiles {
   webtorrent: WebTorrent;
   // blockchain: Blockchain;
   keyPair: Promise<CryptoKeyPair>;
+  fileManager = new FileManager(this);
   constructor(customConfig: Partial<Config> = {}) {
     this.startTime = +new Date();
     this.config = getConfig(customConfig);
@@ -76,7 +77,7 @@ class Hydrafiles {
   };
 
   backfillFiles = async (): Promise<void> => {
-    const file = fileManager.select({ orderBy: "RANDOM()" })[0];
+    const file = this.fileManager.select({ orderBy: "RANDOM()" })[0];
     console.log(`  ${file.hash}  Backfilling file`);
     try {
       await file.getFile({ logDownloads: false });
@@ -95,10 +96,10 @@ class Hydrafiles {
         "\n| Uptime: ",
         this.utils.convertTime(+new Date() - this.startTime),
         "\n| Known (Network) Files:",
-        fileManager.count(),
+        this.fileManager.count(),
         `(${
           Math.round(
-            (100 * fileManager.sum("size")) / 1024 / 1024 /
+            (100 * this.fileManager.sum("size")) / 1024 / 1024 /
               1024,
           ) / 100
         }GB)`,
@@ -116,10 +117,10 @@ class Hydrafiles {
         // '\n| Seeding Torrent Files:',
         // (await webtorrentClient()).torrents.length,
         "\n| Downloads Served:",
-        fileManager.sum("downloadCount") +
+        this.fileManager.sum("downloadCount") +
           ` (${
             Math.round(
-              (fileManager.sum("downloadCount * size") / 1024 / 1024 /
+              (this.fileManager.sum("downloadCount * size") / 1024 / 1024 /
                 1024 * 100) / 100,
             )
           }GB)`,
@@ -136,7 +137,7 @@ class Hydrafiles {
       orderBy?: string;
     } | undefined,
   ): File[] => {
-    return fileManager.select(where);
+    return this.fileManager.select(where);
   };
 }
 
