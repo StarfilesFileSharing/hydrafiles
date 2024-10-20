@@ -41,10 +41,17 @@ jobs:
             echo "version=$pr_title" >> $GITHUB_ENV
           fi
 
+      - name: Create Tag
+        uses: laputansoft/github-tag-action@v4.6
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          tag: ${{ env.version }}
+
       - name: Create GitHub Release
         uses: ncipollo/release-action@v1
         with:
           name: Release ${{ env.version }}
           tag: ${{ env.version }}
+          token: ${{ secrets.GITHUB_TOKEN }}
           artifacts: "./release/hydrafiles"
           allowUpdates: true
