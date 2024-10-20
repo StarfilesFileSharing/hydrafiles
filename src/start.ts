@@ -1,14 +1,7 @@
 import Hydrafiles from "./hydrafiles.ts";
-import { existsSync } from "https://deno.land/std/fs/mod.ts";
-import { join } from "https://deno.land/std/path/mod.ts";
+import fs from "node:fs";
 
-const config = JSON.parse(
-  existsSync(join(new URL('.', import.meta.url).pathname, "../config.json"))
-    ? new TextDecoder().decode(
-      Deno.readFileSync(join(new URL('.', import.meta.url).pathname, "../config.json")),
-    )
-    : "{}",
-);
+const config = JSON.parse(fs.existsSync("config.json") ? new TextDecoder().decode(Deno.readFileSync("config.json")) : "{}");
 
 const hydrafiles = new Hydrafiles(config);
 console.log("Hydrafiles Started", hydrafiles);

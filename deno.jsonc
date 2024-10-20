@@ -1,5 +1,5 @@
 {
-	"name": "hydrafiles",
+	"name": "@starfiles/hydrafiles",
 	"version": "0.1.0",
 	"description": "The headless storage network.",
 	"main": "src/hydrafiles.ts",
@@ -24,9 +24,9 @@
 		"sqlite3": "npm:sqlite3@^5.1.7"
 	},
 	"tasks": {
-		"start": "deno run --allow-read --allow-env --allow-net --allow-sys --allow-ffi --allow-write --allow-run --allow-import src/start.ts",
+		"start": "./start",
 		"dev": "deno run --watch-hmr --unstable --allow-read --allow-env --allow-net --allow-sys --allow-ffi --allow-write --allow-run --allow-import src/start.ts",
-		"build": "deno fmt --ignore='public/*.html' && deno lint" // && deno compile --allow-read --allow-env --allow-net --allow-sys --allow-ffi --allow-write --allow-run --allow-import src/start.ts"
+		"build": "deno fmt && deno lint && deno compile --allow-env --allow-read --allow-import --allow-write --allow-ffi --allow-net --allow-sys src/start.ts"
 	},
 	"devDependencies": {
 		"typescript": "https://deno.land/x/typescript@5.6.3/mod.ts",
@@ -37,11 +37,17 @@
 		"lib": ["dom", "deno.ns"],
 		"checkJs": true
 	},
-  	"lint": {
+	"lint": {
 		"include": ["src/"],
 		"rules": {
 			"tags": ["recommended"],
 			"include": ["no-unnecessary-await", "camelcase", "default-param-last", "eqeqeq", "explicit-function-return-type", "explicit-module-boundary-types", "guard-for-in", "no-await-in-loop", "no-const-assign", "no-inferrable-types", "no-non-null-assertion", "no-self-compare", "no-sparse-arrays", "no-sync-fn-in-async-fn", "no-throw-literal", "no-undef"]
 		}
-  	}
+	},
+	"fmt": {
+		"exclude": ["public/*.html"],
+		"lineWidth": 240,
+		"semiColons": true,
+		"useTabs": true
+	}
 }

@@ -4994,6 +4994,11 @@
     "https://deno.land/std@0.170.0/path/separator.ts": "fe1816cb765a8068afb3e8f13ad272351c85cbc739af56dacfc7d93d710fe0f9",
     "https://deno.land/std@0.170.0/path/win32.ts": "7cebd2bda6657371adc00061a1d23fdd87bcdf64b4843bb148b0b24c11b40f69",
     "https://deno.land/std@0.170.0/streams/write_all.ts": "7525aa90e34a2bb56d094403ad9c0e31e7db87a47cb556e6dc0404e6deca084c",
+    "https://deno.land/std@0.215.0/assert/assert.ts": "bec068b2fccdd434c138a555b19a2c2393b71dfaada02b7d568a01541e67cdc5",
+    "https://deno.land/std@0.215.0/assert/assertion_error.ts": "9f689a101ee586c4ce92f52fa7ddd362e86434ffdf1f848e45987dc7689976b8",
+    "https://deno.land/std@0.215.0/bytes/copy.ts": "f29c03168853720dfe82eaa57793d0b9e3543ebfe5306684182f0f1e3bfd422a",
+    "https://deno.land/std@0.215.0/io/buffer.ts": "4d1f805f350433e418002accec798bc6c33ce18f614afa65f987c202d7b2234e",
+    "https://deno.land/std@0.215.0/io/types.ts": "748bbb3ac96abda03594ef5a0db15ce5450dcc6c0d841c8906f8b10ac8d32c96",
     "https://deno.land/std@0.224.0/assert/assert.ts": "09d30564c09de846855b7b071e62b5974b001bb72a4b797958fe0660e7849834",
     "https://deno.land/std@0.224.0/assert/assertion_error.ts": "ba8752bd27ebc51f723702fac2f54d3e94447598f54264a6653d6413738a8917",
     "https://deno.land/std@0.224.0/fs/_create_walk_entry.ts": "5d9d2aaec05bcf09a06748b1684224d33eba7a4de24cf4cf5599991ca6b5b412",
@@ -5089,7 +5094,16 @@
     "https://deno.land/std@0.224.0/path/windows/relative.ts": "3e1abc7977ee6cc0db2730d1f9cb38be87b0ce4806759d271a70e4997fc638d7",
     "https://deno.land/std@0.224.0/path/windows/resolve.ts": "8dae1dadfed9d46ff46cc337c9525c0c7d959fb400a6308f34595c45bdca1972",
     "https://deno.land/std@0.224.0/path/windows/to_file_url.ts": "40e560ee4854fe5a3d4d12976cef2f4e8914125c81b11f1108e127934ced502e",
-    "https://deno.land/std@0.224.0/path/windows/to_namespaced_path.ts": "4ffa4fb6fae321448d5fe810b3ca741d84df4d7897e61ee29be961a6aac89a4c"
+    "https://deno.land/std@0.224.0/path/windows/to_namespaced_path.ts": "4ffa4fb6fae321448d5fe810b3ca741d84df4d7897e61ee29be961a6aac89a4c",
+    "https://deno.land/x/s3_lite_client@0.7.0/client.ts": "5acd15f2e231a7cac8a706b7157b71c9b551a760ddcce85679d3fe5d51b0dbd1",
+    "https://deno.land/x/s3_lite_client@0.7.0/deps.ts": "ca6bc4f12c4ce4161f6390a17ed0800b541062ad6a43072c487ec1e004c410e6",
+    "https://deno.land/x/s3_lite_client@0.7.0/errors.ts": "3dd431b0e96f346104d7be6c09e1659b5c360992e6487e35bacb881f10c5a5bf",
+    "https://deno.land/x/s3_lite_client@0.7.0/helpers.ts": "6ba450312f54873805390cc7a11e61a7886dc00633f2ed20d941606568527332",
+    "https://deno.land/x/s3_lite_client@0.7.0/mod.ts": "4a896cad948ae36e35a5025eff92a97366059fe8e01bb109df3889666c88bd1d",
+    "https://deno.land/x/s3_lite_client@0.7.0/object-uploader.ts": "b4bad0d771d79b2bb23b8cab0e6f7be85a2390e18957c612fd5cda11c39f55b0",
+    "https://deno.land/x/s3_lite_client@0.7.0/signing.ts": "2ba77aac07a7c94267e83d285bbd33fdb3253dfa32b035df62479d6b224bb748",
+    "https://deno.land/x/s3_lite_client@0.7.0/transform-chunk-sizes.ts": "cecc1167ba366d086a13c754be6ed86717d6b0b27c779c4c766621435a697045",
+    "https://deno.land/x/s3_lite_client@0.7.0/xml-parser.ts": "de925493369718cab6f26413fbbada18eec74aa6eaf0598d77c7296f5fdfd8a9"
   },
   "workspace": {
     "dependencies": [

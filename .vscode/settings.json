@@ -6,5 +6,6 @@
 	"typescript.tsdk": null,
 	"[typescript]": {
 		"editor.defaultFormatter": "denoland.vscode-deno"
-	}
+	},
+	"editor.formatOnSave": true
 }
