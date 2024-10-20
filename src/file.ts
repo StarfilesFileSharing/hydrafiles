@@ -474,8 +474,7 @@ class File implements FileAttributes {
     this[column]++;
   }
 
-  async vote(): Promise<void> {
-    const nonce = Number(crypto.getRandomValues(new Uint32Array(1)));
+  async checkVoteNonce(nonce: number): Promise<void> {
     const voteHash = await this._client.utils.hashString(this.hash + nonce);
     const decimalValue = BigInt("0x" + voteHash).toString(10);
     const difficulty = Number(decimalValue) / Number(BigInt("0x" + "f".repeat(64)));
@@ -486,6 +485,11 @@ class File implements FileAttributes {
       this.voteDifficulty = difficulty;
       this.save();
     }
+  }
+
+  async vote(): Promise<void> {
+    const nonce = Number(crypto.getRandomValues(new Uint32Array(1)));
+    await this.checkVoteNonce(nonce)
   }
 }
 
