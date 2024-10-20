@@ -35,10 +35,11 @@ jobs:
       - name: Get Latest Release Tag
         id: get_latest_release
         run: |
-          latest_tag=$(git describe --tags --abbrev=0)
+          latest_tag=$(git tag --sort=-v:refname | head -n 1)
           echo "Latest tag: $latest_tag"
           if [[ -z "$latest_tag" ]]; then
-            echo "v0.0.0" > latest_version.txt
+            echo "No tags found. Starting with v0.1.0"
+            echo "v0.1.0" > latest_version.txt
           else
             echo "$latest_tag" > latest_version.txt
           fi
