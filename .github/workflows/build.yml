@@ -42,10 +42,11 @@ jobs:
           fi
 
       - name: Create Tag
-        uses: laputansoft/github-tag-action@v4.6
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          tag: ${{ env.version }}
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git tag ${{ env.version }}
+          git push origin ${{ env.version }}
 
       - name: Create GitHub Release
         uses: ncipollo/release-action@v1
