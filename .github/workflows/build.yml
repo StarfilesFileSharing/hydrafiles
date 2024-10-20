@@ -1,7 +1,7 @@
 name: Deno Compile Workflow
 
 on:
-  pull_request:
+  push:
     branches:
       - main
 
@@ -44,7 +44,6 @@ jobs:
       - name: Create GitHub Release
         uses: ncipollo/release-action@v1
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
           name: Release ${{ env.version }}
           tag: ${{ env.version }}
           artifacts: "./release/hydrafiles"
