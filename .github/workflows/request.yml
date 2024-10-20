@@ -35,11 +35,7 @@ jobs:
       - name: Get Version Number
         id: get_version
         run: |
-          if [[ "${{ github.event.pull_request }}" != "null" ]]; then
-            echo "version=${{ github.event.pull_request.title }}" >> $GITHUB_ENV
-          else
-            echo "version=default-version" >> $GITHUB_ENV
-          fi
+          echo "version=${{ github.event.head_commit.message }}" >> $GITHUB_ENV
 
       - name: log
         run: echo  "Version ${{ env.version }}"
