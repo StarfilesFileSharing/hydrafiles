@@ -1,6 +1,6 @@
 {
 	"name": "@starfiles/hydrafiles",
-	"version": "0.1.4",
+	"version": "0.1.5",
 	"description": "The headless storage network.",
 	"main": "src/hydrafiles.ts",
 	"exports": {
@@ -18,9 +18,6 @@
 	},
 	"homepage": "https://github.com/StarfilesFileSharing/Hydrafiles#readme",
 	"type": "module",
-	"imports": {
-		"formidable": "npm:formidable@^3.5.1"
-	},
 	"tasks": {
 		"start": "deno run --allow-read --allow-env --allow-net --allow-sys --allow-ffi --allow-write --allow-import src/start.ts",
 		"dev": "deno run --watch-hmr --unstable --allow-read --allow-env --allow-net --allow-sys --allow-ffi --allow-write --allow-import src/start.ts",
@@ -45,7 +42,7 @@
 		"include": ["src/"],
 		"rules": {
 			"tags": ["recommended"],
-			"include": ["no-unnecessary-await", "camelcase", "default-param-last", "eqeqeq", "explicit-function-return-type", "explicit-module-boundary-types", "guard-for-in", "no-const-assign", "no-inferrable-types", "no-non-null-assertion", "no-self-compare", "no-sparse-arrays", "no-sync-fn-in-async-fn", "no-throw-literal", "no-undef"]
+			"include": ["camelcase", "default-param-last", "eqeqeq", "explicit-function-return-type", "explicit-module-boundary-types", "guard-for-in", "no-const-assign", "no-inferrable-types", "no-non-null-assertion", "no-self-compare", "no-sparse-arrays", "no-sync-fn-in-async-fn", "no-throw-literal", "no-undef", "constructor-super", "no-async-promise-executor", "no-await-in-sync-fn", "valid-typeof"]
 		}
 	},
 	"fmt": {

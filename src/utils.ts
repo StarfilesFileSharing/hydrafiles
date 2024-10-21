@@ -1,14 +1,13 @@
-import fs from "node:fs";
-
 import { crypto } from "jsr:@std/crypto";
 import { encodeHex } from "jsr:@std/encoding/hex";
 import type { Config } from "./config.ts";
 import type { Receipt } from "./block.ts";
-import { existsSync } from "https://deno.land/std@0.224.0/fs/mod.ts";
 import { join } from "https://deno.land/std@0.224.0/path/mod.ts";
 import * as os from "https://deno.land/std@0.170.0/node/os.ts";
 
 type Base64 = string & { __brand: "Base64" };
+
+const Deno: typeof globalThis.Deno | undefined = globalThis.Deno ?? undefined;
 
 class Utils {
 	_config: Config;
@@ -102,29 +101,40 @@ class Utils {
 	remainingStorage = (): number => this._config.maxCache - this.calculateUsedStorage();
 
 	calculateUsedStorage = (): number => {
+		if (Deno === undefined) return 0;
 		const filesPath = "files/";
 		let usedStorage = 0;
-		if (existsSync(filesPath)) {
-			const files = fs.readdirSync(filesPath);
+
+		if (Deno !== undefined && Utils.existsSync(filesPath)) {
+			const files = Deno.readDirSync(filesPath);
 			for (const file of files) {
-				const stats = Deno.statSync(join(filesPath, file));
+				const stats = Deno.statSync(join(filesPath, file.name));
 				usedStorage += stats.size;
 			}
 		}
+
 		return usedStorage;
 	};
 
 	purgeCache = (requiredSpace: number, remainingSpace: number): void => {
+		if (Deno === undefined) return;
 		console.warn("WARNING: Your node has reached max storage, some files are getting purged. To prevent this, increase your limit at config.json or add more storage to your machine.");
-		const files = fs.readdirSync("files/");
-		for (const file of files) {
-			if (this._config.permaFiles.includes(file)) continue;
 
-			const size = Deno.statSync(join("files/", file)).size;
-			Deno.remove(join("files/", file)).catch(console.error);
+		const filesPath = "files/";
+		const files = Deno.readDirSync(filesPath);
+
+		for (const file of files) {
+			if (this._config.permaFiles.includes(file.name)) continue;
+
+			const filePath = join(filesPath, file.name);
+			const size = Deno.statSync(filePath).size;
+
+			Deno.remove(filePath).catch(console.error);
 			remainingSpace += size;
 
-			if (requiredSpace <= remainingSpace && this.calculateUsedStorage() * (1 - this._config.burnRate) <= remainingSpace) break;
+			if (requiredSpace <= remainingSpace && this.calculateUsedStorage() * (1 - this._config.burnRate) <= remainingSpace) {
+				break;
+			}
 		}
 	};
 
@@ -216,6 +226,24 @@ class Utils {
 	extractBufferSection(buffer: Uint8Array, start: number, end: number): Uint8Array {
 		if (start < 0 || end >= buffer.length || start > end) throw new RangeError("Invalid start or end range.");
 		return buffer.subarray(start, end + 1);
+	}
+	async countFilesInDir(dirPath: string): Promise<number> {
+		if (Deno === undefined) return 0;
+		let count = 0;
+		for await (const entry of Deno.readDir(dirPath)) {
+			if (entry.isFile) count++;
+		}
+		return count;
+	}
+	static existsSync(path: string | URL): boolean {
+		if (Deno === undefined) return false;
+		try {
+			Deno.statSync(path);
+			return true;
+		} catch (error) {
+			if (error instanceof Deno.errors.NotFound) return false;
+			throw error;
+		}
 	}
 }
 

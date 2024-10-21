@@ -1,8 +1,9 @@
 import Hydrafiles from "./hydrafiles.ts";
-import fs from "node:fs";
+import Utils from "./utils.ts";
 
-const config = JSON.parse(fs.existsSync("config.json") ? new TextDecoder().decode(Deno.readFileSync("config.json")) : "{}");
+const Deno: typeof globalThis.Deno | undefined = globalThis.Deno ?? undefined;
 
+const config = JSON.parse(Deno !== undefined && Utils.existsSync("config.json") ? new TextDecoder().decode(Deno.readFileSync("config.json")) : "{}");
 const hydrafiles = new Hydrafiles(config);
 console.log("Hydrafiles Started", hydrafiles);
 

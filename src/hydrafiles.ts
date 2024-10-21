@@ -1,7 +1,4 @@
-import fs from "node:fs";
-
 import type WebTorrent from "npm:webtorrent";
-import init from "./init.ts";
 import getConfig, { type Config } from "./config.ts";
 import Nodes from "./nodes.ts";
 import File, { type FileAttributes, FileManager } from "./file.ts";
@@ -49,7 +46,6 @@ class Hydrafiles {
 			: null;
 
 		this.keyPair = this.utils.generateKeyPair(); // TODO: Save keypair to fs
-		init(this.config);
 
 		this.nodes = new Nodes(this);
 
@@ -105,7 +101,7 @@ class Hydrafiles {
 				this.fileManager.count(),
 				`(${Math.round((100 * this.fileManager.sum("size")) / 1024 / 1024 / 1024) / 100}GB)`,
 				"\n| Stored Files:",
-				fs.readdirSync("files/").length,
+				this.utils.countFilesInDir("files/"),
 				`(${Math.round((100 * this.utils.calculateUsedStorage()) / 1024 / 1024 / 1024) / 100}GB)`,
 				"\n| Processing Files:",
 				hashLocks.size,
