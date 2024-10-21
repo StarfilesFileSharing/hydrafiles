@@ -1,7 +1,8 @@
 import type Hydrafiles from "./hydrafiles.ts";
-import { existsSync } from "https://deno.land/std@0.224.0/fs/mod.ts";
 import File, { type FileAttributes } from "./file.ts";
+import Utils from "./utils.ts";
 
+const Deno: typeof globalThis.Deno | undefined = globalThis.Deno ?? undefined;
 export interface Node {
 	host: string;
 	http: boolean;
@@ -22,7 +23,7 @@ export default class Nodes {
 	private _client: Hydrafiles;
 	constructor(client: Hydrafiles) {
 		this._client = client;
-		if (!existsSync(NODES_PATH)) Deno.writeFileSync(NODES_PATH, new TextEncoder().encode(JSON.stringify(this._client.config.bootstrapNodes)));
+		if (Deno !== undefined && !Utils.existsSync(NODES_PATH)) Deno.writeFileSync(NODES_PATH, new TextEncoder().encode(JSON.stringify(this._client.config.bootstrapNodes)));
 		this.nodes = this.loadNodes();
 	}
 
@@ -32,12 +33,13 @@ export default class Nodes {
 			(await this.downloadFromNode(node, new File({ hash: "04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f" }, this._client))) !== false
 		) {
 			this.nodes.push(node);
-			Deno.writeFileSync(NODES_PATH, new TextEncoder().encode(JSON.stringify(this.nodes)));
+
+			if (Deno !== undefined) Deno.writeFileSync(NODES_PATH, new TextEncoder().encode(JSON.stringify(this.nodes)));
 		}
 	}
 
 	loadNodes(): Node[] {
-		return JSON.parse(existsSync(NODES_PATH) ? new TextDecoder().decode(Deno.readFileSync(NODES_PATH)) : "[]");
+		return JSON.parse(Deno === undefined !== undefined && Utils.existsSync(NODES_PATH) ? new TextDecoder().decode(Deno !== undefined ? Deno.readFileSync(NODES_PATH) : new Uint8Array()) : "[]");
 	}
 
 	public getNodes = (opts = { includeSelf: true }): Node[] => {
@@ -104,7 +106,7 @@ export default class Nodes {
 		const index = this.nodes.findIndex((n) => n.host === node.host);
 		if (index !== -1) {
 			this.nodes[index] = node;
-			Deno.writeFileSync(NODES_PATH, new TextEncoder().encode(JSON.stringify(this.nodes)));
+			if (Deno !== undefined) Deno.writeFileSync(NODES_PATH, new TextEncoder().encode(JSON.stringify(this.nodes)));
 		}
 	}
 

@@ -1,11 +1,10 @@
-import formidable from "npm:formidable";
-
 import type Hydrafiles from "./hydrafiles.ts";
 import { BLOCKSDIR } from "./block.ts";
 import { join } from "https://deno.land/std@0.224.0/path/mod.ts";
-import { existsSync } from "https://deno.land/std@0.224.0/fs/mod.ts";
 import File from "./file.ts";
+import Utils from "./utils.ts";
 
+const Deno: typeof globalThis.Deno | undefined = globalThis.Deno ?? undefined;
 export const hashLocks = new Map<string, Promise<Response>>();
 
 export const handleRequest = async (req: Request, client: Hydrafiles): Promise<Response> => {
@@ -23,11 +22,27 @@ export const handleRequest = async (req: Request, client: Hydrafiles): Promise<R
 			return new Response(await Deno.readFile("public/favicon.ico"), { headers });
 		} else if (url.pathname === "/status") {
 			headers.set("Content-Type", "application/json");
-			return new Response(JSON.stringify({ status: true }));
+			return new Response(JSON.stringify({ status: true }), { headers });
+		} else if (url.pathname === "/hydrafiles-web.esm.js") {
+			headers.set("Content-Type", "application/javascript");
+			headers.set("Cache-Control", "public, max-age=300");
+			return new Response(await Deno.readFile("build/hydrafiles-web.esm.js"), { headers });
+		} else if (url.pathname === "/hydrafiles-web.esm.js.map") {
+			headers.set("Content-Type", "application/json");
+			headers.set("Cache-Control", "public, max-age=300");
+			return new Response(await Deno.readFile("build/hydrafiles-web.esm.js.map"), { headers });
+		} else if (url.pathname === "/home.html") {
+			headers.set("Content-Type", "text/html");
+			headers.set("Cache-Control", "public, max-age=300");
+			return new Response(await Deno.readFile("public/home.html"), { headers });
 		} else if (url.pathname === "/nodes") {
 			headers.set("Content-Type", "application/json");
 			headers.set("Cache-Control", "public, max-age=300");
-			return new Response(JSON.stringify(await client.nodes.getValidNodes()));
+			return new Response(JSON.stringify(await client.nodes.getValidNodes()), { headers });
+		} else if (url.pathname === "/info") {
+			headers.set("Content-Type", "application/json");
+			headers.set("Cache-Control", "public, max-age=300");
+			return new Response(JSON.stringify({ version: JSON.parse(await Deno.readTextFile("deno.jsonc")).version }), { headers });
 		} else if (url.pathname.startsWith("/announce")) {
 			const params = Object.fromEntries(new URLSearchParams(url.pathname.split("?")[1]));
 			const host = params.host;
@@ -159,35 +174,30 @@ export const handleRequest = async (req: Request, client: Hydrafiles): Promise<R
 				return new Response("401 Unauthorized\n", { status: 401 });
 			}
 
-			const form = formidable({});
-			form.parse(
-				req,
-				(err: unknown, fields: formidable.Fields, files: formidable.Files) => {
-					if (err !== undefined && err !== null) return new Response("500 Internal Server Error\n", { status: 500 });
+			const form = await req.formData();
+			const formData = {
+				hash: form.get("hash")?.toString(),
+				file: form.get("file") as globalThis.File | null,
+			};
 
-					if (typeof fields.hash === "undefined" || typeof files.file === "undefined") return new Response("400 Bad Request\n", { status: 400 });
+			if (typeof formData.hash === "undefined" || typeof formData.file === "undefined" || formData.file === null) return new Response("400 Bad Request\n", { status: 400 });
 
-					const hash = fields.hash[0];
-					const uploadedFile = files.file[0];
+			const hash = formData.hash[0];
 
-					const file = new File({ hash }, client);
-					let name = file.name;
-					if ((name === undefined || name === null || name.length === 0) && uploadedFile.originalFilename !== null) {
-						name = uploadedFile.originalFilename;
-						file.name = name;
-						file.cacheFile(Deno.readFileSync(uploadedFile.filepath));
-						file.save();
-					}
+			const file = new File({ hash }, client);
+			if ((file.name === null || file.name.length === 0) && formData.file.name !== null) {
+				file.name = formData.file.name;
+				file.cacheFile(new Uint8Array(await formData.file.arrayBuffer()));
+				file.save();
+			}
 
-					console.log("Uploading", hash);
+			console.log("Uploading", file.hash);
 
-					if (existsSync("files", hash)) return new Response("200 OK\n");
+			if (Deno !== undefined && Utils.existsSync(join("files/", file.hash))) return new Response("200 OK\n");
 
-					if (!client.config.permaFiles.includes(hash)) client.config.permaFiles.push(hash);
-					Deno.writeFileSync("config.json", new TextEncoder().encode(JSON.stringify(client.config, null, 2)));
-					return new Response("200 OK\n");
-				},
-			);
+			if (!client.config.permaFiles.includes(hash)) client.config.permaFiles.push(hash);
+			await Deno.writeFile("config.json", new TextEncoder().encode(JSON.stringify(client.config, null, 2)));
+			return new Response("200 OK\n");
 		} else if (url.pathname === "/files") {
 			const rows = client.fileManager.select();
 			headers.set("Content-Type", "application/json");

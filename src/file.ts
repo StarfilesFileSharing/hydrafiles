@@ -1,8 +1,9 @@
 import type Hydrafiles from "./hydrafiles.ts";
 import { Database } from "jsr:@db/sqlite@0.11";
 import { join } from "https://deno.land/std@0.224.0/path/mod.ts";
-import { existsSync } from "https://deno.land/std@0.224.0/fs/exists.ts";
+import Utils from "./utils.ts";
 
+const Deno: typeof globalThis.Deno | undefined = globalThis.Deno ?? undefined;
 interface Metadata {
 	name: string;
 	size: number;
@@ -83,7 +84,7 @@ export class FileManager {
 		addColumnIfNotExists(this.db, "file", "voteNonce", "INTEGER");
 		addColumnIfNotExists(this.db, "file", "voteDifficulty", "REAL DEFAULT 0");
 
-		if (!existsSync("files/")) Deno.mkdir("files", { recursive: true });
+		if (Deno !== undefined && !Utils.existsSync("files/")) Deno.mkdir("files", { recursive: true });
 	}
 
 	select<T extends keyof FileAttributes>(opts: { where?: { key: T; value: NonNullable<File[T]> }; orderBy?: string } = {}): File[] {
@@ -247,7 +248,7 @@ class File implements FileAttributes {
 		}
 
 		const filePath = join(FILESPATH, hash);
-		if (existsSync(filePath)) {
+		if (Deno !== undefined && Utils.existsSync(filePath)) {
 			this.size = Deno.statSync(filePath).size;
 			this.save();
 			return this;
@@ -272,7 +273,7 @@ class File implements FileAttributes {
 	async cacheFile(file: Uint8Array): Promise<void> {
 		const hash = this.hash;
 		const filePath = join(FILESPATH, hash);
-		if (existsSync(filePath)) return;
+		if (Deno === undefined || Utils.existsSync(filePath)) return;
 
 		let size = this.size;
 		if (size === 0) {
@@ -283,9 +284,11 @@ class File implements FileAttributes {
 		const remainingSpace = this._client.utils.remainingStorage();
 		if (this._client.config.maxCache !== -1 && size > remainingSpace) this._client.utils.purgeCache(size, remainingSpace);
 
-		Deno.writeFileSync(filePath, file);
-		const savedHash = await this._client.utils.hashUint8Array(Deno.readFileSync(filePath));
-		if (savedHash !== hash) await Deno.remove(filePath); // In case of broken file
+		if (Deno !== undefined) {
+			Deno.writeFileSync(filePath, file);
+			const savedHash = await this._client.utils.hashUint8Array(Deno.readFileSync(filePath));
+			if (savedHash !== hash) await Deno.remove(filePath); // In case of broken file
+		}
 	}
 
 	private async fetchFromCache(): Promise<{ file: Uint8Array; signal: number } | false> {
@@ -293,11 +296,11 @@ class File implements FileAttributes {
 		console.log(`  ${hash}  Checking Cache`);
 		const filePath = join(FILESPATH, hash);
 		this.seed();
-		if (!existsSync(filePath)) return false;
+		if (Deno === undefined || !Utils.existsSync(filePath)) return false;
 		const fileContents = Deno.readFileSync(filePath);
 		const savedHash = await this._client.utils.hashUint8Array(fileContents);
 		if (savedHash !== this.hash) {
-			Deno.remove(filePath).catch(console.error);
+			if (Deno !== undefined) Deno.remove(filePath).catch(console.error);
 			return false;
 		}
 		return {
@@ -417,7 +420,7 @@ class File implements FileAttributes {
 		// if (seeding.includes(this.hash)) return;
 		// seeding.push(this.hash);
 		// const filePath = join(FILESPATH, this.hash);
-		// if (!existsSync(filePath)) return;
+		// if (Deno === undefined || !existsSync(filePath)) return;
 		// this._client.webtorrent.seed(filePath, {
 		//   createdBy: "Hydrafiles/0.1",
 		//   name: (this.name ?? this.hash).replace(/(\.\w+)$/, " [HYDRAFILES]$1"),

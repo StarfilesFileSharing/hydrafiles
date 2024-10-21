@@ -1,23 +1,13 @@
 import { assert } from "jsr:@std/assert/assert";
 import { handleRequest } from "./server.ts";
-import type Hydrafiles from "./hydrafiles.ts";
-import getConfig from "./config.ts";
-import Utils from "./utils.ts";
-import { FileManager } from "./file.ts";
-import Nodes from "./nodes.ts";
+import Hydrafiles from "./hydrafiles.ts";
 
-class MockHydrafiles {
-	config = getConfig();
-	utils = new Utils(this.config);
-	fileManager = new FileManager(this as unknown as Hydrafiles);
-	nodes = new Nodes(this as unknown as Hydrafiles);
-}
-
-const mockClient = new MockHydrafiles() as unknown as Hydrafiles;
+const Deno: typeof globalThis.Deno | undefined = globalThis.Deno ?? undefined;
+const client = new Hydrafiles();
 
 Deno.test("handleRequest - Root path returns index.html", async () => {
 	const req = new Request("http://localhost/");
-	const response = await handleRequest(req, mockClient);
+	const response = await handleRequest(req, client);
 
 	assert(response.status === 200);
 	assert((await response.text()).startsWith("<!DOCTYPE html"));
@@ -26,7 +16,7 @@ Deno.test("handleRequest - Root path returns index.html", async () => {
 
 Deno.test("handleRequest - /status returns JSON with status", async () => {
 	const req = new Request("http://localhost/status");
-	const response = await handleRequest(req, mockClient);
+	const response = await handleRequest(req, client);
 
 	const json = await response.json();
 	assert(response.status === 200);
@@ -35,7 +25,7 @@ Deno.test("handleRequest - /status returns JSON with status", async () => {
 
 Deno.test("handleRequest - /nodes returns JSON of valid nodes", async () => {
 	const req = new Request("http://localhost/nodes");
-	const response = await handleRequest(req, mockClient);
+	const response = await handleRequest(req, client);
 
 	const nodes = await response.json();
 	assert(response.status === 200);
@@ -45,7 +35,7 @@ Deno.test("handleRequest - /nodes returns JSON of valid nodes", async () => {
 
 Deno.test("handleRequest - /announce with valid node adds the node", async () => {
 	const req = new Request("http://localhost/announce?host=localhost");
-	const response = await handleRequest(req, mockClient);
+	const response = await handleRequest(req, client);
 
 	const text = await response.text();
 	assert(response.status === 200);
@@ -54,7 +44,7 @@ Deno.test("handleRequest - /announce with valid node adds the node", async () =>
 
 Deno.test("handleRequest - /download/ returns file content", async () => {
 	const req = new Request("http://localhost/download/04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f");
-	const response = await handleRequest(req, mockClient);
+	const response = await handleRequest(req, client);
 
 	const body = await response.text();
 	assert(response.status === 200, String(response.status));

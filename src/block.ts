@@ -1,8 +1,9 @@
 import type Hydrafiles from "./hydrafiles.ts";
 import seedrandom from "https://cdn.skypack.dev/seedrandom";
 import { join } from "https://deno.land/std@0.224.0/path/mod.ts";
-import fs from "node:fs";
+import Utils from "./utils.ts";
 
+const Deno: typeof globalThis.Deno | undefined = globalThis.Deno ?? undefined;
 type Base64 = string & { __brand: "Base64" };
 
 export interface Receipt {
@@ -29,11 +30,11 @@ export class Block {
 	constructor(prevBlock: string, client: Hydrafiles) {
 		this.prevBlock = prevBlock;
 		this._client = client;
-		if (!fs.existsSync(BLOCKSDIR)) Deno.mkdir(BLOCKSDIR);
+		if (Deno !== undefined && !Utils.existsSync(BLOCKSDIR)) Deno.mkdir(BLOCKSDIR);
 	}
 
 	static init(hash: string, client: Hydrafiles): Block {
-		const blockContent = JSON.parse(new TextDecoder().decode(Deno.readFileSync(join(BLOCKSDIR, hash))));
+		const blockContent = JSON.parse(new TextDecoder().decode(Deno !== undefined ? Deno.readFileSync(join(BLOCKSDIR, hash)) : new Uint8Array()));
 		const block = new Block(blockContent.prevBlock, client);
 		block.receipts = blockContent.receipts;
 		return block;
@@ -92,8 +93,10 @@ class Blockchain {
 	mempoolBlock: Block;
 	private _client: Hydrafiles;
 	constructor(client: Hydrafiles) {
-		for (const dirEntry of Deno.readDirSync(BLOCKSDIR)) { // TODO: Validate block prev is valid
-			this.addBlock(Block.init(dirEntry.name, client));
+		if (Deno !== undefined) {
+			for (const dirEntry of Deno.readDirSync(BLOCKSDIR)) { // TODO: Validate block prev is valid
+				this.addBlock(Block.init(dirEntry.name, client));
+			}
 		}
 		this._client = client;
 		this.mempoolBlock = new Block("genesis", this._client);
@@ -168,7 +171,7 @@ class Blockchain {
 		block.height = this.blocks.length;
 		this.blocks.push(block);
 		block.announce();
-		Deno.writeFileSync(join(BLOCKSDIR, this.blocks.length.toString()), new TextEncoder().encode(block.toString()));
+		if (Deno !== undefined) Deno.writeFileSync(join(BLOCKSDIR, this.blocks.length.toString()), new TextEncoder().encode(block.toString()));
 	}
 
 	lastBlock(): Block {
