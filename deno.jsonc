@@ -1,6 +1,6 @@
 {
 	"name": "@starfiles/hydrafiles",
-	"version": "0.1.2",
+	"version": "0.1.3",
 	"description": "The headless storage network.",
 	"main": "src/hydrafiles.ts",
 	"exports": {
@@ -47,23 +47,7 @@
 		"include": ["src/"],
 		"rules": {
 			"tags": ["recommended"],
-			"include": [
-				"no-unnecessary-await",
-				"camelcase",
-				"default-param-last",
-				"eqeqeq",
-				"explicit-function-return-type",
-				"explicit-module-boundary-types",
-				"guard-for-in",
-				"no-const-assign",
-				"no-inferrable-types",
-				"no-non-null-assertion",
-				"no-self-compare",
-				"no-sparse-arrays",
-				"no-sync-fn-in-async-fn",
-				"no-throw-literal",
-				"no-undef"
-			]
+			"include": ["no-unnecessary-await", "camelcase", "default-param-last", "eqeqeq", "explicit-function-return-type", "explicit-module-boundary-types", "guard-for-in", "no-const-assign", "no-inferrable-types", "no-non-null-assertion", "no-self-compare", "no-sparse-arrays", "no-sync-fn-in-async-fn", "no-throw-literal", "no-undef"]
 		}
 	},
 	"fmt": {

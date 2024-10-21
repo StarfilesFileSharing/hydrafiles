@@ -370,21 +370,29 @@ class File implements FileAttributes {
 		if (opts.logDownloads === undefined || opts.logDownloads) this.increment("downloadCount");
 		this.save();
 
-		if (this.size !== 0 && !this._client.utils.hasSufficientMemory(this.size)) {
-			await new Promise(() => {
-				const intervalId = setInterval(() => {
-					if (this._client.config.logLevel === "verbose") console.log(`  ${hash}  Reached memory limit, waiting`, this.size);
-					if (this.size === 0 || this._client.utils.hasSufficientMemory(this.size)) clearInterval(intervalId);
-				}, this._client.config.memoryThresholdReachedWait);
-			});
-		}
+		// console.log(` ${this.hash}  Checking memory usage`);
+		// if (this.size !== 0 && !this._client.utils.hasSufficientMemory(this.size)) {
+		// 	console.log(`  ${hash}  Reached memory limit, waiting`, this.size);
+		// 	await this._client.utils.promiseWithTimeout(
+		// 		new Promise(() => {
+		// 			const intervalId = setInterval(() => {
+		// 				if (this._client.config.logLevel === "verbose") console.log(`  ${hash}  Reached memory limit, waiting`, this.size);
+		// 				if (this.size === 0 || this._client.utils.hasSufficientMemory(this.size)) clearInterval(intervalId);
+		// 			}, this._client.config.memoryThresholdReachedWait);
+		// 		}),
+		// 		this._client.config.timeout / 2,
+		// 	);
+		// }
 
+		console.log(` ${this.hash}  Checking Cache`);
 		let file = await this.fetchFromCache();
 		if (file !== false) console.log(`  ${hash}  Serving ${this.size !== undefined ? Math.round(this.size / 1024 / 1024) : 0}MB from cache`);
 		else {
+			console.log(` ${this.hash}  Checking S3`);
 			if (this._client.config.s3Endpoint.length > 0) file = await this.fetchFromS3();
 			if (file !== false) console.log(`  ${hash}  Serving ${this.size !== undefined ? Math.round(this.size / 1024 / 1024) : 0}MB from S3`);
 			else {
+				console.log(` ${this.hash}  Checking Nodes`);
 				file = await this._client.nodes.getFile(hash, this.size);
 				if (file === false) {
 					this.found = false;
