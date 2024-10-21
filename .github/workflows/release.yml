@@ -32,10 +32,12 @@ jobs:
           name: compiled-app
           path: ./release/
 
-      - name: Get Version Number
+      - name: Get Version Number from deno.jsonc
         id: get_version
         run: |
-          echo "::set-output name=version::${{ github.event.head_commit.message }}"
+          VERSION=$(deno eval 'console.log(JSON.parse(Deno.readTextFileSync("deno.jsonc")).version)')
+          echo "VERSION=$VERSION"
+          echo "::set-output name=version::$VERSION"
 
       - name: log
         run: echo "Version ${{ steps.get_version.outputs.version }}"
