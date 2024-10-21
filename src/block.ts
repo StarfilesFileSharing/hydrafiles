@@ -1,6 +1,7 @@
 import type Hydrafiles from "./hydrafiles.ts";
 import seedrandom from "https://cdn.skypack.dev/seedrandom";
 import { join } from "https://deno.land/std@0.224.0/path/mod.ts";
+import fs from "node:fs";
 
 type Base64 = string & { __brand: "Base64" };
 
@@ -28,6 +29,7 @@ export class Block {
 	constructor(prevBlock: string, client: Hydrafiles) {
 		this.prevBlock = prevBlock;
 		this._client = client;
+		if (!fs.existsSync(BLOCKSDIR)) Deno.mkdir(BLOCKSDIR);
 	}
 
 	static init(hash: string, client: Hydrafiles): Block {

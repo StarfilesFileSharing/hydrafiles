@@ -82,6 +82,8 @@ export class FileManager {
 		addColumnIfNotExists(this.db, "file", "voteHash", "STRING");
 		addColumnIfNotExists(this.db, "file", "voteNonce", "INTEGER");
 		addColumnIfNotExists(this.db, "file", "voteDifficulty", "REAL DEFAULT 0");
+
+		if (!existsSync("files/")) Deno.mkdir("files", { recursive: true });
 	}
 
 	select<T extends keyof FileAttributes>(opts: { where?: { key: T; value: NonNullable<File[T]> }; orderBy?: string } = {}): File[] {

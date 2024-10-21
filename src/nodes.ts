@@ -21,8 +21,9 @@ export default class Nodes {
 	private nodes: Node[];
 	private _client: Hydrafiles;
 	constructor(client: Hydrafiles) {
-		this.nodes = this.loadNodes();
 		this._client = client;
+		if (!existsSync(NODES_PATH)) Deno.writeFileSync(NODES_PATH, new TextEncoder().encode(JSON.stringify(this._client.config.bootstrapNodes)));
+		this.nodes = this.loadNodes();
 	}
 
 	async add(node: Node): Promise<void> {

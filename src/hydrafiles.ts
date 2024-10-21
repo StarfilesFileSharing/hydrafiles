@@ -1,7 +1,6 @@
 import fs from "node:fs";
 
 import type WebTorrent from "npm:webtorrent";
-import init from "./init.ts";
 import getConfig, { type Config } from "./config.ts";
 import Nodes from "./nodes.ts";
 import File, { type FileAttributes, FileManager } from "./file.ts";
@@ -49,7 +48,6 @@ class Hydrafiles {
 			: null;
 
 		this.keyPair = this.utils.generateKeyPair(); // TODO: Save keypair to fs
-		init(this.config);
 
 		this.nodes = new Nodes(this);
 
