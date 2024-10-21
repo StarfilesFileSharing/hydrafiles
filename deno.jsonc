@@ -1,6 +1,6 @@
 {
 	"name": "@starfiles/hydrafiles",
-	"version": "0.1.1",
+	"version": "0.1.2",
 	"description": "The headless storage network.",
 	"main": "src/hydrafiles.ts",
 	"exports": {
@@ -27,6 +27,11 @@
 		"start": "deno run --allow-read --allow-env --allow-net --allow-sys --allow-ffi --allow-write --allow-import src/start.ts",
 		"dev": "deno run --watch-hmr --unstable --allow-read --allow-env --allow-net --allow-sys --allow-ffi --allow-write --allow-import src/start.ts",
 		"build": "deno fmt && deno lint && deno compile --allow-read --allow-env --allow-net --allow-sys --allow-ffi --allow-write --allow-import src/start.ts",
+		"build-linux-x86_64": "deno fmt && deno lint && deno compile --allow-read --allow-env --allow-net --allow-sys --allow-ffi --allow-write --allow-import --output build/start-linux-x86_64 --target x86_64-unknown-linux-gnu src/start.ts",
+		"build-linux-arm64": "deno fmt && deno lint && deno compile --allow-read --allow-env --allow-net --allow-sys --allow-ffi --allow-write --allow-import --output build/start-linux-arm64 --target aarch64-unknown-linux-gnu src/start.ts",
+		"build-mac-x86_64": "deno fmt && deno lint && deno compile --allow-read --allow-env --allow-net --allow-sys --allow-ffi --allow-write --allow-import --output build/start-mac-x86_64 --target x86_64-apple-darwin src/start.ts",
+		"build-mac-arn64": "deno fmt && deno lint && deno compile --allow-read --allow-env --allow-net --allow-sys --allow-ffi --allow-write --allow-import --output build/start-mac-arn64 --target aarch64-apple-darwin src/start.ts",
+		"build-windows": "deno fmt && deno lint && deno compile --allow-read --allow-env --allow-net --allow-sys --allow-ffi --allow-write --allow-import --output build/start-windows --target x86_64-pc-windows-msvc --icon=./public/favicon.ico src/start.ts",
 		"test": "deno test --allow-read --allow-env --allow-net --allow-sys --allow-ffi --allow-write --allow-import --watch src/tests.ts"
 	},
 	"devDependencies": {
@@ -42,7 +47,23 @@
 		"include": ["src/"],
 		"rules": {
 			"tags": ["recommended"],
-			"include": ["no-unnecessary-await", "camelcase", "default-param-last", "eqeqeq", "explicit-function-return-type", "explicit-module-boundary-types", "guard-for-in", "no-const-assign", "no-inferrable-types", "no-non-null-assertion", "no-self-compare", "no-sparse-arrays", "no-sync-fn-in-async-fn", "no-throw-literal", "no-undef"]
+			"include": [
+				"no-unnecessary-await",
+				"camelcase",
+				"default-param-last",
+				"eqeqeq",
+				"explicit-function-return-type",
+				"explicit-module-boundary-types",
+				"guard-for-in",
+				"no-const-assign",
+				"no-inferrable-types",
+				"no-non-null-assertion",
+				"no-self-compare",
+				"no-sparse-arrays",
+				"no-sync-fn-in-async-fn",
+				"no-throw-literal",
+				"no-undef"
+			]
 		}
 	},
 	"fmt": {
