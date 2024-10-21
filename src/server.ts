@@ -44,8 +44,9 @@ export const handleRequest = async (req: Request, client: Hydrafiles): Promise<R
 			headers.set("Cache-Control", "public, max-age=300");
 			return new Response(JSON.stringify({ version: JSON.parse(await Deno.readTextFile("deno.jsonc")).version }), { headers });
 		} else if (url.pathname.startsWith("/announce")) {
-			const params = Object.fromEntries(new URLSearchParams(url.pathname.split("?")[1]));
-			const host = params.host;
+			const host = url.searchParams.get("host");
+
+			if (host === null) return new Response("No hosted given\n", { status: 401 });
 
 			const knownNodes = client.nodes.getNodes();
 			if (knownNodes.find((node) => node.host === host) !== null) return new Response("Already known\n");
