@@ -70,7 +70,9 @@ export default class Nodes {
 			const fileContent = new Uint8Array(await response.arrayBuffer());
 			console.log(`  ${hash}  Validating hash`);
 			const verifiedHash = await this._client.utils.hashUint8Array(fileContent);
+			console.log(`  ${hash}  Done Validating hash`);
 			if (hash !== verifiedHash) return false;
+			console.log(`  ${hash}  Valid hash`);
 
 			if (file.name === undefined || file.name === null || file.name.length === 0) {
 				file.name = String(response.headers.get("Content-Disposition")?.split("=")[1].replace(/"/g, "").replace(" [HYDRAFILES]", ""));
