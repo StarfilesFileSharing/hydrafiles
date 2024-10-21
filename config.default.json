@@ -3,7 +3,7 @@
 	"port": 80,
 	"publicHostname": "http://127.0.0.1:80",
 	"maxCache": -1,
-	"permaFiles": [],
+	"permaFiles": ["04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f"],
 	"preferNode": "HIGHEST_HITRATE",
 	"metadataEndpoint": "https://api2.starfiles.co/file/",
 	"bootstrapNodes": [

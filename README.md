@@ -185,14 +185,21 @@ Thanks, your fellow Hydra operator.
 
 ## How do I setup a node?
 
-### Option A: Pull Docker Container
+### Option A: Run Compiled Binary
+
+1. Go to [Releases](https://github.com/StarfilesFileSharing/hydrafiles/releases) and download the file `hydrafiles`.
+2. Run the binary with `./hydrafiles`.
+
+### Option B: Compile Binary
 
 ```bash
-docker pull quix2/hydrafiles
-docker run -p 80:80 quix2/hydrafiles
+git clone https://github.com/StarfilesFileSharing/Hydrafiles
+cd Hydrafiles
+deno task build
+./start
 ```
 
-### Option B: Build Docker Container
+### Option C: Build Docker Container
 
 ```bash
 git clone https://github.com/StarfilesFileSharing/Hydrafiles
@@ -201,12 +208,11 @@ docker build -t hydrafiles .
 docker run -p 80:80 hydrafiles
 ```
 
-### Option C: Manual
+### Option D: Run Deno
 
 ```bash
 git clone https://github.com/StarfilesFileSharing/Hydrafiles
 cd Hydrafiles
-deno install --allow-scripts=npm:sqlite3@5.1.7,npm:utp-native@2.5.3,npm:node-datachannel@0.10.1,npm:bufferutil@4.0.8,npm:utf-8-validate@6.0.4
 deno task start
 ```
 

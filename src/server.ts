@@ -8,7 +8,7 @@ import File from "./file.ts";
 
 export const hashLocks = new Map<string, Promise<Response>>();
 
-const handleRequest = async (req: Request, client: Hydrafiles): Promise<Response> => {
+export const handleRequest = async (req: Request, client: Hydrafiles): Promise<Response> => {
 	const url = new URL(req.url);
 	const headers = new Headers();
 
@@ -89,7 +89,7 @@ const handleRequest = async (req: Request, client: Hydrafiles): Promise<Response
 				console.log(`  ${hash}  Signal Strength:`, fileContent.signal, client.utils.estimateHops(fileContent.signal));
 
 				headers.set("Content-Length", String(file.size));
-				headers.set("Content-Disposition", `attachment; filename="${encodeURIComponent(file.name ?? "File").replace(/%20/g, " ").replace(/(\.\w+)$/, " [HYDRAFILES]$1")}`);
+				if (file.name !== null) headers.set("Content-Disposition", `attachment; filename="${encodeURIComponent(file.name).replace(/%20/g, " ").replace(/(\.\w+)$/, " [HYDRAFILES]$1")}`);
 
 				return new Response(fileContent.file, { headers });
 			})();
@@ -141,7 +141,7 @@ const handleRequest = async (req: Request, client: Hydrafiles): Promise<Response
 				console.log(`  ${file.hash}  Signal Strength:`, fileContent.signal, client.utils.estimateHops(fileContent.signal));
 
 				headers.set("Content-Length", String(file.size));
-				headers.set("Content-Disposition", `attachment; filename="${encodeURIComponent(file.name ?? "File").replace(/%20/g, " ").replace(/(\.\w+)$/, " [HYDRAFILES]$1")}"`);
+				if (file.name !== null) headers.set("Content-Disposition", `attachment; filename="${encodeURIComponent(file.name).replace(/%20/g, " ").replace(/(\.\w+)$/, " [HYDRAFILES]$1")}"`);
 
 				return new Response(fileContent.file, { headers });
 			})();

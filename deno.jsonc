@@ -1,6 +1,6 @@
 {
 	"name": "@starfiles/hydrafiles",
-	"version": "0.1.0",
+	"version": "0.1.1",
 	"description": "The headless storage network.",
 	"main": "src/hydrafiles.ts",
 	"exports": {
@@ -24,9 +24,10 @@
 		"sqlite3": "npm:sqlite3@^5.1.7"
 	},
 	"tasks": {
-		"start": "./start",
-		"dev": "deno run --watch-hmr --unstable --allow-read --allow-env --allow-net --allow-sys --allow-ffi --allow-write --allow-run --allow-import src/start.ts",
-		"build": "deno fmt && deno lint && deno compile --allow-env --allow-read --allow-import --allow-write --allow-ffi --allow-net --allow-sys src/start.ts"
+		"start": "deno run --allow-read --allow-env --allow-net --allow-sys --allow-ffi --allow-write --allow-import src/start.ts",
+		"dev": "deno run --watch-hmr --unstable --allow-read --allow-env --allow-net --allow-sys --allow-ffi --allow-write --allow-import src/start.ts",
+		"build": "deno fmt && deno lint && deno compile --allow-read --allow-env --allow-net --allow-sys --allow-ffi --allow-write --allow-import src/start.ts",
+		"test": "deno test --allow-read --allow-env --allow-net --allow-sys --allow-ffi --allow-write --allow-import --watch src/tests.ts"
 	},
 	"devDependencies": {
 		"typescript": "https://deno.land/x/typescript@5.6.3/mod.ts",

@@ -190,7 +190,7 @@ class File implements FileAttributes {
 	voteDifficulty = 0;
 	_client: Hydrafiles;
 
-	constructor(values: { hash?: string; infohash?: string }, client: Hydrafiles) {
+	constructor(values: { hash?: string; infohash?: string }, client: Hydrafiles, vote = true) {
 		this._client = client;
 
 		let hash: string;
@@ -221,7 +221,7 @@ class File implements FileAttributes {
 		this.voteNonce = file.voteNonce;
 		this.voteDifficulty = file.voteDifficulty;
 
-		this.vote().catch(console.error);
+		if (vote) this.vote().catch(console.error);
 	}
 
 	public async getMetadata(): Promise<this | false> {

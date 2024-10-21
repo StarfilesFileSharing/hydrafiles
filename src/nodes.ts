@@ -196,7 +196,7 @@ export default class Nodes {
 			const files = (await response.json()) as File[];
 			for (let i = 0; i < files.length; i++) {
 				const newFile = files[i];
-				const currentFile = new File({ hash: files[i].hash, infohash: files[i].infohash ?? undefined }, this._client);
+				const currentFile = new File({ hash: files[i].hash, infohash: files[i].infohash ?? undefined }, this._client, false);
 
 				const keys = Object.keys(newFile) as unknown as (keyof File)[];
 				for (let i = 0; i < keys.length; i++) {
