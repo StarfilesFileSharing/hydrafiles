@@ -70,5 +70,5 @@ jobs:
           name: Release ${{ steps.get_version.outputs.version }}
           tag: ${{ steps.get_version.outputs.version }}
           token: ${{ secrets.GITHUB_TOKEN }}
-          artifacts: "./release/hydrafiles"
+          artifacts: "./release/*"
           allowUpdates: true
