@@ -36,16 +36,16 @@ jobs:
           echo "VERSION=$VERSION"
           echo "::set-output name=version::$VERSION"
 
-      - name: Archive Build Artifact
+      - name: Archive Build Artifacts
         run: |
           mkdir -p release
           mv ./build/start-linux-x86_64 ./release/hydrafiles-${{ steps.get_version.outputs.version }}-linux-x86_64
           mv ./build/start-linux-arm64 ./release/hydrafiles-${{ steps.get_version.outputs.version }}-linux-arm64
           mv ./build/start-mac-x86_64 ./release/hydrafiles-${{ steps.get_version.outputs.version }}-mac-x86_64
           mv ./build/start-mac-arn64 ./release/hydrafiles-${{ steps.get_version.outputs.version }}-mac-arn64
-          mv ./build/start-windows ./release/hydrafiles-${{ steps.get_version.outputs.version }}-windows
+          mv ./build/start-windows.exe ./release/hydrafiles-${{ steps.get_version.outputs.version }}-windows.exe
 
-      - name: Upload Build Artifact
+      - name: Upload Build Artifacts
         uses: actions/upload-artifact@v3
         with:
           name: compiled-app
