@@ -18,6 +18,9 @@ jobs:
         with:
           deno-version: v2.x
 
+      - name: Install Dependencies
+        run: deno install --allow-scripts=npm:utp-native@2.5.3,npm:node-datachannel@0.10.1,npm:bufferutil@4.0.8,npm:utf-8-validate@6.0.4
+
       - name: Compile for linux-x86_64
         run: deno run build-linux-x86_64
       - name: Compile for linux-arm64
