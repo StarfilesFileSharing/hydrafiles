@@ -21,23 +21,23 @@ jobs:
       - name: Compile TypeScript file with Deno
         run: deno run build
 
-      - name: Archive Build Artifact
-        run: |
-          mkdir -p release
-          mv ./start ./release/hydrafiles
-
-      - name: Upload Build Artifact
-        uses: actions/upload-artifact@v3
-        with:
-          name: compiled-app
-          path: ./release/
-
       - name: Get Version Number from deno.jsonc
         id: get_version
         run: |
           VERSION=$(deno eval 'console.log(JSON.parse(Deno.readTextFileSync("deno.jsonc")).version)')
           echo "VERSION=$VERSION"
           echo "::set-output name=version::$VERSION"
+
+      - name: Archive Build Artifact
+        run: |
+          mkdir -p release
+          mv ./start ./release/hydrafiles-${{ steps.get_version.outputs.version }}
+
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: compiled-app
+          path: ./release/
 
       - name: log
         run: echo "Version ${{ steps.get_version.outputs.version }}"
