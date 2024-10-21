@@ -18,8 +18,16 @@ jobs:
         with:
           deno-version: v2.x
 
-      - name: Compile TypeScript file with Deno
-        run: deno run build
+      - name: Compile for linux-x86_64
+        run: deno run build-linux-x86_64
+      - name: Compile for linux-arm64
+        run: deno run build-linux-arm64
+      - name: Compile for mac-x86_64
+        run: deno run build-mac-x86_64
+      - name: Compile for mac-arn64
+        run: deno run build-mac-arn64
+      - name: Compile for windows
+        run: deno run build-windows
 
       - name: Get Version Number from deno.jsonc
         id: get_version
@@ -31,7 +39,11 @@ jobs:
       - name: Archive Build Artifact
         run: |
           mkdir -p release
-          mv ./start ./release/hydrafiles-${{ steps.get_version.outputs.version }}
+          mv ./build/start-linux-x86_64 ./release/hydrafiles-${{ steps.get_version.outputs.version }}-linux-x86_64
+          mv ./build/start-linux-arm64 ./release/hydrafiles-${{ steps.get_version.outputs.version }}-linux-arm64
+          mv ./build/start-mac-x86_64 ./release/hydrafiles-${{ steps.get_version.outputs.version }}-mac-x86_64
+          mv ./build/start-mac-arn64 ./release/hydrafiles-${{ steps.get_version.outputs.version }}-mac-arn64
+          mv ./build/start-windows ./release/hydrafiles-${{ steps.get_version.outputs.version }}-windows
 
       - name: Upload Build Artifact
         uses: actions/upload-artifact@v3
