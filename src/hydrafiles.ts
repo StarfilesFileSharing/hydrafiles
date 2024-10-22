@@ -28,7 +28,7 @@ class Hydrafiles {
 	webtorrent: WebTorrent;
 	// blockchain: Blockchain;
 	keyPair: Promise<CryptoKeyPair>;
-	fileManager = new FileManager(this);
+	fileManager: FileManager | undefined;
 	db: Database | undefined;
 	constructor(customConfig: Partial<Config> = {}) {
 		this.startTime = +new Date();
@@ -72,10 +72,11 @@ class Hydrafiles {
 			if (typeof Deno !== "undefined") {
 				const { Database } = await import("jsr:@db/sqlite@0.11");
 				this.db = new Database("filemanager.db");
+				new FileManager(this);
 			} else {
 				console.log("Running in a web environment, skipping sqlite database import.");
 			}
-		});
+		})();
 	}
 
 	backgroundTasks = (): void => {
@@ -90,17 +91,20 @@ class Hydrafiles {
 	};
 
 	backfillFiles = async (): Promise<void> => {
-		const file = this.fileManager.select({ orderBy: "RANDOM()" })[0];
-		console.log(`  ${file.hash}  Backfilling file`);
-		try {
-			await file.getFile({ logDownloads: false });
-		} catch (e) {
-			if (this.config.logLevel === "verbose") throw e;
+		if (this.fileManager !== undefined) {
+			const file = this.fileManager.select({ orderBy: "RANDOM()" })[0];
+			console.log(`  ${file.hash}  Backfilling file`);
+			try {
+				await file.getFile({ logDownloads: false });
+			} catch (e) {
+				if (this.config.logLevel === "verbose") throw e;
+			}
 		}
 		this.backfillFiles().catch(console.error);
 	};
 
 	logState(): void {
+		console.log("aaaaaaaa");
 		try {
 			console.log(
 				"\n===============================================\n========",
@@ -109,8 +113,8 @@ class Hydrafiles {
 				"\n| Uptime: ",
 				this.utils.convertTime(+new Date() - this.startTime),
 				"\n| Known (Network) Files:",
-				this.fileManager.count(),
-				`(${Math.round((100 * this.fileManager.sum("size")) / 1024 / 1024 / 1024) / 100}GB)`,
+				this.fileManager !== undefined ? this.fileManager.count() : 0,
+				`(${Math.round((100 * (this.fileManager !== undefined ? this.fileManager.sum("size") : 0)) / 1024 / 1024 / 1024) / 100}GB)`,
 				"\n| Stored Files:",
 				this.utils.countFilesInDir("files/"),
 				`(${Math.round((100 * this.utils.calculateUsedStorage()) / 1024 / 1024 / 1024) / 100}GB)`,
@@ -121,7 +125,7 @@ class Hydrafiles {
 				// '\n| Seeding Torrent Files:',
 				// (await webtorrentClient()).torrents.length,
 				"\n| Downloads Served:",
-				this.fileManager.sum("downloadCount") + ` (${Math.round(((this.fileManager.sum("downloadCount * size") / 1024 / 1024 / 1024) * 100) / 100)}GB)`,
+				(this.fileManager !== undefined ? this.fileManager.sum("downloadCount") : 0) + ` (${Math.round((((this.fileManager !== undefined ? this.fileManager.sum("downloadCount * size") : 0) / 1024 / 1024 / 1024) * 100) / 100)}GB)`,
 				"\n===============================================\n",
 			);
 		} catch (e) {
@@ -130,7 +134,7 @@ class Hydrafiles {
 	}
 
 	search = <T>(where: { where?: { key: keyof FileAttributes; value: NonNullable<keyof FileAttributes> } | undefined; orderBy?: string } | undefined): File[] => {
-		return this.fileManager.select(where);
+		return this.fileManager !== undefined ? this.fileManager.select(where) : [];
 	};
 
 	getFile = (hash: string): File => {
