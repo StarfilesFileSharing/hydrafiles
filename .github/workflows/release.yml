@@ -31,6 +31,8 @@ jobs:
         run: deno run build-mac-arm6
       - name: Compile for windows
         run: deno run build-windows
+      - name: Build for web
+        run: deno --allow-env --allow-read --allow-run build.ts
 
       - name: Get Version Number from deno.jsonc
         id: get_version
@@ -47,6 +49,8 @@ jobs:
           mv ./build/start-mac-x86_64 ./release/hydrafiles-${{ steps.get_version.outputs.version }}-mac-x86_64
           mv ./build/start-mac-arm6 ./release/hydrafiles-${{ steps.get_version.outputs.version }}-mac-arm6
           mv ./build/start-windows.exe ./release/hydrafiles-${{ steps.get_version.outputs.version }}-windows.exe
+          mv ./build/hydrafiles-web.esm.js ./release/hydrafiles-${{ steps.get_version.outputs.version }}-web.esm.js
+          mv ./build/hydrafiles-web.esm.js.map ./release/hydrafiles-${{ steps.get_version.outputs.version }}-web.esm.js.map
 
       - name: Upload Build Artifacts
         uses: actions/upload-artifact@v3

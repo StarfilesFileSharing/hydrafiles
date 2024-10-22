@@ -28,6 +28,7 @@ class Hydrafiles {
 	// blockchain: Blockchain;
 	keyPair: Promise<CryptoKeyPair>;
 	fileManager = new FileManager(this);
+	db: unknown;
 	constructor(customConfig: Partial<Config> = {}) {
 		this.startTime = +new Date();
 		this.config = getConfig(customConfig);
@@ -65,6 +66,15 @@ class Hydrafiles {
 			this.backgroundTasks();
 		}
 		// if (this.config.backfill) this.backfillFiles().catch(console.error)
+
+		(async () => {
+			if (typeof Deno !== "undefined") {
+				const { Database } = await import("jsr:@db/sqlite@0.11");
+				this.db = new Database("filemanager.db");
+			} else {
+				console.log("Running in a web environment, skipping sqlite database import.");
+			}
+		});
 	}
 
 	backgroundTasks = (): void => {
@@ -120,6 +130,10 @@ class Hydrafiles {
 
 	search = <T>(where: { where?: { key: keyof FileAttributes; value: NonNullable<keyof FileAttributes> } | undefined; orderBy?: string } | undefined): File[] => {
 		return this.fileManager.select(where);
+	};
+
+	getFile = (hash: string): File => {
+		return new File({ hash }, this);
 	};
 }
 

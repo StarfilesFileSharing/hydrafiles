@@ -39,7 +39,7 @@ export default class Nodes {
 	}
 
 	loadNodes(): Node[] {
-		return JSON.parse(Deno === undefined !== undefined && Utils.existsSync(NODES_PATH) ? new TextDecoder().decode(Deno !== undefined ? Deno.readFileSync(NODES_PATH) : new Uint8Array()) : "[]");
+		return JSON.parse(Deno === undefined !== undefined && Utils.existsSync(NODES_PATH) ? new TextDecoder().decode(Deno !== undefined ? Deno.readFileSync(NODES_PATH) : new Uint8Array()) : JSON.stringify(this._client.config.bootstrapNodes));
 	}
 
 	public getNodes = (opts = { includeSelf: true }): Node[] => {
@@ -144,15 +144,15 @@ export default class Nodes {
 	}
 
 	async getFile(hash: string, size = 0): Promise<{ file: Uint8Array; signal: number } | false> {
-		console.log(`  ${hash}  Getting file from nodes`);
+		console.log(`  ${hash}  Checking nodes`);
 		const nodes = this.getNodes({ includeSelf: false });
 		const activePromises: Array<Promise<{ file: Uint8Array; signal: number } | false>> = [];
 
 		if (!this._client.utils.hasSufficientMemory(size)) {
 			console.log("Reached memory limit, waiting");
 			await new Promise(() => {
-				const intervalId = setInterval(() => {
-					if (this._client.utils.hasSufficientMemory(size)) clearInterval(intervalId);
+				const intervalId = setInterval(async () => {
+					if (await this._client.utils.hasSufficientMemory(size)) clearInterval(intervalId);
 				}, this._client.config.memoryThresholdReachedWait);
 			});
 		}
