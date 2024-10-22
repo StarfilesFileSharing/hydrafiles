@@ -25,16 +25,16 @@ export const handleRequest = async (req: Request, client: Hydrafiles): Promise<R
 			return new Response(JSON.stringify({ status: true }), { headers });
 		} else if (url.pathname === "/hydrafiles-web.esm.js") {
 			headers.set("Content-Type", "application/javascript");
-			// headers.set("Cache-Control", "public, max-age=300");
+			headers.set("Cache-Control", "public, max-age=300");
 			return new Response(await Deno.readFile("build/hydrafiles-web.esm.js"), { headers });
 		} else if (url.pathname === "/hydrafiles-web.esm.js.map") {
 			headers.set("Content-Type", "application/json");
-			// headers.set("Cache-Control", "public, max-age=300");
+			headers.set("Cache-Control", "public, max-age=300");
 			return new Response(await Deno.readFile("build/hydrafiles-web.esm.js.map"), { headers });
-		} else if (url.pathname === "/home.html") {
+		} else if (url.pathname === "/demo.html") {
 			headers.set("Content-Type", "text/html");
 			headers.set("Cache-Control", "public, max-age=300");
-			return new Response(await Deno.readFile("public/home.html"), { headers });
+			return new Response(await Deno.readFile("public/demo.html"), { headers });
 		} else if (url.pathname === "/nodes") {
 			headers.set("Content-Type", "application/json");
 			headers.set("Cache-Control", "public, max-age=300");
