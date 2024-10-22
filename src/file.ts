@@ -1,6 +1,4 @@
 import type Hydrafiles from "./hydrafiles.ts";
-import { Database } from "jsr:@db/sqlite@0.11";
-import { join } from "https://deno.land/std@0.224.0/path/mod.ts";
 import Utils from "./utils.ts";
 
 const Deno: typeof globalThis.Deno | undefined = globalThis.Deno ?? undefined;
@@ -28,12 +26,13 @@ export interface FileAttributes {
 
 const FILESPATH = "files/";
 
-function addColumnIfNotExists(db: Database, tableName: string, columnName: string, columnDefinition: string): void {
-	const result = db.prepare(`SELECT COUNT(*) as count FROM pragma_table_info(?) WHERE name = ?`).value<[number]>(tableName, columnName);
+function addColumnIfNotExists(client: Hydrafiles, tableName: string, columnName: string, columnDefinition: string): void {
+	if (client.db === undefined) return;
+	const result = client.db.prepare(`SELECT COUNT(*) as count FROM pragma_table_info(?) WHERE name = ?`).value<[number]>(tableName, columnName);
 	const columnExists = result && result[0] === 1;
 
 	if (!columnExists) {
-		db.exec(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${columnDefinition}`);
+		client.db.exec(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${columnDefinition}`);
 		console.log(`Column '${columnName}' added to table '${tableName}'.`);
 	}
 }
@@ -56,33 +55,32 @@ function fileAttributesDefaults(values: Partial<FileAttributes>): FileAttributes
 }
 
 export class FileManager {
-	private db: Database;
 	private _client: Hydrafiles;
 
 	constructor(client: Hydrafiles) {
 		this._client = client;
-		console.log("Starting database connection...");
-		this.db = new Database("filemanager.db");
-		this.db.exec(
-			`
-      CREATE TABLE IF NOT EXISTS file (
-        hash TEXT PRIMARY KEY,
-        infohash TEXT,
-        downloadCount INTEGER DEFAULT 0,
-        id TEXT,
-        name TEXT,
-        found BOOLEAN DEFAULT 1,
-        size INTEGER DEFAULT 0,
-        voteHash STRING,
-        voteNonce INTEGER DEFAULT 0,
-        voteDifficulty REAL DEFAULT 0,
-        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
-      )
-    `,
-		);
-		addColumnIfNotExists(this.db, "file", "voteHash", "STRING");
-		addColumnIfNotExists(this.db, "file", "voteNonce", "INTEGER");
-		addColumnIfNotExists(this.db, "file", "voteDifficulty", "REAL DEFAULT 0");
+		if (this._client.db !== undefined) {
+			this._client.db.exec(
+				`
+				CREATE TABLE IF NOT EXISTS file (
+					hash TEXT PRIMARY KEY,
+					infohash TEXT,
+					downloadCount INTEGER DEFAULT 0,
+					id TEXT,
+					name TEXT,
+					found BOOLEAN DEFAULT 1,
+					size INTEGER DEFAULT 0,
+					voteHash STRING,
+					voteNonce INTEGER DEFAULT 0,
+					voteDifficulty REAL DEFAULT 0,
+					createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
+				)
+			`,
+			);
+			addColumnIfNotExists(this._client, "file", "voteHash", "STRING");
+			addColumnIfNotExists(this._client, "file", "voteNonce", "INTEGER");
+			addColumnIfNotExists(this._client, "file", "voteDifficulty", "REAL DEFAULT 0");
+		}
 
 		if (Deno !== undefined && !Utils.existsSync("files/")) Deno.mkdir("files", { recursive: true });
 	}
@@ -98,20 +96,19 @@ export class FileManager {
 
 		if (opts.orderBy) query += ` ORDER BY ${opts.orderBy}`;
 
-		try {
-			const results = this.db.prepare(query).all(...params);
+		if (this._client.db !== undefined) {
+			const results = this._client.db.prepare(query).all(...params);
 			return results as File[];
-		} catch (err) {
-			console.error("Error executing SELECT query:", err);
-			return [];
 		}
+		return [];
 	}
 
 	insert(values: Partial<FileAttributes>): File {
+		if (this._client.db === undefined) return fileAttributesDefaults(values) as File;
 		const query = `INSERT INTO file (hash, infohash, downloadCount, id, name, found, size)VALUES (?, ?, ?, ?, ?, ?, ?)`;
 
 		const file = fileAttributesDefaults(values);
-		this.db.exec(
+		this._client.db.exec(
 			query,
 			file.hash,
 			file.infohash,
@@ -126,6 +123,7 @@ export class FileManager {
 	}
 
 	update(hash: string, updates: Partial<FileAttributes>): void {
+		if (this._client.db === undefined) return;
 		// TODO: If row has changed
 		const currentFile = fileAttributesDefaults(this.select({ where: { key: "hash", value: hash } })[0]);
 		if (!currentFile) {
@@ -151,31 +149,32 @@ export class FileManager {
 
 		const query = `UPDATE file SET ${updatedColumn.map((column) => `${column} = ?`).join(", ")} WHERE hash = ?`;
 
-		this.db.prepare(query).values(params);
+		this._client.db.prepare(query).values(params);
 		console.log(`  ${hash}  File UPDATEd - Updated Columns: ${updatedColumn.join(", ")}` + (this._client.config.logLevel === "verbose" ? ` - Query: ${query} - Params: ${params.join(", ")}` : ""));
 	}
 
 	delete(hash: string): void {
 		const query = `DELETE FROM file WHERE hash = ?`;
 
-		try {
-			this.db.exec(query, hash);
+		if (this._client.db !== undefined) {
+			this._client.db.exec(query, hash);
 			console.log(`${hash} File DELETEd`);
-		} catch (err) {
-			console.error("Error executing DELETE query:", err);
 		}
 	}
 
 	increment<T>(hash: string, column: keyof FileAttributes): void {
-		this.db.prepare(`UPDATE file set ${column} = ${column}+1 WHERE hash = ?`).values(hash);
+		if (this._client.db === undefined) return;
+		this._client.db.prepare(`UPDATE file set ${column} = ${column}+1 WHERE hash = ?`).values(hash);
 	}
 
 	count(): number {
-		return this.db.exec("SELECT COUNT(*) FROM file");
+		if (this._client.db === undefined) return 0;
+		return this._client.db.exec("SELECT COUNT(*) FROM file");
 	}
 
 	sum(column: string): number {
-		const result = this.db.prepare(`SELECT SUM(${column}) as sum FROM file`).value() as number[];
+		if (this._client.db === undefined) return 0;
+		const result = this._client.db.prepare(`SELECT SUM(${column}) as sum FROM file`).value() as number[];
 		return result === undefined ? 0 : result[0];
 	}
 }
@@ -208,7 +207,7 @@ class File implements FileAttributes {
 				hash = "";
 			}
 		} else throw new Error("No hash or infohash provided");
-		if (hash !== undefined && !this._client.utils.isValidSHA256Hash(hash)) throw new Error("Invalid hash provided");
+		if (hash !== undefined && !this._client.utils.isValidSHA256Hash(hash)) throw new Error(`  ${hash}  Invalid hash provided`);
 
 		this.hash = hash;
 
@@ -247,7 +246,7 @@ class File implements FileAttributes {
 			}
 		}
 
-		const filePath = join(FILESPATH, hash);
+		const filePath = Utils.pathJoin(FILESPATH, hash);
 		if (Deno !== undefined && Utils.existsSync(filePath)) {
 			this.size = Deno.statSync(filePath).size;
 			this.save();
@@ -272,7 +271,7 @@ class File implements FileAttributes {
 
 	async cacheFile(file: Uint8Array): Promise<void> {
 		const hash = this.hash;
-		const filePath = join(FILESPATH, hash);
+		const filePath = Utils.pathJoin(FILESPATH, hash);
 		if (Deno === undefined || Utils.existsSync(filePath)) return;
 
 		let size = this.size;
@@ -294,7 +293,7 @@ class File implements FileAttributes {
 	private async fetchFromCache(): Promise<{ file: Uint8Array; signal: number } | false> {
 		const hash = this.hash;
 		console.log(`  ${hash}  Checking Cache`);
-		const filePath = join(FILESPATH, hash);
+		const filePath = Utils.pathJoin(FILESPATH, hash);
 		this.seed();
 		if (Deno === undefined || !Utils.existsSync(filePath)) return false;
 		const fileContents = Deno.readFileSync(filePath);
@@ -389,15 +388,12 @@ class File implements FileAttributes {
 		// 	);
 		// }
 
-		console.log(` ${this.hash}  Checking Cache`);
 		let file = await this.fetchFromCache();
 		if (file !== false) console.log(`  ${hash}  Serving ${this.size !== undefined ? Math.round(this.size / 1024 / 1024) : 0}MB from cache`);
 		else {
-			console.log(` ${this.hash}  Checking S3`);
 			if (this._client.config.s3Endpoint.length > 0) file = await this.fetchFromS3();
 			if (file !== false) console.log(`  ${hash}  Serving ${this.size !== undefined ? Math.round(this.size / 1024 / 1024) : 0}MB from S3`);
 			else {
-				console.log(` ${this.hash}  Checking Nodes`);
 				file = await this._client.nodes.getFile(hash, this.size);
 				if (file === false) {
 					this.found = false;

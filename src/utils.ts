@@ -2,8 +2,6 @@ import { crypto } from "jsr:@std/crypto";
 import { encodeHex } from "jsr:@std/encoding/hex";
 import type { Config } from "./config.ts";
 import type { Receipt } from "./block.ts";
-import { join } from "https://deno.land/std@0.224.0/path/mod.ts";
-import * as os from "https://deno.land/std@0.170.0/node/os.ts";
 
 type Base64 = string & { __brand: "Base64" };
 
@@ -22,7 +20,11 @@ class Utils {
 	isIp = (host: string): boolean => /^https?:\/\/(?:\d+\.){3}\d+(?::\d+)?$/.test(host);
 	isPrivateIP = (ip: string): boolean => /^https?:\/\/(?:10\.|(?:172\.(?:1[6-9]|2\d|3[0-1]))\.|192\.168\.|169\.254\.|127\.|224\.0\.0\.|255\.255\.255\.255)/.test(ip);
 	interfere = (signalStrength: number): number => signalStrength >= 95 ? this.getRandomNumber(90, 100) : Math.ceil(signalStrength * (1 - (this.getRandomNumber(0, 10) / 100)));
-	hasSufficientMemory = (fileSize: number): boolean => os.freemem() > (fileSize + this._config.memoryThreshold);
+	hasSufficientMemory = async (fileSize: number): Promise<boolean> => {
+		if (Deno === undefined) return true;
+		const os = await import("https://deno.land/std@0.170.0/node/os.ts");
+		return os.freemem() > (fileSize + this._config.memoryThreshold);
+	};
 	promiseWithTimeout = async <T>(promise: Promise<T>, timeoutDuration: number): Promise<T> =>
 		await Promise.race([
 			promise,
@@ -108,7 +110,7 @@ class Utils {
 		if (Deno !== undefined && Utils.existsSync(filesPath)) {
 			const files = Deno.readDirSync(filesPath);
 			for (const file of files) {
-				const stats = Deno.statSync(join(filesPath, file.name));
+				const stats = Deno.statSync(Utils.pathJoin(filesPath, file.name));
 				usedStorage += stats.size;
 			}
 		}
@@ -126,7 +128,7 @@ class Utils {
 		for (const file of files) {
 			if (this._config.permaFiles.includes(file.name)) continue;
 
-			const filePath = join(filesPath, file.name);
+			const filePath = Utils.pathJoin(filesPath, file.name);
 			const size = Deno.statSync(filePath).size;
 
 			Deno.remove(filePath).catch(console.error);
@@ -244,6 +246,23 @@ class Utils {
 			if (error instanceof Deno.errors.NotFound) return false;
 			throw error;
 		}
+	}
+	static pathJoin(...paths: string[]): string {
+		if (paths.length === 0) return ".";
+
+		const isWindows = typeof Deno !== "undefined" && Deno.build.os === "windows";
+		const separator = isWindows ? "\\" : "/";
+
+		return paths
+			.map((part, index) => {
+				if (index === 0) {
+					return part.replace(new RegExp(`[${separator}]+$`), "");
+				} else {
+					return part.replace(new RegExp(`^[${separator}]+|[${separator}]+$`, "g"), "");
+				}
+			})
+			.filter((part) => part.length > 0)
+			.join(separator);
 	}
 }
 

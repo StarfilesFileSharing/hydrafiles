@@ -1,6 +1,5 @@
 import type Hydrafiles from "./hydrafiles.ts";
 import seedrandom from "https://cdn.skypack.dev/seedrandom";
-import { join } from "https://deno.land/std@0.224.0/path/mod.ts";
 import Utils from "./utils.ts";
 
 const Deno: typeof globalThis.Deno | undefined = globalThis.Deno ?? undefined;
@@ -34,7 +33,7 @@ export class Block {
 	}
 
 	static init(hash: string, client: Hydrafiles): Block {
-		const blockContent = JSON.parse(new TextDecoder().decode(Deno !== undefined ? Deno.readFileSync(join(BLOCKSDIR, hash)) : new Uint8Array()));
+		const blockContent = JSON.parse(new TextDecoder().decode(Deno !== undefined ? Deno.readFileSync(Utils.pathJoin(BLOCKSDIR, hash)) : new Uint8Array()));
 		const block = new Block(blockContent.prevBlock, client);
 		block.receipts = blockContent.receipts;
 		return block;
@@ -171,7 +170,7 @@ class Blockchain {
 		block.height = this.blocks.length;
 		this.blocks.push(block);
 		block.announce();
-		if (Deno !== undefined) Deno.writeFileSync(join(BLOCKSDIR, this.blocks.length.toString()), new TextEncoder().encode(block.toString()));
+		if (Deno !== undefined) Deno.writeFileSync(Utils.pathJoin(BLOCKSDIR, this.blocks.length.toString()), new TextEncoder().encode(block.toString()));
 	}
 
 	lastBlock(): Block {

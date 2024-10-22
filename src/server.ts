@@ -1,6 +1,5 @@
 import type Hydrafiles from "./hydrafiles.ts";
 import { BLOCKSDIR } from "./block.ts";
-import { join } from "https://deno.land/std@0.224.0/path/mod.ts";
 import File from "./file.ts";
 import Utils from "./utils.ts";
 
@@ -10,6 +9,7 @@ export const hashLocks = new Map<string, Promise<Response>>();
 export const handleRequest = async (req: Request, client: Hydrafiles): Promise<Response> => {
 	const url = new URL(req.url);
 	const headers = new Headers();
+	headers.set("Access-Control-Allow-Origin", "*");
 
 	try {
 		if (url.pathname === "/" || url.pathname === undefined) {
@@ -25,11 +25,11 @@ export const handleRequest = async (req: Request, client: Hydrafiles): Promise<R
 			return new Response(JSON.stringify({ status: true }), { headers });
 		} else if (url.pathname === "/hydrafiles-web.esm.js") {
 			headers.set("Content-Type", "application/javascript");
-			headers.set("Cache-Control", "public, max-age=300");
+			// headers.set("Cache-Control", "public, max-age=300");
 			return new Response(await Deno.readFile("build/hydrafiles-web.esm.js"), { headers });
 		} else if (url.pathname === "/hydrafiles-web.esm.js.map") {
 			headers.set("Content-Type", "application/json");
-			headers.set("Cache-Control", "public, max-age=300");
+			// headers.set("Cache-Control", "public, max-age=300");
 			return new Response(await Deno.readFile("build/hydrafiles-web.esm.js.map"), { headers });
 		} else if (url.pathname === "/home.html") {
 			headers.set("Content-Type", "text/html");
@@ -194,7 +194,7 @@ export const handleRequest = async (req: Request, client: Hydrafiles): Promise<R
 
 			console.log("Uploading", file.hash);
 
-			if (Deno !== undefined && Utils.existsSync(join("files/", file.hash))) return new Response("200 OK\n");
+			if (Deno !== undefined && Utils.existsSync(Utils.pathJoin("files/", file.hash))) return new Response("200 OK\n");
 
 			if (!client.config.permaFiles.includes(hash)) client.config.permaFiles.push(hash);
 			await Deno.writeFile("config.json", new TextEncoder().encode(JSON.stringify(client.config, null, 2)));
@@ -208,7 +208,7 @@ export const handleRequest = async (req: Request, client: Hydrafiles): Promise<R
 			const blockHeight = url.pathname.split("/")[2];
 			headers.set("Content-Type", "application/json");
 			// "Cache-Control": "public, max-age=" + (Number(blockHeight) > client.blockchain.lastBlock().height ? 0 : 604800),
-			const block = await Deno.readFile(join(BLOCKSDIR, blockHeight));
+			const block = await Deno.readFile(Utils.pathJoin(BLOCKSDIR, blockHeight));
 			return new Response(block, { headers });
 		} else if (url.pathname === "/block_height") {
 			headers.set("Content-Type", "application/json");
@@ -254,6 +254,7 @@ const onListen = (client: Hydrafiles): void => {
 };
 
 const startServer = (client: Hydrafiles): void => {
+	if (typeof Deno === "undefined") return;
 	console.log("Starting server");
 
 	Deno.serve({
