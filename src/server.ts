@@ -7,6 +7,7 @@ const Deno: typeof globalThis.Deno | undefined = globalThis.Deno ?? undefined;
 export const hashLocks = new Map<string, Promise<Response>>();
 
 export const handleRequest = async (req: Request, client: Hydrafiles): Promise<Response> => {
+	console.log(`Received Request: ${req.url}`);
 	const url = new URL(req.url);
 	const headers = new Headers();
 	headers.set("Access-Control-Allow-Origin", "*");
