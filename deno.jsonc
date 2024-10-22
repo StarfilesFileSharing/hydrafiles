@@ -22,11 +22,11 @@
 		"start": "deno run --allow-read --allow-env --allow-net --allow-sys --allow-ffi --allow-write --allow-import --allow-run src/start.ts",
 		"dev": "deno run --watch-hmr --unstable --allow-read --allow-env --allow-net --allow-sys --allow-ffi --allow-write --allow-import --allow-run src/start.ts",
 		"build": "deno fmt && deno lint && deno compile --allow-read --allow-env --allow-net --allow-sys --allow-ffi --allow-write --allow-import --output build/start src/start.ts",
-		"build-linux-x86_64": "deno fmt && deno lint && deno compile --allow-read --allow-env --allow-net --allow-sys --allow-ffi --allow-write --allow-import --output build/start-linux-x86_64 --target x86_64-unknown-linux-gnu src/start.ts",
-		"build-linux-arm64": "deno fmt && deno lint && deno compile --allow-read --allow-env --allow-net --allow-sys --allow-ffi --allow-write --allow-import --output build/start-linux-arm64 --target aarch64-unknown-linux-gnu src/start.ts",
-		"build-mac-x86_64": "deno fmt && deno lint && deno compile --allow-read --allow-env --allow-net --allow-sys --allow-ffi --allow-write --allow-import --output build/start-mac-x86_64 --target x86_64-apple-darwin src/start.ts",
-		"build-mac-arm6": "deno fmt && deno lint && deno compile --allow-read --allow-env --allow-net --allow-sys --allow-ffi --allow-write --allow-import --output build/start-mac-arm6 --target aarch64-apple-darwin src/start.ts",
-		"build-windows": "deno fmt && deno lint && deno compile --allow-read --allow-env --allow-net --allow-sys --allow-ffi --allow-write --allow-import --output build/start-windows --target x86_64-pc-windows-msvc --icon=./public/favicon.ico src/start.ts",
+		"build-linux-x86_64": "deno fmt && deno lint && deno compile --allow-read --allow-env --allow-net --allow-sys --allow-ffi --allow-write --allow-import --allow-run --output build/start-linux-x86_64 --target x86_64-unknown-linux-gnu src/start.ts",
+		"build-linux-arm64": "deno fmt && deno lint && deno compile --allow-read --allow-env --allow-net --allow-sys --allow-ffi --allow-write --allow-import --allow-run --output build/start-linux-arm64 --target aarch64-unknown-linux-gnu src/start.ts",
+		"build-mac-x86_64": "deno fmt && deno lint && deno compile --allow-read --allow-env --allow-net --allow-sys --allow-ffi --allow-write --allow-import --allow-run --output build/start-mac-x86_64 --target x86_64-apple-darwin src/start.ts",
+		"build-mac-arm6": "deno fmt && deno lint && deno compile --allow-read --allow-env --allow-net --allow-sys --allow-ffi --allow-write --allow-import --allow-run --output build/start-mac-arm6 --target aarch64-apple-darwin src/start.ts",
+		"build-windows": "deno fmt && deno lint && deno compile --allow-read --allow-env --allow-net --allow-sys --allow-ffi --allow-write --allow-import --allow-run --output build/start-windows --target x86_64-pc-windows-msvc --icon=./public/favicon.ico src/start.ts",
 		"test": "deno test --allow-read --allow-env --allow-net --allow-sys --allow-ffi --allow-write --allow-import --watch src/tests.ts"
 	},
 	"devDependencies": {
