@@ -217,20 +217,18 @@ class File implements FileAttributes {
 
 		this.hash = hash;
 
-		if (this._client.fileManager !== undefined) {
-			const fileAttributes = this._client.fileManager.select({ where: { key: "hash", value: hash } })[0] ?? this._client.fileManager.insert(this);
-			const file = fileAttributesDefaults(fileAttributes);
-			this.infohash = file.infohash;
-			this.downloadCount = file.downloadCount;
-			this.id = file.id;
-			this.name = file.name;
-			this.found = file.found;
-			this.size = file.size;
-			this.voteHash = file.voteHash;
-			this.voteNonce = file.voteNonce;
-			this.voteDifficulty = file.voteDifficulty;
-			this.updatedAt = file.updatedAt;
-		}
+		const fileAttributes = this._client.fileManager.select({ where: { key: "hash", value: hash } })[0] ?? this._client.fileManager.insert(this);
+		const file = fileAttributesDefaults(fileAttributes);
+		this.infohash = file.infohash;
+		this.downloadCount = file.downloadCount;
+		this.id = file.id;
+		this.name = file.name;
+		this.found = file.found;
+		this.size = file.size;
+		this.voteHash = file.voteHash;
+		this.voteNonce = file.voteNonce;
+		this.voteDifficulty = file.voteDifficulty;
+		this.updatedAt = file.updatedAt;
 
 		if (vote) this.vote().catch(console.error);
 	}
