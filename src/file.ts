@@ -22,6 +22,7 @@ export interface FileAttributes {
 	voteHash: string | null;
 	voteNonce: number;
 	voteDifficulty: number;
+	updatedAt: string;
 }
 
 const FILESPATH = "files/";
@@ -51,6 +52,7 @@ function fileAttributesDefaults(values: Partial<FileAttributes>): FileAttributes
 		voteHash: values.voteHash ?? null,
 		voteNonce: values.voteNonce ?? 0,
 		voteDifficulty: values.voteDifficulty ?? 0,
+		updatedAt: values.updatedAt ?? new Date().toISOString(),
 	};
 }
 
@@ -73,13 +75,15 @@ export class FileManager {
 					voteHash STRING,
 					voteNonce INTEGER DEFAULT 0,
 					voteDifficulty REAL DEFAULT 0,
-					createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
+					createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+					updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP
 				)
 			`,
 			);
 			addColumnIfNotExists(this._client, "file", "voteHash", "STRING");
 			addColumnIfNotExists(this._client, "file", "voteNonce", "INTEGER");
 			addColumnIfNotExists(this._client, "file", "voteDifficulty", "REAL DEFAULT 0");
+			addColumnIfNotExists(this._client, "file", "updatedAt", "DATETIME DEFAULT CURRENT_TIMESTAMP");
 		}
 
 		if (Deno !== undefined && !Utils.existsSync("files/")) Deno.mkdir("files", { recursive: true });
@@ -123,6 +127,7 @@ export class FileManager {
 	}
 
 	update(hash: string, updates: Partial<FileAttributes>): void {
+		updates.updatedAt = new Date().toISOString();
 		if (this._client.db === undefined) return;
 		// TODO: If row has changed
 		const currentFile = fileAttributesDefaults(this.select({ where: { key: "hash", value: hash } })[0]);
@@ -190,6 +195,7 @@ class File implements FileAttributes {
 	voteHash: string | null;
 	voteNonce = 0;
 	voteDifficulty = 0;
+	updatedAt: string;
 	_client: Hydrafiles;
 
 	constructor(values: { hash?: string; infohash?: string }, client: Hydrafiles, vote = true) {
@@ -222,6 +228,7 @@ class File implements FileAttributes {
 		this.voteHash = file.voteHash;
 		this.voteNonce = file.voteNonce;
 		this.voteDifficulty = file.voteDifficulty;
+		this.updatedAt = file.updatedAt;
 
 		if (vote) this.vote().catch(console.error);
 	}
@@ -364,13 +371,10 @@ class File implements FileAttributes {
 
 		const hash = this.hash;
 		console.log(`  ${hash}  Getting file`);
-		// if (
-		//   !this.found &&
-		//   new Date(this.updatedAt) > new Date(new Date().getTime() - 5 * 60 * 1000)
-		// ) {
-		//   console.log(`  ${hash}  404 cached`);
-		//   return false;
-		// }
+		if (!this.found && new Date(this.updatedAt) > new Date(new Date().getTime() - 5 * 60 * 1000)) {
+			console.log(`  ${hash}  404 cached`);
+			return false;
+		}
 		if (opts.logDownloads === undefined || opts.logDownloads) this.increment("downloadCount");
 		this.save();
 
