@@ -255,6 +255,7 @@ const onListen = (client: Hydrafiles): void => {
 
 const startServer = (client: Hydrafiles): void => {
 	if (typeof Deno === "undefined") return;
+	import("../build.ts");
 	console.log("Starting server");
 
 	Deno.serve({

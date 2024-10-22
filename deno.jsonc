@@ -19,8 +19,8 @@
 	"homepage": "https://github.com/StarfilesFileSharing/Hydrafiles#readme",
 	"type": "module",
 	"tasks": {
-		"start": "deno run --allow-read --allow-env --allow-net --allow-sys --allow-ffi --allow-write --allow-import src/start.ts",
-		"dev": "deno run --watch-hmr --unstable --allow-read --allow-env --allow-net --allow-sys --allow-ffi --allow-write --allow-import src/start.ts",
+		"start": "deno run --allow-read --allow-env --allow-net --allow-sys --allow-ffi --allow-write --allow-import --allow-run src/start.ts",
+		"dev": "deno run --watch-hmr --unstable --allow-read --allow-env --allow-net --allow-sys --allow-ffi --allow-write --allow-import --allow-run src/start.ts",
 		"build": "deno fmt && deno lint && deno compile --allow-read --allow-env --allow-net --allow-sys --allow-ffi --allow-write --allow-import --output build/start src/start.ts",
 		"build-linux-x86_64": "deno fmt && deno lint && deno compile --allow-read --allow-env --allow-net --allow-sys --allow-ffi --allow-write --allow-import --output build/start-linux-x86_64 --target x86_64-unknown-linux-gnu src/start.ts",
 		"build-linux-arm64": "deno fmt && deno lint && deno compile --allow-read --allow-env --allow-net --allow-sys --allow-ffi --allow-write --allow-import --output build/start-linux-arm64 --target aarch64-unknown-linux-gnu src/start.ts",
