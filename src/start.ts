@@ -3,7 +3,8 @@ import Utils from "./utils.ts";
 
 const Deno: typeof globalThis.Deno | undefined = globalThis.Deno ?? undefined;
 
-const config = JSON.parse(Deno !== undefined && Utils.existsSync("config.json") ? new TextDecoder().decode(Deno.readFileSync("config.json")) : "{}");
+const configPath = Deno.args[0] ?? "config.json";
+const config = JSON.parse(Deno !== undefined && Utils.existsSync(configPath) ? new TextDecoder().decode(Deno.readFileSync(configPath)) : "{}");
 const hydrafiles = new Hydrafiles(config);
 console.log("Hydrafiles Started", hydrafiles);
 
