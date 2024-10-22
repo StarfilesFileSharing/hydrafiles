@@ -1,4 +1,4 @@
-import type WebTorrent from "npm:webtorrent";
+// import WebTorrent from "npm:webtorrent";
 import getConfig, { type Config } from "./config.ts";
 import Nodes from "./nodes.ts";
 import File, { type FileAttributes, FileManager } from "./file.ts";
@@ -6,7 +6,7 @@ import startServer, { hashLocks } from "./server.ts";
 import Utils from "./utils.ts";
 // import Blockchain, { Block } from "./block.ts";
 import { S3Client } from "https://deno.land/x/s3_lite_client@0.7.0/mod.ts";
-import type { Database } from "jsr:@db/sqlite@0.11";
+import { Database } from "jsr:@db/sqlite@0.11";
 
 // TODO: IDEA: HydraTorrent - New Github repo - "Hydrafiles + WebTorrent Compatibility Layer" - Hydrafiles noes can optionally run HydraTorrent to seed files via webtorrent
 // Change index hash from sha256 to infohash, then allow nodes to leech files from webtorrent + normal torrent
@@ -23,19 +23,19 @@ class Hydrafiles {
 	startTime: number;
 	config: Config;
 	nodes: Nodes;
-	s3: S3Client | null;
+	s3: S3Client | undefined;
 	utils: Utils;
-	webtorrent: WebTorrent;
+	// webtorrent: WebTorrent = new WebTorrent();
 	// blockchain: Blockchain;
 	keyPair: Promise<CryptoKeyPair>;
-	fileManager: FileManager | undefined;
-	db: Database | undefined;
+	db: Database = new Database("filemanager.db");
+	fileManager: FileManager = new FileManager(this);
 	constructor(customConfig: Partial<Config> = {}) {
 		this.startTime = +new Date();
 		this.config = getConfig(customConfig);
 		this.utils = new Utils(this.config);
-		this.s3 = this.config.s3Endpoint.length !== 0
-			? new S3Client({
+		if (this.config.s3Endpoint.length) {
+			this.s3 = new S3Client({
 				endPoint: this.config.s3Endpoint,
 				port: 443,
 				useSSL: true,
@@ -44,15 +44,14 @@ class Hydrafiles {
 				accessKey: this.config.s3AccessKeyId,
 				secretKey: this.config.s3SecretAccessKey,
 				pathStyle: false,
-			})
-			: null;
+			});
+		}
 
 		this.keyPair = this.utils.generateKeyPair(); // TODO: Save keypair to fs
 
 		this.nodes = new Nodes(this);
 
 		startServer(this);
-		// this.webtorrent = new WebTorrent()
 		// this.blockchain = new Blockchain(this);
 
 		if (this.config.summarySpeed !== -1) {
@@ -67,16 +66,6 @@ class Hydrafiles {
 			this.backgroundTasks();
 		}
 		// if (this.config.backfill) this.backfillFiles().catch(console.error)
-
-		(async () => {
-			if (typeof Deno !== "undefined") {
-				const { Database } = await import("jsr:@db/sqlite@0.11");
-				this.db = new Database("filemanager.db");
-				new FileManager(this);
-			} else {
-				console.log("Running in a web environment, skipping sqlite database import.");
-			}
-		})();
 	}
 
 	backgroundTasks = (): void => {

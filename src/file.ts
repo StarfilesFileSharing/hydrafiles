@@ -260,7 +260,7 @@ class File implements FileAttributes {
 			return this;
 		}
 
-		if (this._client.s3 !== null) {
+		if (this._client.s3 !== undefined) {
 			try {
 				const data = await this._client.s3.statObject(`${hash}.stuf`);
 				if (typeof data.size !== "undefined") {
@@ -317,7 +317,7 @@ class File implements FileAttributes {
 
 	async fetchFromS3(): Promise<{ file: Uint8Array; signal: number } | false> {
 		console.log(`  ${this.hash}  Checking S3`);
-		if (this._client.s3 === null) return false;
+		if (this._client.s3 === undefined) return false;
 		try {
 			const data = (await this._client.s3.getObject(`${this.hash}.stuf`)).body;
 			if (data === null) return false;
