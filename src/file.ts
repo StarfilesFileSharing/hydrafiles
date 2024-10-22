@@ -186,16 +186,16 @@ export class FileManager {
 
 class File implements FileAttributes {
 	hash: string;
-	infohash: string | null;
-	downloadCount: number;
-	id: string | null;
-	name: string | null;
-	found: boolean;
-	size: number;
-	voteHash: string | null;
+	infohash: string | null = null;
+	downloadCount = 0;
+	id: string | null = null;
+	name: string | null = null;
+	found = true;
+	size = 0;
+	voteHash: string | null = null;
 	voteNonce = 0;
 	voteDifficulty = 0;
-	updatedAt: string;
+	updatedAt = new Date().toISOString();
 	_client: Hydrafiles;
 
 	constructor(values: { hash?: string; infohash?: string }, client: Hydrafiles, vote = true) {
@@ -217,18 +217,20 @@ class File implements FileAttributes {
 
 		this.hash = hash;
 
-		const fileAttributes = this._client.fileManager !== undefined ? this._client.fileManager.select({ where: { key: "hash", value: hash } })[0] ?? this._client.fileManager.insert(this) : {};
-		const file = fileAttributesDefaults(fileAttributes);
-		this.infohash = file.infohash;
-		this.downloadCount = file.downloadCount;
-		this.id = file.id;
-		this.name = file.name;
-		this.found = file.found;
-		this.size = file.size;
-		this.voteHash = file.voteHash;
-		this.voteNonce = file.voteNonce;
-		this.voteDifficulty = file.voteDifficulty;
-		this.updatedAt = file.updatedAt;
+		if (this._client.fileManager !== undefined) {
+			const fileAttributes = this._client.fileManager.select({ where: { key: "hash", value: hash } })[0] ?? this._client.fileManager.insert(this);
+			const file = fileAttributesDefaults(fileAttributes);
+			this.infohash = file.infohash;
+			this.downloadCount = file.downloadCount;
+			this.id = file.id;
+			this.name = file.name;
+			this.found = file.found;
+			this.size = file.size;
+			this.voteHash = file.voteHash;
+			this.voteNonce = file.voteNonce;
+			this.voteDifficulty = file.voteDifficulty;
+			this.updatedAt = file.updatedAt;
+		}
 
 		if (vote) this.vote().catch(console.error);
 	}
