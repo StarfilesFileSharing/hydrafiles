@@ -49,7 +49,7 @@ export const handleRequest = async (req: Request, client: Hydrafiles): Promise<R
 			if (host === null) return new Response("No hosted given\n", { status: 401 });
 
 			const knownNodes = client.nodes.getNodes();
-			if (knownNodes.find((node) => node.host === host) !== null) return new Response("Already known\n");
+			if (knownNodes.find((node) => node.host === host) !== undefined) return new Response("Already known\n");
 
 			if ((await client.nodes.downloadFromNode(client.nodes.nodeFrom(host), new File({ hash: "04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f" }, client))) !== false) {
 				await client.nodes.add(client.nodes.nodeFrom(host));
