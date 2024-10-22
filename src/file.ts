@@ -83,7 +83,7 @@ export class FileManager {
 			addColumnIfNotExists(this._client, "file", "voteHash", "STRING");
 			addColumnIfNotExists(this._client, "file", "voteNonce", "INTEGER");
 			addColumnIfNotExists(this._client, "file", "voteDifficulty", "REAL DEFAULT 0");
-			addColumnIfNotExists(this._client, "file", "updatedAt", "DATETIME DEFAULT CURRENT_TIMESTAMP");
+			addColumnIfNotExists(this._client, "file", "updatedAt", "DATETIME");
 		}
 
 		if (Deno !== undefined && !Utils.existsSync("files/")) Deno.mkdir("files", { recursive: true });
@@ -205,7 +205,7 @@ class File implements FileAttributes {
 		if (values.hash !== undefined) hash = values.hash;
 		else if (values.infohash !== undefined) {
 			if (!this._client.utils.isValidInfoHash(values.infohash)) throw new Error(`Invalid infohash provided: ${values.infohash}`);
-			const file = this._client.fileManager.select({ where: { key: "infohash", value: values.infohash } })[0];
+			const file = this._client.fileManager !== undefined ? this._client.fileManager.select({ where: { key: "infohash", value: values.infohash } })[0] : null;
 			if (typeof file?.hash === "string") {
 				hash = file?.hash;
 			} else {
@@ -217,7 +217,7 @@ class File implements FileAttributes {
 
 		this.hash = hash;
 
-		const fileAttributes = this._client.fileManager.select({ where: { key: "hash", value: hash } })[0] ?? this._client.fileManager.insert(this);
+		const fileAttributes = this._client.fileManager !== undefined ? this._client.fileManager.select({ where: { key: "hash", value: hash } })[0] ?? this._client.fileManager.insert(this) : {};
 		const file = fileAttributesDefaults(fileAttributes);
 		this.infohash = file.infohash;
 		this.downloadCount = file.downloadCount;
@@ -412,7 +412,9 @@ class File implements FileAttributes {
 	}
 
 	save(): void {
-		this._client.fileManager.update(this.hash, this);
+		if (this._client.fileManager) {
+			this._client.fileManager.update(this.hash, this);
+		}
 	}
 
 	seed(): void {
@@ -435,7 +437,9 @@ class File implements FileAttributes {
 	}
 
 	increment(column: keyof FileAttributes): void {
-		this._client.fileManager.increment(this.hash, column);
+		if (this._client.fileManager) {
+			this._client.fileManager.increment(this.hash, column);
+		}
 		this[column]++;
 	}
 
