@@ -217,20 +217,18 @@ class File implements FileAttributes {
 
 		this.hash = hash;
 
-		if (this._client.fileManager !== undefined) {
-			const fileAttributes = this._client.fileManager.select({ where: { key: "hash", value: hash } })[0] ?? this._client.fileManager.insert(this);
-			const file = fileAttributesDefaults(fileAttributes);
-			this.infohash = file.infohash;
-			this.downloadCount = file.downloadCount;
-			this.id = file.id;
-			this.name = file.name;
-			this.found = file.found;
-			this.size = file.size;
-			this.voteHash = file.voteHash;
-			this.voteNonce = file.voteNonce;
-			this.voteDifficulty = file.voteDifficulty;
-			this.updatedAt = file.updatedAt;
-		}
+		const fileAttributes = this._client.fileManager.select({ where: { key: "hash", value: hash } })[0] ?? this._client.fileManager.insert(this);
+		const file = fileAttributesDefaults(fileAttributes);
+		this.infohash = file.infohash;
+		this.downloadCount = file.downloadCount;
+		this.id = file.id;
+		this.name = file.name;
+		this.found = file.found;
+		this.size = file.size;
+		this.voteHash = file.voteHash;
+		this.voteNonce = file.voteNonce;
+		this.voteDifficulty = file.voteDifficulty;
+		this.updatedAt = file.updatedAt;
 
 		if (vote) this.vote().catch(console.error);
 	}
@@ -262,7 +260,7 @@ class File implements FileAttributes {
 			return this;
 		}
 
-		if (this._client.s3 !== null) {
+		if (this._client.s3 !== undefined) {
 			try {
 				const data = await this._client.s3.statObject(`${hash}.stuf`);
 				if (typeof data.size !== "undefined") {
@@ -319,7 +317,7 @@ class File implements FileAttributes {
 
 	async fetchFromS3(): Promise<{ file: Uint8Array; signal: number } | false> {
 		console.log(`  ${this.hash}  Checking S3`);
-		if (this._client.s3 === null) return false;
+		if (this._client.s3 === undefined) return false;
 		try {
 			const data = (await this._client.s3.getObject(`${this.hash}.stuf`)).body;
 			if (data === null) return false;
