@@ -22,7 +22,7 @@ export interface FileAttributes {
 	voteHash: string | null;
 	voteNonce: number;
 	voteDifficulty: number;
-	updatedAt: string;
+	updatedAt: string | null;
 }
 
 const FILESPATH = "files/";
@@ -52,7 +52,7 @@ function fileAttributesDefaults(values: Partial<FileAttributes>): FileAttributes
 		voteHash: values.voteHash ?? null,
 		voteNonce: values.voteNonce ?? 0,
 		voteDifficulty: values.voteDifficulty ?? 0,
-		updatedAt: values.updatedAt ?? new Date().toISOString(),
+		updatedAt: values.updatedAt ?? null,
 	};
 }
 
@@ -76,7 +76,7 @@ export class FileManager {
 					voteNonce INTEGER DEFAULT 0,
 					voteDifficulty REAL DEFAULT 0,
 					createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-					updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP
+					updatedAt DATETIME
 				)
 			`,
 			);
@@ -127,8 +127,8 @@ export class FileManager {
 	}
 
 	update(hash: string, updates: Partial<FileAttributes>): void {
-		updates.updatedAt = new Date().toISOString();
 		if (this._client.db === undefined) return;
+		updates.updatedAt = new Date().toISOString();
 		// TODO: If row has changed
 		const currentFile = fileAttributesDefaults(this.select({ where: { key: "hash", value: hash } })[0]);
 		if (!currentFile) {
@@ -149,7 +149,7 @@ export class FileManager {
 				params.push(newFile[key]);
 			}
 		}
-		if (updatedColumn.length === 0) return;
+		if (updatedColumn.length < 2) return;
 		params.push(hash);
 
 		const query = `UPDATE file SET ${updatedColumn.map((column) => `${column} = ?`).join(", ")} WHERE hash = ?`;
