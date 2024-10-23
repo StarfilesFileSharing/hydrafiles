@@ -158,8 +158,8 @@ Thanks, your fellow Hydra operator.
 
 ### Option A: Run Compiled Binary
 
-1. Go to [Releases](https://github.com/StarfilesFileSharing/hydrafiles/releases) and download the file `hydrafiles`.
-2. Run the binary with `./hydrafiles`.
+1. Go to [Releases](https://github.com/StarfilesFileSharing/hydrafiles/releases) and download the right executable.
+2. Run it with `./hydrafiles`.
 
 ### Option B: Compile Binary
 
