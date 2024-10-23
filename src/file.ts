@@ -158,9 +158,9 @@ export class FileDB {
 					} else {
 						if (opts.orderBy) {
 							results.sort((a, b) => {
-								const orderBy = opts.orderBy ?? "hash";
-								if (a[orderBy] < b[orderBy]) return -1;
-								if (a[orderBy] > b[orderBy]) return 1;
+								const orderBy = (opts.orderBy ?? "hash") as keyof FileAttributes;
+								if ((a[orderBy] ?? "") < (b[orderBy] ?? "")) return -1;
+								if ((a[orderBy] ?? "") > (b[orderBy] ?? "")) return 1;
 								return 0;
 							});
 						}
@@ -246,7 +246,9 @@ export class FileDB {
 		else if (this.objectStore) {
 			const request = this.objectStore.get(hash);
 			request.onsuccess = (event) => {
-				const file = event.target.result;
+				const target = event.target;
+				if (!target) return;
+				const file = (target as IDBRequest).result;
 				if (file && this.objectStore) {
 					file[column] = (file[column] || 0) + 1;
 					this.objectStore.put(file).onsuccess = () => console.log(`Incremented ${column} for hash ${hash}`);
@@ -279,7 +281,12 @@ export class FileDB {
 				const request = this.objectStore.openCursor();
 
 				request.onsuccess = (event) => {
-					const cursor = event.target.result;
+					const target = event.target;
+					if (!target) {
+						reject(new Error("Event target is null"));
+						return;
+					}
+					const cursor = (target as IDBRequest).result;
 					if (cursor) {
 						sum += cursor.value[column] || 0;
 						cursor.continue();
