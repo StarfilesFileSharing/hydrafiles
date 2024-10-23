@@ -195,7 +195,7 @@ class File implements FileAttributes {
 	voteHash: string | null = null;
 	voteNonce = 0;
 	voteDifficulty = 0;
-	updatedAt = new Date().toISOString();
+	updatedAt: string | null = null;
 	_client: Hydrafiles;
 
 	constructor(values: { hash?: string; infohash?: string }, client: Hydrafiles, vote = true) {
