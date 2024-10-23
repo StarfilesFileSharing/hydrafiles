@@ -22,7 +22,7 @@ export interface FileAttributes {
 	voteHash: string | null;
 	voteNonce: number;
 	voteDifficulty: number;
-	updatedAt: string | null;
+	updatedAt: string;
 }
 
 const FILESPATH = "files/";
@@ -52,7 +52,7 @@ function fileAttributesDefaults(values: Partial<FileAttributes>): FileAttributes
 		voteHash: values.voteHash ?? null,
 		voteNonce: values.voteNonce ?? 0,
 		voteDifficulty: values.voteDifficulty ?? 0,
-		updatedAt: values.updatedAt ?? null,
+		updatedAt: values.updatedAt ?? new Date().toISOString(),
 	};
 }
 
@@ -195,7 +195,7 @@ class File implements FileAttributes {
 	voteHash: string | null = null;
 	voteNonce = 0;
 	voteDifficulty = 0;
-	updatedAt: string | null = null;
+	updatedAt: string = new Date().toISOString();
 	_client: Hydrafiles;
 
 	constructor(values: { hash?: string; infohash?: string }, client: Hydrafiles, vote = true) {
