@@ -1,6 +1,6 @@
 {
 	"name": "@starfiles/hydrafiles",
-	"version": "0.2.8",
+	"version": "0.2.9",
 	"description": "The headless storage network.",
 	"main": "src/hydrafiles.ts",
 	"exports": {
