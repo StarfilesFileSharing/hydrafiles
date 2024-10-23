@@ -46,8 +46,8 @@ export class Block {
 			time: +new Date(),
 		};
 		const message = JSON.stringify(receipt);
-		const signature = await this._client.utils.signMessage(keyPair.privateKey, message);
-		const issuer = await this._client.utils.exportPublicKey(keyPair.publicKey);
+		const signature = await Utils.signMessage(keyPair.privateKey, message);
+		const issuer = await Utils.exportPublicKey(keyPair.publicKey);
 		const nonce = Math.random();
 
 		return {
@@ -60,7 +60,7 @@ export class Block {
 
 	async addReceipt(receipt: Receipt): Promise<void> { // TODO: Validate added transactions
 		if (this.state !== State.Mempool) throw new Error("Block not in mempool");
-		if (await this._client.utils.verifySignature(receipt)) this.receipts.push(receipt);
+		if (await Utils.verifySignature(receipt)) this.receipts.push(receipt);
 	}
 
 	toString(): string {
@@ -72,7 +72,7 @@ export class Block {
 	}
 
 	async getHash(): Promise<string> {
-		return await this._client.utils.hashString(this.toString());
+		return await Utils.hashString(this.toString());
 	}
 
 	getPeers(): string[] {
@@ -108,13 +108,13 @@ class Blockchain {
 		const lastBlock = this.lastBlock();
 		let peer = await this.nextBlockProposer(0);
 		console.log(`Block Proposer is ${peer}`);
-		if (peer === undefined || peer === await this._client.utils.exportPublicKey((await this._client.keyPair).publicKey)) {
+		if (peer === undefined || peer === await Utils.exportPublicKey((await this._client.keyPair).publicKey)) {
 			console.log("YOU ARE BLOCK PROPOSER");
 			while (lastBlock.time + 60 * 1000 > +new Date()) {
 				await new Promise((resolve) => setTimeout(resolve, 100));
 			}
 			peer = await this.nextBlockProposer(0);
-			if (peer === undefined || peer === await this._client.utils.exportPublicKey((await this._client.keyPair).publicKey)) {
+			if (peer === undefined || peer === await Utils.exportPublicKey((await this._client.keyPair).publicKey)) {
 				this.newMempoolBlock();
 			}
 		} else {

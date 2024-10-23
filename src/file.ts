@@ -314,7 +314,7 @@ class File implements FileAttributes {
 		const hashPromise = new Promise((resolve) => {
 			if (values.hash !== undefined) resolve(values.hash);
 			if (values.infohash !== undefined) {
-				if (!this._client.utils.isValidInfoHash(values.infohash)) throw new Error(`Invalid infohash provided: ${values.infohash}`);
+				if (!Utils.isValidInfoHash(values.infohash)) throw new Error(`Invalid infohash provided: ${values.infohash}`);
 				const filesPromise = this._client.FileDB !== undefined ? this._client.FileDB.select({ where: { key: "infohash", value: values.infohash } }) : undefined;
 				if (filesPromise !== undefined) filesPromise.then((files) => resolve(files[0].hash));
 				// TODO: Check other nodes for infohash
@@ -322,7 +322,7 @@ class File implements FileAttributes {
 		}) as Promise<string>;
 
 		hashPromise.then(async (hash) => {
-			if (hash !== undefined && !this._client.utils.isValidSHA256Hash(hash)) throw new Error(`  ${hash}  Invalid hash provided`);
+			if (hash !== undefined && !Utils.isValidSHA256Hash(hash)) throw new Error(`  ${hash}  Invalid hash provided`);
 
 			this.hash = hash;
 
@@ -406,7 +406,7 @@ class File implements FileAttributes {
 
 		if (Deno !== undefined) {
 			Deno.writeFileSync(filePath, file);
-			const savedHash = await this._client.utils.hashUint8Array(Deno.readFileSync(filePath));
+			const savedHash = await Utils.hashUint8Array(Deno.readFileSync(filePath));
 			if (savedHash !== hash) await Deno.remove(filePath); // In case of broken file
 		}
 	}
@@ -418,14 +418,14 @@ class File implements FileAttributes {
 		this.seed();
 		if (Deno === undefined || !Utils.existsSync(filePath)) return false;
 		const fileContents = Deno.readFileSync(filePath);
-		const savedHash = await this._client.utils.hashUint8Array(fileContents);
+		const savedHash = await Utils.hashUint8Array(fileContents);
 		if (savedHash !== this.hash) {
 			if (Deno !== undefined) Deno.remove(filePath).catch(console.error);
 			return false;
 		}
 		return {
 			file: fileContents,
-			signal: this._client.utils.interfere(100),
+			signal: Utils.interfere(100),
 		};
 	}
 
@@ -454,11 +454,11 @@ class File implements FileAttributes {
 
 			if (this._client.config.cacheS3) await this.cacheFile(file);
 
-			const hash = await this._client.utils.hashUint8Array(file);
+			const hash = await Utils.hashUint8Array(file);
 			if (hash !== this.hash) return false;
 			return {
 				file,
-				signal: this._client.utils.interfere(100),
+				signal: Utils.interfere(100),
 			};
 		} catch (e) {
 			const err = e as { message: string };
@@ -472,7 +472,7 @@ class File implements FileAttributes {
 	// TODO: Check other nodes file lists to find other claimed infohashes for the file, leech off all of them and copy the metadata from the healthiest torrent
 
 	async getFile(opts: { logDownloads?: boolean } = {}): Promise<{ file: Uint8Array; signal: number } | false> {
-		// const peer = await this._client.utils.exportPublicKey((await this._client.keyPair).publicKey); // TODO: Replace this with actual peer
+		// const peer = await Utils.exportPublicKey((await this._client.keyPair).publicKey); // TODO: Replace this with actual peer
 		// const receipt = await this._client.blockchain.mempoolBlock.signReceipt(
 		//   peer,
 		//   await this._client.keyPair,
@@ -493,13 +493,13 @@ class File implements FileAttributes {
 		this.save();
 
 		// console.log(` ${this.hash}  Checking memory usage`);
-		// if (this.size !== 0 && !this._client.utils.hasSufficientMemory(this.size)) {
+		// if (this.size !== 0 && !Utils.hasSufficientMemory(this.size)) {
 		// 	console.log(`  ${hash}  Reached memory limit, waiting`, this.size);
-		// 	await this._client.utils.promiseWithTimeout(
+		// 	await Utils.promiseWithTimeout(
 		// 		new Promise(() => {
 		// 			const intervalId = setInterval(() => {
 		// 				if (this._client.config.logLevel === "verbose") console.log(`  ${hash}  Reached memory limit, waiting`, this.size);
-		// 				if (this.size === 0 || this._client.utils.hasSufficientMemory(this.size)) clearInterval(intervalId);
+		// 				if (this.size === 0 || Utils.hasSufficientMemory(this.size)) clearInterval(intervalId);
 		// 			}, this._client.config.memoryThresholdReachedWait);
 		// 		}),
 		// 		this._client.config.timeout / 2,
@@ -558,7 +558,7 @@ class File implements FileAttributes {
 	}
 
 	async checkVoteNonce(nonce: number): Promise<void> {
-		const voteHash = await this._client.utils.hashString(this.hash + nonce);
+		const voteHash = await Utils.hashString(this.hash + nonce);
 		const decimalValue = BigInt("0x" + voteHash).toString(10);
 		const difficulty = Number(decimalValue) / Number(BigInt("0x" + "f".repeat(64)));
 		if (difficulty > this.voteDifficulty) {

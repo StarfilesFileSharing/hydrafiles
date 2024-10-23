@@ -103,7 +103,7 @@ export const handleRequest = async (req: Request, client: Hydrafiles): Promise<R
 				headers.set("Cache-Control", "public, max-age=31536000");
 				headers.set("Content-Length", fileContent.file.byteLength.toString());
 				headers.set("Signal-Strength", String(fileContent.signal));
-				console.log(`  ${hash}  Signal Strength:`, fileContent.signal, client.utils.estimateHops(fileContent.signal));
+				console.log(`  ${hash}  Signal Strength:`, fileContent.signal, Utils.estimateHops(fileContent.signal));
 
 				headers.set("Content-Length", String(file.size));
 				if (file.name !== null) headers.set("Content-Disposition", `attachment; filename="${encodeURIComponent(file.name).replace(/%20/g, " ").replace(/(\.\w+)$/, " [HYDRAFILES]$1")}`);
@@ -155,7 +155,7 @@ export const handleRequest = async (req: Request, client: Hydrafiles): Promise<R
 				headers.set("Cache-Control", "public, max-age=31536000");
 
 				headers.set("Signal-Strength", String(fileContent.signal));
-				console.log(`  ${file.hash}  Signal Strength:`, fileContent.signal, client.utils.estimateHops(fileContent.signal));
+				console.log(`  ${file.hash}  Signal Strength:`, fileContent.signal, Utils.estimateHops(fileContent.signal));
 
 				headers.set("Content-Length", String(file.size));
 				if (file.name !== null) headers.set("Content-Disposition", `attachment; filename="${encodeURIComponent(file.name).replace(/%20/g, " ").replace(/(\.\w+)$/, " [HYDRAFILES]$1")}"`);
@@ -235,7 +235,7 @@ const onListen = (client: Hydrafiles): void => {
 		else {
 			console.log("Connected to network");
 
-			if (client.utils.isIp(client.config.publicHostname) && client.utils.isPrivateIP(client.config.publicHostname)) console.error("Public hostname is a private IP address, cannot announce to other nodes");
+			if (Utils.isIp(client.config.publicHostname) && Utils.isPrivateIP(client.config.publicHostname)) console.error("Public hostname is a private IP address, cannot announce to other nodes");
 			else {
 				console.log(`Testing downloads ${client.config.publicHostname}/download/04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f`);
 

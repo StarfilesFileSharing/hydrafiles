@@ -45,7 +45,7 @@ class Hydrafiles {
 			});
 		}
 
-		this.keyPair = this.utils.generateKeyPair(); // TODO: Save keypair to fs
+		this.keyPair = Utils.generateKeyPair(); // TODO: Save keypair to fs
 
 		this.nodes = new Nodes(this);
 
@@ -98,13 +98,13 @@ class Hydrafiles {
 				new Date().toUTCString(),
 				"========\n===============================================",
 				"\n| Uptime: ",
-				this.utils.convertTime(+new Date() - this.startTime),
+				Utils.convertTime(+new Date() - this.startTime),
 				"\n| Known (Network) Files:",
 				this.FileDB !== undefined ? this.FileDB.count() : 0,
 				`(${Math.round((100 * (this.FileDB !== undefined ? await this.FileDB.sum("size") : 0)) / 1024 / 1024 / 1024) / 100}GB)`,
 				"\n| Stored Files:",
-				this.utils.countFilesInDir("files/"),
-				`(${Math.round((100 * this.utils.calculateUsedStorage()) / 1024 / 1024 / 1024) / 100}GB)`,
+				Utils.countFilesInDir("files/"),
+				`(${Math.round((100 * Utils.calculateUsedStorage()) / 1024 / 1024 / 1024) / 100}GB)`,
 				"\n| Processing Files:",
 				hashLocks.size,
 				"\n| Known Nodes:",
