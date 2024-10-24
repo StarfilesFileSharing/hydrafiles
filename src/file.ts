@@ -2,6 +2,7 @@ import { Database } from "jsr:@db/sqlite@0.11";
 import type Hydrafiles from "./hydrafiles.ts";
 import Utils from "./utils.ts";
 import { IDBKeyRange, indexedDB } from "https://deno.land/x/indexeddb@v1.1.0/ponyfill.ts";
+import { join } from "https://deno.land/std@0.224.0/path/mod.ts";
 
 const Deno: typeof globalThis.Deno | undefined = globalThis.Deno ?? undefined;
 
@@ -83,11 +84,11 @@ export class FileDB {
 		this._client = client;
 
 		this.initialize().catch(console.error);
-
-		if (Deno !== undefined && !Utils.existsSync("files/")) Deno.mkdir("files", { recursive: true });
 	}
 
 	private async initialize(): Promise<void> {
+		if (Deno !== undefined && !await this._client.fs.exists("files/")) this._client.fs.mkdir("files");
+
 		if (typeof window === "undefined") {
 			this.db = new Database("filemanager.db");
 			this.db.exec(`
@@ -374,9 +375,9 @@ class File implements FileAttributes {
 			}
 		}
 
-		const filePath = Utils.pathJoin(FILESPATH, hash);
-		if (Deno !== undefined && Utils.existsSync(filePath)) {
-			this.size = Deno.statSync(filePath).size;
+		const filePath = join(FILESPATH, hash);
+		if (Deno !== undefined && await this._client.fs.exists(filePath)) {
+			this.size = await this._client.fs.getFileSize(filePath);
 			this.save();
 			return this;
 		}
@@ -399,8 +400,8 @@ class File implements FileAttributes {
 
 	async cacheFile(file: Uint8Array): Promise<void> {
 		const hash = this.hash;
-		const filePath = Utils.pathJoin(FILESPATH, hash);
-		if (Deno === undefined || Utils.existsSync(filePath)) return;
+		const filePath = join(FILESPATH, hash);
+		if (Deno === undefined || await this._client.fs.exists(filePath)) return;
 
 		let size = this.size;
 		if (size === 0) {
@@ -408,26 +409,26 @@ class File implements FileAttributes {
 			this.size = size;
 			this.save();
 		}
-		const remainingSpace = this._client.utils.remainingStorage();
+		const remainingSpace = await this._client.utils.remainingStorage();
 		if (this._client.config.maxCache !== -1 && size > remainingSpace) this._client.utils.purgeCache(size, remainingSpace);
 
 		if (Deno !== undefined) {
-			Deno.writeFileSync(filePath, file);
-			const savedHash = await Utils.hashUint8Array(Deno.readFileSync(filePath));
-			if (savedHash !== hash) await Deno.remove(filePath); // In case of broken file
+			this._client.fs.writeFile(filePath, file);
+			const savedHash = await Utils.hashUint8Array(await this._client.fs.readFile(filePath));
+			if (savedHash !== hash) await this._client.fs.remove(filePath); // In case of broken file
 		}
 	}
 
 	private async fetchFromCache(): Promise<{ file: Uint8Array; signal: number } | false> {
 		const hash = this.hash;
 		console.log(`  ${hash}  Checking Cache`);
-		const filePath = Utils.pathJoin(FILESPATH, hash);
+		const filePath = join(FILESPATH, hash);
 		this.seed();
-		if (Deno === undefined || !Utils.existsSync(filePath)) return false;
-		const fileContents = Deno.readFileSync(filePath);
+		if (Deno === undefined || !await this._client.fs.exists(filePath)) return false;
+		const fileContents = await this._client.fs.readFile(filePath);
 		const savedHash = await Utils.hashUint8Array(fileContents);
 		if (savedHash !== this.hash) {
-			if (Deno !== undefined) Deno.remove(filePath).catch(console.error);
+			if (Deno !== undefined) await this._client.fs.remove(filePath).catch(console.error);
 			return false;
 		}
 		return {

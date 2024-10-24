@@ -6,6 +6,7 @@ import startServer, { hashLocks } from "./server.ts";
 import Utils from "./utils.ts";
 // import Blockchain, { Block } from "./block.ts";
 import { S3Client } from "https://deno.land/x/s3_lite_client@0.7.0/mod.ts";
+import FS from "./fs.ts";
 
 // TODO: IDEA: HydraTorrent - New Github repo - "Hydrafiles + WebTorrent Compatibility Layer" - Hydrafiles noes can optionally run HydraTorrent to seed files via webtorrent
 // Change index hash from sha256 to infohash, then allow nodes to leech files from webtorrent + normal torrent
@@ -28,10 +29,11 @@ class Hydrafiles {
 	// blockchain: Blockchain;
 	keyPair: Promise<CryptoKeyPair>;
 	FileDB: FileDB = new FileDB(this);
+	fs = new FS();
 	constructor(customConfig: Partial<Config> = {}) {
 		this.startTime = +new Date();
 		this.config = getConfig(customConfig);
-		this.utils = new Utils(this.config);
+		this.utils = new Utils(this);
 		if (this.config.s3Endpoint.length) {
 			this.s3 = new S3Client({
 				endPoint: this.config.s3Endpoint,
@@ -102,8 +104,8 @@ class Hydrafiles {
 				this.FileDB !== undefined ? await this.FileDB.count() : 0,
 				`(${Math.round((100 * (this.FileDB !== undefined ? await this.FileDB.sum("size") : 0)) / 1024 / 1024 / 1024) / 100}GB)`,
 				"\n| Stored Files:",
-				await Utils.countFilesInDir("files/"),
-				`(${Math.round((100 * Utils.calculateUsedStorage()) / 1024 / 1024 / 1024) / 100}GB)`,
+				await this.utils.countFilesInDir("files/"),
+				`(${Math.round((100 * await this.utils.calculateUsedStorage()) / 1024 / 1024 / 1024) / 100}GB)`,
 				"\n| Processing Files:",
 				hashLocks.size,
 				"\n| Known Nodes:",

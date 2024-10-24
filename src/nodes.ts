@@ -19,12 +19,15 @@ export const NODES_PATH = "nodes.json";
 
 // TODO: Log common user-agents and re-use them to help anonimise non Hydrafiles nodes
 export default class Nodes {
-	private nodes: Node[];
+	private nodes: Node[] = [];
 	private _client: Hydrafiles;
 	constructor(client: Hydrafiles) {
 		this._client = client;
-		if (Deno !== undefined && !Utils.existsSync(NODES_PATH)) Deno.writeFileSync(NODES_PATH, new TextEncoder().encode(JSON.stringify(this._client.config.bootstrapNodes)));
-		this.nodes = this.loadNodes();
+		this.initialize();
+	}
+
+	private async initialize(): Promise<void> {
+		if (Deno !== undefined && !await this._client.fs.exists(NODES_PATH)) this._client.fs.writeFile(NODES_PATH, new TextEncoder().encode(JSON.stringify(this._client.config.bootstrapNodes)));
 	}
 
 	async add(node: Node): Promise<void> {
@@ -34,12 +37,12 @@ export default class Nodes {
 		) {
 			this.nodes.push(node);
 
-			if (Deno !== undefined) Deno.writeFileSync(NODES_PATH, new TextEncoder().encode(JSON.stringify(this.nodes)));
+			if (Deno !== undefined) this._client.fs.writeFile(NODES_PATH, new TextEncoder().encode(JSON.stringify(this.nodes)));
 		}
 	}
 
-	loadNodes(): Node[] {
-		return JSON.parse(Deno === undefined !== undefined && Utils.existsSync(NODES_PATH) ? new TextDecoder().decode(Deno !== undefined ? Deno.readFileSync(NODES_PATH) : new Uint8Array()) : JSON.stringify(this._client.config.bootstrapNodes));
+	async loadNodes(): Promise<void> {
+		this.nodes = JSON.parse(Deno === undefined !== undefined && await this._client.fs.exists(NODES_PATH) ? new TextDecoder().decode(await this._client.fs.readFile(NODES_PATH)) : JSON.stringify(this._client.config.bootstrapNodes));
 	}
 
 	public getNodes = (opts = { includeSelf: true }): Node[] => {
@@ -106,7 +109,7 @@ export default class Nodes {
 		const index = this.nodes.findIndex((n) => n.host === node.host);
 		if (index !== -1) {
 			this.nodes[index] = node;
-			if (Deno !== undefined) Deno.writeFileSync(NODES_PATH, new TextEncoder().encode(JSON.stringify(this.nodes)));
+			this._client.fs.writeFile(NODES_PATH, new TextEncoder().encode(JSON.stringify(this.nodes)));
 		}
 	}
 

@@ -1,16 +1,17 @@
 import { crypto } from "jsr:@std/crypto";
 import { encodeHex } from "jsr:@std/encoding/hex";
-import type { Config } from "./config.ts";
 import type { Receipt } from "./block.ts";
+import type Hydrafiles from "./hydrafiles.ts";
+import { join } from "https://deno.land/std@0.224.0/path/mod.ts";
 
 type Base64 = string & { __brand: "Base64" };
 
 const Deno: typeof globalThis.Deno | undefined = globalThis.Deno ?? undefined;
 
 class Utils {
-	_config: Config;
-	constructor(config: Config) {
-		this._config = config;
+	_client: Hydrafiles;
+	constructor(client: Hydrafiles) {
+		this._client = client;
 	}
 
 	static getRandomNumber = (min: number, max: number): number => Math.floor(Math.random() * (max - min + 1)) + min;
@@ -23,7 +24,7 @@ class Utils {
 	hasSufficientMemory = async (fileSize: number): Promise<boolean> => {
 		if (Deno === undefined) return true;
 		const os = await import("https://deno.land/std@0.170.0/node/os.ts");
-		return os.freemem() > (fileSize + this._config.memoryThreshold);
+		return os.freemem() > (fileSize + this._client.config.memoryThreshold);
 	};
 	static promiseWithTimeout = async <T>(promise: Promise<T>, timeoutDuration: number): Promise<T> =>
 		await Promise.race([
@@ -100,41 +101,39 @@ class Utils {
 		};
 	};
 
-	remainingStorage = (): number => this._config.maxCache - Utils.calculateUsedStorage();
+	remainingStorage = async (): Promise<number> => this._client.config.maxCache - await this.calculateUsedStorage();
 
-	static calculateUsedStorage = (): number => {
+	calculateUsedStorage = async (): Promise<number> => {
 		if (Deno === undefined) return 0;
 		const filesPath = "files/";
 		let usedStorage = 0;
 
-		if (Deno !== undefined && Utils.existsSync(filesPath)) {
-			const files = Deno.readDirSync(filesPath);
+		if (Deno !== undefined && await this._client.fs.exists(filesPath)) {
+			const files = await this._client.fs.readDir(filesPath);
 			for (const file of files) {
-				const stats = Deno.statSync(Utils.pathJoin(filesPath, file.name));
-				usedStorage += stats.size;
+				usedStorage += await this._client.fs.getFileSize(join(filesPath, file));
 			}
 		}
 
 		return usedStorage;
 	};
 
-	purgeCache = (requiredSpace: number, remainingSpace: number): void => {
+	purgeCache = async (requiredSpace: number, remainingSpace: number): Promise<void> => {
 		if (Deno === undefined) return;
 		console.warn("WARNING: Your node has reached max storage, some files are getting purged. To prevent this, increase your limit at config.json or add more storage to your machine.");
 
 		const filesPath = "files/";
-		const files = Deno.readDirSync(filesPath);
+		const files = await this._client.fs.readDir(filesPath);
 
 		for (const file of files) {
-			if (this._config.permaFiles.includes(file.name)) continue;
+			if (this._client.config.permaFiles.includes(file)) continue;
 
-			const filePath = Utils.pathJoin(filesPath, file.name);
-			const size = Deno.statSync(filePath).size;
+			const filePath = join(filesPath, file);
 
-			Deno.remove(filePath).catch(console.error);
-			remainingSpace += size;
+			this._client.fs.remove(filePath).catch(console.error);
+			remainingSpace += await this._client.fs.getFileSize(filePath);
 
-			if (requiredSpace <= remainingSpace && Utils.calculateUsedStorage() * (1 - this._config.burnRate) <= remainingSpace) {
+			if (requiredSpace <= remainingSpace && await this.calculateUsedStorage() * (1 - this._client.config.burnRate) <= remainingSpace) {
 				break;
 			}
 		}
@@ -229,40 +228,13 @@ class Utils {
 		if (start < 0 || end >= buffer.length || start > end) throw new RangeError("Invalid start or end range.");
 		return buffer.subarray(start, end + 1);
 	}
-	static async countFilesInDir(dirPath: string): Promise<number> {
+	async countFilesInDir(dirPath: string): Promise<number> {
 		if (Deno === undefined) return 0;
 		let count = 0;
-		for await (const entry of Deno.readDir(dirPath)) {
-			if (entry.isFile) count++;
+		for await (const _ of await this._client.fs.readDir(dirPath)) {
+			count++;
 		}
 		return count;
-	}
-	static existsSync(path: string | URL): boolean {
-		if (Deno === undefined) return false;
-		try {
-			Deno.statSync(path);
-			return true;
-		} catch (error) {
-			if (error instanceof Deno.errors.NotFound) return false;
-			throw error;
-		}
-	}
-	static pathJoin(...paths: string[]): string {
-		if (paths.length === 0) return ".";
-
-		const isWindows = typeof Deno !== "undefined" && Deno.build.os === "windows";
-		const separator = isWindows ? "\\" : "/";
-
-		return paths
-			.map((part, index) => {
-				if (index === 0) {
-					return part.replace(new RegExp(`[${separator}]+$`), "");
-				} else {
-					return part.replace(new RegExp(`^[${separator}]+|[${separator}]+$`, "g"), "");
-				}
-			})
-			.filter((part) => part.length > 0)
-			.join(separator);
 	}
 }
 
