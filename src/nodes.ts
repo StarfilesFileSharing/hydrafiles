@@ -23,10 +23,11 @@ export default class Nodes {
 	private _client: Hydrafiles;
 	constructor(client: Hydrafiles) {
 		this._client = client;
-		this.initialize();
+		this.initialize().catch(console.error);
 	}
 
 	private async initialize(): Promise<void> {
+		this.nodes = JSON.parse(Deno === undefined !== undefined && await this._client.fs.exists(NODES_PATH) ? new TextDecoder().decode(await this._client.fs.readFile(NODES_PATH)) : JSON.stringify(this._client.config.bootstrapNodes));
 		if (Deno !== undefined && !await this._client.fs.exists(NODES_PATH)) this._client.fs.writeFile(NODES_PATH, new TextEncoder().encode(JSON.stringify(this._client.config.bootstrapNodes)));
 	}
 
@@ -39,10 +40,6 @@ export default class Nodes {
 
 			if (Deno !== undefined) this._client.fs.writeFile(NODES_PATH, new TextEncoder().encode(JSON.stringify(this.nodes)));
 		}
-	}
-
-	async loadNodes(): Promise<void> {
-		this.nodes = JSON.parse(Deno === undefined !== undefined && await this._client.fs.exists(NODES_PATH) ? new TextDecoder().decode(await this._client.fs.readFile(NODES_PATH)) : JSON.stringify(this._client.config.bootstrapNodes));
 	}
 
 	public getNodes = (opts = { includeSelf: true }): Node[] => {
