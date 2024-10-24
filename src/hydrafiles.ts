@@ -29,8 +29,8 @@ class Hydrafiles {
 	// webtorrent: WebTorrent = new WebTorrent();
 	// blockchain: Blockchain;
 	keyPair: Promise<CryptoKeyPair>;
-	FileDB: FileDB = new FileDB(this);
 	fs = new FS();
+	FileDB = new FileDB(this);
 	constructor(customConfig: Partial<Config> = {}) {
 		this.startTime = +new Date();
 		this.config = getConfig(customConfig);
