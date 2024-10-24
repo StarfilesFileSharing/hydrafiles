@@ -319,6 +319,8 @@ class File implements FileAttributes {
 	constructor(values: { hash?: string; infohash?: string }, client: Hydrafiles, vote = true) {
 		this._client = client;
 
+		if (values.hash) this.hash = values.hash;
+
 		const hashPromise = new Promise((resolve) => {
 			if (values.hash !== undefined) resolve(values.hash);
 			if (values.infohash !== undefined) {
@@ -337,7 +339,7 @@ class File implements FileAttributes {
 			let fileAttributes = (await this._client.FileDB.select({ where: { key: "hash", value: hash } }))[0];
 			if (fileAttributes === undefined) {
 				this._client.FileDB.insert(this);
-				fileAttributes = (await this._client.FileDB.select({ where: { key: "hash", value: hash } }))[0];
+				fileAttributes = (await this._client.FileDB.select({ where: { key: "hash", value: hash } }))[0] ?? { hash };
 			}
 			const file = fileAttributesDefaults(fileAttributes);
 			this.infohash = file.infohash;
