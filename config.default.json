@@ -5,7 +5,7 @@
 	"maxCache": -1,
 	"permaFiles": ["04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f"],
 	"preferNode": "HIGHEST_HITRATE",
-	"metadataEndpoint": "https://api2.starfiles.co/file/",
+	"metadataEndpoints": ["https://api2.starfiles.co/file/", "https://api2.starfiles.bz/file/"],
 	"bootstrapNodes": [
 		{
 			"host": "https://hydrafiles.com",

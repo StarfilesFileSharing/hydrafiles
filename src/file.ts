@@ -364,14 +364,21 @@ class File implements FileAttributes {
 
 		const id = this.id;
 		if (id !== undefined && id !== null && id.length > 0) {
-			const response = await fetch(`${this._client.config.metadataEndpoint}${id}`);
-			if (response.ok) {
-				const metadata = (await response.json()).result as Metadata;
-				this.name = metadata.name;
-				this.size = metadata.size;
-				if (this.infohash?.length === 0) this.infohash = metadata.infohash;
-				this.save();
-				return this;
+			const metadataEndpoints = this._client.config.metadataEndpoints;
+			for (let i = 0; i < metadataEndpoints.length; i++) {
+				try {
+					const response = await fetch(`${metadataEndpoints[i]}${id}`);
+					if (response.ok) {
+						const metadata = (await response.json()).result as Metadata;
+						this.name = metadata.name;
+						this.size = metadata.size;
+						if (this.infohash?.length === 0) this.infohash = metadata.infohash;
+						this.save();
+						return this;
+					}
+				} catch (e) {
+					if (this._client.config.logLevel === "verbose") console.error(e);
+				}
 			}
 		}
 
