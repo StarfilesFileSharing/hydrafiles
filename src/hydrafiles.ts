@@ -91,7 +91,6 @@ class Hydrafiles {
 	};
 
 	logState(): void {
-		console.log("aaaaaaaa");
 		(async () => {
 			console.log(
 				"\n===============================================\n========",
@@ -100,10 +99,10 @@ class Hydrafiles {
 				"\n| Uptime: ",
 				Utils.convertTime(+new Date() - this.startTime),
 				"\n| Known (Network) Files:",
-				this.FileDB !== undefined ? this.FileDB.count() : 0,
+				this.FileDB !== undefined ? await this.FileDB.count() : 0,
 				`(${Math.round((100 * (this.FileDB !== undefined ? await this.FileDB.sum("size") : 0)) / 1024 / 1024 / 1024) / 100}GB)`,
 				"\n| Stored Files:",
-				Utils.countFilesInDir("files/"),
+				await Utils.countFilesInDir("files/"),
 				`(${Math.round((100 * Utils.calculateUsedStorage()) / 1024 / 1024 / 1024) / 100}GB)`,
 				"\n| Processing Files:",
 				hashLocks.size,
@@ -112,7 +111,7 @@ class Hydrafiles {
 				// '\n| Seeding Torrent Files:',
 				// (await webtorrentClient()).torrents.length,
 				"\n| Downloads Served:",
-				(this.FileDB !== undefined ? this.FileDB.sum("downloadCount") : 0) + ` (${Math.round((((this.FileDB !== undefined ? await this.FileDB.sum("downloadCount * size") : 0) / 1024 / 1024 / 1024) * 100) / 100)}GB)`,
+				(this.FileDB !== undefined ? await this.FileDB.sum("downloadCount") : 0) + ` (${Math.round((((this.FileDB !== undefined ? await this.FileDB.sum("downloadCount * size") : 0) / 1024 / 1024 / 1024) * 100) / 100)}GB)`,
 				"\n===============================================\n",
 			);
 		})();
