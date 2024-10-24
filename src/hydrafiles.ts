@@ -7,6 +7,7 @@ import Utils from "./utils.ts";
 // import Blockchain, { Block } from "./block.ts";
 import { S3Client } from "https://deno.land/x/s3_lite_client@0.7.0/mod.ts";
 import FS from "./fs.ts";
+import { delay } from "https://deno.land/std@0.170.0/async/delay.ts";
 
 // TODO: IDEA: HydraTorrent - New Github repo - "Hydrafiles + WebTorrent Compatibility Layer" - Hydrafiles noes can optionally run HydraTorrent to seed files via webtorrent
 // Change index hash from sha256 to infohash, then allow nodes to leech files from webtorrent + normal torrent
@@ -68,15 +69,17 @@ class Hydrafiles {
 		// if (this.config.backfill) this.backfillFiles().catch(console.error)
 	}
 
-	backgroundTasks = (): void => {
+	backgroundTasks = async (): Promise<void> => {
 		const nodes = this.nodes;
 		if (this.config.compareNodes) nodes.compareNodeList();
 		if (this.config.compareFiles) {
 			const knownNodes = nodes.getNodes({ includeSelf: false });
 			for (let i = 0; i < knownNodes.length; i++) {
-				nodes.compareFileList(knownNodes[i]).catch(console.error);
+				await nodes.compareFileList(knownNodes[i]);
 			}
 		}
+		await delay(600000);
+		this.backgroundTasks();
 	};
 
 	backfillFiles = async (): Promise<void> => {
