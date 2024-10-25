@@ -236,6 +236,19 @@ class Utils {
 		}
 		return count;
 	}
+	static async parallelAsync(promises: (() => Promise<void>)[], processes = 4): Promise<void> {
+		let completed = 0;
+		const runningPromises: Promise<void>[] = [];
+		for (let i = 0; i < promises.length; i++) {
+			const promise = promises[i]();
+			if (i - completed > processes) {
+				await Promise.race(runningPromises);
+				completed++;
+			}
+			runningPromises.push(promise);
+		}
+		await Promise.all(runningPromises);
+	}
 }
 
 export default Utils;
