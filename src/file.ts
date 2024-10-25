@@ -15,7 +15,7 @@ function createNonNegativeNumber(n: number): NonNegativeNumber {
 
 interface Metadata {
 	name: string;
-	size: NonNegativeNumber;
+	size: number;
 	type: string;
 	hash: { sha256: string };
 	id: string;
@@ -25,11 +25,11 @@ interface Metadata {
 export interface FileAttributes {
 	hash: string;
 	infohash: string | null;
-	downloadCount: NonNegativeNumber;
+	downloadCount: number;
 	id: string | null;
 	name: string | null;
 	found: boolean;
-	size: NonNegativeNumber;
+	size: number;
 	voteHash: string | null;
 	voteNonce: number;
 	voteDifficulty: number;
@@ -411,11 +411,11 @@ class File implements FileAttributes {
 			}
 			const file = fileAttributesDefaults(fileAttributes);
 			this.infohash = file.infohash;
-			this.downloadCount = file.downloadCount;
+			this.downloadCount = createNonNegativeNumber(file.downloadCount);
 			this.id = file.id;
 			this.name = file.name;
 			this.found = file.found;
-			this.size = file.size;
+			this.size = createNonNegativeNumber(file.size);
 			this.voteHash = file.voteHash;
 			this.voteNonce = file.voteNonce;
 			this.voteDifficulty = file.voteDifficulty;
@@ -439,9 +439,10 @@ class File implements FileAttributes {
 				try {
 					const response = await fetch(`${nodes[i]}/file/${id}`);
 					if (response.ok) {
-						const metadata = (await response.json()).result as Metadata;
+						const body = await response.json();
+						const metadata = body.result as Metadata ?? body as FileAttributes;
 						this.name = metadata.name;
-						this.size = metadata.size;
+						this.size = createNonNegativeNumber(metadata.size);
 						if (this.infohash?.length === 0) this.infohash = metadata.infohash;
 						this.save();
 						return this;
