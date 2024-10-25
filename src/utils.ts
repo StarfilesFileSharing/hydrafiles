@@ -1,31 +1,32 @@
 import { crypto } from "jsr:@std/crypto";
 import { encodeHex } from "jsr:@std/encoding/hex";
-import type { Config } from "./config.ts";
 import type { Receipt } from "./block.ts";
+import type Hydrafiles from "./hydrafiles.ts";
+import { join } from "https://deno.land/std@0.224.0/path/mod.ts";
 
 type Base64 = string & { __brand: "Base64" };
 
 const Deno: typeof globalThis.Deno | undefined = globalThis.Deno ?? undefined;
 
 class Utils {
-	_config: Config;
-	constructor(config: Config) {
-		this._config = config;
+	_client: Hydrafiles;
+	constructor(client: Hydrafiles) {
+		this._client = client;
 	}
 
-	getRandomNumber = (min: number, max: number): number => Math.floor(Math.random() * (max - min + 1)) + min;
-	isValidSHA256Hash = (hash: string): boolean => /^[a-f0-9]{64}$/.test(hash);
-	hashUint8Array = async (uint8Array: Uint8Array): Promise<string> => encodeHex(await crypto.subtle.digest("SHA-256", uint8Array));
-	isValidInfoHash = (hash: string): boolean => /^[a-f0-9]{40}$/.test(hash);
-	isIp = (host: string): boolean => /^https?:\/\/(?:\d+\.){3}\d+(?::\d+)?$/.test(host);
-	isPrivateIP = (ip: string): boolean => /^https?:\/\/(?:10\.|(?:172\.(?:1[6-9]|2\d|3[0-1]))\.|192\.168\.|169\.254\.|127\.|224\.0\.0\.|255\.255\.255\.255)/.test(ip);
-	interfere = (signalStrength: number): number => signalStrength >= 95 ? this.getRandomNumber(90, 100) : Math.ceil(signalStrength * (1 - (this.getRandomNumber(0, 10) / 100)));
+	static getRandomNumber = (min: number, max: number): number => Math.floor(Math.random() * (max - min + 1)) + min;
+	static isValidSHA256Hash = (hash: string): boolean => /^[a-f0-9]{64}$/.test(hash);
+	static hashUint8Array = async (uint8Array: Uint8Array): Promise<string> => encodeHex(await crypto.subtle.digest("SHA-256", uint8Array));
+	static isValidInfoHash = (hash: string): boolean => /^[a-f0-9]{40}$/.test(hash);
+	static isIp = (host: string): boolean => /^https?:\/\/(?:\d+\.){3}\d+(?::\d+)?$/.test(host);
+	static isPrivateIP = (ip: string): boolean => /^https?:\/\/(?:10\.|(?:172\.(?:1[6-9]|2\d|3[0-1]))\.|192\.168\.|169\.254\.|127\.|224\.0\.0\.|255\.255\.255\.255)/.test(ip);
+	static interfere = (signalStrength: number): number => signalStrength >= 95 ? this.getRandomNumber(90, 100) : Math.ceil(signalStrength * (1 - (this.getRandomNumber(0, 10) / 100)));
 	hasSufficientMemory = async (fileSize: number): Promise<boolean> => {
 		if (Deno === undefined) return true;
 		const os = await import("https://deno.land/std@0.170.0/node/os.ts");
-		return os.freemem() > (fileSize + this._config.memoryThreshold);
+		return os.freemem() > (fileSize + this._client.config.memoryThreshold);
 	};
-	promiseWithTimeout = async <T>(promise: Promise<T>, timeoutDuration: number): Promise<T> =>
+	static promiseWithTimeout = async <T>(promise: Promise<T>, timeoutDuration: number): Promise<T> =>
 		await Promise.race([
 			promise,
 			new Promise<never>((_resolve, reject) =>
@@ -36,7 +37,7 @@ class Utils {
 			),
 		]);
 
-	promiseWrapper = <T>(promise: Promise<T>): { promise: Promise<T>; isFulfilled: boolean } => {
+	static promiseWrapper = <T>(promise: Promise<T>): { promise: Promise<T>; isFulfilled: boolean } => {
 		let isFulfilled = false;
 		const wrappedPromise = promise
 			.then((value: T) => {
@@ -53,7 +54,7 @@ class Utils {
 		};
 	};
 
-	estimateHops = (signalStrength: number): { hop: number | null; certainty: number } => {
+	static estimateHops = (signalStrength: number): { hop: number | null; certainty: number } => {
 		const hopData = [
 			{ hop: 1, min: 90, avg: 95 },
 			{ hop: 2, min: 81, avg: 92 },
@@ -100,47 +101,45 @@ class Utils {
 		};
 	};
 
-	remainingStorage = (): number => this._config.maxCache - this.calculateUsedStorage();
+	remainingStorage = async (): Promise<number> => this._client.config.maxCache - await this.calculateUsedStorage();
 
-	calculateUsedStorage = (): number => {
+	calculateUsedStorage = async (): Promise<number> => {
 		if (Deno === undefined) return 0;
 		const filesPath = "files/";
 		let usedStorage = 0;
 
-		if (Deno !== undefined && Utils.existsSync(filesPath)) {
-			const files = Deno.readDirSync(filesPath);
+		if (Deno !== undefined && await this._client.fs.exists(filesPath)) {
+			const files = await this._client.fs.readDir(filesPath);
 			for (const file of files) {
-				const stats = Deno.statSync(Utils.pathJoin(filesPath, file.name));
-				usedStorage += stats.size;
+				usedStorage += await this._client.fs.getFileSize(join(filesPath, file));
 			}
 		}
 
 		return usedStorage;
 	};
 
-	purgeCache = (requiredSpace: number, remainingSpace: number): void => {
+	purgeCache = async (requiredSpace: number, remainingSpace: number): Promise<void> => {
 		if (Deno === undefined) return;
 		console.warn("WARNING: Your node has reached max storage, some files are getting purged. To prevent this, increase your limit at config.json or add more storage to your machine.");
 
 		const filesPath = "files/";
-		const files = Deno.readDirSync(filesPath);
+		const files = await this._client.fs.readDir(filesPath);
 
 		for (const file of files) {
-			if (this._config.permaFiles.includes(file.name)) continue;
+			if (this._client.config.permaFiles.includes(file)) continue;
 
-			const filePath = Utils.pathJoin(filesPath, file.name);
-			const size = Deno.statSync(filePath).size;
+			const filePath = join(filesPath, file);
 
-			Deno.remove(filePath).catch(console.error);
-			remainingSpace += size;
+			this._client.fs.remove(filePath).catch(console.error);
+			remainingSpace += await this._client.fs.getFileSize(filePath);
 
-			if (requiredSpace <= remainingSpace && this.calculateUsedStorage() * (1 - this._config.burnRate) <= remainingSpace) {
+			if (requiredSpace <= remainingSpace && await this.calculateUsedStorage() * (1 - this._client.config.burnRate) <= remainingSpace) {
 				break;
 			}
 		}
 	};
 
-	convertTime = (duration: number): string => {
+	static convertTime = (duration: number): string => {
 		const msPerSecond = 1000;
 		const msPerMinute = msPerSecond * 60;
 		const msPerHour = msPerMinute * 60;
@@ -155,7 +154,7 @@ class Utils {
 		} else return (duration / msPerDay).toFixed(2) + " days";
 	};
 
-	bufferToBase64(buffer: ArrayBuffer): string {
+	static bufferToBase64(buffer: ArrayBuffer): string {
 		const byteArray = new Uint8Array(buffer);
 		let binary = "";
 		byteArray.forEach((byte) => {
@@ -164,7 +163,7 @@ class Utils {
 		return btoa(binary);
 	}
 
-	base64ToBuffer(base64: Base64): ArrayBuffer {
+	static base64ToBuffer(base64: Base64): ArrayBuffer {
 		const binaryString = atob(base64);
 		const byteArray = new Uint8Array(binaryString.length);
 		for (let i = 0; i < binaryString.length; i++) {
@@ -173,7 +172,7 @@ class Utils {
 		return byteArray.buffer;
 	}
 
-	async hashString(input: string): Promise<string> {
+	static async hashString(input: string): Promise<string> {
 		const encoder = new TextEncoder();
 		const data = encoder.encode(input);
 		const hashBuffer = await crypto.subtle.digest("SHA-256", data);
@@ -182,15 +181,15 @@ class Utils {
 		return hexHash;
 	}
 
-	async generateKeyPair(): Promise<CryptoKeyPair> {
+	static async generateKeyPair(): Promise<CryptoKeyPair> {
 		return await crypto.subtle.generateKey({ name: "Ed25519" }, true, [
 			"sign",
 			"verify",
 		]) as CryptoKeyPair;
 	}
 
-	exportPublicKey = async (keyPair: CryptoKey) => (await crypto.subtle.exportKey("jwk", keyPair))["x"] as string;
-	buildJWT = (key: string) => {
+	static exportPublicKey = async (keyPair: CryptoKey) => (await crypto.subtle.exportKey("jwk", keyPair))["x"] as string;
+	static buildJWT = (key: string) => {
 		return {
 			"kty": "OKP",
 			"crv": "Ed25519",
@@ -200,13 +199,13 @@ class Utils {
 		};
 	};
 
-	async signMessage(privateKey: CryptoKey, message: string): Promise<Base64> {
+	static async signMessage(privateKey: CryptoKey, message: string): Promise<Base64> {
 		const encoder = new TextEncoder();
 		const data = encoder.encode(message);
 		return this.bufferToBase64(await crypto.subtle.sign({ name: "Ed25519" }, privateKey, data)) as Base64;
 	}
 
-	async verifySignature(receipt: Receipt): Promise<boolean> {
+	static async verifySignature(receipt: Receipt): Promise<boolean> {
 		const encoder = new TextEncoder();
 		const data = encoder.encode(receipt.message);
 
@@ -225,44 +224,30 @@ class Utils {
 			data,
 		);
 	}
-	extractBufferSection(buffer: Uint8Array, start: number, end: number): Uint8Array {
+	static extractBufferSection(buffer: Uint8Array, start: number, end: number): Uint8Array {
 		if (start < 0 || end >= buffer.length || start > end) throw new RangeError("Invalid start or end range.");
 		return buffer.subarray(start, end + 1);
 	}
 	async countFilesInDir(dirPath: string): Promise<number> {
 		if (Deno === undefined) return 0;
 		let count = 0;
-		for await (const entry of Deno.readDir(dirPath)) {
-			if (entry.isFile) count++;
+		for await (const _ of await this._client.fs.readDir(dirPath)) {
+			count++;
 		}
 		return count;
 	}
-	static existsSync(path: string | URL): boolean {
-		if (Deno === undefined) return false;
-		try {
-			Deno.statSync(path);
-			return true;
-		} catch (error) {
-			if (error instanceof Deno.errors.NotFound) return false;
-			throw error;
+	static async parallelAsync(promises: (() => Promise<void>)[], processes = 4): Promise<void> {
+		let completed = 0;
+		const runningPromises: Promise<void>[] = [];
+		for (let i = 0; i < promises.length; i++) {
+			const promise = promises[i]();
+			if (i - completed > processes) {
+				await Promise.race(runningPromises);
+				completed++;
+			}
+			runningPromises.push(promise);
 		}
-	}
-	static pathJoin(...paths: string[]): string {
-		if (paths.length === 0) return ".";
-
-		const isWindows = typeof Deno !== "undefined" && Deno.build.os === "windows";
-		const separator = isWindows ? "\\" : "/";
-
-		return paths
-			.map((part, index) => {
-				if (index === 0) {
-					return part.replace(new RegExp(`[${separator}]+$`), "");
-				} else {
-					return part.replace(new RegExp(`^[${separator}]+|[${separator}]+$`, "g"), "");
-				}
-			})
-			.filter((part) => part.length > 0)
-			.join(separator);
+		await Promise.all(runningPromises);
 	}
 }
 

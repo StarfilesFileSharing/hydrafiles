@@ -1,11 +1,24 @@
 import type Hydrafiles from "./hydrafiles.ts";
 import { BLOCKSDIR } from "./block.ts";
-import File from "./file.ts";
+import File, { fileAttributesDefaults } from "./file.ts";
 import Utils from "./utils.ts";
+import { join } from "https://deno.land/std@0.224.0/path/mod.ts";
 
 const Deno: typeof globalThis.Deno | undefined = globalThis.Deno ?? undefined;
 export const hashLocks = new Map<string, Promise<Response>>();
 
+function stripInvalidProperties<T extends File>(obj: T): File {
+	const result: Partial<File> = {};
+	Object.keys(obj).forEach((key) => {
+		const fileKey = key as keyof File;
+		if (!key.startsWith("_") && key !== "downloadCount") {
+			// @ts-expect-error:
+			if (obj[fileKey] !== undefined && obj[fileKey] !== null) result[fileKey] = obj[fileKey];
+		}
+	});
+
+	return Object.assign({}, result as File);
+}
 export const handleRequest = async (req: Request, client: Hydrafiles): Promise<Response> => {
 	console.log(`Received Request: ${req.url}`);
 	const url = new URL(req.url);
@@ -16,26 +29,26 @@ export const handleRequest = async (req: Request, client: Hydrafiles): Promise<R
 		if (url.pathname === "/" || url.pathname === undefined) {
 			headers.set("Content-Type", "text/html");
 			headers.set("Cache-Control", "public, max-age=604800");
-			return new Response(await Deno.readFile("public/index.html"), { headers });
+			return new Response(await client.fs.readFile("public/index.html"), { headers });
 		} else if (url.pathname === "/favicon.ico") {
 			headers.set("Content-Type", "image/x-icon");
 			headers.set("Cache-Control", "public, max-age=604800");
-			return new Response(await Deno.readFile("public/favicon.ico"), { headers });
+			return new Response(await client.fs.readFile("public/favicon.ico"), { headers });
 		} else if (url.pathname === "/status") {
 			headers.set("Content-Type", "application/json");
 			return new Response(JSON.stringify({ status: true }), { headers });
 		} else if (url.pathname === "/hydrafiles-web.esm.js") {
 			headers.set("Content-Type", "application/javascript");
 			headers.set("Cache-Control", "public, max-age=300");
-			return new Response(await Deno.readFile("build/hydrafiles-web.esm.js"), { headers });
+			return new Response(await client.fs.readFile("build/hydrafiles-web.esm.js"), { headers });
 		} else if (url.pathname === "/hydrafiles-web.esm.js.map") {
 			headers.set("Content-Type", "application/json");
 			headers.set("Cache-Control", "public, max-age=300");
-			return new Response(await Deno.readFile("build/hydrafiles-web.esm.js.map"), { headers });
+			return new Response(await client.fs.readFile("build/hydrafiles-web.esm.js.map"), { headers });
 		} else if (url.pathname === "/demo.html") {
 			headers.set("Content-Type", "text/html");
 			headers.set("Cache-Control", "public, max-age=300");
-			return new Response(await Deno.readFile("public/demo.html"), { headers });
+			return new Response(await client.fs.readFile("public/demo.html"), { headers });
 		} else if (url.pathname === "/nodes") {
 			headers.set("Content-Type", "application/json");
 			headers.set("Cache-Control", "public, max-age=300");
@@ -103,7 +116,7 @@ export const handleRequest = async (req: Request, client: Hydrafiles): Promise<R
 				headers.set("Cache-Control", "public, max-age=31536000");
 				headers.set("Content-Length", fileContent.file.byteLength.toString());
 				headers.set("Signal-Strength", String(fileContent.signal));
-				console.log(`  ${hash}  Signal Strength:`, fileContent.signal, client.utils.estimateHops(fileContent.signal));
+				console.log(`  ${hash}  Signal Strength:`, fileContent.signal, Utils.estimateHops(fileContent.signal));
 
 				headers.set("Content-Length", String(file.size));
 				if (file.name !== null) headers.set("Content-Disposition", `attachment; filename="${encodeURIComponent(file.name).replace(/%20/g, " ").replace(/(\.\w+)$/, " [HYDRAFILES]$1")}`);
@@ -155,7 +168,7 @@ export const handleRequest = async (req: Request, client: Hydrafiles): Promise<R
 				headers.set("Cache-Control", "public, max-age=31536000");
 
 				headers.set("Signal-Strength", String(fileContent.signal));
-				console.log(`  ${file.hash}  Signal Strength:`, fileContent.signal, client.utils.estimateHops(fileContent.signal));
+				console.log(`  ${file.hash}  Signal Strength:`, fileContent.signal, Utils.estimateHops(fileContent.signal));
 
 				headers.set("Content-Length", String(file.size));
 				if (file.name !== null) headers.set("Content-Disposition", `attachment; filename="${encodeURIComponent(file.name).replace(/%20/g, " ").replace(/(\.\w+)$/, " [HYDRAFILES]$1")}"`);
@@ -195,21 +208,34 @@ export const handleRequest = async (req: Request, client: Hydrafiles): Promise<R
 
 			console.log("Uploading", file.hash);
 
-			if (Deno !== undefined && Utils.existsSync(Utils.pathJoin("files/", file.hash))) return new Response("200 OK\n");
+			if (Deno !== undefined && await client.fs.exists(join("files/", file.hash))) return new Response("200 OK\n");
 
 			if (!client.config.permaFiles.includes(hash)) client.config.permaFiles.push(hash);
-			await Deno.writeFile("config.json", new TextEncoder().encode(JSON.stringify(client.config, null, 2)));
+			await client.fs.writeFile("config.json", new TextEncoder().encode(JSON.stringify(client.config, null, 2)));
 			return new Response("200 OK\n");
 		} else if (url.pathname === "/files") {
-			const rows = client.fileManager !== undefined ? client.fileManager.select() : [];
+			const rows = client.FileDB !== undefined ? await client.FileDB.select() : [];
 			headers.set("Content-Type", "application/json");
 			headers.set("Cache-Control", "public, max-age=10800");
 			return new Response(JSON.stringify(rows), { headers });
+		} else if (url.pathname.startsWith("/file/")) {
+			const id = url.pathname.split("/")[2];
+			let file: File;
+			try {
+				file = stripInvalidProperties(new File({ id }, client));
+			} catch (e) {
+				console.error(e);
+				file = fileAttributesDefaults({ id }) as File;
+			}
+
+			headers.set("Content-Type", "application/json");
+			headers.set("Cache-Control", "public, max-age=10800");
+			return new Response(JSON.stringify(file), { headers });
 		} else if (url.pathname.startsWith("/block/")) {
 			const blockHeight = url.pathname.split("/")[2];
 			headers.set("Content-Type", "application/json");
 			// "Cache-Control": "public, max-age=" + (Number(blockHeight) > client.blockchain.lastBlock().height ? 0 : 604800),
-			const block = await Deno.readFile(Utils.pathJoin(BLOCKSDIR, blockHeight));
+			const block = await client.fs.readFile(join(BLOCKSDIR, blockHeight));
 			return new Response(block, { headers });
 		} else if (url.pathname === "/block_height") {
 			headers.set("Content-Type", "application/json");
@@ -235,7 +261,7 @@ const onListen = (client: Hydrafiles): void => {
 		else {
 			console.log("Connected to network");
 
-			if (client.utils.isIp(client.config.publicHostname) && client.utils.isPrivateIP(client.config.publicHostname)) console.error("Public hostname is a private IP address, cannot announce to other nodes");
+			if (Utils.isIp(client.config.publicHostname) && Utils.isPrivateIP(client.config.publicHostname)) console.error("Public hostname is a private IP address, cannot announce to other nodes");
 			else {
 				console.log(`Testing downloads ${client.config.publicHostname}/download/04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f`);
 

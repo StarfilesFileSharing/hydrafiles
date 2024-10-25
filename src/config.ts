@@ -10,7 +10,6 @@ export interface Config {
 	maxCache: number;
 	permaFiles: string[];
 	burnRate: number;
-	metadataEndpoint: string;
 	bootstrapNodes: string[];
 	publicHostname: string;
 	preferNode: "FASTEST" | "LEAST_USED" | "RANDOM" | "HIGHEST_HITRATE";
@@ -38,7 +37,6 @@ const getConfig = (config: Partial<Config> = {}): Config => {
 		maxCache: config?.maxCache ?? defaultConfig.maxCache,
 		permaFiles: config?.permaFiles ?? defaultConfig.permaFiles,
 		burnRate: config?.burnRate ?? defaultConfig.burnRate,
-		metadataEndpoint: config?.metadataEndpoint ?? defaultConfig.metadataEndpoint,
 		bootstrapNodes: config?.bootstrapNodes ?? defaultConfig.bootstrapNodes,
 		publicHostname: config?.publicHostname ?? defaultConfig.publicHostname,
 		preferNode: config?.preferNode ?? defaultConfig.preferNode,

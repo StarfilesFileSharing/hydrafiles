@@ -19,12 +19,16 @@ export const NODES_PATH = "nodes.json";
 
 // TODO: Log common user-agents and re-use them to help anonimise non Hydrafiles nodes
 export default class Nodes {
-	private nodes: Node[];
+	private nodes: Node[] = [];
 	private _client: Hydrafiles;
 	constructor(client: Hydrafiles) {
 		this._client = client;
-		if (Deno !== undefined && !Utils.existsSync(NODES_PATH)) Deno.writeFileSync(NODES_PATH, new TextEncoder().encode(JSON.stringify(this._client.config.bootstrapNodes)));
-		this.nodes = this.loadNodes();
+		this.initialize().catch(console.error);
+	}
+
+	private async initialize(): Promise<void> {
+		this.nodes = JSON.parse(Deno === undefined !== undefined && await this._client.fs.exists(NODES_PATH) ? new TextDecoder().decode(await this._client.fs.readFile(NODES_PATH)) : JSON.stringify(this._client.config.bootstrapNodes));
+		if (Deno !== undefined && !await this._client.fs.exists(NODES_PATH)) this._client.fs.writeFile(NODES_PATH, new TextEncoder().encode(JSON.stringify(this._client.config.bootstrapNodes)));
 	}
 
 	async add(node: Node): Promise<void> {
@@ -34,12 +38,8 @@ export default class Nodes {
 		) {
 			this.nodes.push(node);
 
-			if (Deno !== undefined) Deno.writeFileSync(NODES_PATH, new TextEncoder().encode(JSON.stringify(this.nodes)));
+			if (Deno !== undefined) this._client.fs.writeFile(NODES_PATH, new TextEncoder().encode(JSON.stringify(this.nodes)));
 		}
-	}
-
-	loadNodes(): Node[] {
-		return JSON.parse(Deno === undefined !== undefined && Utils.existsSync(NODES_PATH) ? new TextDecoder().decode(Deno !== undefined ? Deno.readFileSync(NODES_PATH) : new Uint8Array()) : JSON.stringify(this._client.config.bootstrapNodes));
 	}
 
 	public getNodes = (opts = { includeSelf: true }): Node[] => {
@@ -65,14 +65,14 @@ export default class Nodes {
 			console.log(`  ${hash}  Downloading from ${node.host}`);
 			let response;
 			try {
-				response = await this._client.utils.promiseWithTimeout(fetch(`${node.host}/download/${hash}`), this._client.config.timeout);
+				response = await Utils.promiseWithTimeout(fetch(`${node.host}/download/${hash}`), this._client.config.timeout);
 			} catch (e) {
 				if (this._client.config.logLevel === "verbose") console.error(e);
 				return false;
 			}
 			const fileContent = new Uint8Array(await response.arrayBuffer());
 			console.log(`  ${hash}  Validating hash`);
-			const verifiedHash = await this._client.utils.hashUint8Array(fileContent);
+			const verifiedHash = await Utils.hashUint8Array(fileContent);
 			console.log(`  ${hash}  Done Validating hash`);
 			if (hash !== verifiedHash) return false;
 			console.log(`  ${hash}  Valid hash`);
@@ -91,7 +91,7 @@ export default class Nodes {
 			await file.cacheFile(fileContent);
 			return {
 				file: fileContent,
-				signal: this._client.utils.interfere(Number(response.headers.get("Signal-Strength"))),
+				signal: Utils.interfere(Number(response.headers.get("Signal-Strength"))),
 			};
 		} catch (e) {
 			console.error(e);
@@ -106,7 +106,7 @@ export default class Nodes {
 		const index = this.nodes.findIndex((n) => n.host === node.host);
 		if (index !== -1) {
 			this.nodes[index] = node;
-			if (Deno !== undefined) Deno.writeFileSync(NODES_PATH, new TextEncoder().encode(JSON.stringify(this.nodes)));
+			this._client.fs.writeFile(NODES_PATH, new TextEncoder().encode(JSON.stringify(this.nodes)));
 		}
 	}
 
@@ -233,7 +233,7 @@ export default class Nodes {
 				if (node.host.startsWith("http://") || node.host.startsWith("https://")) {
 					console.log(`Fetching nodes from ${node.host}/nodes`);
 					try {
-						const response = await this._client.utils.promiseWithTimeout(fetch(`${node.host}/nodes`), this._client.config.timeout);
+						const response = await Utils.promiseWithTimeout(fetch(`${node.host}/nodes`), this._client.config.timeout);
 						const remoteNodes = (await response.json()) as Node[];
 						for (const remoteNode of remoteNodes) {
 							this.add(remoteNode).catch((e) => {
@@ -268,7 +268,7 @@ export default class Nodes {
 		const blockHeights = await Promise.all(
 			this.getNodes().map(async (node) => {
 				try {
-					const response = await this._client.utils.promiseWithTimeout(fetch(`${node.host}/block_height`), this._client.config.timeout);
+					const response = await Utils.promiseWithTimeout(fetch(`${node.host}/block_height`), this._client.config.timeout);
 					const blockHeight = await response.text();
 					return isNaN(Number(blockHeight)) ? 0 : Number(blockHeight);
 				} catch (error) {

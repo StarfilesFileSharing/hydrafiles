@@ -5,7 +5,6 @@
 	"maxCache": -1,
 	"permaFiles": ["04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f"],
 	"preferNode": "HIGHEST_HITRATE",
-	"metadataEndpoint": "https://api2.starfiles.co/file/",
 	"bootstrapNodes": [
 		{
 			"host": "https://hydrafiles.com",
@@ -19,6 +18,26 @@
 		},
 		{
 			"host": "https://hydra.starfiles.co",
+			"http": true,
+			"dns": false,
+			"cf": false,
+			"hits": 0,
+			"rejects": 0,
+			"bytes": 0,
+			"duration": 0
+		},
+		{
+			"host": "https://api2.starfiles.co",
+			"http": true,
+			"dns": false,
+			"cf": false,
+			"hits": 0,
+			"rejects": 0,
+			"bytes": 0,
+			"duration": 0
+		},
+		{
+			"host": "https://api2.starfiles.bz",
 			"http": true,
 			"dns": false,
 			"cf": false,

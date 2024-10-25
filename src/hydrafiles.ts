@@ -1,12 +1,13 @@
 // import WebTorrent from "npm:webtorrent";
 import getConfig, { type Config } from "./config.ts";
 import Nodes from "./nodes.ts";
-import File, { type FileAttributes, FileManager } from "./file.ts";
+import File, { type FileAttributes, FileDB } from "./file.ts";
 import startServer, { hashLocks } from "./server.ts";
 import Utils from "./utils.ts";
 // import Blockchain, { Block } from "./block.ts";
 import { S3Client } from "https://deno.land/x/s3_lite_client@0.7.0/mod.ts";
-import { Database } from "jsr:@db/sqlite@0.11";
+import FS from "./fs.ts";
+import { delay } from "https://deno.land/std@0.170.0/async/delay.ts";
 
 // TODO: IDEA: HydraTorrent - New Github repo - "Hydrafiles + WebTorrent Compatibility Layer" - Hydrafiles noes can optionally run HydraTorrent to seed files via webtorrent
 // Change index hash from sha256 to infohash, then allow nodes to leech files from webtorrent + normal torrent
@@ -28,12 +29,12 @@ class Hydrafiles {
 	// webtorrent: WebTorrent = new WebTorrent();
 	// blockchain: Blockchain;
 	keyPair: Promise<CryptoKeyPair>;
-	db: Database = new Database("filemanager.db");
-	fileManager: FileManager = new FileManager(this);
+	fs = new FS();
+	FileDB = new FileDB(this);
 	constructor(customConfig: Partial<Config> = {}) {
 		this.startTime = +new Date();
 		this.config = getConfig(customConfig);
-		this.utils = new Utils(this.config);
+		this.utils = new Utils(this);
 		if (this.config.s3Endpoint.length) {
 			this.s3 = new S3Client({
 				endPoint: this.config.s3Endpoint,
@@ -47,7 +48,7 @@ class Hydrafiles {
 			});
 		}
 
-		this.keyPair = this.utils.generateKeyPair(); // TODO: Save keypair to fs
+		this.keyPair = Utils.generateKeyPair(); // TODO: Save keypair to fs
 
 		this.nodes = new Nodes(this);
 
@@ -65,23 +66,25 @@ class Hydrafiles {
 			setInterval(this.backgroundTasks, this.config.compareSpeed);
 			this.backgroundTasks();
 		}
-		// if (this.config.backfill) this.backfillFiles().catch(console.error)
+		if (this.config.backfill) this.backfillFiles().catch(console.error);
 	}
 
-	backgroundTasks = (): void => {
+	backgroundTasks = async (): Promise<void> => {
 		const nodes = this.nodes;
 		if (this.config.compareNodes) nodes.compareNodeList();
 		if (this.config.compareFiles) {
 			const knownNodes = nodes.getNodes({ includeSelf: false });
 			for (let i = 0; i < knownNodes.length; i++) {
-				nodes.compareFileList(knownNodes[i]).catch(console.error);
+				await nodes.compareFileList(knownNodes[i]);
 			}
 		}
+		await delay(600000);
+		this.backgroundTasks();
 	};
 
 	backfillFiles = async (): Promise<void> => {
-		if (this.fileManager !== undefined) {
-			const file = this.fileManager.select({ orderBy: "RANDOM()" })[0];
+		if (this.FileDB !== undefined) {
+			const file = (await this.FileDB.select({ orderBy: "RANDOM()" }))[0];
 			console.log(`  ${file.hash}  Backfilling file`);
 			try {
 				await file.getFile({ logDownloads: false });
@@ -93,20 +96,19 @@ class Hydrafiles {
 	};
 
 	logState(): void {
-		console.log("aaaaaaaa");
-		try {
+		(async () => {
 			console.log(
 				"\n===============================================\n========",
 				new Date().toUTCString(),
 				"========\n===============================================",
 				"\n| Uptime: ",
-				this.utils.convertTime(+new Date() - this.startTime),
+				Utils.convertTime(+new Date() - this.startTime),
 				"\n| Known (Network) Files:",
-				this.fileManager !== undefined ? this.fileManager.count() : 0,
-				`(${Math.round((100 * (this.fileManager !== undefined ? this.fileManager.sum("size") : 0)) / 1024 / 1024 / 1024) / 100}GB)`,
+				this.FileDB !== undefined ? await this.FileDB.count() : 0,
+				`(${Math.round((100 * (this.FileDB !== undefined ? await this.FileDB.sum("size") : 0)) / 1024 / 1024 / 1024) / 100}GB)`,
 				"\n| Stored Files:",
-				this.utils.countFilesInDir("files/"),
-				`(${Math.round((100 * this.utils.calculateUsedStorage()) / 1024 / 1024 / 1024) / 100}GB)`,
+				await this.utils.countFilesInDir("files/"),
+				`(${Math.round((100 * await this.utils.calculateUsedStorage()) / 1024 / 1024 / 1024) / 100}GB)`,
 				"\n| Processing Files:",
 				hashLocks.size,
 				"\n| Known Nodes:",
@@ -114,16 +116,14 @@ class Hydrafiles {
 				// '\n| Seeding Torrent Files:',
 				// (await webtorrentClient()).torrents.length,
 				"\n| Downloads Served:",
-				(this.fileManager !== undefined ? this.fileManager.sum("downloadCount") : 0) + ` (${Math.round((((this.fileManager !== undefined ? this.fileManager.sum("downloadCount * size") : 0) / 1024 / 1024 / 1024) * 100) / 100)}GB)`,
+				(this.FileDB !== undefined ? await this.FileDB.sum("downloadCount") : 0) + ` (${Math.round((((this.FileDB !== undefined ? await this.FileDB.sum("downloadCount * size") : 0) / 1024 / 1024 / 1024) * 100) / 100)}GB)`,
 				"\n===============================================\n",
 			);
-		} catch (e) {
-			console.error(e);
-		}
+		})();
 	}
 
-	search = <T>(where: { where?: { key: keyof FileAttributes; value: NonNullable<keyof FileAttributes> } | undefined; orderBy?: string } | undefined): File[] => {
-		return this.fileManager !== undefined ? this.fileManager.select(where) : [];
+	search = async <T>(where: { where?: { key: keyof FileAttributes; value: NonNullable<keyof FileAttributes> } | undefined; orderBy?: string } | undefined): Promise<File[]> => {
+		return this.FileDB !== undefined ? await this.FileDB.select(where) : [];
 	};
 
 	getFile = (hash: string): File => {

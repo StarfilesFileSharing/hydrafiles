@@ -1,12 +1,16 @@
+import { Database } from "jsr:@db/sqlite@0.11";
 import type Hydrafiles from "./hydrafiles.ts";
 import Utils from "./utils.ts";
+import { IDBKeyRange, indexedDB } from "https://deno.land/x/indexeddb@v1.1.0/ponyfill.ts";
+import { join } from "https://deno.land/std@0.224.0/path/mod.ts";
 
 const Deno: typeof globalThis.Deno | undefined = globalThis.Deno ?? undefined;
+
 interface Metadata {
 	name: string;
 	size: number;
 	type: string;
-	hash: string;
+	hash: { sha256: string };
 	id: string;
 	infohash: string;
 }
@@ -27,18 +31,17 @@ export interface FileAttributes {
 
 const FILESPATH = "files/";
 
-function addColumnIfNotExists(client: Hydrafiles, tableName: string, columnName: string, columnDefinition: string): void {
-	if (client.db === undefined) return;
-	const result = client.db.prepare(`SELECT COUNT(*) as count FROM pragma_table_info(?) WHERE name = ?`).value<[number]>(tableName, columnName);
+function addColumnIfNotExists(db: Database, tableName: string, columnName: string, columnDefinition: string): void {
+	const result = db.prepare(`SELECT COUNT(*) as count FROM pragma_table_info(?) WHERE name = ?`).value<[number]>(tableName, columnName);
 	const columnExists = result && result[0] === 1;
 
 	if (!columnExists) {
-		client.db.exec(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${columnDefinition}`);
+		db.exec(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${columnDefinition}`);
 		console.log(`Column '${columnName}' added to table '${tableName}'.`);
 	}
 }
 
-function fileAttributesDefaults(values: Partial<FileAttributes>): FileAttributes {
+export function fileAttributesDefaults(values: Partial<FileAttributes>): FileAttributes {
 	if (values.hash === undefined) throw new Error("Hash is required");
 
 	return {
@@ -56,136 +59,255 @@ function fileAttributesDefaults(values: Partial<FileAttributes>): FileAttributes
 	};
 }
 
-export class FileManager {
+async function createIDBDatabase(): Promise<IDBDatabase> {
+	const dbPromise = new Promise<IDBDatabase>((resolve, reject) => {
+		const request = indexedDB.open("MyDatabase", 1);
+
+		request.onupgradeneeded = (_event) => {
+			const db = request.result;
+			db.createObjectStore("MyStore", { keyPath: "id" });
+		};
+
+		request.onsuccess = () => resolve(request.result as unknown as IDBDatabase);
+		request.onerror = () => reject(request.error);
+	});
+
+	return await dbPromise;
+}
+
+export class FileDB {
 	private _client: Hydrafiles;
+	objectStore: IDBObjectStore | undefined;
+	db: Database | IDBDatabase | undefined;
 
 	constructor(client: Hydrafiles) {
 		this._client = client;
-		if (this._client.db !== undefined) {
-			this._client.db.exec(
-				`
-				CREATE TABLE IF NOT EXISTS file (
-					hash TEXT PRIMARY KEY,
-					infohash TEXT,
-					downloadCount INTEGER DEFAULT 0,
-					id TEXT,
-					name TEXT,
-					found BOOLEAN DEFAULT 1,
-					size INTEGER DEFAULT 0,
-					voteHash STRING,
-					voteNonce INTEGER DEFAULT 0,
-					voteDifficulty REAL DEFAULT 0,
-					createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-					updatedAt DATETIME
-				)
-			`,
-			);
-			addColumnIfNotExists(this._client, "file", "voteHash", "STRING");
-			addColumnIfNotExists(this._client, "file", "voteNonce", "INTEGER");
-			addColumnIfNotExists(this._client, "file", "voteDifficulty", "REAL DEFAULT 0");
-			addColumnIfNotExists(this._client, "file", "updatedAt", "DATETIME");
-		}
 
-		if (Deno !== undefined && !Utils.existsSync("files/")) Deno.mkdir("files", { recursive: true });
+		this.initialize().catch(console.error);
 	}
 
-	select<T extends keyof FileAttributes>(opts: { where?: { key: T; value: NonNullable<File[T]> }; orderBy?: string } = {}): File[] {
-		let query = "SELECT * FROM file";
-		const params: (string | number | boolean)[] = [];
+	private async initialize(): Promise<void> {
+		if (Deno !== undefined && !await this._client.fs.exists("files/")) this._client.fs.mkdir("files");
 
-		if (opts.where) {
-			query += ` WHERE ${opts.where.key} = ?`;
-			params.push(opts.where.value);
-		}
-
-		if (opts.orderBy) query += ` ORDER BY ${opts.orderBy}`;
-
-		if (this._client.db !== undefined) {
-			const results = this._client.db.prepare(query).all(...params);
-			return results as File[];
-		}
-		return [];
-	}
-
-	insert(values: Partial<FileAttributes>): File {
-		if (this._client.db === undefined) return fileAttributesDefaults(values) as File;
-		const query = `INSERT INTO file (hash, infohash, downloadCount, id, name, found, size)VALUES (?, ?, ?, ?, ?, ?, ?)`;
-
-		const file = fileAttributesDefaults(values);
-		this._client.db.exec(
-			query,
-			file.hash,
-			file.infohash,
-			file.downloadCount,
-			file.id,
-			file.name,
-			file.found ? 1 : 0,
-			file.size,
-		);
-		console.log(`  ${file.hash}  File INSERTed`);
-		return this.select({ where: { key: "hash", value: file.hash } })[0];
-	}
-
-	update(hash: string, updates: Partial<FileAttributes>): void {
-		if (this._client.db === undefined) return;
-		updates.updatedAt = new Date().toISOString();
-		// TODO: If row has changed
-		const currentFile = fileAttributesDefaults(this.select({ where: { key: "hash", value: hash } })[0]);
-		if (!currentFile) {
-			console.error(`File with hash ${hash} not found.`);
-			return;
-		}
-
-		const updatedColumn: string[] = [];
-		const params: (string | number | boolean)[] = [];
-
-		const newFile = fileAttributesDefaults(updates);
-		const keys = Object.keys(newFile);
-		for (let i = 0; i < keys.length; i++) {
-			const key = keys[i] as keyof FileAttributes;
-			if (newFile[key] !== undefined && newFile[key] !== null && newFile[key] !== currentFile[key]) {
-				// console.log(key, newFile[key], currentFile[key])
-				updatedColumn.push(key);
-				params.push(newFile[key]);
+		if (typeof window === "undefined") {
+			this.db = new Database("filemanager.db");
+			this.db.exec(`
+			CREATE TABLE IF NOT EXISTS file (
+				hash TEXT PRIMARY KEY,
+				infohash TEXT,
+				downloadCount INTEGER DEFAULT 0,
+				id TEXT,
+				name TEXT,
+				found BOOLEAN DEFAULT 1,
+				size INTEGER DEFAULT 0,
+				voteHash STRING,
+				voteNonce INTEGER DEFAULT 0,
+				voteDifficulty REAL DEFAULT 0,
+				createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+				updatedAt DATETIME
+			)
+		`);
+			addColumnIfNotExists(this.db, "file", "voteHash", "STRING");
+			addColumnIfNotExists(this.db, "file", "voteNonce", "INTEGER");
+			addColumnIfNotExists(this.db, "file", "voteDifficulty", "REAL DEFAULT 0");
+			addColumnIfNotExists(this.db, "file", "updatedAt", "DATETIME");
+		} else {
+			this.db = await createIDBDatabase();
+			if (!this.db.objectStoreNames.contains("file")) {
+				const objectStore = this.db.createObjectStore("file", { keyPath: "hash" });
+				objectStore.createIndex("infohash", "infohash", { unique: false });
+				objectStore.createIndex("id", "id", { unique: false });
+				objectStore.createIndex("name", "name", { unique: false });
+				objectStore.createIndex("found", "found", { unique: false });
+				objectStore.createIndex("size", "size", { unique: false });
+				objectStore.createIndex("voteHash", "voteHash", { unique: false });
+				objectStore.createIndex("voteNonce", "voteNonce", { unique: false });
+				objectStore.createIndex("voteDifficulty", "voteDifficulty", { unique: false });
+				objectStore.createIndex("createdAt", "createdAt", { unique: false });
+				objectStore.createIndex("updatedAt", "updatedAt", { unique: false });
 			}
+			this.objectStore = this.db.transaction("file", "readwrite").objectStore("file");
 		}
-		if (updatedColumn.length < 2) return;
-		params.push(hash);
+	}
 
-		const query = `UPDATE file SET ${updatedColumn.map((column) => `${column} = ?`).join(", ")} WHERE hash = ?`;
+	select<T extends keyof FileAttributes>(opts: { where?: { key: T; value: NonNullable<File[T]> }; orderBy?: string } = {}): Promise<File[]> {
+		if (this.db === undefined) return new Promise((resolve) => resolve([]));
 
-		this._client.db.prepare(query).values(params);
-		console.log(`  ${hash}  File UPDATEd - Updated Columns: ${updatedColumn.join(", ")}` + (this._client.config.logLevel === "verbose" ? ` - Query: ${query} - Params: ${params.join(", ")}` : ""));
+		if (this.db instanceof Database) {
+			let query = "SELECT * FROM file";
+			const params: (string | number | boolean)[] = [];
+
+			if (opts.where) {
+				query += ` WHERE ${opts.where.key} = ?`;
+				params.push(opts.where.value);
+			}
+
+			if (opts.orderBy) query += ` ORDER BY ${opts.orderBy}`;
+			const results = this.db.prepare(query).all(params) as unknown as File[];
+			return new Promise((resolve) => resolve(results));
+		} else {
+			return new Promise((resolve, reject) => {
+				if (this.objectStore === undefined) return [];
+				const request = opts.where ? this.objectStore.index(opts.where.key).openCursor(IDBKeyRange.only(opts.where.value)) : this.objectStore.openCursor();
+				const results: File[] = [];
+
+				request.onsuccess = (event) => {
+					const cursor: IDBCursorWithValue | null = (event.target as IDBRequest).result;
+					if (cursor) {
+						results.push(cursor.value);
+						cursor.continue();
+					} else {
+						if (opts.orderBy) {
+							results.sort((a, b) => {
+								const orderBy = (opts.orderBy ?? "hash") as keyof FileAttributes;
+								if ((a[orderBy] ?? "") < (b[orderBy] ?? "")) return -1;
+								if ((a[orderBy] ?? "") > (b[orderBy] ?? "")) return 1;
+								return 0;
+							});
+						}
+						resolve(results);
+					}
+				};
+
+				request.onerror = (event) => {
+					reject((event.target as IDBRequest).error);
+				};
+			});
+		}
+	}
+
+	insert(values: Partial<FileAttributes>): void {
+		if (typeof this.db === "undefined") return;
+		const file = fileAttributesDefaults(values) as File;
+		console.log(`  ${file.hash}  File INSERTing`);
+		if (this.db instanceof Database) {
+			const query = `INSERT INTO file (hash, infohash, downloadCount, id, name, found, size)VALUES (?, ?, ?, ?, ?, ?, ?)`;
+
+			this.db.exec(
+				query,
+				file.hash,
+				file.infohash,
+				file.downloadCount,
+				file.id,
+				file.name,
+				file.found ? 1 : 0,
+				file.size,
+			);
+		} else if (this.objectStore) this.objectStore.add(file).onerror = console.error;
+	}
+
+	async update(hash: string, updates: Partial<FileAttributes>): Promise<void> {
+		if (this.db === undefined) return;
+		updates.updatedAt = new Date().toISOString();
+		const newFile = fileAttributesDefaults(updates);
+
+		if (this.db instanceof Database) {
+			const currentFile = fileAttributesDefaults((await this.select({ where: { key: "hash", value: hash } }))[0] ?? { hash });
+			if (!currentFile) {
+				console.error(`File with hash ${hash} not found.`);
+				return;
+			}
+
+			const updatedColumn: string[] = [];
+			const params: (string | number | boolean)[] = [];
+			const keys = Object.keys(newFile);
+			for (let i = 0; i < keys.length; i++) {
+				const key = keys[i] as keyof FileAttributes;
+				if (newFile[key] !== undefined && newFile[key] !== null && newFile[key] !== currentFile[key]) {
+					updatedColumn.push(key);
+					params.push(newFile[key]);
+				}
+			}
+			if (updatedColumn.length < 2) return;
+			params.push(hash);
+			"";
+			const query = `UPDATE file SET ${updatedColumn.map((column) => `${column} = ?`).join(", ")} WHERE hash = ?`;
+
+			this.db.prepare(query).values(params);
+			console.log(`  ${hash}  File UPDATEd - Updated Columns: ${updatedColumn.join(", ")}` + (this._client.config.logLevel === "verbose" ? ` - Query: ${query} - Params: ${params.join(", ")}` : ""));
+		} else {
+			if (this.objectStore) this.objectStore.put(newFile).onerror = console.error;
+			console.log(`  ${hash}  File UPDATEd`);
+		}
 	}
 
 	delete(hash: string): void {
+		if (this.db === undefined) return;
 		const query = `DELETE FROM file WHERE hash = ?`;
 
-		if (this._client.db !== undefined) {
-			this._client.db.exec(query, hash);
-			console.log(`${hash} File DELETEd`);
-		}
+		if (this.db instanceof Database) {
+			this.db.exec(query, hash);
+		} else if (this.objectStore) this.objectStore.delete(hash).onerror = console.error;
+		console.log(`${hash} File DELETEd`);
 	}
 
 	increment<T>(hash: string, column: keyof FileAttributes): void {
-		if (this._client.db === undefined) return;
-		this._client.db.prepare(`UPDATE file set ${column} = ${column}+1 WHERE hash = ?`).values(hash);
+		if (this.db === undefined) return;
+		if (this.db instanceof Database) this.db.prepare(`UPDATE file set ${column} = ${column}+1 WHERE hash = ?`).values(hash);
+		else if (this.objectStore) {
+			const request = this.objectStore.get(hash);
+			request.onsuccess = (event) => {
+				const target = event.target;
+				if (!target) return;
+				const file = (target as IDBRequest).result;
+				if (file && this.objectStore) {
+					file[column] = (file[column] || 0) + 1;
+					this.objectStore.put(file).onsuccess = () => console.log(`Incremented ${column} for hash ${hash}`);
+				}
+			};
+		}
 	}
 
-	count(): number {
-		if (this._client.db === undefined) return 0;
-		return this._client.db.exec("SELECT COUNT(*) FROM file");
+	count(): Promise<number> {
+		return new Promise((resolve, reject) => {
+			if (this.db === undefined) return resolve(0);
+			else if (this.db instanceof Database) {
+				const result = this.db.prepare("SELECT COUNT(*) FROM file").value() as number[];
+				return resolve(result[0]);
+			}
+
+			if (!this.objectStore) return resolve(0);
+			const request = this.objectStore.count();
+			request.onsuccess = () => resolve(request.result);
+			request.onerror = (event) => reject((event.target as IDBRequest).error);
+		});
 	}
 
-	sum(column: string): number {
-		if (this._client.db === undefined) return 0;
-		const result = this._client.db.prepare(`SELECT SUM(${column}) as sum FROM file`).value() as number[];
-		return result === undefined ? 0 : result[0];
+	sum(column: string): Promise<number> {
+		return new Promise((resolve, reject) => {
+			if (this.db === undefined) return resolve(0);
+			if (this.db instanceof Database) {
+				const result = this.db.prepare(`SELECT SUM(${column}) FROM file`).value() as number[];
+				console.log(`SELECT SUM(${column}) FROM file`, result[0]);
+				return resolve(result === undefined ? 0 : result[0]);
+			} else {
+				if (!this.objectStore) return resolve(0);
+				let sum = 0;
+				const request = this.objectStore.openCursor();
+
+				request.onsuccess = (event) => {
+					const target = event.target;
+					if (!target) {
+						reject(new Error("Event target is null"));
+						return;
+					}
+					const cursor = (target as IDBRequest).result;
+					if (cursor) {
+						sum += cursor.value[column] || 0;
+						cursor.continue();
+					} else {
+						resolve(sum);
+					}
+				};
+
+				request.onerror = (event) => reject((event.target as IDBRequest).error);
+			}
+		}) as Promise<number>;
 	}
 }
 
 class File implements FileAttributes {
-	hash: string;
+	hash!: string;
 	infohash: string | null = null;
 	downloadCount = 0;
 	id: string | null = null;
@@ -198,39 +320,101 @@ class File implements FileAttributes {
 	updatedAt: string = new Date().toISOString();
 	_client: Hydrafiles;
 
-	constructor(values: { hash?: string; infohash?: string }, client: Hydrafiles, vote = true) {
+	constructor(values: { hash?: string; infohash?: string; id?: string }, client: Hydrafiles, vote = true) {
 		this._client = client;
 
-		let hash: string;
-		if (values.hash !== undefined) hash = values.hash;
-		else if (values.infohash !== undefined) {
-			if (!this._client.utils.isValidInfoHash(values.infohash)) throw new Error(`Invalid infohash provided: ${values.infohash}`);
-			const file = this._client.fileManager !== undefined ? this._client.fileManager.select({ where: { key: "infohash", value: values.infohash } })[0] : null;
-			if (typeof file?.hash === "string") {
-				hash = file?.hash;
-			} else {
-				// TODO: Check against other nodes
-				hash = "";
+		if (values.hash) this.hash = values.hash;
+		const hashPromise = new Promise<string>((resolve, reject) => {
+			if (values.hash !== undefined) {
+				// If hash exists, resolve it directly
+				return resolve(values.hash);
 			}
-		} else throw new Error("No hash or infohash provided");
-		if (hash !== undefined && !this._client.utils.isValidSHA256Hash(hash)) throw new Error(`  ${hash}  Invalid hash provided`);
 
-		this.hash = hash;
+			if (values.id !== undefined) {
+				// If id exists, attempt to fetch the corresponding hash
+				const filesPromise = this._client.FileDB?.select({ where: { key: "id", value: values.id } });
+				if (filesPromise !== undefined) {
+					filesPromise.then(async (files) => {
+						const fileHash = files[0]?.hash;
+						if (fileHash) {
+							resolve(fileHash);
+						} else {
+							const promises: (() => Promise<void>)[] = [];
 
-		const fileAttributes = this._client.fileManager.select({ where: { key: "hash", value: hash } })[0] ?? this._client.fileManager.insert(this);
-		const file = fileAttributesDefaults(fileAttributes);
-		this.infohash = file.infohash;
-		this.downloadCount = file.downloadCount;
-		this.id = file.id;
-		this.name = file.name;
-		this.found = file.found;
-		this.size = file.size;
-		this.voteHash = file.voteHash;
-		this.voteNonce = file.voteNonce;
-		this.voteDifficulty = file.voteDifficulty;
-		this.updatedAt = file.updatedAt;
+							const nodes = this._client.nodes.getNodes({ includeSelf: false });
+							for (let i = 0; i < nodes.length; i++) {
+								try {
+									const promise = async () => {
+										try {
+											console.log(`Fetching metadata by id from ${nodes[i].host}/file/${values.id}`);
+											const response = await fetch(`${nodes[i].host}/file/${values.id}`);
+											const body = await response.json() as { result: Metadata } | FileAttributes;
+											const hash = "result" in body ? body.result.hash.sha256 : body.hash;
+											if (Utils.isValidSHA256Hash(hash)) resolve(hash);
+										} catch (e) {
+											if (this._client.config.logLevel === "verbose") console.error(e);
+										}
+									};
+									promises.push(promise);
+								} catch (e) {
+									if (this._client.config.logLevel === "verbose") console.error(e);
+								}
+							}
+							await Utils.parallelAsync(promises, 4);
+							throw new Error("No hash found for the provided id");
+						}
+					}).catch(reject); // Catch and reject on DB error
+				} else {
+					reject(new Error("FileDB not available or unable to fetch files"));
+				}
+			} else if (values.infohash !== undefined) {
+				// If infohash exists, validate it
+				if (!Utils.isValidInfoHash(values.infohash)) {
+					return reject(new Error(`Invalid infohash provided: ${values.infohash}`));
+				}
+				const filesPromise = this._client.FileDB?.select({ where: { key: "infohash", value: values.infohash } });
+				if (filesPromise !== undefined) {
+					filesPromise.then((files) => {
+						const fileHash = files[0]?.hash;
+						if (fileHash) {
+							resolve(fileHash);
+						} else {
+							reject(new Error("No hash found for the provided infohash"));
+						}
+					}).catch(reject); // Catch and reject on DB error
+				} else {
+					reject(new Error("FileDB not available or unable to fetch files"));
+				}
+			} else {
+				// Reject if neither hash, id, nor infohash is provided
+				reject(new Error("No hash, id, or infohash provided"));
+			}
+		});
 
-		if (vote) this.vote().catch(console.error);
+		hashPromise.then(async (hash) => {
+			if (hash === undefined || !Utils.isValidSHA256Hash(hash)) throw new Error(`  ${hash}  Invalid hash provided`);
+
+			this.hash = hash;
+
+			let fileAttributes = (await this._client.FileDB.select({ where: { key: "hash", value: hash } }))[0];
+			if (fileAttributes === undefined) {
+				this._client.FileDB.insert(this);
+				fileAttributes = (await this._client.FileDB.select({ where: { key: "hash", value: hash } }))[0] ?? { hash };
+			}
+			const file = fileAttributesDefaults(fileAttributes);
+			this.infohash = file.infohash;
+			this.downloadCount = file.downloadCount;
+			this.id = file.id;
+			this.name = file.name;
+			this.found = file.found;
+			this.size = file.size;
+			this.voteHash = file.voteHash;
+			this.voteNonce = file.voteNonce;
+			this.voteDifficulty = file.voteDifficulty;
+			this.updatedAt = file.updatedAt;
+
+			if (vote) this.vote().catch(console.error);
+		});
 	}
 
 	public async getMetadata(): Promise<this | false> {
@@ -242,20 +426,27 @@ class File implements FileAttributes {
 
 		const id = this.id;
 		if (id !== undefined && id !== null && id.length > 0) {
-			const response = await fetch(`${this._client.config.metadataEndpoint}${id}`);
-			if (response.ok) {
-				const metadata = (await response.json()).result as Metadata;
-				this.name = metadata.name;
-				this.size = metadata.size;
-				if (this.infohash?.length === 0) this.infohash = metadata.infohash;
-				this.save();
-				return this;
+			const nodes = this._client.nodes.getNodes({ includeSelf: false });
+			for (let i = 0; i < nodes.length; i++) {
+				try {
+					const response = await fetch(`${nodes[i]}/file/${id}`);
+					if (response.ok) {
+						const metadata = (await response.json()).result as Metadata;
+						this.name = metadata.name;
+						this.size = metadata.size;
+						if (this.infohash?.length === 0) this.infohash = metadata.infohash;
+						this.save();
+						return this;
+					}
+				} catch (e) {
+					if (this._client.config.logLevel === "verbose") console.error(e);
+				}
 			}
 		}
 
-		const filePath = Utils.pathJoin(FILESPATH, hash);
-		if (Deno !== undefined && Utils.existsSync(filePath)) {
-			this.size = Deno.statSync(filePath).size;
+		const filePath = join(FILESPATH, hash);
+		if (Deno !== undefined && await this._client.fs.exists(filePath)) {
+			this.size = await this._client.fs.getFileSize(filePath);
 			this.save();
 			return this;
 		}
@@ -278,8 +469,8 @@ class File implements FileAttributes {
 
 	async cacheFile(file: Uint8Array): Promise<void> {
 		const hash = this.hash;
-		const filePath = Utils.pathJoin(FILESPATH, hash);
-		if (Deno === undefined || Utils.existsSync(filePath)) return;
+		const filePath = join(FILESPATH, hash);
+		if (Deno === undefined || await this._client.fs.exists(filePath)) return;
 
 		let size = this.size;
 		if (size === 0) {
@@ -287,31 +478,31 @@ class File implements FileAttributes {
 			this.size = size;
 			this.save();
 		}
-		const remainingSpace = this._client.utils.remainingStorage();
+		const remainingSpace = await this._client.utils.remainingStorage();
 		if (this._client.config.maxCache !== -1 && size > remainingSpace) this._client.utils.purgeCache(size, remainingSpace);
 
 		if (Deno !== undefined) {
-			Deno.writeFileSync(filePath, file);
-			const savedHash = await this._client.utils.hashUint8Array(Deno.readFileSync(filePath));
-			if (savedHash !== hash) await Deno.remove(filePath); // In case of broken file
+			this._client.fs.writeFile(filePath, file);
+			const savedHash = await Utils.hashUint8Array(await this._client.fs.readFile(filePath));
+			if (savedHash !== hash) await this._client.fs.remove(filePath); // In case of broken file
 		}
 	}
 
 	private async fetchFromCache(): Promise<{ file: Uint8Array; signal: number } | false> {
 		const hash = this.hash;
 		console.log(`  ${hash}  Checking Cache`);
-		const filePath = Utils.pathJoin(FILESPATH, hash);
+		const filePath = join(FILESPATH, hash);
 		this.seed();
-		if (Deno === undefined || !Utils.existsSync(filePath)) return false;
-		const fileContents = Deno.readFileSync(filePath);
-		const savedHash = await this._client.utils.hashUint8Array(fileContents);
+		if (Deno === undefined || !await this._client.fs.exists(filePath)) return false;
+		const fileContents = await this._client.fs.readFile(filePath);
+		const savedHash = await Utils.hashUint8Array(fileContents);
 		if (savedHash !== this.hash) {
-			if (Deno !== undefined) Deno.remove(filePath).catch(console.error);
+			if (Deno !== undefined) await this._client.fs.remove(filePath).catch(console.error);
 			return false;
 		}
 		return {
 			file: fileContents,
-			signal: this._client.utils.interfere(100),
+			signal: Utils.interfere(100),
 		};
 	}
 
@@ -340,11 +531,11 @@ class File implements FileAttributes {
 
 			if (this._client.config.cacheS3) await this.cacheFile(file);
 
-			const hash = await this._client.utils.hashUint8Array(file);
+			const hash = await Utils.hashUint8Array(file);
 			if (hash !== this.hash) return false;
 			return {
 				file,
-				signal: this._client.utils.interfere(100),
+				signal: Utils.interfere(100),
 			};
 		} catch (e) {
 			const err = e as { message: string };
@@ -358,7 +549,7 @@ class File implements FileAttributes {
 	// TODO: Check other nodes file lists to find other claimed infohashes for the file, leech off all of them and copy the metadata from the healthiest torrent
 
 	async getFile(opts: { logDownloads?: boolean } = {}): Promise<{ file: Uint8Array; signal: number } | false> {
-		// const peer = await this._client.utils.exportPublicKey((await this._client.keyPair).publicKey); // TODO: Replace this with actual peer
+		// const peer = await Utils.exportPublicKey((await this._client.keyPair).publicKey); // TODO: Replace this with actual peer
 		// const receipt = await this._client.blockchain.mempoolBlock.signReceipt(
 		//   peer,
 		//   await this._client.keyPair,
@@ -379,13 +570,13 @@ class File implements FileAttributes {
 		this.save();
 
 		// console.log(` ${this.hash}  Checking memory usage`);
-		// if (this.size !== 0 && !this._client.utils.hasSufficientMemory(this.size)) {
+		// if (this.size !== 0 && !Utils.hasSufficientMemory(this.size)) {
 		// 	console.log(`  ${hash}  Reached memory limit, waiting`, this.size);
-		// 	await this._client.utils.promiseWithTimeout(
+		// 	await Utils.promiseWithTimeout(
 		// 		new Promise(() => {
 		// 			const intervalId = setInterval(() => {
 		// 				if (this._client.config.logLevel === "verbose") console.log(`  ${hash}  Reached memory limit, waiting`, this.size);
-		// 				if (this.size === 0 || this._client.utils.hasSufficientMemory(this.size)) clearInterval(intervalId);
+		// 				if (this.size === 0 || Utils.hasSufficientMemory(this.size)) clearInterval(intervalId);
 		// 			}, this._client.config.memoryThresholdReachedWait);
 		// 		}),
 		// 		this._client.config.timeout / 2,
@@ -412,8 +603,8 @@ class File implements FileAttributes {
 	}
 
 	save(): void {
-		if (this._client.fileManager) {
-			this._client.fileManager.update(this.hash, this);
+		if (this._client.FileDB) {
+			this._client.FileDB.update(this.hash, this);
 		}
 	}
 
@@ -437,14 +628,14 @@ class File implements FileAttributes {
 	}
 
 	increment(column: keyof FileAttributes): void {
-		if (this._client.fileManager) {
-			this._client.fileManager.increment(this.hash, column);
+		if (this._client.FileDB) {
+			this._client.FileDB.increment(this.hash, column);
 		}
 		this[column]++;
 	}
 
 	async checkVoteNonce(nonce: number): Promise<void> {
-		const voteHash = await this._client.utils.hashString(this.hash + nonce);
+		const voteHash = await Utils.hashString(this.hash + nonce);
 		const decimalValue = BigInt("0x" + voteHash).toString(10);
 		const difficulty = Number(decimalValue) / Number(BigInt("0x" + "f".repeat(64)));
 		if (difficulty > this.voteDifficulty) {
