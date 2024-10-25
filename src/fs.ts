@@ -1,6 +1,4 @@
 interface FileHandle extends FileSystemFileHandle {
-	getFile(): Promise<File>; // Returns a Promise that resolves to a File object.
-	// createWritable(): Promise<WritableStream>; // Returns a Promise that resolves to a WritableFileStream for writing to the file.
 	remove(): Promise<void>; // Returns a Promise that resolves when the file is removed.
 }
 
