@@ -214,7 +214,10 @@ export const handleRequest = async (req: Request, client: Hydrafiles): Promise<R
 			await client.fs.writeFile("config.json", new TextEncoder().encode(JSON.stringify(client.config, null, 2)));
 			return new Response("200 OK\n");
 		} else if (url.pathname === "/files") {
-			const rows = client.FileDB !== undefined ? await client.FileDB.select() : [];
+			const rows = (client.FileDB !== undefined ? await client.FileDB.select() : []).map((row) => {
+				const { downloadCount, found, ...rest } = row;
+				return rest;
+			});
 			headers.set("Content-Type", "application/json");
 			headers.set("Cache-Control", "public, max-age=10800");
 			return new Response(JSON.stringify(rows), { headers });
