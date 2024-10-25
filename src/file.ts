@@ -6,9 +6,16 @@ import { join } from "https://deno.land/std@0.224.0/path/mod.ts";
 
 const Deno: typeof globalThis.Deno | undefined = globalThis.Deno ?? undefined;
 
+type NonNegativeNumber = number & { readonly brand: unique symbol };
+
+function createNonNegativeNumber(n: number): NonNegativeNumber {
+	if (Number.isInteger(n) && n >= 0) return n as NonNegativeNumber;
+	throw new Error("Number is not a positive integer");
+}
+
 interface Metadata {
 	name: string;
-	size: number;
+	size: NonNegativeNumber;
 	type: string;
 	hash: { sha256: string };
 	id: string;
@@ -18,11 +25,11 @@ interface Metadata {
 export interface FileAttributes {
 	hash: string;
 	infohash: string | null;
-	downloadCount: number;
+	downloadCount: NonNegativeNumber;
 	id: string | null;
 	name: string | null;
 	found: boolean;
-	size: number;
+	size: NonNegativeNumber;
 	voteHash: string | null;
 	voteNonce: number;
 	voteDifficulty: number;
@@ -47,11 +54,11 @@ export function fileAttributesDefaults(values: Partial<FileAttributes>): FileAtt
 	return {
 		hash: values.hash,
 		infohash: values.infohash ?? null,
-		downloadCount: values.downloadCount ?? 0,
+		downloadCount: createNonNegativeNumber(values.downloadCount ?? 0),
 		id: values.id ?? null,
 		name: values.name ?? null,
 		found: values.found !== undefined ? values.found : true,
-		size: values.size ?? 0,
+		size: createNonNegativeNumber(values.size ?? 0),
 		voteHash: values.voteHash ?? null,
 		voteNonce: values.voteNonce ?? 0,
 		voteDifficulty: values.voteDifficulty ?? 0,
@@ -92,21 +99,23 @@ export class FileDB {
 		if (typeof window === "undefined") {
 			this.db = new Database("filemanager.db");
 			this.db.exec(`
-			CREATE TABLE IF NOT EXISTS file (
-				hash TEXT PRIMARY KEY,
-				infohash TEXT,
-				downloadCount INTEGER DEFAULT 0,
-				id TEXT,
-				name TEXT,
-				found BOOLEAN DEFAULT 1,
-				size INTEGER DEFAULT 0,
-				voteHash STRING,
-				voteNonce INTEGER DEFAULT 0,
-				voteDifficulty REAL DEFAULT 0,
-				createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-				updatedAt DATETIME
-			)
-		`);
+				CREATE TABLE IF NOT EXISTS file (
+					hash TEXT PRIMARY KEY,
+					infohash TEXT,
+					downloadCount INTEGER DEFAULT 0,
+					id TEXT,
+					name TEXT,
+					found BOOLEAN DEFAULT 1,
+					size INTEGER DEFAULT 0,
+					voteHash STRING,
+					voteNonce INTEGER DEFAULT 0,
+					voteDifficulty REAL DEFAULT 0,
+					createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+					updatedAt DATETIME
+				)
+			`);
+			this.db.exec("UPDATE file SET size = 0 WHERE size < 0");
+			this.db.exec("UPDATE file SET name = null WHERE name = 'File");
 			addColumnIfNotExists(this.db, "file", "voteHash", "STRING");
 			addColumnIfNotExists(this.db, "file", "voteNonce", "INTEGER");
 			addColumnIfNotExists(this.db, "file", "voteDifficulty", "REAL DEFAULT 0");
@@ -273,12 +282,11 @@ export class FileDB {
 		});
 	}
 
-	sum(column: string): Promise<number> {
+	sum(column: string, where = ""): Promise<number> {
 		return new Promise((resolve, reject) => {
 			if (this.db === undefined) return resolve(0);
 			if (this.db instanceof Database) {
-				const result = this.db.prepare(`SELECT SUM(${column}) FROM file`).value() as number[];
-				console.log(`SELECT SUM(${column}) FROM file`, result[0]);
+				const result = this.db.prepare(`SELECT SUM(${column}) FROM file${where.length !== 0 ? ` WHERE ${where}` : ""}`).value() as number[];
 				return resolve(result === undefined ? 0 : result[0]);
 			} else {
 				if (!this.objectStore) return resolve(0);
@@ -309,11 +317,11 @@ export class FileDB {
 class File implements FileAttributes {
 	hash!: string;
 	infohash: string | null = null;
-	downloadCount = 0;
+	downloadCount = createNonNegativeNumber(0);
 	id: string | null = null;
 	name: string | null = null;
 	found = true;
-	size = 0;
+	size = createNonNegativeNumber(0);
 	voteHash: string | null = null;
 	voteNonce = 0;
 	voteDifficulty = 0;
@@ -446,7 +454,7 @@ class File implements FileAttributes {
 
 		const filePath = join(FILESPATH, hash);
 		if (Deno !== undefined && await this._client.fs.exists(filePath)) {
-			this.size = await this._client.fs.getFileSize(filePath);
+			this.size = createNonNegativeNumber(await this._client.fs.getFileSize(filePath));
 			this.save();
 			return this;
 		}
@@ -455,7 +463,7 @@ class File implements FileAttributes {
 			try {
 				const data = await this._client.s3.statObject(`${hash}.stuf`);
 				if (typeof data.size !== "undefined") {
-					this.size = data.size;
+					this.size = createNonNegativeNumber(data.size);
 					this.save();
 					return this;
 				}
@@ -474,7 +482,7 @@ class File implements FileAttributes {
 
 		let size = this.size;
 		if (size === 0) {
-			size = file.byteLength;
+			size = createNonNegativeNumber(file.byteLength);
 			this.size = size;
 			this.save();
 		}
