@@ -6,8 +6,6 @@ import { join } from "https://deno.land/std@0.224.0/path/mod.ts";
 
 type Base64 = string & { __brand: "Base64" };
 
-const Deno: typeof globalThis.Deno | undefined = globalThis.Deno ?? undefined;
-
 class Utils {
 	_client: Hydrafiles;
 	constructor(client: Hydrafiles) {
@@ -22,7 +20,7 @@ class Utils {
 	static isPrivateIP = (ip: string): boolean => /^https?:\/\/(?:10\.|(?:172\.(?:1[6-9]|2\d|3[0-1]))\.|192\.168\.|169\.254\.|127\.|224\.0\.0\.|255\.255\.255\.255)/.test(ip);
 	static interfere = (signalStrength: number): number => signalStrength >= 95 ? this.getRandomNumber(90, 100) : Math.ceil(signalStrength * (1 - (this.getRandomNumber(0, 10) / 100)));
 	hasSufficientMemory = async (fileSize: number): Promise<boolean> => {
-		if (Deno === undefined) return true;
+		if (typeof window !== "undefined") return true;
 		const os = await import("https://deno.land/std@0.170.0/node/os.ts");
 		return os.freemem() > (fileSize + this._client.config.memoryThreshold);
 	};
@@ -104,14 +102,14 @@ class Utils {
 	remainingStorage = async (): Promise<number> => this._client.config.maxCache - await this.calculateUsedStorage();
 
 	calculateUsedStorage = async (): Promise<number> => {
-		if (Deno === undefined) return 0;
+		if (typeof window !== "undefined") return 0;
 		const filesPath = "files/";
 		let usedStorage = 0;
 
-		if (Deno !== undefined && await this._client.fs.exists(filesPath)) {
-			const files = await this._client.fs.readDir(filesPath);
+		if (await (await this._client.fs).exists(filesPath)) {
+			const files = await (await this._client.fs).readDir(filesPath);
 			for (const file of files) {
-				usedStorage += await this._client.fs.getFileSize(join(filesPath, file));
+				usedStorage += await (await this._client.fs).getFileSize(join(filesPath, file));
 			}
 		}
 
@@ -119,19 +117,19 @@ class Utils {
 	};
 
 	purgeCache = async (requiredSpace: number, remainingSpace: number): Promise<void> => {
-		if (Deno === undefined) return;
+		if (typeof window !== "undefined") return;
 		console.warn("WARNING: Your node has reached max storage, some files are getting purged. To prevent this, increase your limit at config.json or add more storage to your machine.");
 
 		const filesPath = "files/";
-		const files = await this._client.fs.readDir(filesPath);
+		const files = await (await this._client.fs).readDir(filesPath);
 
 		for (const file of files) {
 			if (this._client.config.permaFiles.includes(file)) continue;
 
 			const filePath = join(filesPath, file);
 
-			this._client.fs.remove(filePath).catch(console.error);
-			remainingSpace += await this._client.fs.getFileSize(filePath);
+			(await this._client.fs).remove(filePath).catch(console.error);
+			remainingSpace += await (await this._client.fs).getFileSize(filePath);
 
 			if (requiredSpace <= remainingSpace && await this.calculateUsedStorage() * (1 - this._client.config.burnRate) <= remainingSpace) {
 				break;
@@ -182,12 +180,15 @@ class Utils {
 	}
 
 	static async generateKeyPair(): Promise<CryptoKeyPair> {
-		return await crypto.subtle.generateKey({ name: "Ed25519" }, true, [
-			"sign",
-			"verify",
-		]) as CryptoKeyPair;
+		return await crypto.subtle.generateKey(
+			{
+				name: "ECDSA",
+				namedCurve: "P-256",
+			},
+			true,
+			["sign", "verify"],
+		) as CryptoKeyPair;
 	}
-
 	static exportPublicKey = async (keyPair: CryptoKey) => (await crypto.subtle.exportKey("jwk", keyPair))["x"] as string;
 	static buildJWT = (key: string) => {
 		return {
@@ -229,9 +230,9 @@ class Utils {
 		return buffer.subarray(start, end + 1);
 	}
 	async countFilesInDir(dirPath: string): Promise<number> {
-		if (Deno === undefined) return 0;
+		if (typeof window !== "undefined") return 0;
 		let count = 0;
-		for await (const _ of await this._client.fs.readDir(dirPath)) {
+		for await (const _ of await (await this._client.fs).readDir(dirPath)) {
 			count++;
 		}
 		return count;

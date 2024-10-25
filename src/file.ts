@@ -1,16 +1,14 @@
-import { Database } from "jsr:@db/sqlite@0.11";
 import type Hydrafiles from "./hydrafiles.ts";
 import Utils from "./utils.ts";
 import { IDBKeyRange, indexedDB } from "https://deno.land/x/indexeddb@v1.1.0/ponyfill.ts";
 import { join } from "https://deno.land/std@0.224.0/path/mod.ts";
 
-const Deno: typeof globalThis.Deno | undefined = globalThis.Deno ?? undefined;
+import type { Database } from "jsr:@db/sqlite@0.11";
 
 type NonNegativeNumber = number & { readonly brand: unique symbol };
 
 function createNonNegativeNumber(n: number): NonNegativeNumber {
-	if (Number.isInteger(n) && n >= 0) return n as NonNegativeNumber;
-	throw new Error("Number is not a positive integer");
+	return (Number.isInteger(n) && n >= 0 ? n : 0) as NonNegativeNumber;
 }
 
 interface Metadata {
@@ -43,7 +41,7 @@ function addColumnIfNotExists(db: Database, tableName: string, columnName: strin
 	const columnExists = result && result[0] === 1;
 
 	if (!columnExists) {
-		db.exec(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${columnDefinition}`);
+		if (db !== undefined) db.exec(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${columnDefinition}`);
 		console.log(`Column '${columnName}' added to table '${tableName}'.`);
 	}
 }
@@ -82,10 +80,12 @@ async function createIDBDatabase(): Promise<IDBDatabase> {
 	return await dbPromise;
 }
 
+type DatabaseWrapper = { type: "UNDEFINED"; db: undefined } | { type: "SQLITE"; db: Database } | { type: "INDEXEDDB"; db: IDBDatabase };
+
 export class FileDB {
 	private _client: Hydrafiles;
 	objectStore: IDBObjectStore | undefined;
-	db: Database | IDBDatabase | undefined;
+	db: DatabaseWrapper = { type: "UNDEFINED", db: undefined };
 
 	constructor(client: Hydrafiles) {
 		this._client = client;
@@ -94,11 +94,12 @@ export class FileDB {
 	}
 
 	private async initialize(): Promise<void> {
-		if (Deno !== undefined && !await this._client.fs.exists("files/")) this._client.fs.mkdir("files");
+		await (await this._client.fs).mkdir("files");
 
 		if (typeof window === "undefined") {
-			this.db = new Database("filemanager.db");
-			this.db.exec(`
+			const database = (await import("jsr:@db/sqlite@0.11")).Database;
+			this.db = { type: "SQLITE", db: new database("filemanager.db") };
+			this.db.db.exec(`
 				CREATE TABLE IF NOT EXISTS file (
 					hash TEXT PRIMARY KEY,
 					infohash TEXT,
@@ -114,16 +115,16 @@ export class FileDB {
 					updatedAt DATETIME
 				)
 			`);
-			this.db.exec("UPDATE file SET size = 0 WHERE size < 0");
-			this.db.exec("UPDATE file SET name = null WHERE name = 'File");
-			addColumnIfNotExists(this.db, "file", "voteHash", "STRING");
-			addColumnIfNotExists(this.db, "file", "voteNonce", "INTEGER");
-			addColumnIfNotExists(this.db, "file", "voteDifficulty", "REAL DEFAULT 0");
-			addColumnIfNotExists(this.db, "file", "updatedAt", "DATETIME");
+			this.db.db.exec("UPDATE file SET size = 0 WHERE size < 0");
+			this.db.db.exec("UPDATE file SET name = null WHERE name = 'File'");
+			addColumnIfNotExists(this.db.db, "file", "voteHash", "STRING");
+			addColumnIfNotExists(this.db.db, "file", "voteNonce", "INTEGER");
+			addColumnIfNotExists(this.db.db, "file", "voteDifficulty", "REAL DEFAULT 0");
+			addColumnIfNotExists(this.db.db, "file", "updatedAt", "DATETIME");
 		} else {
-			this.db = await createIDBDatabase();
-			if (!this.db.objectStoreNames.contains("file")) {
-				const objectStore = this.db.createObjectStore("file", { keyPath: "hash" });
+			this.db.db = await createIDBDatabase();
+			if (!this.db.db.objectStoreNames.contains("file")) {
+				const objectStore = this.db.db.createObjectStore("file", { keyPath: "hash" });
 				objectStore.createIndex("infohash", "infohash", { unique: false });
 				objectStore.createIndex("id", "id", { unique: false });
 				objectStore.createIndex("name", "name", { unique: false });
@@ -135,14 +136,14 @@ export class FileDB {
 				objectStore.createIndex("createdAt", "createdAt", { unique: false });
 				objectStore.createIndex("updatedAt", "updatedAt", { unique: false });
 			}
-			this.objectStore = this.db.transaction("file", "readwrite").objectStore("file");
+			this.objectStore = this.db.db.transaction("file", "readwrite").objectStore("file");
 		}
 	}
 
 	select<T extends keyof FileAttributes>(opts: { where?: { key: T; value: NonNullable<File[T]> }; orderBy?: string } = {}): Promise<File[]> {
 		if (this.db === undefined) return new Promise((resolve) => resolve([]));
 
-		if (this.db instanceof Database) {
+		if (this.db.type === "SQLITE") {
 			let query = "SELECT * FROM file";
 			const params: (string | number | boolean)[] = [];
 
@@ -152,9 +153,9 @@ export class FileDB {
 			}
 
 			if (opts.orderBy) query += ` ORDER BY ${opts.orderBy}`;
-			const results = this.db.prepare(query).all(params) as unknown as File[];
+			const results = this.db.db.prepare(query).all(params) as unknown as File[];
 			return new Promise((resolve) => resolve(results));
-		} else {
+		} else if (this.db.type === "INDEXEDDB") {
 			return new Promise((resolve, reject) => {
 				if (this.objectStore === undefined) return [];
 				const request = opts.where ? this.objectStore.index(opts.where.key).openCursor(IDBKeyRange.only(opts.where.value)) : this.objectStore.openCursor();
@@ -182,17 +183,17 @@ export class FileDB {
 					reject((event.target as IDBRequest).error);
 				};
 			});
-		}
+		} else return new Promise((resolve) => resolve([]));
 	}
 
 	insert(values: Partial<FileAttributes>): void {
 		if (typeof this.db === "undefined") return;
 		const file = fileAttributesDefaults(values) as File;
 		console.log(`  ${file.hash}  File INSERTing`);
-		if (this.db instanceof Database) {
+		if (this.db.type === "SQLITE") {
 			const query = `INSERT INTO file (hash, infohash, downloadCount, id, name, found, size)VALUES (?, ?, ?, ?, ?, ?, ?)`;
 
-			this.db.exec(
+			this.db.db.exec(
 				query,
 				file.hash,
 				file.infohash,
@@ -210,7 +211,7 @@ export class FileDB {
 		updates.updatedAt = new Date().toISOString();
 		const newFile = fileAttributesDefaults(updates);
 
-		if (this.db instanceof Database) {
+		if (this.db.type === "SQLITE") {
 			const currentFile = fileAttributesDefaults((await this.select({ where: { key: "hash", value: hash } }))[0] ?? { hash });
 			if (!currentFile) {
 				console.error(`File with hash ${hash} not found.`);
@@ -232,7 +233,7 @@ export class FileDB {
 			"";
 			const query = `UPDATE file SET ${updatedColumn.map((column) => `${column} = ?`).join(", ")} WHERE hash = ?`;
 
-			this.db.prepare(query).values(params);
+			this.db.db.prepare(query).values(params);
 			console.log(`  ${hash}  File UPDATEd - Updated Columns: ${updatedColumn.join(", ")}` + (this._client.config.logLevel === "verbose" ? ` - Query: ${query} - Params: ${params.join(", ")}` : ""));
 		} else {
 			if (this.objectStore) this.objectStore.put(newFile).onerror = console.error;
@@ -244,15 +245,15 @@ export class FileDB {
 		if (this.db === undefined) return;
 		const query = `DELETE FROM file WHERE hash = ?`;
 
-		if (this.db instanceof Database) {
-			this.db.exec(query, hash);
+		if (this.db.type === "SQLITE") {
+			this.db.db.exec(query, hash);
 		} else if (this.objectStore) this.objectStore.delete(hash).onerror = console.error;
 		console.log(`${hash} File DELETEd`);
 	}
 
 	increment<T>(hash: string, column: keyof FileAttributes): void {
 		if (this.db === undefined) return;
-		if (this.db instanceof Database) this.db.prepare(`UPDATE file set ${column} = ${column}+1 WHERE hash = ?`).values(hash);
+		if (this.db.type === "SQLITE") this.db.db.prepare(`UPDATE file set ${column} = ${column}+1 WHERE hash = ?`).values(hash);
 		else if (this.objectStore) {
 			const request = this.objectStore.get(hash);
 			request.onsuccess = (event) => {
@@ -270,8 +271,8 @@ export class FileDB {
 	count(): Promise<number> {
 		return new Promise((resolve, reject) => {
 			if (this.db === undefined) return resolve(0);
-			else if (this.db instanceof Database) {
-				const result = this.db.prepare("SELECT COUNT(*) FROM file").value() as number[];
+			else if (this.db.type === "SQLITE") {
+				const result = this.db.db.prepare("SELECT COUNT(*) FROM file").value() as number[];
 				return resolve(result[0]);
 			}
 
@@ -285,8 +286,8 @@ export class FileDB {
 	sum(column: string, where = ""): Promise<number> {
 		return new Promise((resolve, reject) => {
 			if (this.db === undefined) return resolve(0);
-			if (this.db instanceof Database) {
-				const result = this.db.prepare(`SELECT SUM(${column}) FROM file${where.length !== 0 ? ` WHERE ${where}` : ""}`).value() as number[];
+			if (this.db.type === "SQLITE") {
+				const result = this.db.db.prepare(`SELECT SUM(${column}) FROM file${where.length !== 0 ? ` WHERE ${where}` : ""}`).value() as number[];
 				return resolve(result === undefined ? 0 : result[0]);
 			} else {
 				if (!this.objectStore) return resolve(0);
@@ -349,7 +350,7 @@ class File implements FileAttributes {
 						} else {
 							const promises: (() => Promise<void>)[] = [];
 
-							const nodes = this._client.nodes.getNodes({ includeSelf: false });
+							const nodes = (await this._client.nodes).getNodes({ includeSelf: false });
 							for (let i = 0; i < nodes.length; i++) {
 								try {
 									const promise = async () => {
@@ -434,7 +435,7 @@ class File implements FileAttributes {
 
 		const id = this.id;
 		if (id !== undefined && id !== null && id.length > 0) {
-			const nodes = this._client.nodes.getNodes({ includeSelf: false });
+			const nodes = (await this._client.nodes).getNodes({ includeSelf: false });
 			for (let i = 0; i < nodes.length; i++) {
 				try {
 					const response = await fetch(`${nodes[i]}/file/${id}`);
@@ -454,8 +455,8 @@ class File implements FileAttributes {
 		}
 
 		const filePath = join(FILESPATH, hash);
-		if (Deno !== undefined && await this._client.fs.exists(filePath)) {
-			this.size = createNonNegativeNumber(await this._client.fs.getFileSize(filePath));
+		if (await (await this._client.fs).exists(filePath)) {
+			this.size = createNonNegativeNumber(await (await this._client.fs).getFileSize(filePath));
 			this.save();
 			return this;
 		}
@@ -479,7 +480,7 @@ class File implements FileAttributes {
 	async cacheFile(file: Uint8Array): Promise<void> {
 		const hash = this.hash;
 		const filePath = join(FILESPATH, hash);
-		if (Deno === undefined || await this._client.fs.exists(filePath)) return;
+		if (await (await this._client.fs).exists(filePath)) return;
 
 		let size = this.size;
 		if (size === 0) {
@@ -490,11 +491,9 @@ class File implements FileAttributes {
 		const remainingSpace = await this._client.utils.remainingStorage();
 		if (this._client.config.maxCache !== -1 && size > remainingSpace) this._client.utils.purgeCache(size, remainingSpace);
 
-		if (Deno !== undefined) {
-			this._client.fs.writeFile(filePath, file);
-			const savedHash = await Utils.hashUint8Array(await this._client.fs.readFile(filePath));
-			if (savedHash !== hash) await this._client.fs.remove(filePath); // In case of broken file
-		}
+		(await this._client.fs).writeFile(filePath, file);
+		const savedHash = await Utils.hashUint8Array(await (await this._client.fs).readFile(filePath));
+		if (savedHash !== hash) await (await this._client.fs).remove(filePath); // In case of broken file
 	}
 
 	private async fetchFromCache(): Promise<{ file: Uint8Array; signal: number } | false> {
@@ -502,11 +501,11 @@ class File implements FileAttributes {
 		console.log(`  ${hash}  Checking Cache`);
 		const filePath = join(FILESPATH, hash);
 		this.seed();
-		if (Deno === undefined || !await this._client.fs.exists(filePath)) return false;
-		const fileContents = await this._client.fs.readFile(filePath);
+		if (!await (await this._client.fs).exists(filePath)) return false;
+		const fileContents = await (await this._client.fs).readFile(filePath);
 		const savedHash = await Utils.hashUint8Array(fileContents);
 		if (savedHash !== this.hash) {
-			if (Deno !== undefined) await this._client.fs.remove(filePath).catch(console.error);
+			await (await this._client.fs).remove(filePath).catch(console.error);
 			return false;
 		}
 		return {
@@ -598,7 +597,7 @@ class File implements FileAttributes {
 			if (this._client.config.s3Endpoint.length > 0) file = await this.fetchFromS3();
 			if (file !== false) console.log(`  ${hash}  Serving ${this.size !== undefined ? Math.round(this.size / 1024 / 1024) : 0}MB from S3`);
 			else {
-				file = await this._client.nodes.getFile(hash, this.size);
+				file = await (await this._client.nodes).getFile(hash, this.size);
 				if (file === false) {
 					this.found = false;
 					this.save();
@@ -622,7 +621,7 @@ class File implements FileAttributes {
 		// if (seeding.includes(this.hash)) return;
 		// seeding.push(this.hash);
 		// const filePath = join(FILESPATH, this.hash);
-		// if (Deno === undefined || !existsSync(filePath)) return;
+		// if (!existsSync(filePath)) return;
 		// this._client.webtorrent.seed(filePath, {
 		//   createdBy: "Hydrafiles/0.1",
 		//   name: (this.name ?? this.hash).replace(/(\.\w+)$/, " [HYDRAFILES]$1"),

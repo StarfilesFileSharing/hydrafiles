@@ -2,7 +2,6 @@ import { assert } from "jsr:@std/assert/assert";
 import { handleRequest } from "./server.ts";
 import Hydrafiles from "./hydrafiles.ts";
 
-const Deno: typeof globalThis.Deno | undefined = globalThis.Deno ?? undefined;
 const client = new Hydrafiles();
 
 Deno.test("handleRequest - Root path returns index.html", async () => {
