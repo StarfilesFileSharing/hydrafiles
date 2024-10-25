@@ -21,25 +21,21 @@ import { delay } from "https://deno.land/std@0.170.0/async/delay.ts";
 // starfiles.co would use webtorrent to download files
 
 class Hydrafiles {
-	startTime: number;
+	startTime: number = +new Date();
+	utils = new Utils(this);
 	config: Config;
-	nodes: Nodes;
 	s3: S3Client | undefined;
-	utils: Utils;
 	// webtorrent: WebTorrent = new WebTorrent();
-	// blockchain: Blockchain;
-	keyPair: Promise<CryptoKeyPair>;
-	fs = new FS();
+	// blockchain = new Blockchain(this);
+	keyPair = Utils.generateKeyPair(); // TODO: Save keypair to fs
+	fs = FS.initialize();
 	FileDB = new FileDB(this);
+	nodes = Nodes.init(this);
 	constructor(customConfig: Partial<Config> = {}) {
-		this.startTime = +new Date();
 		this.config = getConfig(customConfig);
-		this.utils = new Utils(this);
 		if (this.config.s3Endpoint.length) {
 			this.s3 = new S3Client({
 				endPoint: this.config.s3Endpoint,
-				port: 443,
-				useSSL: true,
 				region: "us-east-1",
 				bucket: "uploads",
 				accessKey: this.config.s3AccessKeyId,
@@ -48,12 +44,7 @@ class Hydrafiles {
 			});
 		}
 
-		this.keyPair = Utils.generateKeyPair(); // TODO: Save keypair to fs
-
-		this.nodes = new Nodes(this);
-
 		startServer(this);
-		// this.blockchain = new Blockchain(this);
 
 		if (this.config.summarySpeed !== -1) {
 			this.logState();
@@ -71,11 +62,11 @@ class Hydrafiles {
 
 	backgroundTasks = async (): Promise<void> => {
 		const nodes = this.nodes;
-		if (this.config.compareNodes) nodes.compareNodeList();
+		if (this.config.compareNodes) (await nodes).compareNodeList();
 		if (this.config.compareFiles) {
-			const knownNodes = nodes.getNodes({ includeSelf: false });
+			const knownNodes = (await nodes).getNodes({ includeSelf: false });
 			for (let i = 0; i < knownNodes.length; i++) {
-				await nodes.compareFileList(knownNodes[i]);
+				await (await nodes).compareFileList(knownNodes[i]);
 			}
 		}
 		await delay(600000);
@@ -85,6 +76,7 @@ class Hydrafiles {
 	backfillFiles = async (): Promise<void> => {
 		if (this.FileDB !== undefined) {
 			const file = (await this.FileDB.select({ orderBy: "RANDOM()" }))[0];
+			if (file === undefined) return;
 			console.log(`  ${file.hash}  Backfilling file`);
 			try {
 				await file.getFile({ logDownloads: false });
@@ -112,7 +104,7 @@ class Hydrafiles {
 				"\n| Processing Files:",
 				hashLocks.size,
 				"\n| Known Nodes:",
-				this.nodes.getNodes({ includeSelf: false }).length,
+				(await this.nodes).getNodes({ includeSelf: false }).length,
 				// '\n| Seeding Torrent Files:',
 				// (await webtorrentClient()).torrents.length,
 				"\n| Downloads Served:",

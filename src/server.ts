@@ -4,7 +4,6 @@ import File, { fileAttributesDefaults } from "./file.ts";
 import Utils from "./utils.ts";
 import { join } from "https://deno.land/std@0.224.0/path/mod.ts";
 
-const Deno: typeof globalThis.Deno | undefined = globalThis.Deno ?? undefined;
 export const hashLocks = new Map<string, Promise<Response>>();
 
 function stripInvalidProperties<T extends File>(obj: T): File {
@@ -29,30 +28,30 @@ export const handleRequest = async (req: Request, client: Hydrafiles): Promise<R
 		if (url.pathname === "/" || url.pathname === undefined) {
 			headers.set("Content-Type", "text/html");
 			headers.set("Cache-Control", "public, max-age=604800");
-			return new Response(await client.fs.readFile("public/index.html"), { headers });
+			return new Response(await (await client.fs).readFile("public/index.html"), { headers });
 		} else if (url.pathname === "/favicon.ico") {
 			headers.set("Content-Type", "image/x-icon");
 			headers.set("Cache-Control", "public, max-age=604800");
-			return new Response(await client.fs.readFile("public/favicon.ico"), { headers });
+			return new Response(await (await client.fs).readFile("public/favicon.ico"), { headers });
 		} else if (url.pathname === "/status") {
 			headers.set("Content-Type", "application/json");
 			return new Response(JSON.stringify({ status: true }), { headers });
 		} else if (url.pathname === "/hydrafiles-web.esm.js") {
 			headers.set("Content-Type", "application/javascript");
 			headers.set("Cache-Control", "public, max-age=300");
-			return new Response(await client.fs.readFile("build/hydrafiles-web.esm.js"), { headers });
+			return new Response(await (await client.fs).readFile("build/hydrafiles-web.esm.js"), { headers });
 		} else if (url.pathname === "/hydrafiles-web.esm.js.map") {
 			headers.set("Content-Type", "application/json");
 			headers.set("Cache-Control", "public, max-age=300");
-			return new Response(await client.fs.readFile("build/hydrafiles-web.esm.js.map"), { headers });
+			return new Response(await (await client.fs).readFile("build/hydrafiles-web.esm.js.map"), { headers });
 		} else if (url.pathname === "/demo.html") {
 			headers.set("Content-Type", "text/html");
 			headers.set("Cache-Control", "public, max-age=300");
-			return new Response(await client.fs.readFile("public/demo.html"), { headers });
+			return new Response(await (await client.fs).readFile("public/demo.html"), { headers });
 		} else if (url.pathname === "/nodes") {
 			headers.set("Content-Type", "application/json");
 			headers.set("Cache-Control", "public, max-age=300");
-			return new Response(JSON.stringify(await client.nodes.getValidNodes()), { headers });
+			return new Response(JSON.stringify(await (await client.nodes).getValidNodes()), { headers });
 		} else if (url.pathname === "/info") {
 			headers.set("Content-Type", "application/json");
 			headers.set("Cache-Control", "public, max-age=300");
@@ -62,11 +61,11 @@ export const handleRequest = async (req: Request, client: Hydrafiles): Promise<R
 
 			if (host === null) return new Response("No hosted given\n", { status: 401 });
 
-			const knownNodes = client.nodes.getNodes();
+			const knownNodes = (await client.nodes).getNodes();
 			if (knownNodes.find((node) => node.host === host) !== undefined) return new Response("Already known\n");
 
-			if ((await client.nodes.downloadFromNode(client.nodes.nodeFrom(host), new File({ hash: "04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f" }, client))) !== false) {
-				await client.nodes.add(client.nodes.nodeFrom(host));
+			if ((await (await client.nodes).downloadFromNode((await client.nodes).nodeFrom(host), new File({ hash: "04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f" }, client))) !== false) {
+				await (await client.nodes).add((await client.nodes).nodeFrom(host));
 				return new Response("Announced\n");
 			} else {
 				return new Response("Invalid request\n");
@@ -208,10 +207,10 @@ export const handleRequest = async (req: Request, client: Hydrafiles): Promise<R
 
 			console.log("Uploading", file.hash);
 
-			if (Deno !== undefined && await client.fs.exists(join("files/", file.hash))) return new Response("200 OK\n");
+			if (await (await client.fs).exists(join("files", file.hash))) return new Response("200 OK\n");
 
 			if (!client.config.permaFiles.includes(hash)) client.config.permaFiles.push(hash);
-			await client.fs.writeFile("config.json", new TextEncoder().encode(JSON.stringify(client.config, null, 2)));
+			await (await client.fs).writeFile("config.json", new TextEncoder().encode(JSON.stringify(client.config, null, 2)));
 			return new Response("200 OK\n");
 		} else if (url.pathname === "/files") {
 			const rows = (client.FileDB !== undefined ? await client.FileDB.select() : []).map((row) => {
@@ -239,7 +238,7 @@ export const handleRequest = async (req: Request, client: Hydrafiles): Promise<R
 			const blockHeight = url.pathname.split("/")[2];
 			headers.set("Content-Type", "application/json");
 			// "Cache-Control": "public, max-age=" + (Number(blockHeight) > client.blockchain.lastBlock().height ? 0 : 604800),
-			const block = await client.fs.readFile(join(BLOCKSDIR, blockHeight));
+			const block = await (await client.fs).readFile(join(BLOCKSDIR, blockHeight));
 			return new Response(block, { headers });
 		} else if (url.pathname === "/block_height") {
 			headers.set("Content-Type", "application/json");
@@ -260,7 +259,7 @@ const onListen = (client: Hydrafiles): void => {
 
 	const handleListen = async (): Promise<void> => {
 		console.log("Testing network connection");
-		const file = await client.nodes.getFile("04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f");
+		const file = await (await client.nodes).getFile("04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f");
 		if (file === false) console.error("Download test failed, cannot connect to network");
 		else {
 			console.log("Connected to network");
@@ -270,14 +269,14 @@ const onListen = (client: Hydrafiles): void => {
 				console.log(`Testing downloads ${client.config.publicHostname}/download/04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f`);
 
 				console.log("Testing connectivity");
-				const response = await client.nodes.downloadFromNode(client.nodes.nodeFrom(`${client.config.publicHostname}`), new File({ hash: "04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f" }, client));
+				const response = await (await client.nodes).downloadFromNode((await client.nodes).nodeFrom(`${client.config.publicHostname}`), new File({ hash: "04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f" }, client));
 				if (response === false) console.error("  04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f  ERROR: Failed to download file from self");
 				else {
 					console.log("  04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f  Test Succeeded");
 					console.log("Announcing to nodes");
-					client.nodes.announce();
+					(await client.nodes).announce();
 				}
-				await client.nodes.add(client.nodes.nodeFrom(client.config.publicHostname));
+				await (await client.nodes).add((await client.nodes).nodeFrom(client.config.publicHostname));
 			}
 		}
 	};
@@ -285,7 +284,7 @@ const onListen = (client: Hydrafiles): void => {
 };
 
 const startServer = (client: Hydrafiles): void => {
-	if (typeof Deno === "undefined") return;
+	if (typeof window !== "undefined") return;
 	console.log("Starting server");
 
 	Deno.serve({

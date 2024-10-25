@@ -1,8 +1,6 @@
 import type Hydrafiles from "./hydrafiles.ts";
 import File, { type FileAttributes } from "./file.ts";
 import Utils from "./utils.ts";
-
-const Deno: typeof globalThis.Deno | undefined = globalThis.Deno ?? undefined;
 export interface Node {
 	host: string;
 	http: boolean;
@@ -23,12 +21,13 @@ export default class Nodes {
 	private _client: Hydrafiles;
 	constructor(client: Hydrafiles) {
 		this._client = client;
-		this.initialize().catch(console.error);
 	}
 
-	private async initialize(): Promise<void> {
-		this.nodes = JSON.parse(Deno === undefined !== undefined && await this._client.fs.exists(NODES_PATH) ? new TextDecoder().decode(await this._client.fs.readFile(NODES_PATH)) : JSON.stringify(this._client.config.bootstrapNodes));
-		if (Deno !== undefined && !await this._client.fs.exists(NODES_PATH)) this._client.fs.writeFile(NODES_PATH, new TextEncoder().encode(JSON.stringify(this._client.config.bootstrapNodes)));
+	public static async init(client: Hydrafiles): Promise<Nodes> {
+		const nodes = new Nodes(client);
+		if (!await (await client.fs).exists(NODES_PATH)) (await client.fs).writeFile(NODES_PATH, new TextEncoder().encode(JSON.stringify(client.config.bootstrapNodes)));
+		nodes.nodes = JSON.parse(new TextDecoder().decode(await (await client.fs).readFile(NODES_PATH)));
+		return nodes;
 	}
 
 	async add(node: Node): Promise<void> {
@@ -38,7 +37,7 @@ export default class Nodes {
 		) {
 			this.nodes.push(node);
 
-			if (Deno !== undefined) this._client.fs.writeFile(NODES_PATH, new TextEncoder().encode(JSON.stringify(this.nodes)));
+			(await this._client.fs).writeFile(NODES_PATH, new TextEncoder().encode(JSON.stringify(this.nodes)));
 		}
 	}
 
@@ -102,11 +101,11 @@ export default class Nodes {
 		}
 	}
 
-	updateNode(node: Node): void {
+	async updateNode(node: Node): Promise<void> {
 		const index = this.nodes.findIndex((n) => n.host === node.host);
 		if (index !== -1) {
 			this.nodes[index] = node;
-			this._client.fs.writeFile(NODES_PATH, new TextEncoder().encode(JSON.stringify(this.nodes)));
+			(await this._client.fs).writeFile(NODES_PATH, new TextEncoder().encode(JSON.stringify(this.nodes)));
 		}
 	}
 

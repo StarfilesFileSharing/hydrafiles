@@ -3,7 +3,6 @@ import seedrandom from "https://cdn.skypack.dev/seedrandom";
 import Utils from "./utils.ts";
 import { join } from "https://deno.land/std@0.224.0/path/mod.ts";
 
-const Deno: typeof globalThis.Deno | undefined = globalThis.Deno ?? undefined;
 type Base64 = string & { __brand: "Base64" };
 
 export interface Receipt {
@@ -34,11 +33,11 @@ export class Block {
 	}
 
 	private async initialize(): Promise<void> {
-		if (Deno !== undefined && !await this._client.fs.exists(BLOCKSDIR)) this._client.fs.mkdir(BLOCKSDIR);
+		await (await this._client.fs).mkdir(BLOCKSDIR);
 	}
 
 	static async init(hash: string, client: Hydrafiles): Promise<Block> {
-		const blockContent = JSON.parse(new TextDecoder().decode(Deno !== undefined ? await client.fs.readFile(join(BLOCKSDIR, hash)) : new Uint8Array()));
+		const blockContent = JSON.parse(new TextDecoder().decode(await (await client.fs).readFile(join(BLOCKSDIR, hash))));
 		const block = new Block(blockContent.prevBlock, client);
 		block.receipts = blockContent.receipts;
 		return block;
@@ -106,7 +105,7 @@ class Blockchain {
 	}
 
 	async initialize(): Promise<void> {
-		for (const dirEntry of await this._client.fs.readDir(BLOCKSDIR)) { // TODO: Validate block prev is valid
+		for (const dirEntry of await (await this._client.fs).readDir(BLOCKSDIR)) { // TODO: Validate block prev is valid
 			this.addBlock(await Block.init(dirEntry, this._client));
 		}
 	}
@@ -141,7 +140,7 @@ class Blockchain {
 	}
 
 	async syncBlocks(): Promise<void> {
-		const blockHeights = await this._client.nodes.getBlockHeights();
+		const blockHeights = await (await this._client.nodes).getBlockHeights();
 		for (let i = 0; i < Object.keys(blockHeights).length; i++) {
 			const claimedBlockHeight = Number(Object.keys(blockHeights)[i]);
 			if (claimedBlockHeight > this.lastBlock().height) {
@@ -173,11 +172,11 @@ class Blockchain {
 		}
 	}
 
-	addBlock(block: Block): void {
+	async addBlock(block: Block): Promise<void> {
 		block.height = this.blocks.length;
 		this.blocks.push(block);
 		block.announce();
-		if (Deno !== undefined) this._client.fs.writeFile(join(BLOCKSDIR, this.blocks.length.toString()), new TextEncoder().encode(block.toString()));
+		await (await this._client.fs).writeFile(join(BLOCKSDIR, this.blocks.length.toString()), new TextEncoder().encode(block.toString()));
 	}
 
 	lastBlock(): Block {

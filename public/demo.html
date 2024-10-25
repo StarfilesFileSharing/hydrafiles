@@ -122,16 +122,18 @@
     <section>
         <h2>Hydrafiles Live Demo</h2>
         <p>Your browser is running a full Hydrafiles node right now. You can right click > inspect element, then go to console or network to see what's going on.</p>
-        <h3>1. Known Nodes</h3>
-        <button id="fetchNodesButton">Fetch Nodes</button>
+        <h3>1. Start Hydrafiles</h3>
+        <button id="startHydrafilesButton">Start Hydrafiles</button>
+        <h3>2. Known Nodes</h3>
+        <button id="fetchNodesButton" disabled>Fetch Nodes</button>
         <ul id="nodes"></ul>
-        <h3>2. Fetch File</h3>
+        <h3>3. Fetch File</h3>
         <button id="fetchFileButton" disabled>Fetch File</button>
         <pre id="fileInfo"></pre>
-        <h3>3. Fetch File Metadata</h3>
+        <h3>4. Fetch File Metadata</h3>
         <button id="fetchFileMetadataButton" disabled>Fetch File Metadata</button>
         <pre id="fileMetadata"></pre>
-        <h3>4. Get File Content</h3>
+        <h3>5. Get File Content</h3>
         <button id="getFileContentButton" disabled>Get File Content</button>
         <pre id="fileContent"></pre>
     </section>
@@ -142,19 +144,24 @@
     <!-- TODO: Add UI for users to upload directly from this page. Then integrate some crypto payment contract for guarunteed file storage. -->
     <script type="module">
     import Hydrafiles from './hydrafiles-web.esm.js';
-    window.hydrafiles = new Hydrafiles();
-    console.log('Hydrafiles web node is running', hydrafiles);
+    
+    document.getElementById('startHydrafilesButton').addEventListener('click', () => {
+        document.getElementById('startHydrafilesButton').style.display = 'none';
+        window.hydrafiles = new Hydrafiles();
+        console.log('Hydrafiles web node is running', hydrafiles);
+        document.getElementById('fetchNodesButton').disabled = false;
+    });
 
-    function displayNodes() {
-        const nodeList = hydrafiles.nodes.getNodes();
+    async function displayNodes() {
+        const nodeList = (await window.hydrafiles.nodes).getNodes();
         document.getElementById('fetchNodesButton').style.display = 'none';
         document.getElementById('nodes').innerHTML = nodeList.length === 0 ? "<li>No nodes available</li>" : nodeList.map(node => `<li>${node.host}</li>`).join('');
     }
 
-    document.getElementById('fetchNodesButton').addEventListener('click', () => {
+    document.getElementById('fetchNodesButton').addEventListener('click', async () => {
         document.getElementById('fetchNodesButton').innerText = 'Fetching nodes...';
         setInterval(displayNodes, 1000);
-        window.hydrafiles.nodes.add(window.hydrafiles.nodes.nodeFrom('http://localhost'));
+        (await window.hydrafiles.nodes).add((await window.hydrafiles.nodes).nodeFrom('http://localhost'));
         document.getElementById('fetchFileButton').disabled = false;
     });
 

@@ -10,6 +10,21 @@ interface DirectoryHandle extends FileSystemDirectoryHandle {
 	getFileHandle(path: string, opts?: { create: boolean }): Promise<FileHandle>; // Returns a Promise that resolves to a FileHandle for the specified file path.
 }
 
+async function getFileHandle(directoryHandle: DirectoryHandle, path: string, touch = false): Promise<FileHandle> {
+	const parts = path.split("/");
+	let currentHandle = directoryHandle;
+
+	for (let i = 0; i < parts.length; i++) {
+		const part = parts[i];
+		console.log("zzzz", parts, i, part);
+
+		if (i === parts.length - 1) return await currentHandle.getFileHandle(part, { create: touch });
+		else currentHandle = await currentHandle.getDirectoryHandle(part, { create: true });
+	}
+
+	throw new Error("Unreachable code reached");
+}
+
 declare global {
 	interface Window {
 		showDirectoryPicker: () => Promise<DirectoryHandle>;
@@ -19,17 +34,17 @@ declare global {
 class FS {
 	init = false;
 	directoryHandle: DirectoryHandle | undefined;
-	constructor() {
-		this.initialize();
-	}
-	initialize = async () => {
-		if (typeof window !== "undefined") {
-			this.directoryHandle = await globalThis.window.showDirectoryPicker();
-		}
-		this.init = true;
+
+	static initialize = async (): Promise<FS> => {
+		const fs = new FS();
+		if (typeof window !== "undefined") fs.directoryHandle = await globalThis.window.showDirectoryPicker();
+		fs.init = true;
+		return fs;
 	};
 
 	mkdir = async (path: string) => {
+		if (await this.exists(path)) return;
+		console.log(`mkdir ${path}`);
 		if (!this.init) throw new Error("FS not initialized");
 		if (this.directoryHandle !== undefined) await this.directoryHandle.getDirectoryHandle(path, { create: true });
 		else await Deno.mkdir(path);
@@ -57,18 +72,21 @@ class FS {
 	};
 
 	readFile = async (path: string): Promise<Uint8Array> => {
+		console.log(`${path} Reading from file`);
 		if (!this.init) throw new Error("FS not initialized");
+		if (!await this.exists(path)) throw new Error(`${path} File doesn't exist`);
 		if (this.directoryHandle !== undefined) {
-			const fileHandle = await this.directoryHandle.getFileHandle(path);
+			const fileHandle = await getFileHandle(this.directoryHandle, path);
 			const file = await fileHandle.getFile();
 			return new Uint8Array(await file.arrayBuffer());
 		} else return await Deno.readFile(path);
 	};
 
 	writeFile = async (path: string, data: Uint8Array) => {
+		console.log(`${path} Writing to file`);
 		if (!this.init) throw new Error("FS not initialized");
 		if (this.directoryHandle !== undefined) {
-			const fileHandle = await this.directoryHandle.getFileHandle(path, { create: true });
+			const fileHandle = await getFileHandle(this.directoryHandle, path, true);
 			const writable = await fileHandle.createWritable();
 			await writable.write(data);
 			await writable.close();
@@ -80,23 +98,25 @@ class FS {
 	exists = async (path: string): Promise<boolean> => {
 		if (!this.init) throw new Error("FS not initialized");
 
+		console.log(`${path} Check if exists`);
 		try {
 			if (this.directoryHandle !== undefined) {
-				await this.directoryHandle.getFileHandle(path);
-				return true; // File exists
-			} else {
-				await Deno.stat(path);
-				return true; // File exists
-			}
+				try {
+					await getFileHandle(this.directoryHandle, path);
+				} catch (err) {
+					const fileError = err as Error;
+					if (fileError.name !== "TypeMismatchError") throw fileError;
+				}
+			} else await Deno.stat(path);
+			console.log(`${path} Does exist`);
+			return true;
 		} catch (e) {
+			console.log(`${path} Doesn't exist`);
 			const error = e as Error;
-			if (this.directoryHandle !== undefined && error.name === "NotFoundError") {
-				return false; // File not found in the web environment
-			}
-			if (error instanceof Deno.errors.NotFound) {
-				return false; // File not found in Deno environment
-			}
-			throw error; // Re-throw unexpected errors
+			if (this.directoryHandle !== undefined && error.name === "NotFoundError") return false;
+			if (typeof window === "undefined" && error instanceof Deno.errors.NotFound) return false;
+			console.error(error.message);
+			throw error;
 		}
 	};
 
