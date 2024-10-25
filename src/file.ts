@@ -15,7 +15,7 @@ function createNonNegativeNumber(n: number): NonNegativeNumber {
 
 interface Metadata {
 	name: string;
-	size: NonNegativeNumber;
+	size: number;
 	type: string;
 	hash: { sha256: string };
 	id: string;
@@ -439,9 +439,10 @@ class File implements FileAttributes {
 				try {
 					const response = await fetch(`${nodes[i]}/file/${id}`);
 					if (response.ok) {
-						const metadata = (await response.json()).result as Metadata;
+						const body = await response.json();
+						const metadata = body.result as Metadata ?? body as FileAttributes;
 						this.name = metadata.name;
-						this.size = metadata.size;
+						this.size = createNonNegativeNumber(metadata.size);
 						if (this.infohash?.length === 0) this.infohash = metadata.infohash;
 						this.save();
 						return this;
