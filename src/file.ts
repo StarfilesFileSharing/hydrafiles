@@ -320,23 +320,79 @@ class File implements FileAttributes {
 	updatedAt: string = new Date().toISOString();
 	_client: Hydrafiles;
 
-	constructor(values: { hash?: string; infohash?: string }, client: Hydrafiles, vote = true) {
+	constructor(values: { hash?: string; infohash?: string; id?: string }, client: Hydrafiles, vote = true) {
 		this._client = client;
 
 		if (values.hash) this.hash = values.hash;
+		const hashPromise = new Promise<string>((resolve, reject) => {
+			if (values.hash !== undefined) {
+				// If hash exists, resolve it directly
+				return resolve(values.hash);
+			}
 
-		const hashPromise = new Promise((resolve) => {
-			if (values.hash !== undefined) resolve(values.hash);
-			if (values.infohash !== undefined) {
-				if (!Utils.isValidInfoHash(values.infohash)) throw new Error(`Invalid infohash provided: ${values.infohash}`);
-				const filesPromise = this._client.FileDB !== undefined ? this._client.FileDB.select({ where: { key: "infohash", value: values.infohash } }) : undefined;
-				if (filesPromise !== undefined) filesPromise.then((files) => resolve(files[0].hash));
-				// TODO: Check other nodes for infohash
-			} else throw new Error("No hash or infohash provided");
-		}) as Promise<string>;
+			if (values.id !== undefined) {
+				// If id exists, attempt to fetch the corresponding hash
+				const filesPromise = this._client.FileDB?.select({ where: { key: "id", value: values.id } });
+				if (filesPromise !== undefined) {
+					filesPromise.then(async (files) => {
+						const fileHash = files[0]?.hash;
+						if (fileHash) {
+							resolve(fileHash);
+						} else {
+							const promises: (() => Promise<void>)[] = [];
+
+							const nodes = this._client.nodes.getNodes({ includeSelf: false });
+							for (let i = 0; i < nodes.length; i++) {
+								try {
+									const promise = async () => {
+										try {
+											console.log(`Fetching metadata by id from ${nodes[i].host}/file/${values.id}`);
+											const response = await fetch(`${nodes[i].host}/file/${values.id}`);
+											const body = await response.json() as { result: Metadata } | FileAttributes;
+											const hash = "result" in body ? body.result.hash.sha256 : body.hash;
+											if (Utils.isValidSHA256Hash(hash)) resolve(hash);
+										} catch (e) {
+											if (this._client.config.logLevel === "verbose") console.error(e);
+										}
+									};
+									promises.push(promise);
+								} catch (e) {
+									if (this._client.config.logLevel === "verbose") console.error(e);
+								}
+							}
+							await Utils.parallelAsync(promises, 4);
+							throw new Error("No hash found for the provided id");
+						}
+					}).catch(reject); // Catch and reject on DB error
+				} else {
+					reject(new Error("FileDB not available or unable to fetch files"));
+				}
+			} else if (values.infohash !== undefined) {
+				// If infohash exists, validate it
+				if (!Utils.isValidInfoHash(values.infohash)) {
+					return reject(new Error(`Invalid infohash provided: ${values.infohash}`));
+				}
+				const filesPromise = this._client.FileDB?.select({ where: { key: "infohash", value: values.infohash } });
+				if (filesPromise !== undefined) {
+					filesPromise.then((files) => {
+						const fileHash = files[0]?.hash;
+						if (fileHash) {
+							resolve(fileHash);
+						} else {
+							reject(new Error("No hash found for the provided infohash"));
+						}
+					}).catch(reject); // Catch and reject on DB error
+				} else {
+					reject(new Error("FileDB not available or unable to fetch files"));
+				}
+			} else {
+				// Reject if neither hash, id, nor infohash is provided
+				reject(new Error("No hash, id, or infohash provided"));
+			}
+		});
 
 		hashPromise.then(async (hash) => {
-			if (hash !== undefined && !Utils.isValidSHA256Hash(hash)) throw new Error(`  ${hash}  Invalid hash provided`);
+			if (hash === undefined || !Utils.isValidSHA256Hash(hash)) throw new Error(`  ${hash}  Invalid hash provided`);
 
 			this.hash = hash;
 
