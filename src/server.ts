@@ -1,12 +1,24 @@
 import type Hydrafiles from "./hydrafiles.ts";
 import { BLOCKSDIR } from "./block.ts";
-import File from "./file.ts";
+import File, { fileAttributesDefaults } from "./file.ts";
 import Utils from "./utils.ts";
 import { join } from "https://deno.land/std@0.224.0/path/mod.ts";
 
 const Deno: typeof globalThis.Deno | undefined = globalThis.Deno ?? undefined;
 export const hashLocks = new Map<string, Promise<Response>>();
 
+function stripInvalidProperties<T extends File>(obj: T): File {
+	const result: Partial<File> = {};
+	Object.keys(obj).forEach((key) => {
+		const fileKey = key as keyof File;
+		if (!key.startsWith("_") && key !== "downloadCount") {
+			// @ts-expect-error:
+			if (obj[fileKey] !== undefined && obj[fileKey] !== null) result[fileKey] = obj[fileKey];
+		}
+	});
+
+	return Object.assign({}, result as File);
+}
 export const handleRequest = async (req: Request, client: Hydrafiles): Promise<Response> => {
 	console.log(`Received Request: ${req.url}`);
 	const url = new URL(req.url);
@@ -206,6 +218,19 @@ export const handleRequest = async (req: Request, client: Hydrafiles): Promise<R
 			headers.set("Content-Type", "application/json");
 			headers.set("Cache-Control", "public, max-age=10800");
 			return new Response(JSON.stringify(rows), { headers });
+		} else if (url.pathname.startsWith("/file/")) {
+			const id = url.pathname.split("/")[2];
+			let file: File;
+			try {
+				file = stripInvalidProperties(new File({ id }, client));
+			} catch (e) {
+				console.error(e);
+				file = fileAttributesDefaults({ id }) as File;
+			}
+
+			headers.set("Content-Type", "application/json");
+			headers.set("Cache-Control", "public, max-age=10800");
+			return new Response(JSON.stringify(file), { headers });
 		} else if (url.pathname.startsWith("/block/")) {
 			const blockHeight = url.pathname.split("/")[2];
 			headers.set("Content-Type", "application/json");

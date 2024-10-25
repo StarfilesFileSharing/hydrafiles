@@ -10,7 +10,7 @@ interface Metadata {
 	name: string;
 	size: number;
 	type: string;
-	hash: string;
+	hash: { sha256: string };
 	id: string;
 	infohash: string;
 }
@@ -41,7 +41,7 @@ function addColumnIfNotExists(db: Database, tableName: string, columnName: strin
 	}
 }
 
-function fileAttributesDefaults(values: Partial<FileAttributes>): FileAttributes {
+export function fileAttributesDefaults(values: Partial<FileAttributes>): FileAttributes {
 	if (values.hash === undefined) throw new Error("Hash is required");
 
 	return {
@@ -366,10 +366,10 @@ class File implements FileAttributes {
 
 		const id = this.id;
 		if (id !== undefined && id !== null && id.length > 0) {
-			const metadataEndpoints = this._client.config.metadataEndpoints;
-			for (let i = 0; i < metadataEndpoints.length; i++) {
+			const nodes = this._client.nodes.getNodes({ includeSelf: false });
+			for (let i = 0; i < nodes.length; i++) {
 				try {
-					const response = await fetch(`${metadataEndpoints[i]}${id}`);
+					const response = await fetch(`${nodes[i]}/file/${id}`);
 					if (response.ok) {
 						const metadata = (await response.json()).result as Metadata;
 						this.name = metadata.name;
