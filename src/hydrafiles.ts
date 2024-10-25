@@ -66,7 +66,7 @@ class Hydrafiles {
 			setInterval(this.backgroundTasks, this.config.compareSpeed);
 			this.backgroundTasks();
 		}
-		// if (this.config.backfill) this.backfillFiles().catch(console.error)
+		if (this.config.backfill) this.backfillFiles().catch(console.error);
 	}
 
 	backgroundTasks = async (): Promise<void> => {
