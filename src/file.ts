@@ -132,19 +132,19 @@ export class FileDB {
 
 	select<T extends keyof FileAttributes>(opts: { where?: { key: T; value: NonNullable<File[T]> }; orderBy?: string } = {}): Promise<File[]> {
 		if (this.db === undefined) return new Promise((resolve) => resolve([]));
-		let query = "SELECT * FROM file";
-		const params: (string | number | boolean)[] = [];
-
-		if (opts.where) {
-			query += ` WHERE ${opts.where.key} = ?`;
-			params.push(opts.where.value);
-		}
-
-		if (opts.orderBy) query += ` ORDER BY ${opts.orderBy}`;
 
 		if (this.db instanceof Database) {
-			const results = this.db.prepare(query).all(...params);
-			return new Promise((resolve) => resolve(results as File[]));
+			let query = "SELECT * FROM file";
+			const params: (string | number | boolean)[] = [];
+
+			if (opts.where) {
+				query += ` WHERE ${opts.where.key} = ?`;
+				params.push(opts.where.value);
+			}
+
+			if (opts.orderBy) query += ` ORDER BY ${opts.orderBy}`;
+			const results = this.db.prepare(query).all(params) as unknown as File[];
+			return new Promise((resolve) => resolve(results));
 		} else {
 			return new Promise((resolve, reject) => {
 				if (this.objectStore === undefined) return [];
@@ -259,10 +259,13 @@ export class FileDB {
 	}
 
 	count(): Promise<number> {
-		if (this.db === undefined) return new Promise((resolve) => resolve(0));
-		if (this.db instanceof Database) this.db.exec("SELECT COUNT(*) FROM file");
-
 		return new Promise((resolve, reject) => {
+			if (this.db === undefined) return resolve(0);
+			else if (this.db instanceof Database) {
+				const result = this.db.prepare("SELECT COUNT(*) FROM file").value() as number[];
+				return resolve(result[0]);
+			}
+
 			if (!this.objectStore) return resolve(0);
 			const request = this.objectStore.count();
 			request.onsuccess = () => resolve(request.result);
@@ -271,12 +274,13 @@ export class FileDB {
 	}
 
 	sum(column: string): Promise<number> {
-		if (this.db === undefined) return new Promise((resolve) => resolve(0));
-		if (this.db instanceof Database) {
-			const result = this.db.prepare(`SELECT SUM(${column}) as sum FROM file`).value() as number[];
-			return new Promise((resolve) => resolve(result === undefined ? 0 : result[0]));
-		} else {
-			return new Promise((resolve, reject) => {
+		return new Promise((resolve, reject) => {
+			if (this.db === undefined) return resolve(0);
+			if (this.db instanceof Database) {
+				const result = this.db.prepare(`SELECT SUM(${column}) FROM file`).value() as number[];
+				console.log(`SELECT SUM(${column}) FROM file`, result[0]);
+				return resolve(result === undefined ? 0 : result[0]);
+			} else {
 				if (!this.objectStore) return resolve(0);
 				let sum = 0;
 				const request = this.objectStore.openCursor();
@@ -297,8 +301,8 @@ export class FileDB {
 				};
 
 				request.onerror = (event) => reject((event.target as IDBRequest).error);
-			}) as Promise<number>;
-		}
+			}
+		}) as Promise<number>;
 	}
 }
 
