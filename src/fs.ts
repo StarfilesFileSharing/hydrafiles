@@ -16,7 +16,6 @@ async function getFileHandle(directoryHandle: DirectoryHandle, path: string, tou
 
 	for (let i = 0; i < parts.length; i++) {
 		const part = parts[i];
-		console.log("zzzz", parts, i, part);
 
 		if (i === parts.length - 1) return await currentHandle.getFileHandle(part, { create: touch });
 		else currentHandle = await currentHandle.getDirectoryHandle(part, { create: true });
@@ -43,14 +42,15 @@ class FS {
 	};
 
 	mkdir = async (path: string) => {
-		if (await this.exists(path)) return;
 		console.log(`mkdir ${path}`);
+		if (await this.exists(path)) return;
 		if (!this.init) throw new Error("FS not initialized");
 		if (this.directoryHandle !== undefined) await this.directoryHandle.getDirectoryHandle(path, { create: true });
 		else await Deno.mkdir(path);
 	};
 
 	readDir = async (path: string): Promise<string[]> => {
+		console.log(`readdir ${path}`);
 		if (!this.init) throw new Error("FS not initialized");
 		const entries: string[] = [];
 
@@ -121,11 +121,12 @@ class FS {
 	};
 
 	getFileSize = async (path: string): Promise<number> => {
+		console.log(`${path} Getting file size`);
 		if (!this.init) throw new Error("FS not initialized");
 
 		if (this.directoryHandle !== undefined) {
 			try {
-				const fileHandle = await this.directoryHandle.getFileHandle(path);
+				const fileHandle = await getFileHandle(this.directoryHandle, path);
 				const file = await fileHandle.getFile();
 				return file.size; // Return file size in bytes
 			} catch (e) {
@@ -146,7 +147,7 @@ class FS {
 
 		if (this.directoryHandle !== undefined) {
 			try {
-				const fileHandle = await this.directoryHandle.getFileHandle(path);
+				const fileHandle = await getFileHandle(this.directoryHandle, path);
 				await fileHandle.remove(); // Remove the file
 			} catch (e) {
 				const error = e as Error;
