@@ -25,11 +25,11 @@ interface Metadata {
 export interface FileAttributes {
 	hash: string;
 	infohash: string | null;
-	downloadCount: NonNegativeNumber;
+	downloadCount: number;
 	id: string | null;
 	name: string | null;
 	found: boolean;
-	size: NonNegativeNumber;
+	size: number;
 	voteHash: string | null;
 	voteNonce: number;
 	voteDifficulty: number;
@@ -411,11 +411,11 @@ class File implements FileAttributes {
 			}
 			const file = fileAttributesDefaults(fileAttributes);
 			this.infohash = file.infohash;
-			this.downloadCount = file.downloadCount;
+			this.downloadCount = createNonNegativeNumber(file.downloadCount);
 			this.id = file.id;
 			this.name = file.name;
 			this.found = file.found;
-			this.size = file.size;
+			this.size = createNonNegativeNumber(file.size);
 			this.voteHash = file.voteHash;
 			this.voteNonce = file.voteNonce;
 			this.voteDifficulty = file.voteDifficulty;
