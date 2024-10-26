@@ -1,8 +1,8 @@
 <h1 align="center">Hydrafiles</h1>
 <p align="center">The web privacy layer.</p>
 <p align="center">
-  <a href="#how-do-i-setup-a-node">Skip To Deploy Instructions</a>
-  <a href="https://github.com/StarfilesFileSharing/hydrafiles/wiki/Using-Hydrafiles-as-Reverse-Proxy-%E2%80%90-Anonymous-APIs">Host An API Anonymously</a>
+  <a href="#how-do-i-setup-a-node">Skip To Deploy Instructions</a> &bull;
+  <a href="https://github.com/StarfilesFileSharing/hydrafiles/wiki/Using-Hydrafiles-as-Reverse-Proxy-%E2%80%90-Anonymous-APIs">Serve an API Anonymously</a>
   <br><br>
   <img src="/public/favicon.ico">
   <br><br>
