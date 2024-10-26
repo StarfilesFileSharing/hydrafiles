@@ -119,7 +119,7 @@ export const handleRequest = async (req: Request, client: Hydrafiles): Promise<R
 
 				headers.set("Content-Length", String(file.size));
 				if (file.name !== null) {
-					headers.set("Content-Disposition", `attachment; filename="${encodeURIComponent(file.name.replace(/[<>:"/\\|?*\x00-\x1F]/g, "").replace(/\s+/g, " ").trim()).replace(/%20/g, " ").replace(/(\.\w+)$/, " [HYDRAFILES]$1")}"`);
+					headers.set("Content-Disposition", `attachment; filename="${encodeURIComponent(file.name.replace(/[^a-zA-Z0-9._-]/g, "").replace(/\s+/g, " ").trim()).replace(/%20/g, " ").replace(/(\.\w+)$/, " [HYDRAFILES]$1")}"`);
 				}
 
 				return new Response(fileContent.file, { headers });
