@@ -27,8 +27,8 @@ jobs:
         run: deno run build-linux-arm64
       - name: Compile for mac-x86_64
         run: deno run build-mac-x86_64
-      - name: Compile for mac-arm6
-        run: deno run build-mac-arm6
+      - name: Compile for mac-arm64
+        run: deno run build-mac-arm64
       - name: Compile for windows
         run: deno run build-windows
       - name: Build for web
