@@ -44,11 +44,11 @@ jobs:
       - name: Archive Build Artifacts
         run: |
           mkdir -p release
-          mv ./build/start-linux-x86_64 ./release/hydrafiles-linux-x86_64
-          mv ./build/start-linux-arm64 ./release/hydrafiles-linux-arm64
-          mv ./build/start-mac-x86_64 ./release/hydrafiles-mac-x86_64
-          mv ./build/start-mac-arm6 ./release/hydrafiles-mac-arm6
-          mv ./build/start-windows.exe ./release/hydrafiles-windows.exe
+          mv ./build/start-linux-x86_64 ./release/hydrafiles-${{ steps.get_version.outputs.version }}-linux-x86_64
+          mv ./build/start-linux-arm64 ./release/hydrafiles-${{ steps.get_version.outputs.version }}-linux-arm64
+          mv ./build/start-mac-x86_64 ./release/hydrafiles-${{ steps.get_version.outputs.version }}-mac-x86_64
+          mv ./build/start-mac-arm6 ./release/hydrafiles-${{ steps.get_version.outputs.version }}-mac-arm6
+          mv ./build/start-windows.exe ./release/hydrafiles-${{ steps.get_version.outputs.version }}-windows.exe
           mv ./build/hydrafiles-web.esm.js ./release/hydrafiles-web.esm.js
           mv ./build/hydrafiles-web.esm.js.map ./release/hydrafiles-web.esm.js.map
 

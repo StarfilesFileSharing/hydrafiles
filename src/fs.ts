@@ -28,143 +28,121 @@ declare global {
 	}
 }
 
-class FS {
-	init = false;
-	directoryHandle: DirectoryHandle | undefined;
+class FileSystem {
+	fs: DirectoryHandleFileSystem | StandardFileSystem;
 
-	static initialize = async (): Promise<FS> => {
-		const fs = new FS();
-		if (typeof window !== "undefined") fs.directoryHandle = await globalThis.window.showDirectoryPicker();
-		fs.init = true;
-		return fs;
+	constructor() {
+		if (typeof window === "undefined") this.fs = new StandardFileSystem();
+		else if (typeof globalThis.window.showDirectoryPicker !== "undefined") this.fs = new DirectoryHandleFileSystem();
+		else throw new Error("Unsupported platform");
+	}
+
+	exists = async (path: string): Promise<boolean> => await this.fs.exists(path);
+	mkdir = async (path: string) => await this.fs.mkdir(path);
+	readDir = async (path: string): Promise<string[]> => await this.fs.readDir(path);
+	readFile = async (path: string): Promise<Uint8Array> => await this.fs.readFile(path);
+	writeFile = async (path: string, data: Uint8Array): Promise<void> => await this.fs.writeFile(path, data);
+	getFileSize = async (path: string): Promise<number> => await this.fs.getFileSize(path);
+	remove = async (path: string) => await this.fs.remove(path);
+}
+
+class StandardFileSystem {
+	exists = async (path: string): Promise<boolean> => {
+		try {
+			await Deno.stat(path);
+			return true;
+		} catch (e) {
+			if (e instanceof Deno.errors.NotFound) return false;
+			console.error((e as Error).message);
+			throw e;
+		}
 	};
 
 	mkdir = async (path: string) => {
-		console.log(`mkdir ${path}`);
 		if (await this.exists(path)) return;
-		if (!this.init) throw new Error("FS not initialized");
-		if (this.directoryHandle !== undefined) await this.directoryHandle.getDirectoryHandle(path, { create: true });
-		else await Deno.mkdir(path);
+		await Deno.mkdir(path);
 	};
 
 	readDir = async (path: string): Promise<string[]> => {
-		console.log(`readdir ${path}`);
-		if (!this.init) throw new Error("FS not initialized");
 		const entries: string[] = [];
-
-		if (this.directoryHandle !== undefined) {
-			const dirHandle = await this.directoryHandle.getDirectoryHandle(path, { create: false });
-			for await (const entry of dirHandle.values()) {
-				// Check if the entry is a file
-				if (entry.kind === "file") {
-					console.log("File:", entry.name);
-				}
-			}
-		} else {
-			for await (const entry of Deno.readDir(path)) {
-				entries.push(entry.name); // Collects the names of entries in Deno
-			}
+		for await (const entry of Deno.readDir(path)) {
+			entries.push(entry.name);
 		}
-
 		return entries;
 	};
 
 	readFile = async (path: string): Promise<Uint8Array> => {
-		console.log(`${path} Reading from file`);
-		if (!this.init) throw new Error("FS not initialized");
 		if (!await this.exists(path)) throw new Error(`${path} File doesn't exist`);
-		if (this.directoryHandle !== undefined) {
-			const fileHandle = await getFileHandle(this.directoryHandle, path);
-			const file = await fileHandle.getFile();
-			return new Uint8Array(await file.arrayBuffer());
-		} else return await Deno.readFile(path);
+		return await Deno.readFile(path);
 	};
 
-	writeFile = async (path: string, data: Uint8Array) => {
-		console.log(`${path} Writing to file`);
-		if (!this.init) throw new Error("FS not initialized");
-		if (this.directoryHandle !== undefined) {
-			const fileHandle = await getFileHandle(this.directoryHandle, path, true);
-			const writable = await fileHandle.createWritable();
-			await writable.write(data);
-			await writable.close();
-		} else {
-			await Deno.writeFile(path, data);
-		}
+	writeFile = async (path: string, data: Uint8Array): Promise<void> => {
+		await Deno.writeFile(path, data);
 	};
+
+	getFileSize = async (path: string): Promise<number> => {
+		const fileInfo = await Deno.stat(path);
+		return fileInfo.size;
+	};
+
+	remove = async (path: string) => {
+		await Deno.remove(path);
+	};
+}
+
+class DirectoryHandleFileSystem {
+	directoryHandle = globalThis.window.showDirectoryPicker();
 
 	exists = async (path: string): Promise<boolean> => {
-		if (!this.init) throw new Error("FS not initialized");
-
-		console.log(`${path} Check if exists`);
 		try {
-			if (this.directoryHandle !== undefined) {
-				try {
-					await getFileHandle(this.directoryHandle, path);
-				} catch (err) {
-					const fileError = err as Error;
-					if (fileError.name !== "TypeMismatchError") throw fileError;
-				}
-			} else await Deno.stat(path);
-			console.log(`${path} Does exist`);
+			await getFileHandle(await this.directoryHandle, path);
 			return true;
 		} catch (e) {
-			console.log(`${path} Doesn't exist`);
 			const error = e as Error;
-			if (this.directoryHandle !== undefined && error.name === "NotFoundError") return false;
-			if (typeof window === "undefined" && error instanceof Deno.errors.NotFound) return false;
-			console.error(error.message);
+			if (error.name === "TypeMismatchError") return true;
+			else if (error.name === "NotFoundError") return false;
 			throw error;
 		}
 	};
 
-	getFileSize = async (path: string): Promise<number> => {
-		console.log(`${path} Getting file size`);
-		if (!this.init) throw new Error("FS not initialized");
+	mkdir = async (path: string) => {
+		if (await this.exists(path)) return;
+		await (await this.directoryHandle).getDirectoryHandle(path, { create: true });
+	};
 
-		if (this.directoryHandle !== undefined) {
-			try {
-				const fileHandle = await getFileHandle(this.directoryHandle, path);
-				const file = await fileHandle.getFile();
-				return file.size; // Return file size in bytes
-			} catch (e) {
-				const error = e as Error;
-				if (error.name === "NotFoundError") {
-					throw new Error(`File "${path}" does not exist.`);
-				}
-				throw error; // Re-throw unexpected errors
-			}
-		} else {
-			const fileInfo = await Deno.stat(path);
-			return fileInfo.size; // Return file size in bytes
+	readDir = async (path: string): Promise<string[]> => {
+		const entries: string[] = [];
+		const dirHandle = await (await this.directoryHandle).getDirectoryHandle(path, { create: false });
+		for await (const entry of dirHandle.values()) {
+			entries.push(entry.name);
 		}
+		return entries;
+	};
+
+	readFile = async (path: string): Promise<Uint8Array> => {
+		if (!await this.exists(path)) throw new Error(`${path} File doesn't exist`);
+		const fileHandle = await getFileHandle(await this.directoryHandle, path);
+		const file = await fileHandle.getFile();
+		return new Uint8Array(await file.arrayBuffer());
+	};
+
+	writeFile = async (path: string, data: Uint8Array): Promise<void> => {
+		const fileHandle = await getFileHandle(await this.directoryHandle, path, true);
+		const writable = await fileHandle.createWritable();
+		await writable.write(data);
+		await writable.close();
+	};
+
+	getFileSize = async (path: string): Promise<number> => {
+		const fileHandle = await getFileHandle(await this.directoryHandle, path);
+		const file = await fileHandle.getFile();
+		return file.size;
 	};
 
 	remove = async (path: string) => {
-		if (!this.init) throw new Error("FS not initialized");
-
-		if (this.directoryHandle !== undefined) {
-			try {
-				const fileHandle = await getFileHandle(this.directoryHandle, path);
-				await fileHandle.remove(); // Remove the file
-			} catch (e) {
-				const error = e as Error;
-				if (error.name === "NotFoundError") {
-					throw new Error(`File "${path}" does not exist.`);
-				}
-				throw error; // Re-throw unexpected errors
-			}
-		} else {
-			try {
-				await Deno.remove(path); // Remove the file or directory
-			} catch (error) {
-				if (error instanceof Deno.errors.NotFound) {
-					throw new Error(`File "${path}" does not exist.`);
-				}
-				throw error; // Re-throw unexpected errors
-			}
-		}
+		const fileHandle = await getFileHandle(await this.directoryHandle, path);
+		await fileHandle.remove();
 	};
 }
 
-export default FS;
+export default FileSystem;

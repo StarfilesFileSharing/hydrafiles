@@ -106,10 +106,10 @@ class Utils {
 		const filesPath = "files/";
 		let usedStorage = 0;
 
-		if (await (await this._client.fs).exists(filesPath)) {
-			const files = await (await this._client.fs).readDir(filesPath);
+		if (await this._client.fs.exists(filesPath)) {
+			const files = await this._client.fs.readDir(filesPath);
 			for (const file of files) {
-				usedStorage += await (await this._client.fs).getFileSize(join(filesPath, file));
+				usedStorage += await this._client.fs.getFileSize(join(filesPath, file));
 			}
 		}
 
@@ -121,15 +121,15 @@ class Utils {
 		console.warn("WARNING: Your node has reached max storage, some files are getting purged. To prevent this, increase your limit at config.json or add more storage to your machine.");
 
 		const filesPath = "files/";
-		const files = await (await this._client.fs).readDir(filesPath);
+		const files = await this._client.fs.readDir(filesPath);
 
 		for (const file of files) {
 			if (this._client.config.permaFiles.includes(file)) continue;
 
 			const filePath = join(filesPath, file);
 
-			(await this._client.fs).remove(filePath).catch(console.error);
-			remainingSpace += await (await this._client.fs).getFileSize(filePath);
+			this._client.fs.remove(filePath).catch(console.error);
+			remainingSpace += await this._client.fs.getFileSize(filePath);
 
 			if (requiredSpace <= remainingSpace && await this.calculateUsedStorage() * (1 - this._client.config.burnRate) <= remainingSpace) {
 				break;
@@ -232,7 +232,7 @@ class Utils {
 	async countFilesInDir(dirPath: string): Promise<number> {
 		if (typeof window !== "undefined") return 0;
 		let count = 0;
-		for await (const _ of await (await this._client.fs).readDir(dirPath)) {
+		for await (const _ of await this._client.fs.readDir(dirPath)) {
 			count++;
 		}
 		return count;
