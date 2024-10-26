@@ -1,6 +1,5 @@
 import { crypto } from "jsr:@std/crypto";
 import { encodeHex } from "jsr:@std/encoding/hex";
-import type { Receipt } from "./block.ts";
 import type Hydrafiles from "./hydrafiles.ts";
 import { join } from "https://deno.land/std@0.224.0/path/mod.ts";
 
@@ -179,49 +178,94 @@ class Utils {
 		return hexHash;
 	}
 
-	static async generateKeyPair(): Promise<CryptoKeyPair> {
-		return await crypto.subtle.generateKey(
+	async getKeyPair(): Promise<CryptoKeyPair> {
+		if (await this._client.fs.exists("private.key")) {
+			const privateKey = await Utils.importPrivateKey(await this._client.fs.readFile("private.key"));
+			const publicKey = await Utils.importPublicKey(await this._client.fs.readFile("public.key"));
+
+			return {
+				privateKey,
+				publicKey,
+			};
+		}
+		const key = await crypto.subtle.generateKey(
 			{
 				name: "ECDSA",
 				namedCurve: "P-256",
 			},
 			true,
 			["sign", "verify"],
-		) as CryptoKeyPair;
+		);
+		this._client.fs.writeFile("private.key", new Uint8Array(await crypto.subtle.exportKey("pkcs8", key.privateKey)));
+		this._client.fs.writeFile("public.key", new Uint8Array(await crypto.subtle.exportKey("raw", key.publicKey)));
+		return key;
 	}
-	static exportPublicKey = async (keyPair: CryptoKey) => (await crypto.subtle.exportKey("jwk", keyPair))["x"] as string;
-	static buildJWT = (key: string) => {
+	static async importPublicKey(pem: ArrayBuffer): Promise<CryptoKey> {
+		return await crypto.subtle.importKey(
+			"raw",
+			pem,
+			{
+				name: "ECDSA",
+				namedCurve: "P-256",
+			},
+			true,
+			["verify"],
+		);
+	}
+	static async exportPublicKey(key: CryptoKey): Promise<{ x: string; y: string }> {
+		const jwk = await crypto.subtle.exportKey("jwk", key);
+		return { x: jwk.x as string, y: jwk.y as string }; // Return both x and y
+	}
+	static async importPrivateKey(pem: ArrayBuffer): Promise<CryptoKey> {
+		return await crypto.subtle.importKey(
+			"pkcs8",
+			pem,
+			{
+				name: "ECDSA",
+				namedCurve: "P-256",
+			},
+			true,
+			["sign"],
+		);
+	}
+	static buildJWT(pubKey: { x: string; y: string }): { kty: string; crv: string; x: string; y: string; ext: boolean } {
 		return {
-			"kty": "OKP",
-			"crv": "Ed25519",
-			"x": key,
-			"key_ops": ["verify"],
-			"ext": true,
+			kty: "EC",
+			crv: "P-256",
+			x: pubKey.x,
+			y: pubKey.y,
+			ext: true,
 		};
-	};
-
-	static async signMessage(privateKey: CryptoKey, message: string): Promise<Base64> {
+	}
+	static async signMessage(privateKey: CryptoKey, message: string): Promise<string> {
 		const encoder = new TextEncoder();
 		const data = encoder.encode(message);
-		return this.bufferToBase64(await crypto.subtle.sign({ name: "Ed25519" }, privateKey, data)) as Base64;
+		const signature = await crypto.subtle.sign(
+			{
+				name: "ECDSA",
+				hash: "SHA-256",
+			},
+			privateKey,
+			data,
+		);
+		return this.bufferToBase64(signature);
 	}
-
-	static async verifySignature(receipt: Receipt): Promise<boolean> {
+	static async verifySignature(message: string, signature: Base64, pubKey: { x: string; y: string }): Promise<boolean> {
 		const encoder = new TextEncoder();
-		const data = encoder.encode(receipt.message);
+		const data = encoder.encode(message);
 
 		const importedPublicKey = await crypto.subtle.importKey(
 			"jwk",
-			this.buildJWT(receipt.issuer),
-			{ name: "Ed25519" },
+			this.buildJWT(pubKey),
+			{ name: "ECDSA", namedCurve: "P-256" },
 			true,
 			["verify"],
 		);
 
 		return await crypto.subtle.verify(
-			{ name: "Ed25519" },
+			{ name: "ECDSA", hash: "SHA-256" },
 			importedPublicKey,
-			this.base64ToBuffer(receipt.signature),
+			this.base64ToBuffer(signature),
 			data,
 		);
 	}

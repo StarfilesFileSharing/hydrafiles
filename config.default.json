@@ -62,5 +62,6 @@
 	"backfill": true,
 	"compareNodes": true,
 	"compareFiles": true,
-	"databaseLogs": false
+	"databaseLogs": false,
+	"reverseProxy": ""
 }

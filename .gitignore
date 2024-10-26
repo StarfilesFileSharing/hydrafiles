@@ -107,3 +107,5 @@ blocks/*
 build/
 
 filemanager.db-journal
+
+*.key
