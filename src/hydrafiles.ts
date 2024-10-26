@@ -1,3 +1,4 @@
+import Base32 from "npm:base32";
 // import WebTorrent from "npm:webtorrent";
 import getConfig, { type Config } from "./config.ts";
 import Nodes from "./nodes.ts";
@@ -27,8 +28,8 @@ class Hydrafiles {
 	s3: S3Client | undefined;
 	// webtorrent: WebTorrent = new WebTorrent();
 	// blockchain = new Blockchain(this);
-	keyPair = Utils.generateKeyPair(); // TODO: Save keypair to fs
 	fs = new FileSystem();
+	keyPair = this.utils.getKeyPair();
 	FileDB = new FileDB(this);
 	nodes = Nodes.init(this);
 	constructor(customConfig: Partial<Config> = {}) {
@@ -87,31 +88,33 @@ class Hydrafiles {
 		this.backfillFiles().catch(console.error);
 	};
 
-	logState(): void {
-		(async () => {
-			console.log(
-				"\n===============================================\n========",
-				new Date().toUTCString(),
-				"========\n===============================================",
-				"\n| Uptime: ",
-				Utils.convertTime(+new Date() - this.startTime),
-				"\n| Known (Network) Files:",
-				this.FileDB !== undefined ? await this.FileDB.count() : 0,
-				`(${Math.round((100 * (this.FileDB !== undefined ? await this.FileDB.sum("size") : 0)) / 1024 / 1024 / 1024) / 100}GB)`,
-				"\n| Stored Files:",
-				await this.utils.countFilesInDir("files/"),
-				`(${Math.round((100 * await this.utils.calculateUsedStorage()) / 1024 / 1024 / 1024) / 100}GB)`,
-				"\n| Processing Files:",
-				hashLocks.size,
-				"\n| Known Nodes:",
-				(await this.nodes).getNodes({ includeSelf: false }).length,
-				// '\n| Seeding Torrent Files:',
-				// (await webtorrentClient()).torrents.length,
-				"\n| Downloads Served:",
-				(this.FileDB !== undefined ? await this.FileDB.sum("downloadCount") : 0) + ` (${Math.round((((this.FileDB !== undefined ? await this.FileDB.sum("downloadCount * size") : 0) / 1024 / 1024 / 1024) * 100) / 100)}GB)`,
-				"\n===============================================\n",
-			);
-		})();
+	async logState(): Promise<void> {
+		const pubKey = await Utils.exportPublicKey((await this.keyPair).publicKey);
+
+		console.log(
+			"\n===============================================\n========",
+			new Date().toUTCString(),
+			"========\n===============================================",
+			"\n| Uptime: ",
+			Utils.convertTime(+new Date() - this.startTime),
+			"\n| Hostname: ",
+			`${Base32.encode(pubKey.x).toLowerCase().replaceAll("=", "")}.${Base32.encode(pubKey.y).toLowerCase().replaceAll("=", "")}`,
+			"\n| Known (Network) Files:",
+			this.FileDB !== undefined ? await this.FileDB.count() : 0,
+			`(${Math.round((100 * (this.FileDB !== undefined ? await this.FileDB.sum("size") : 0)) / 1024 / 1024 / 1024) / 100}GB)`,
+			"\n| Stored Files:",
+			await this.utils.countFilesInDir("files/"),
+			`(${Math.round((100 * await this.utils.calculateUsedStorage()) / 1024 / 1024 / 1024) / 100}GB)`,
+			"\n| Processing Files:",
+			hashLocks.size,
+			"\n| Known Nodes:",
+			(await this.nodes).getNodes({ includeSelf: false }).length,
+			// '\n| Seeding Torrent Files:',
+			// (await webtorrentClient()).torrents.length,
+			"\n| Downloads Served:",
+			(this.FileDB !== undefined ? await this.FileDB.sum("downloadCount") : 0) + ` (${Math.round((((this.FileDB !== undefined ? await this.FileDB.sum("downloadCount * size") : 0) / 1024 / 1024 / 1024) * 100) / 100)}GB)`,
+			"\n===============================================\n",
+		);
 	}
 
 	search = async <T>(where: { where?: { key: keyof FileAttributes; value: NonNullable<keyof FileAttributes> } | undefined; orderBy?: string } | undefined): Promise<File[]> => {

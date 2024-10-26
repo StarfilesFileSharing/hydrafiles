@@ -28,6 +28,7 @@ export interface Config {
 	s3Endpoint: string;
 	cacheS3: boolean;
 	databaseLogs: boolean;
+	reverseProxy: string;
 }
 
 const getConfig = (config: Partial<Config> = {}): Config => {
@@ -55,6 +56,7 @@ const getConfig = (config: Partial<Config> = {}): Config => {
 		s3Endpoint: config?.s3Endpoint ?? defaultConfig.s3Endpoint,
 		cacheS3: config?.cacheS3 ?? defaultConfig.cacheS3,
 		databaseLogs: config?.databaseLogs ?? defaultConfig.databaseLogs,
+		reverseProxy: config?.reverseProxy ?? defaultConfig.reverseProxy,
 	};
 };
 
