@@ -1,9 +1,10 @@
 import Base32 from "npm:base32";
 import type Hydrafiles from "./hydrafiles.ts";
-import { BLOCKSDIR } from "./block.ts";
+// import { BLOCKSDIR } from "./block.ts";
 import File, { fileAttributesDefaults } from "./file.ts";
 import Utils from "./utils.ts";
 import { join } from "https://deno.land/std@0.224.0/path/mod.ts";
+import type Base64 from "npm:base64";
 
 export const hashLocks = new Map<string, Promise<Response>>();
 
@@ -255,18 +256,18 @@ export const handleRequest = async (req: Request, client: Hydrafiles): Promise<R
 					const signature = response.headers.get("hydra-signature");
 					if (signature !== null) {
 						const [xBase32, yBase32] = hostname.split(".");
-						if (await Utils.verifySignature(body, signature, { x: Base32.decode(xBase32), y: Base32.decode(yBase32) })) return new Response(body, { headers });
+						if (await Utils.verifySignature(body, signature as Base64, { x: Base32.decode(xBase32), y: Base32.decode(yBase32) })) return new Response(body, { headers });
 					}
 				}
 			}
 
 			return new Response("Not found", { headers, status: 404 });
-		} else if (url.pathname.startsWith("/block/")) {
-			const blockHeight = url.pathname.split("/")[2];
-			headers.set("Content-Type", "application/json");
-			// "Cache-Control": "public, max-age=" + (Number(blockHeight) > client.blockchain.lastBlock().height ? 0 : 604800),
-			const block = await client.fs.readFile(join(BLOCKSDIR, blockHeight));
-			return new Response(block, { headers });
+			// } else if (url.pathname.startsWith("/block/")) {
+			// 	const blockHeight = url.pathname.split("/")[2];
+			// 	headers.set("Content-Type", "application/json");
+			// 	// "Cache-Control": "public, max-age=" + (Number(blockHeight) > client.blockchain.lastBlock().height ? 0 : 604800),
+			// 	const block = await client.fs.readFile(join(BLOCKSDIR, blockHeight));
+			// 	return new Response(block, { headers });
 		} else if (url.pathname === "/block_height") {
 			headers.set("Content-Type", "application/json");
 			headers.set("Cache-Control", "public, max-age=30");
