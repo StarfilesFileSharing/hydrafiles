@@ -47,7 +47,7 @@ jobs:
           mv ./build/start-linux-x86_64 ./release/hydrafiles-${{ steps.get_version.outputs.version }}-linux-x86_64
           mv ./build/start-linux-arm64 ./release/hydrafiles-${{ steps.get_version.outputs.version }}-linux-arm64
           mv ./build/start-mac-x86_64 ./release/hydrafiles-${{ steps.get_version.outputs.version }}-mac-x86_64
-          mv ./build/start-mac-arm6 ./release/hydrafiles-${{ steps.get_version.outputs.version }}-mac-arm6
+          mv ./build/start-mac-arm64 ./release/hydrafiles-${{ steps.get_version.outputs.version }}-mac-arm64
           mv ./build/start-windows.exe ./release/hydrafiles-${{ steps.get_version.outputs.version }}-windows.exe
           mv ./build/hydrafiles-web.esm.js ./release/hydrafiles-web.esm.js
           mv ./build/hydrafiles-web.esm.js.map ./release/hydrafiles-web.esm.js.map
