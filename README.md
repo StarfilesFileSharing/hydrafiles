@@ -37,7 +37,7 @@ hosts have the luxury. With global censorship of whistleblowing and propaganda a
 
 TLDR: This scene ^
 
-When someone requests a file or calls an endpoint, the request is sent to all peers. If a peers has the file or controls the requested endpoint, it will serve it. If not, it will forward the request to known peers and mirror the response.
+When someone requests a file or calls an endpoint, the request is sent to all peers. If a peer has the file or controls the requested endpoint, it will serve it. If not, it will forward the request to known peers and mirror the response.
 Because the request is forwarded by each peer and all peers mirror the response, it is impossible to tell which peer the response originated from. If no one has the file or controls the endpoint, the request will return a 404 once peers
 timeout.
 
