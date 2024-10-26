@@ -33,7 +33,7 @@ export class Block {
 	}
 
 	private async initialize(): Promise<void> {
-		await (await this._client.fs).mkdir(BLOCKSDIR);
+		await this._client.fs.mkdir(BLOCKSDIR);
 	}
 
 	static async init(hash: string, client: Hydrafiles): Promise<Block> {
@@ -105,7 +105,7 @@ class Blockchain {
 	}
 
 	async initialize(): Promise<void> {
-		for (const dirEntry of await (await this._client.fs).readDir(BLOCKSDIR)) { // TODO: Validate block prev is valid
+		for (const dirEntry of await this._client.fs.readDir(BLOCKSDIR)) { // TODO: Validate block prev is valid
 			this.addBlock(await Block.init(dirEntry, this._client));
 		}
 	}
@@ -176,7 +176,7 @@ class Blockchain {
 		block.height = this.blocks.length;
 		this.blocks.push(block);
 		block.announce();
-		await (await this._client.fs).writeFile(join(BLOCKSDIR, this.blocks.length.toString()), new TextEncoder().encode(block.toString()));
+		await this._client.fs.writeFile(join(BLOCKSDIR, this.blocks.length.toString()), new TextEncoder().encode(block.toString()));
 	}
 
 	lastBlock(): Block {

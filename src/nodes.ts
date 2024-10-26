@@ -37,7 +37,7 @@ export default class Nodes {
 		) {
 			this.nodes.push(node);
 
-			(await this._client.fs).writeFile(NODES_PATH, new TextEncoder().encode(JSON.stringify(this.nodes)));
+			this._client.fs.writeFile(NODES_PATH, new TextEncoder().encode(JSON.stringify(this.nodes)));
 		}
 	}
 
@@ -101,11 +101,11 @@ export default class Nodes {
 		}
 	}
 
-	async updateNode(node: Node): Promise<void> {
+	updateNode(node: Node): void {
 		const index = this.nodes.findIndex((n) => n.host === node.host);
 		if (index !== -1) {
 			this.nodes[index] = node;
-			(await this._client.fs).writeFile(NODES_PATH, new TextEncoder().encode(JSON.stringify(this.nodes)));
+			this._client.fs.writeFile(NODES_PATH, new TextEncoder().encode(JSON.stringify(this.nodes)));
 		}
 	}
 
