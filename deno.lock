@@ -18,6 +18,7 @@
     "jsr:@std/path@0.221": "0.221.0",
     "jsr:@std/path@^1.0.6": "1.0.6",
     "npm:base32@*": "0.0.7",
+    "npm:base64@*": "2.1.0",
     "npm:esbuild@*": "0.24.0"
   },
   "jsr": {
@@ -170,6 +171,9 @@
       "dependencies": [
         "minimist"
       ]
+    },
+    "base64@2.1.0": {
+      "integrity": "sha512-OMwRpdU6gPEjeru59uEBDxIho/QkyqPQVLg07pFcqzGcw2cGQ0ZCnxfL8l4+6u9YDf4ai1ut2kvhLQsk670aPA=="
     },
     "esbuild@0.24.0": {
       "integrity": "sha512-FuLPevChGDshgSicjisSooU0cemp/sGXR841D5LHMB7mTVOmsEHcAxaH3irL53+8YDIeVNQEySh4DaYU/iuPqQ==",
