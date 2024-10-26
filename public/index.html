@@ -4,21 +4,21 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <title>Hydrafiles - The Headless Storage Network</title>
-    <meta name="title" content="Hydrafiles - The Headless Storage Network">
-    <meta property="og:title" content="Hydrafiles - The Headless Storage Network">
-    <meta name="twitter:title" content="Hydrafiles - The Headless Storage Network">
-    <meta itemprop="name" content="Hydrafiles - The Headless Storage Network">
+    <title>Hydrafiles - The web privacy layer</title>
+    <meta name="title" content="Hydrafiles - The web privacy layer">
+    <meta property="og:title" content="Hydrafiles - The web privacy layer">
+    <meta name="twitter:title" content="Hydrafiles - The web privacy layer">
+    <meta itemprop="name" content="Hydrafiles - The web privacy layer">
     <meta property="og:site_name" content="Hydrafiles">
     <meta name="application-name" content="Hydrafiles">
     <meta name="apple-mobile-web-app-title" content="Hydrafiles">
     <meta name="twitter:domain" content="Hydrafiles">
 
-    <meta property="og:description" content="Hydrafiles is the headless storage network. Hydrafiles allows for anyone to host & serve files anonymously via HTTP. ">
-    <meta name="description" content="Hydrafiles is the headless storage network. Hydrafiles allows for anyone to host & serve files anonymously via HTTP. ">
-    <meta name="twitter:description" content="Hydrafiles is the headless storage network. Hydrafiles allows for anyone to host & serve files anonymously via HTTP. ">
-    <meta name="abstract" content="Hydrafiles is the headless storage network. Hydrafiles allows for anyone to host & serve files anonymously via HTTP. ">
-    <meta itemprop="description" content="Hydrafiles is the headless storage network. Hydrafiles allows for anyone to host & serve files anonymously via HTTP. ">
+    <meta property="og:description" content="Hydrafiles is The web privacy layer. Hydrafiles allows for anyone to serve files and dynamic APIs anonymously via HTTP. ">
+    <meta name="description" content="Hydrafiles is The web privacy layer. Hydrafiles allows for anyone to serve files and dynamic APIs anonymously via HTTP. ">
+    <meta name="twitter:description" content="Hydrafiles is The web privacy layer. Hydrafiles allows for anyone to serve files and dynamic APIs anonymously via HTTP. ">
+    <meta name="abstract" content="Hydrafiles is The web privacy layer. Hydrafiles allows for anyone to serve files and dynamic APIs anonymously via HTTP. ">
+    <meta itemprop="description" content="Hydrafiles is The web privacy layer. Hydrafiles allows for anyone to serve files and dynamic APIs anonymously via HTTP. ">
 
     <meta name="twitter:image" content="/favicon.ico">
     <meta name="twitter:image:src" content="/favicon.ico">
@@ -58,7 +58,7 @@
         "@context": "https://schema.org",
         "@type": "WebSite",
         "name": "Hydrafiles",
-        "description": "Hydrafiles is the headless storage network. Hydrafiles allows for anyone to host & serve files anonymously via HTTP. ",
+        "description": "Hydrafiles is The web privacy layer. Hydrafiles allows for anyone to serve files and dynamic APIs anonymously via HTTP. ",
         "image": "/favicon.ico",
         "url": "https://hydrafiles.com"
     }
@@ -115,7 +115,7 @@
 <body>
     <header>
         <h1>Hydrafiles</h1>
-        <p>The headless storage network.</p>
+        <p>The web privacy layer.</p>
         <p>Donate Monero:<br>83BGShZv9hU9P9SRLjhRGJYQ4WatMNazKVFG6eKyHc6HguBzu1vH54R7mQJaZzeXhx4jDxnkNJMizLXrFFN4ARffEwFj82y</p>
     </header>
     
@@ -135,7 +135,7 @@
         <p>This site is part of the Hydrafiles network. It may be a mirror, a cdn, a storage server, just a gui, or all of the above.</p>
 
         <h2>What is Hydrafiles?</h2>
-        <p>Hydrafiles is the headless storage network. Anyone can be a part of the network. Hydrafiles allows for anyone to host & serve files anonymously via HTTP. </p>
+        <p>Hydrafiles is the web privacy layer, enabling anonymous hosting of both files and APIs. Anyone can host and serve static files or backends via HTTP without revealing their identity.</p>
 
         <h2>Why Hydrafiles?</h2>
         <p>In a world where information is freedom. We believe that the people have a right to access the world's information. We believe the people of Russia, China, Iran, America, North Korea, and the rest of the world, all deserve access to the same information. Most people don't use anti-censorship tools when they're inconvenient. We can't control the people. I personally wish the whole internet ran on I2P. But that's never going to happen because it's slow and inconvenient for users. Torrents died off because streaming is more convenient. Piracy is back because subscriptions have gotten inconvenient. Hydrafiles realises that the people don't want to trade their convenience for freedom. Unfortunately, not all hosts have the luxury. With global censorship of whistleblowing and propaganda at an all time high, it is, now more than ever, crucial for people to be able to anonymously serve files to the masses.</p>
@@ -148,22 +148,16 @@
         TLDR: This scene ^<br>
         P.s. This gif was served by Hydrafiles
         </p>
-        <p>When someone tries to download a file, nodes with the file will serve it directly. Nodes without the file will then ask other nodes for the file, once they find another node with a file, they will respond to all requests saying they have it, each of them forwarding it on, saying they have it, etc. until the original node is reached, with a message from all nodes they connected to, saying they have it. If no one has it, all nodes will end up giving a no response, telling the user that it isn't hosted anywhere. This design allows for better than TOR level security, for serving static files via HTTP. A core improvement over TOR is that all hosts and relays look identical, which they don't when using TOR.</p>
+        <p>When someone requests a file or calls an endpoint, the request is sent to all peers. If a peers has the file or controls the requested endpoint, it will serve it. If not, it will forward the request to known peers and mirror the response. Because the request is forwarded by each peer and all peers mirror the response, it is impossible to tell which peer the response originated from. If no one has the file or controls the endpoint, the request will return a 404 once peers timeout.</p>
 
         <h2>What Hydrafiles isn't.</h2>
-        <p>The Hydrafiles network does NOT provide privacy to the end user. The node you initially connected to, can see exactly what you're doing. If you need to download files discretely, use TOR when accessing Hydrafiles. Hydrafiles itself does not protect files. All data on the Hydrafiles network can be seen by all nodes. Sensitive files MUST be encrypted before submission to the network.</p>
+        <p>The Hydrafiles network does NOT provide privacy to the end user. Hydrafiles is designed to provide hosts privacy, not users. The peer you initially connect to can see exactly what you're doing. If you need to do something discretely, use TOR when accessing Hydrafiles. Hydrafiles itself does not hide content. All data on the Hydrafiles network can be seen by all peers. Sensitive content MUST be encrypted before submission to the network.</p>
 
         <h2>Who's in charge of Hydrafiles?</h2>
         <p>No one, anyone, everyone. Hydrafiles doesn't have a head. It's simply an API specification. Anyone can setup a domain, server, or S3 bucket, and add it to the network. The more people that decide to do this, the stronger the network.</p>
 
-        <h2>How can I tell where a file is being hosted?</h2>
-        <p>You can't. If a server in the network is hosting a file, it will look like everyone is hosting that file.</p>
-
-        <h2>How can I take a file off of Hydrafiles?</h2>
-        <p>You can contact the site that is hosting your file.</p>
-
         <h2>How does Hydrafiles obscure where a file is being hosted?</h2>
-        <p>When you call a Hydrafiles site, if it's not hosting the requested file, it will check with other Hydrafiles sites and pull the file from them. This means no matter what Hydrafiles API you call, as long as one Hydrafiles site is serving a file, they all are.</p>
+        <p>When you call a Hydrafiles peer, if it's not hosting the requested content, it will check with other peers and pull the content from them. This means no matter which peer you ask, as long as one is serving the content, they all are.</p>
 
         <h2>Where is Hydrafiles?</h2>
         <p>Hydrafiles is everywhere. With the goal of being cross-border, we ask people like you to contribute to the movement, by setting up cross-border domains and servers.</p>
@@ -181,22 +175,22 @@
         <code>A or AAAA = xxxx</code><br>
         <h4>2. Use CDN (Optional & Free)</h4>
         <p>We recommend using a CDN such as <a href="https://cloudflare.com">Cloudflare</a>.</p>
-        <p>CDNs cache files which makes download times faster and lowers server load. CDNs also add a layer between the Hydrafiles node you use and the public internet, forcing organisations to send requests to the CDN to find the IP.</p>
+        <p>CDNs cache files which makes download times faster and lowers server load. CDNs also add a layer between the Hydrafiles client you use and the public internet, forcing organizations to send requests to the CDN to find the IP.</p>
         <p><strong>If using Cloudflare</strong>, be sure to enable the "Cache Everything" rule.</p>
         <h3 id="donate-bandwidth">Donate Bandwidth (~$10/m+ or Free+Electricity)</h3>
         <h4>1. Get a Server</h4>
         <p><strong>Option A: Rent a server</strong>, we recommend <a href="https://sporestack.com">SporeStack</a> or <a href="https://njal.la">Njalla</a> as they don't ask for information.</p>
         <p><strong>Option B: Running your own server</strong> requires more maintenance, but improves decentralisation. To do this, get an old Mac, Windows, or Linux machine, even an RPI.</p>
         <h4>2. Connect to Hydrafiles</h4>
-        <p><strong>Option A: Running a Node</strong> improves availability as your node talks to all nodes in the network instead of relying on just one. Your node also verifies that files haven't been tampered with before forwarding it.</p>
+        <p><strong>Option A: Running a Node</strong> improves availability as your client talks to all peers instead of relying on just one. Your client also verifies that files haven't been tampered with before forwarding them.</p>
         <p>To run a full node, go to the <a href="https://github.com/StarfilesFileSharing/Hydrafiles">GitHub Repo</a> and follow the deploy instructions.</p>
-        <p><strong>Option B: Running a Reverse Proxy</strong> is cheaper, but less safe as file integrity can't be verified. It is not recommended to rely on a reverse proxied node as exit points.</p><p>To setup the reverse proxy, first choose a <a href="#directory">Hydrafiles IP</a>. Then configure <a href="https://www.digitalocean.com/community/tutorials/how-to-configure-nginx-as-a-reverse-proxy-on-ubuntu-22-04">Nginx</a>, <a href="https://caddyserver.com/docs/quick-starts/reverse-proxy">Caddy</a>, or a similar software to point port 80 to the IP.</p>
+        <p><strong>Option B: Running a Reverse Proxy</strong> is cheaper but less safe as file integrity can't be verified. It is not recommended to rely on a reverse-proxied peer as am exit point.</p>
         <h4>3. Announce Node (Optional)</h4>
-        <p>When your node first starts, it attempts to announce your node to all known nodes. A few hours after the node first starts, check with other nodes to ensure your node is known. If your node isn't known by other nodes (or this one), you can announce your node <a href="#announce">here</a>.</p>
+        <p>When your client first starts, it attempts to announce itself to all known peers. A few hours after the client first starts, check other peers to ensure your client is known. If your client isn't known by other peers (or this one), you can announce your node <a href="#announce">here</a>.</p>
         <h3>Donate Storage</h3>
         <p>To donate storage, you must first run a full node (see <a href="#donate-bandwidth">Donate Bandwidth</a>). This is crucial so storage providers and proxies can't be differentiated.</p>
         <h4>1. Local Caching (Optional)</h4>
-        <p>When local caching is enabled, your node automatically stores a copy of the most popular files.</p>
+        <p>When local caching is enabled, your client automatically stores a copy of the most popular files.</p>
         <p>In your <code>config.json</code> file, set the amount of storage you would like to donate. Whenever this limit is reached, unpopular files will be deleted.</p>
         <h4>2. S3 Bucket (Optional)</h4>
         <p>You can optionally configure an S3 bucket with your chosen S3 (compatible) provider.</p>

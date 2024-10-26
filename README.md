@@ -1,5 +1,5 @@
 <h1 align="center">Hydrafiles</h1>
-<p align="center">The headless storage network.</p>
+<p align="center">The web privacy layer.</p>
 <p align="center">
   <a href="#how-do-i-setup-a-node">Skip To Deploy Instructions</a>
   <br><br>
@@ -22,7 +22,7 @@ node, send a PR and we'd love to add you as a boostrap node!
 
 ## What is Hydrafiles?
 
-Hydrafiles is the headless storage network. Anyone can be a part of the network. Hydrafiles allows for anyone to host & serve files anonymously via HTTP.
+Hydrafiles is the web privacy layer, enabling anonymous hosting of both files and APIs. Anyone can host and serve static files or backends via HTTP without revealing their identity.
 
 ## Why Hydrafiles?
 
@@ -37,31 +37,22 @@ hosts have the luxury. With global censorship of whistleblowing and propaganda a
 
 TLDR: This scene ^
 
-When someone tries to download a file, nodes with the file will serve it directly. Nodes without the file will then ask other nodes for the file, once they find another node with a file, they will respond to all requests saying they have
-it, each of them forwarding it on, saying they have it, etc. until the original node is reached, with a message from all nodes they connected to, saying they have it. If no one has it, all nodes will end up giving a no response, telling the
-user that it isn't hosted anywhere. This design allows for better than TOR level security, for serving static files via HTTP. A core improvement over TOR is that all hosts and relays look identical, which they don't when using TOR.
+When someone requests a file or calls an endpoint, the request is sent to all peers. If a peers has the file or controls the requested endpoint, it will serve it. If not, it will forward the request to known peers and mirror the response.
+Because the request is forwarded by each peer and all peers mirror the response, it is impossible to tell which peer the response originated from. If no one has the file or controls the endpoint, the request will return a 404 once peers
+timeout.
 
 ## What Hydrafiles isn't.
 
-The Hydrafiles network does NOT provide privacy to the end user. The node you initially connected to, can see exactly what you're doing. If you need to download files discretely, use TOR when accessing Hydrafiles. Hydrafiles itself does not
-protect files. All data on the Hydrafiles network can be seen by all nodes. Sensitive files MUST be encrypted before submission to the network.
+The Hydrafiles network does NOT provide privacy to the end user. Hydrafiles is designed to provide hosts privacy, not users. The peer you initially connect to can see exactly what you're doing. If you need to do something discretely, use
+TOR when accessing Hydrafiles. Hydrafiles itself does not hide content. All data on the Hydrafiles network can be seen by all peers. Sensitive content MUST be encrypted before submission to the network.
 
 ## Who's in charge of Hydrafiles?
 
 No one, anyone, everyone. Hydrafiles doesn't have a head. It's simply an API specification. Anyone can setup a domain, server, or S3 bucket, and add it to the network. The more people that decide to do this, the stronger the network.
 
-## How can I tell where a file is being hosted?
+## How does Hydrafiles obscure where something is being hosted?
 
-You can't. If a server in the network is hosting a file, it will look like everyone is hosting that file.
-
-## How can I take a file off of Hydrafiles?
-
-You can contact the site that is hosting your file.
-
-## How does Hydrafiles obscure where a file is being hosted?
-
-When you call a Hydrafiles site, if it's not hosting the requested file, it will check with other Hydrafiles sites and pull the file from them. This means no matter what Hydrafiles API you call, as long as one Hydrafiles site is serving a
-file, they all are.
+When you call a Hydrafiles peer, if it's not hosting the requested content, it will check with other peers and pull the content from them. This means no matter which peer you ask, as long as one is serving the content, they all are.
 
 ## Where is Hydrafiles?
 
@@ -94,7 +85,7 @@ A or AAAA = xxxx
 
 We recommend using a CDN such as [Cloudflare](https://cloudflare.com).
 
-CDNs cache files which makes download times faster and lowers server load. CDNs also add a layer between the Hydrafiles node you use and the public internet, forcing organizations to send requests to the CDN to find the IP.
+CDNs cache files which makes download times faster and lowers server load. CDNs also add a layer between the Hydrafiles client you use and the public internet, forcing organizations to send requests to the CDN to find the IP.
 
 **If using Cloudflare**, be sure to enable the "Cache Everything" rule.
 
@@ -108,18 +99,18 @@ CDNs cache files which makes download times faster and lowers server load. CDNs 
 
 #### 2. Connect to Hydrafiles
 
-**Option A: Running a Node** improves availability as your node talks to all nodes in the network instead of relying on just one. Your node also verifies that files haven't been tampered with before forwarding them.
+**Option A: Running a Client** improves availability as your client talks to all peers instead of relying on just one. Your client also verifies that files haven't been tampered with before forwarding them.
 
 To run a full node, follow [deploy instructions](#how-do-i-setup-a-node).
 
-**Option B: Running a Reverse Proxy** is cheaper but less safe as file integrity can't be verified. It is not recommended to rely on a reverse-proxied node as exit points.
+**Option B: Running a Reverse Proxy** is cheaper but less safe as file integrity can't be verified. It is not recommended to rely on a reverse-proxied peer as am exit point.
 
 To set up the reverse proxy, first choose a Hydrafiles IP from a [poular node](#popular-nodes). Then configure [Nginx](https://www.digitalocean.com/community/tutorials/how-to-configure-nginx-as-a-reverse-proxy-on-ubuntu-22-04),
 [Caddy](https://caddyserver.com/docs/quick-starts/reverse-proxy), or similar software to point port 80 to the IP.
 
 #### 3. Announce Node (Optional)
 
-When your node first starts, it attempts to announce your node to all known nodes. A few hours after the node first starts, check with other nodes to ensure your node is known. If your node isn't known by other nodes (or this one), you can
+When your client first starts, it attempts to announce itself to all known peers. A few hours after the client first starts, check other peers to ensure your client is known. If your client isn't known by other peers (or this one), you can
 announce your node to a [popular node](#popular-nodes).
 
 ### Donate Storage
@@ -128,7 +119,7 @@ To donate storage, you must first run a full node (see [Donate Bandwidth](#donat
 
 #### 1. Local Caching (Optional)
 
-When local caching is enabled, your node automatically stores a copy of the most popular files.
+When local caching is enabled, your client automatically stores a copy of the most popular files.
 
 In your `config.json` file, set the amount of storage you would like to donate. Whenever this limit is reached, unpopular files will be deleted.
 
@@ -158,8 +149,8 @@ Thanks, your fellow Hydra operator.
 
 ### Option A: Run Compiled Binary
 
-1. Go to [Releases](https://github.com/StarfilesFileSharing/hydrafiles/releases) and download the file `hydrafiles`.
-2. Run the binary with `./hydrafiles`.
+1. Go to [Releases](https://github.com/StarfilesFileSharing/hydrafiles/releases) and download the right executable.
+2. Run it with `./hydrafiles`.
 
 ### Option B: Compile Binary
 
