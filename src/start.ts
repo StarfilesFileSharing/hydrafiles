@@ -1,7 +1,8 @@
+import { existsSync } from "jsr:@std/fs@0.221/exists";
 import Hydrafiles from "./hydrafiles.ts";
 
 const configPath = Deno.args[0] ?? "config.json";
-const config = JSON.parse(Deno !== undefined && Deno.statSync(configPath).isFile ? new TextDecoder().decode(Deno.readFileSync(configPath)) : "{}");
+const config = JSON.parse(existsSync(configPath) ? new TextDecoder().decode(Deno.readFileSync(configPath)) : "{}");
 const hydrafiles = new Hydrafiles(config);
 console.log("Hydrafiles Started", hydrafiles);
 
