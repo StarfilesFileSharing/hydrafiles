@@ -45,7 +45,8 @@
       width: 100%;
     }
 
-    th, td {
+    th,
+    td {
       padding: 0.5em;
       border: 1px solid #ccc;
       text-align: left;
@@ -54,6 +55,7 @@
     .file-actions button {
       margin-right: 5px;
     }
+
     #dashboard {
       display: none;
     }
@@ -76,22 +78,22 @@
     <p>This dashboard is 100% decentralised. It does not rely on any centralised server to function.</p>
   </section>
 
-  <section id="dashboard">
+  <section id="dashboard" style="overlay:scroll">
     <h2>Files Dashboard</h2>
+    <button id="toggleColumnsButton">Toggle Advanced Columns</button>
     <table>
       <thead>
-        <tr id="table-header">
-          <!-- Dynamic headers will be added here -->
-        </tr>
+        <tr id="table-header"></tr>
       </thead>
-      <tbody id="files">
-        <!-- Dynamic rows will be added here -->
-      </tbody>
+      <tbody id="files"></tbody>
     </table>
   </section>
 
   <script type="module">
     import Hydrafiles from './hydrafiles-web.esm.js';
+
+    let hideAdvancedColumns = true;
+    const advancedColumns = ['hash', 'infohash', 'id', 'found', 'voteHash', 'voteNonce'];
 
     document.getElementById('startHydrafilesButton').addEventListener('click', () => {
       document.getElementById('startHydrafiles').style.display = 'none';
@@ -99,62 +101,60 @@
       window.hydrafiles = new Hydrafiles({ logLevel: 'verbose' });
       window.hydrafiles.start().then(() => {
         console.log('Hydrafiles web node is running', hydrafiles);
-        fetchAndPopulateTable();
+        fetchAndPopulateTable(hideAdvancedColumns);
       }).catch(err => {
         console.error('Error starting Hydrafiles web node', err);
       });
 
-      setInterval(fetchAndPopulateTable, 5000);
+      setInterval(() => fetchAndPopulateTable(hideAdvancedColumns), 5000);
     });
 
-    async function fetchAndPopulateTable() {
+    document.getElementById('toggleColumnsButton').addEventListener('click', () => {
+      hideAdvancedColumns = !hideAdvancedColumns;
+      console.log('Hide Advanced Columns:', hideAdvancedColumns);
+      fetchAndPopulateTable(hideAdvancedColumns);
+    });
+
+    async function fetchAndPopulateTable(hideAdvancedColumns) {
       const files = await window.hydrafiles.getFiles(undefined, { key: "voteHash", order: "DESC" });
       console.log('Files:', files);
-      populateTable(files);
+      populateTable(files, hideAdvancedColumns);
     }
 
-    function populateTable(files) {
+    function populateTable(files, hideAdvancedColumns) {
       const tableHeader = document.getElementById('table-header');
       const tableBody = document.querySelector('table tbody');
-
-      tableBody.innerHTML = ''; // Clear existing rows
-
-      if (files.length === 0) return; // If no files, do nothing
-
-      // Dynamically generate table headers based on object keys
+      tableBody.innerHTML = '';
+      if (files.length === 0) return;
       const fileKeys = Object.keys(files[0]);
-      tableHeader.innerHTML = ''; // Clear existing headers
+      tableHeader.innerHTML = '';
       fileKeys.forEach(key => {
-        const th = document.createElement('th');
-        th.textContent = key;
-        tableHeader.appendChild(th);
+        if (!(hideAdvancedColumns && advancedColumns.includes(key))) {
+          const th = document.createElement('th');
+          th.textContent = key;
+          tableHeader.appendChild(th);
+        }
       });
 
-      // Add an 'Actions' header for Download/Delete buttons
       const actionsHeader = document.createElement('th');
       actionsHeader.textContent = 'Actions';
       tableHeader.appendChild(actionsHeader);
 
-      // Dynamically generate rows based on sorted files
       files.forEach(file => {
         const row = document.createElement('tr');
 
         fileKeys.forEach(key => {
-          const cell = document.createElement('td');
-          let value = file[key];
+          if (!(hideAdvancedColumns && advancedColumns.includes(key))) {
+            const cell = document.createElement('td');
+            let value = file[key];
 
-          // Format file size (if the key is 'size') to display in MB
-          if (key === 'size') {
-            value = `${(file[key] / (1024 * 1024)).toFixed(2)} MB`;
+            if (key === 'size') value = `${(file[key] / (1024 * 1024)).toFixed(2)} MB`;
+
+            if (key === 'updatedAt') value = new Date(file[key]).toLocaleDateString();
+
+            cell.textContent = value;
+            row.appendChild(cell);
           }
-
-          // Format date (if key is 'updatedAt')
-          if (key === 'updatedAt') {
-            value = new Date(file[key]).toLocaleDateString();
-          }
-
-          cell.textContent = value;
-          row.appendChild(cell);
         });
 
         const actionsCell = document.createElement('td');
@@ -168,7 +168,7 @@
           const a = document.createElement('a');
           a.href = url;
           a.download = file.name;
-          document.body.appendChild(a)
+          document.body.appendChild(a);
           a.click();
           document.body.removeChild(a);
           URL.revokeObjectURL(url);
