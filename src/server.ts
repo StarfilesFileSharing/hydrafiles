@@ -30,26 +30,26 @@ export const handleRequest = async (req: Request, client: Hydrafiles): Promise<R
 		if (url.pathname === "/" || url.pathname === undefined) {
 			headers.set("Content-Type", "text/html");
 			headers.set("Cache-Control", "public, max-age=604800");
-			return new Response(await client.fs.readFile("public/index.html"), { headers });
+			return new Response(await client.fs.readFile("public/index.html") || "", { headers });
 		} else if (url.pathname === "/favicon.ico") {
 			headers.set("Content-Type", "image/x-icon");
 			headers.set("Cache-Control", "public, max-age=604800");
-			return new Response(await client.fs.readFile("public/favicon.ico"), { headers });
+			return new Response(await client.fs.readFile("public/favicon.ico") || "", { headers });
 		} else if (url.pathname === "/status") {
 			headers.set("Content-Type", "application/json");
 			return new Response(JSON.stringify({ status: true }), { headers });
 		} else if (url.pathname === "/hydrafiles-web.esm.js") {
 			headers.set("Content-Type", "application/javascript");
 			headers.set("Cache-Control", "public, max-age=300");
-			return new Response(await client.fs.readFile("build/hydrafiles-web.esm.js"), { headers });
+			return new Response(await client.fs.readFile("build/hydrafiles-web.esm.js") || "", { headers });
 		} else if (url.pathname === "/hydrafiles-web.esm.js.map") {
 			headers.set("Content-Type", "application/json");
 			headers.set("Cache-Control", "public, max-age=300");
-			return new Response(await client.fs.readFile("build/hydrafiles-web.esm.js.map"), { headers });
+			return new Response(await client.fs.readFile("build/hydrafiles-web.esm.js.map") || "", { headers });
 		} else if (url.pathname === "/demo.html") {
 			headers.set("Content-Type", "text/html");
 			headers.set("Cache-Control", "public, max-age=300");
-			return new Response(await client.fs.readFile("public/demo.html"), { headers });
+			return new Response(await client.fs.readFile("public/demo.html") || "", { headers });
 		} else if (url.pathname === "/nodes") {
 			headers.set("Content-Type", "application/json");
 			headers.set("Cache-Control", "public, max-age=300");
@@ -217,7 +217,7 @@ export const handleRequest = async (req: Request, client: Hydrafiles): Promise<R
 			await client.fs.writeFile("config.json", new TextEncoder().encode(JSON.stringify(client.config, null, 2)));
 			return new Response("200 OK\n");
 		} else if (url.pathname === "/files") {
-			const rows = (client.FileDB !== undefined ? await client.FileDB.select() : []).map((row) => {
+			const rows = (client.FileDB !== undefined ? await (await client.FileDB).select() : []).map((row) => {
 				const { downloadCount, found, ...rest } = row;
 				const _ = { downloadCount, found };
 				return rest;

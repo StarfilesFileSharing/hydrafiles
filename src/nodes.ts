@@ -25,8 +25,9 @@ export default class Nodes {
 
 	public static async init(client: Hydrafiles): Promise<Nodes> {
 		const nodes = new Nodes(client);
-		if (!await (await client.fs).exists(NODES_PATH)) (await client.fs).writeFile(NODES_PATH, new TextEncoder().encode(JSON.stringify(client.config.bootstrapNodes)));
-		nodes.nodes = JSON.parse(new TextDecoder().decode(await (await client.fs).readFile(NODES_PATH)));
+		if (!await client.fs.exists(NODES_PATH)) client.fs.writeFile(NODES_PATH, new TextEncoder().encode(JSON.stringify(client.config.bootstrapNodes)));
+		const knownNodes = await client.fs.readFile(NODES_PATH) || new TextEncoder().encode(JSON.stringify(client.config.bootstrapNodes));
+		nodes.nodes = JSON.parse(new TextDecoder().decode(knownNodes));
 		return nodes;
 	}
 
@@ -197,7 +198,7 @@ export default class Nodes {
 		try {
 			console.log(`Comparing file list with ${node.host}`);
 			const response = await fetch(`${node.host}/files`);
-			const files = (await response.json()) as File[];
+			const files = (await response.json()) as FileAttributes[];
 			for (let i = 0; i < files.length; i++) {
 				const newFile = files[i];
 				const currentFile = new File({ hash: files[i].hash, infohash: files[i].infohash ?? undefined }, this._client, false);

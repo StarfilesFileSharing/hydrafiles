@@ -29,21 +29,21 @@ declare global {
 }
 
 class FileSystem {
-	fs: DirectoryHandleFileSystem | StandardFileSystem;
+	fs: DirectoryHandleFileSystem | StandardFileSystem | undefined;
 
 	constructor() {
 		if (typeof window === "undefined") this.fs = new StandardFileSystem();
 		else if (typeof globalThis.window.showDirectoryPicker !== "undefined") this.fs = new DirectoryHandleFileSystem();
-		else throw new Error("Unsupported platform");
+		else console.error("Unsupported platform - FileSystem acess has been turned off");
 	}
 
-	exists = async (path: string): Promise<boolean> => await this.fs.exists(path);
-	mkdir = async (path: string) => await this.fs.mkdir(path);
-	readDir = async (path: string): Promise<string[]> => await this.fs.readDir(path);
-	readFile = async (path: string): Promise<Uint8Array> => await this.fs.readFile(path);
-	writeFile = async (path: string, data: Uint8Array): Promise<void> => await this.fs.writeFile(path, data);
-	getFileSize = async (path: string): Promise<number> => await this.fs.getFileSize(path);
-	remove = async (path: string) => await this.fs.remove(path);
+	exists = async (path: string): Promise<boolean> => this.fs ? await this.fs.exists(path) : false;
+	mkdir = async (path: string) => await this.fs?.mkdir(path);
+	readDir = async (path: string): Promise<string[]> => this.fs ? await this.fs.readDir(path) : [];
+	readFile = async (path: string): Promise<Uint8Array | false> => this.fs ? await this.fs.readFile(path) : false;
+	writeFile = async (path: string, data: Uint8Array): Promise<void> => await this.fs?.writeFile(path, data);
+	getFileSize = async (path: string): Promise<number> => this.fs ? await this.fs.getFileSize(path) : 0;
+	remove = async (path: string) => await this.fs?.remove(path);
 }
 
 class StandardFileSystem {
