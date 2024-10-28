@@ -30,7 +30,7 @@ class Hydrafiles {
 	// blockchain = new Blockchain(this);
 	fs = new FileSystem();
 	keyPair = this.utils.getKeyPair();
-	FileDB = new FileDB(this);
+	FileDB = FileDB.init(this);
 	nodes = Nodes.init(this);
 	constructor(customConfig: Partial<Config> = {}) {
 		this.config = getConfig(customConfig);
@@ -49,14 +49,12 @@ class Hydrafiles {
 
 		if (this.config.summarySpeed !== -1) {
 			this.logState();
-			setInterval(() => {
-				this.logState();
-			}, this.config.summarySpeed);
+			setInterval(() => this.logState, this.config.summarySpeed);
 		}
 
 		if (this.config.compareSpeed !== -1) {
-			setInterval(this.backgroundTasks, this.config.compareSpeed);
 			this.backgroundTasks();
+			setInterval(this.backgroundTasks, this.config.compareSpeed);
 		}
 		if (this.config.backfill) this.backfillFiles().catch(console.error);
 	}
@@ -76,7 +74,7 @@ class Hydrafiles {
 
 	backfillFiles = async (): Promise<void> => {
 		if (this.FileDB !== undefined) {
-			const file = (await this.FileDB.select({ orderBy: "RANDOM()" }))[0];
+			const file = (await (await this.FileDB).select({ orderBy: "RANDOM()" })).sort((_a, _b) => 0.5 - Math.random())[0];
 			if (file === undefined) return;
 			console.log(`  ${file.hash}  Backfilling file`);
 			try {
@@ -100,8 +98,8 @@ class Hydrafiles {
 			"\n| Hostname: ",
 			`${Base32.encode(pubKey.x).toLowerCase().replaceAll("=", "")}.${Base32.encode(pubKey.y).toLowerCase().replaceAll("=", "")}`,
 			"\n| Known (Network) Files:",
-			this.FileDB !== undefined ? await this.FileDB.count() : 0,
-			`(${Math.round((100 * (this.FileDB !== undefined ? await this.FileDB.sum("size") : 0)) / 1024 / 1024 / 1024) / 100}GB)`,
+			await (await this.FileDB).count(),
+			`(${Math.round((100 * (await (await this.FileDB).sum("size"))) / 1024 / 1024 / 1024) / 100}GB)`,
 			"\n| Stored Files:",
 			await this.utils.countFilesInDir("files/"),
 			`(${Math.round((100 * await this.utils.calculateUsedStorage()) / 1024 / 1024 / 1024) / 100}GB)`,
@@ -112,13 +110,13 @@ class Hydrafiles {
 			// '\n| Seeding Torrent Files:',
 			// (await webtorrentClient()).torrents.length,
 			"\n| Downloads Served:",
-			(this.FileDB !== undefined ? await this.FileDB.sum("downloadCount") : 0) + ` (${Math.round((((this.FileDB !== undefined ? await this.FileDB.sum("downloadCount * size") : 0) / 1024 / 1024 / 1024) * 100) / 100)}GB)`,
+			(await (await this.FileDB).sum("downloadCount")) + ` (${Math.round((((await (await this.FileDB).sum("downloadCount * size")) / 1024 / 1024 / 1024) * 100) / 100)}GB)`,
 			"\n===============================================\n",
 		);
 	}
 
 	search = async <T>(where: { where?: { key: keyof FileAttributes; value: NonNullable<keyof FileAttributes> } | undefined; orderBy?: string } | undefined): Promise<File[]> => {
-		return this.FileDB !== undefined ? await this.FileDB.select(where) : [];
+		return await (await this.FileDB).select(where);
 	};
 
 	getFile = (hash: string): File => {
