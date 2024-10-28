@@ -79,7 +79,7 @@ class Hydrafiles {
 	};
 
 	backfillFiles = async (): Promise<void> => {
-		const file = (await this.fileDB.select({ orderBy: "RANDOM()" })).sort((_a, _b) => 0.5 - Math.random())[0];
+		const file = (await this.fileDB.select(undefined, "RANDOM"))[0];
 		if (file === undefined) return;
 		console.log(`  ${file.hash}  Backfilling file`);
 		try {
@@ -119,12 +119,16 @@ class Hydrafiles {
 		);
 	}
 
-	search = async <T>(where: { where?: { key: keyof FileAttributes; value: NonNullable<keyof FileAttributes> } | undefined; orderBy?: string } | undefined): Promise<File[]> => {
-		return await this.fileDB.select(where);
+	search = async <T extends keyof FileAttributes>(where?: { key: T; value: NonNullable<File[T]> }, orderBy?: "RANDOM" | { key: T; direction: "ASC" | "DESC" }): Promise<File[]> => {
+		return await this.fileDB.select(where, orderBy);
 	};
 
 	getFile = (hash: string): File => {
 		return new File({ hash }, this);
+	};
+
+	getFiles = async <T extends keyof FileAttributes>(where?: { key: T; value: NonNullable<File[T]> } | undefined, orderBy?: { key: T; direction: "ASC" | "DESC" } | "RANDOM" | undefined): Promise<File[]> => {
+		return await this.fileDB.select(where, orderBy);
 	};
 }
 
