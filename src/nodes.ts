@@ -211,7 +211,10 @@ export default class Nodes {
 						// @ts-expect-error:
 						currentFile[key] = newFile[key];
 					}
-					if (newFile.voteNonce !== 0 && newFile.voteDifficulty > currentFile.voteDifficulty) currentFile.checkVoteNonce(newFile["voteNonce"]);
+					if (newFile.voteNonce !== 0 && newFile.voteDifficulty > currentFile.voteDifficulty) {
+						console.log(`  ${newFile.hash}  Comparing vote nonce`);
+						currentFile.checkVoteNonce(newFile["voteNonce"]);
+					}
 				}
 
 				currentFile.save();
