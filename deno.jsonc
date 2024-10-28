@@ -1,7 +1,7 @@
 {
 	"name": "@starfiles/hydrafiles",
 	"version": "0.4",
-	"description": "The headless storage network.",
+	"description": "The web privacy layer.",
 	"main": "src/hydrafiles.ts",
 	"exports": {
 		".": "./src/hydrafiles.ts",
