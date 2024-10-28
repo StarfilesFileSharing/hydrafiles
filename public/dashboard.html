@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard - Hydrafiles</title>
+  <style>
+    * {
+      word-wrap: break-word 
+    }
+
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      background-color: #f4f4f4;
+    }
+
+    header {
+      background-color: #333;
+      color: #fff;
+      width: 100%;
+      padding: 1em 0;
+      text-align: center;
+    }
+
+    section {
+      width: 80%;
+      margin: 2em 0;
+      padding: 1em;
+      background-color: #fff;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    }
+
+    h1 {
+      margin: 0;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+
+    th, td {
+      padding: 0.5em;
+      border: 1px solid #ccc;
+      text-align: left;
+    }
+
+    .file-actions button {
+      margin-right: 5px;
+    }
+    #dashboard {
+      display: none;
+    }
+  </style>
+  <link href="https://unpkg.com/tabulator-tables/dist/css/tabulator.min.css" rel="stylesheet">
+  <script type="text/javascript" src="https://unpkg.com/tabulator-tables/dist/js/tabulator.min.js"></script>
+</head>
+
+<body>
+  <header>
+    <h1>Hydrafiles</h1>
+    <p>The web privacy layer.</p>
+    <p>Donate Monero:<br>83BGShZv9hU9P9SRLjhRGJYQ4WatMNazKVFG6eKyHc6HguBzu1vH54R7mQJaZzeXhx4jDxnkNJMizLXrFFN4ARffEwFj82y</p>
+  </header>
+
+  <section id="startHydrafiles">
+    <h2>Dashboard</h2>
+    <p>Click the button below to start the Hydrafiles web node.</p>
+    <button id="startHydrafilesButton">Start Hydrafiles</button>
+    <p>This dashboard is 100% decentralised. It does not rely on any centralised server to function.</p>
+  </section>
+
+  <section id="dashboard">
+    <h2>Files Dashboard</h2>
+    <table>
+      <thead>
+        <tr id="table-header">
+          <!-- Dynamic headers will be added here -->
+        </tr>
+      </thead>
+      <tbody id="files">
+        <!-- Dynamic rows will be added here -->
+      </tbody>
+    </table>
+  </section>
+
+  <script type="module">
+    import Hydrafiles from './hydrafiles-web.esm.js';
+
+    document.getElementById('startHydrafilesButton').addEventListener('click', () => {
+      document.getElementById('startHydrafiles').style.display = 'none';
+      document.getElementById('dashboard').style.display = 'block';
+      window.hydrafiles = new Hydrafiles({ logLevel: 'verbose' });
+      window.hydrafiles.start().then(() => {
+        console.log('Hydrafiles web node is running', hydrafiles);
+        fetchAndPopulateTable();
+      }).catch(err => {
+        console.error('Error starting Hydrafiles web node', err);
+      });
+
+      setInterval(fetchAndPopulateTable, 5000);
+    });
+
+    async function fetchAndPopulateTable() {
+      const files = await window.hydrafiles.getFiles(undefined, { key: "voteHash", order: "DESC" });
+      console.log('Files:', files);
+      populateTable(files);
+    }
+
+    function populateTable(files) {
+      const tableHeader = document.getElementById('table-header');
+      const tableBody = document.querySelector('table tbody');
+
+      tableBody.innerHTML = ''; // Clear existing rows
+
+      if (files.length === 0) return; // If no files, do nothing
+
+      // Dynamically generate table headers based on object keys
+      const fileKeys = Object.keys(files[0]);
+      tableHeader.innerHTML = ''; // Clear existing headers
+      fileKeys.forEach(key => {
+        const th = document.createElement('th');
+        th.textContent = key;
+        tableHeader.appendChild(th);
+      });
+
+      // Add an 'Actions' header for Download/Delete buttons
+      const actionsHeader = document.createElement('th');
+      actionsHeader.textContent = 'Actions';
+      tableHeader.appendChild(actionsHeader);
+
+      // Dynamically generate rows based on sorted files
+      files.forEach(file => {
+        const row = document.createElement('tr');
+
+        fileKeys.forEach(key => {
+          const cell = document.createElement('td');
+          let value = file[key];
+
+          // Format file size (if the key is 'size') to display in MB
+          if (key === 'size') {
+            value = `${(file[key] / (1024 * 1024)).toFixed(2)} MB`;
+          }
+
+          // Format date (if key is 'updatedAt')
+          if (key === 'updatedAt') {
+            value = new Date(file[key]).toLocaleDateString();
+          }
+
+          cell.textContent = value;
+          row.appendChild(cell);
+        });
+
+        const actionsCell = document.createElement('td');
+        actionsCell.className = 'file-actions';
+        const button = document.createElement('button');
+        button.textContent = 'Download';
+        button.addEventListener('click', async () => {
+          console.log('Downloading file:', file);
+          const fileContent = (await window.hydrafiles.getFile(file.hash).getFile({ logDownloads: true })).file;
+          const url = URL.createObjectURL(new Blob([fileContent], { type: 'application/octet-stream' }));
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = file.name;
+          document.body.appendChild(a)
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        });
+        actionsCell.appendChild(button);
+        row.appendChild(actionsCell);
+
+        tableBody.appendChild(row);
+      });
+    }
+  </script>
+</body>
+
+</html>

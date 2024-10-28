@@ -50,6 +50,10 @@ export const handleRequest = async (req: Request, client: Hydrafiles): Promise<R
 			headers.set("Content-Type", "text/html");
 			headers.set("Cache-Control", "public, max-age=300");
 			return new Response(await client.fs.readFile("public/demo.html") || "", { headers });
+		} else if (url.pathname === "/dashboard.html") {
+			headers.set("Content-Type", "text/html");
+			headers.set("Cache-Control", "public, max-age=300");
+			return new Response(await client.fs.readFile("public/dashboard.html") || "", { headers });
 		} else if (url.pathname === "/nodes") {
 			headers.set("Content-Type", "application/json");
 			headers.set("Cache-Control", "public, max-age=300");
@@ -95,7 +99,7 @@ export const handleRequest = async (req: Request, client: Hydrafiles): Promise<R
 				await file.getMetadata();
 				let fileContent: { file: Uint8Array; signal: number } | false;
 				try {
-					fileContent = await file.getFile();
+					fileContent = await file.getFile({ logDownloads: true });
 				} catch (e) {
 					const err = e as { message: string };
 					if (err.message === "Promise timed out") {
@@ -149,7 +153,7 @@ export const handleRequest = async (req: Request, client: Hydrafiles): Promise<R
 				await file.getMetadata();
 				let fileContent: { file: Uint8Array; signal: number } | false;
 				try {
-					fileContent = await file.getFile();
+					fileContent = await file.getFile({ logDownloads: true });
 				} catch (e) {
 					const err = e as { message: string };
 					if (err.message === "Promise timed out") {
