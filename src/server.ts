@@ -95,7 +95,7 @@ export const handleRequest = async (req: Request, client: Hydrafiles): Promise<R
 				await file.getMetadata();
 				let fileContent: { file: Uint8Array; signal: number } | false;
 				try {
-					fileContent = await file.getFile();
+					fileContent = await file.getFile({ logDownloads: true });
 				} catch (e) {
 					const err = e as { message: string };
 					if (err.message === "Promise timed out") {
@@ -149,7 +149,7 @@ export const handleRequest = async (req: Request, client: Hydrafiles): Promise<R
 				await file.getMetadata();
 				let fileContent: { file: Uint8Array; signal: number } | false;
 				try {
-					fileContent = await file.getFile();
+					fileContent = await file.getFile({ logDownloads: true });
 				} catch (e) {
 					const err = e as { message: string };
 					if (err.message === "Promise timed out") {
