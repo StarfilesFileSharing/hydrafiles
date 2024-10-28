@@ -47,7 +47,6 @@ class Hydrafiles {
 	}
 
 	async start(): Promise<void> {
-		// const hydrafiles = new Hydrafiles(customConfig);
 		this.fileDB = await FileDB.init(this);
 		this.nodes = await Nodes.init(this);
 
@@ -62,7 +61,7 @@ class Hydrafiles {
 			this.backgroundTasks();
 			setInterval(this.backgroundTasks, this.config.compareSpeed);
 		}
-		// if (this.config.backfill) this.backfillFiles().catch(console.error);
+		if (this.config.backfill) this.backfillFiles().catch(console.error);
 	}
 
 	backgroundTasks = async (): Promise<void> => {
