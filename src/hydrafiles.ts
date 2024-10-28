@@ -78,10 +78,9 @@ class Hydrafiles {
 	};
 
 	backfillFiles = async (): Promise<void> => {
-		const file = (await this.fileDB.select(undefined, "RANDOM"))[0];
-		if (file === undefined) return;
-		console.log(`  ${file.hash}  Backfilling file`);
 		try {
+			const file = new File((await this.fileDB.select(undefined, "RANDOM"))[0], this);
+			console.log(`  ${file.hash}  Backfilling file`, file);
 			await file.getFile({ logDownloads: false });
 		} catch (e) {
 			if (this.config.logLevel === "verbose") throw e;

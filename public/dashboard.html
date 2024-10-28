@@ -60,8 +60,6 @@
       display: none;
     }
   </style>
-  <link href="https://unpkg.com/tabulator-tables/dist/css/tabulator.min.css" rel="stylesheet">
-  <script type="text/javascript" src="https://unpkg.com/tabulator-tables/dist/js/tabulator.min.js"></script>
 </head>
 
 <body>
@@ -79,7 +77,13 @@
   </section>
 
   <section id="dashboard" style="overlay:scroll">
-    <h2>Files Dashboard</h2>
+    <h2>Dashboard</h2>
+    <p>This dashboard is 100% decentralised, your browser is directly connected to the Hydrafiles network.</p>
+    <h3>Peers</h3>
+    <p>Here is a list of peers you know exist and are communicating with.</p>
+    <ul id="nodes"></ul>
+    <h3>Files</h3>
+    <p>Here you can see all the files that have been indexed by your node.</p>
     <button id="toggleColumnsButton">Toggle Advanced Columns</button>
     <table>
       <thead>
@@ -92,6 +96,7 @@
   <script type="module">
     import Hydrafiles from './hydrafiles-web.esm.js';
 
+    let files;
     let hideAdvancedColumns = true;
     const advancedColumns = ['hash', 'infohash', 'id', 'found', 'voteHash', 'voteNonce'];
 
@@ -101,27 +106,38 @@
       window.hydrafiles = new Hydrafiles({ logLevel: 'verbose' });
       window.hydrafiles.start().then(() => {
         console.log('Hydrafiles web node is running', hydrafiles);
-        fetchAndPopulateTable(hideAdvancedColumns);
+        fetchAndPopulateFiles();
+        fetchAndPopulateNodes();
       }).catch(err => {
         console.error('Error starting Hydrafiles web node', err);
+        setInterval(fetchAndPopulateFiles, 5000);
+        setInterval(fetchAndPopulateNodes, 5000);
       });
-
-      setInterval(() => fetchAndPopulateTable(hideAdvancedColumns), 5000);
     });
 
     document.getElementById('toggleColumnsButton').addEventListener('click', () => {
       hideAdvancedColumns = !hideAdvancedColumns;
       console.log('Hide Advanced Columns:', hideAdvancedColumns);
-      fetchAndPopulateTable(hideAdvancedColumns);
+      populateTable();
     });
 
-    async function fetchAndPopulateTable(hideAdvancedColumns) {
-      const files = await window.hydrafiles.getFiles(undefined, { key: "voteHash", order: "DESC" });
-      console.log('Files:', files);
-      populateTable(files, hideAdvancedColumns);
+  function fetchAndPopulateNodes() {
+    const nodes = window.hydrafiles.nodes.getNodes();
+    const nodesEl = document.getElementById('nodes');
+    nodesEl.innerHTML = '';
+    nodes.forEach(node => {
+      const li = document.createElement('li');
+      li.textContent = node.host;
+      nodesEl.appendChild(li);
+    });
+  }
+
+    async function fetchAndPopulateFiles() {
+      files = await window.hydrafiles.getFiles(undefined, { key: "voteHash", order: "DESC" });
+      populateTable();
     }
 
-    function populateTable(files, hideAdvancedColumns) {
+    function populateTable() {
       const tableHeader = document.getElementById('table-header');
       const tableBody = document.querySelector('table tbody');
       tableBody.innerHTML = '';

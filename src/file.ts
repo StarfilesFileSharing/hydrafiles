@@ -210,7 +210,7 @@ export class FileDB {
 	insert(values: Partial<FileAttributes>): void {
 		if (typeof this.db === "undefined") return;
 		const file = fileAttributesDefaults(values) as File;
-		console.log(`  ${file.hash}  File INSERTing`, values);
+		console.log(`  ${file.hash}  File INSERTed`, values);
 		if (this.db.type === "SQLITE") {
 			const query = `INSERT INTO file (hash, infohash, downloadCount, id, name, found, size)VALUES (?, ?, ?, ?, ?, ?, ?)`;
 
@@ -225,7 +225,6 @@ export class FileDB {
 				file.size,
 			);
 		} else if (this.db.type === "INDEXEDDB") {
-			console.log("IndexedDB Insert");
 			const request = this.objectStore().add(file);
 
 			request.onsuccess = function (event): void {
@@ -247,6 +246,7 @@ export class FileDB {
 		updates.updatedAt = new Date().toISOString();
 		const newFile = fileAttributesDefaults(updates);
 
+		// Get the current file attributes before updating
 		const currentFile = fileAttributesDefaults((await this.select({ key: "hash", value: hash }))[0] ?? { hash });
 		if (!currentFile) {
 			console.error(`File with hash ${hash} not found.`);
@@ -256,25 +256,37 @@ export class FileDB {
 		const updatedColumn: string[] = [];
 		const params: (string | number | boolean)[] = [];
 		const keys = Object.keys(newFile);
+		const defaultValues = fileAttributesDefaults({ hash: "" });
+
+		type BeforeAfter = Record<string, { before: FileAttributes[keyof FileAttributes]; after: FileAttributes[keyof FileAttributes] }>;
+		const beforeAndAfter: BeforeAfter = {};
+
 		for (let i = 0; i < keys.length; i++) {
 			const key = keys[i] as keyof FileAttributes;
-			if (newFile[key] !== undefined && newFile[key] !== null && newFile[key] !== currentFile[key]) {
+			if (newFile[key] !== undefined && newFile[key] !== null && newFile[key] !== currentFile[key] && newFile[key] !== defaultValues[key]) {
+				if (key === "name" && newFile[key] === "file") continue;
 				updatedColumn.push(key);
 				params.push(newFile[key]);
+				beforeAndAfter[key] = { before: currentFile[key], after: newFile[key] };
 			}
 		}
+
 		if (updatedColumn.length <= 1) return;
 
 		if (this.db.type === "SQLITE") {
 			params.push(hash);
-
 			const query = `UPDATE file SET ${updatedColumn.map((column) => `${column} = ?`).join(", ")} WHERE hash = ?`;
 			this.db.db.prepare(query).values(params);
-
-			console.log(`  ${hash}  File UPDATEd - Updated Columns: ${updatedColumn.join(", ")}` + (this._client.config.logLevel === "verbose" ? ` - Params: ${params.join(", ")} - Query: ${query}` : ""));
+			console.log(
+				`  ${hash}  File UPDATEd - Updated Columns: ${updatedColumn.join(", ")}` + (this._client.config.logLevel === "verbose" ? ` - Params: ${params.join(", ")}  - Query: ${query}` : ""),
+				this._client.config.logLevel === "verbose" ? console.log(`  ${hash}  Updated Values:`, beforeAndAfter) : "",
+			);
 		} else {
 			if (this.db.type === "INDEXEDDB") this.objectStore().put(newFile).onerror = console.error;
-			console.log(`  ${hash}  File UPDATEd - Updated Columns: ${updatedColumn.join(", ")}` + (this._client.config.logLevel === "verbose" ? ` - Params: ${params.join(", ")}` : ""));
+			console.log(
+				`  ${hash}  File UPDATEd - Updated Columns: ${updatedColumn.join(", ")}` + (this._client.config.logLevel === "verbose" ? ` - Params: ${params.join(", ")}` : ""),
+				this._client.config.logLevel === "verbose" ? console.log(`  ${hash}  Updated Values:`, beforeAndAfter) : "",
+			);
 		}
 	}
 
@@ -366,10 +378,10 @@ class File implements FileAttributes {
 	updatedAt: string = new Date().toISOString();
 	_client: Hydrafiles;
 
-	constructor(values: { hash?: string; infohash?: string; id?: string }, client: Hydrafiles, vote = true) {
+	constructor(values: Partial<FileAttributes>, client: Hydrafiles, vote = true) {
 		this._client = client;
 
-		if (values.hash) this.hash = values.hash;
+		if (values.hash !== undefined && values.hash !== null) this.hash = values.hash;
 		const hashPromise = new Promise<string>((resolve, reject) => {
 			if (values.hash !== undefined) {
 				// If hash exists, resolve it directly
@@ -377,8 +389,7 @@ class File implements FileAttributes {
 			}
 
 			(() => {
-				if (values.id !== undefined) {
-					// If id exists, attempt to fetch the corresponding hash
+				if (values.id) {
 					const filesPromise = this._client.fileDB.select({ key: "id", value: values.id });
 					if (filesPromise !== undefined) {
 						filesPromise.then(async (files) => {
@@ -410,12 +421,12 @@ class File implements FileAttributes {
 								await Utils.parallelAsync(promises, 4);
 								throw new Error("No hash found for the provided id");
 							}
-						}).catch(reject); // Catch and reject on DB error
+						}).catch(reject);
 					} else {
 						reject(new Error("FileDB not available or unable to fetch files"));
 					}
-				} else if (values.infohash !== undefined) {
-					// If infohash exists, validate it
+				}
+				if (values.infohash !== undefined && values.infohash !== null) {
 					if (!Utils.isValidInfoHash(values.infohash)) {
 						return reject(new Error(`Invalid infohash provided: ${values.infohash}`));
 					}
@@ -428,14 +439,12 @@ class File implements FileAttributes {
 							} else {
 								reject(new Error("No hash found for the provided infohash"));
 							}
-						}).catch(reject); // Catch and reject on DB error
+						}).catch(reject);
 					} else {
 						reject(new Error("FileDB not available or unable to fetch files"));
 					}
-				} else {
-					// Reject if neither hash, id, nor infohash is provided
-					reject(new Error("No hash, id, or infohash provided"));
 				}
+				reject(new Error("No hash, id, or infohash provided"));
 			})();
 		});
 
@@ -463,7 +472,7 @@ class File implements FileAttributes {
 
 			if (vote) {
 				console.log(`  ${this.hash}  Voting for file`);
-				await this.checkVoteNonce(Number(crypto.getRandomValues(new Uint32Array(1))));
+				await this.checkVoteNonce();
 			}
 		});
 	}
@@ -683,13 +692,14 @@ class File implements FileAttributes {
 		this[column]++;
 	}
 
-	async checkVoteNonce(nonce: number): Promise<void> {
-		const voteHash = await Utils.hashString(this.hash + nonce);
+	async checkVoteNonce(nonce?: number): Promise<void> {
+		const voteNonce = nonce || Number(crypto.getRandomValues(new Uint32Array(1)));
+		const voteHash = await Utils.hashString(this.hash + voteNonce);
 		const decimalValue = BigInt("0x" + voteHash).toString(10);
 		const difficulty = Number(decimalValue) / Number(BigInt("0x" + "f".repeat(64)));
 		if (difficulty > this.voteDifficulty) {
-			console.log(`  ${this.hash}  Found Difficulty ${difficulty}`);
-			this.voteNonce = nonce;
+			console.log(`  ${this.hash}  ${nonce ? "Received" : "Mined"} Difficulty ${difficulty}`);
+			this.voteNonce = voteNonce;
 			this.voteHash = voteHash;
 			this.voteDifficulty = difficulty;
 			this.save();
