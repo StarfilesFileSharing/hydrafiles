@@ -140,7 +140,7 @@
 // 	}
 
 // 	async syncBlocks(): Promise<void> {
-// 		const blockHeights = await (await this._client.nodes).getBlockHeights();
+// 		const blockHeights = await this._client.nodes.getBlockHeights();
 // 		for (let i = 0; i < Object.keys(blockHeights).length; i++) {
 // 			const claimedBlockHeight = Number(Object.keys(blockHeights)[i]);
 // 			if (claimedBlockHeight > this.lastBlock().height) {

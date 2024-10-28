@@ -148,12 +148,14 @@
     document.getElementById('startHydrafilesButton').addEventListener('click', () => {
         document.getElementById('startHydrafilesButton').style.display = 'none';
         window.hydrafiles = new Hydrafiles();
-        console.log('Hydrafiles web node is running', hydrafiles);
-        document.getElementById('fetchNodesButton').disabled = false;
+        window.hydrafiles.start().then(() => {
+            console.log('Hydrafiles web node is running', hydrafiles);
+            document.getElementById('fetchNodesButton').disabled = false;
+        })
     });
 
     async function displayNodes() {
-        const nodeList = (await window.hydrafiles.nodes).getNodes();
+        const nodeList = window.hydrafiles.nodes.getNodes();
         document.getElementById('fetchNodesButton').style.display = 'none';
         document.getElementById('nodes').innerHTML = nodeList.length === 0 ? "<li>No nodes available</li>" : nodeList.map(node => `<li>${node.host}</li>`).join('');
     }
@@ -161,7 +163,7 @@
     document.getElementById('fetchNodesButton').addEventListener('click', async () => {
         document.getElementById('fetchNodesButton').innerText = 'Fetching nodes...';
         setInterval(displayNodes, 1000);
-        (await window.hydrafiles.nodes).add((await window.hydrafiles.nodes).nodeFrom('http://localhost'));
+        window.hydrafiles.nodes.add(window.hydrafiles.nodes.nodeFrom('http://localhost'));
         document.getElementById('fetchFileButton').disabled = false;
     });
 

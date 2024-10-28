@@ -1,8 +1,7 @@
 import type Hydrafiles from "./hydrafiles.ts";
 import Utils from "./utils.ts";
-import type { IDBKeyRange, indexedDB } from "https://deno.land/x/indexeddb@v1.1.0/ponyfill.ts";
+import type { indexedDB } from "https://deno.land/x/indexeddb@v1.1.0/ponyfill.ts";
 import { join } from "https://deno.land/std@0.224.0/path/mod.ts";
-
 import type { Database } from "jsr:@db/sqlite@0.11";
 
 type NonNegativeNumber = number & { readonly brand: unique symbol };
@@ -147,6 +146,11 @@ export class FileDB {
 		return fileDB;
 	}
 
+	objectStore(): IDBObjectStore {
+		if (this.db.type !== "INDEXEDDB") throw new Error("Wrong DB type when calling objectStore");
+		return this.db.db.transaction("file", "readwrite").objectStore("file");
+	}
+
 	select<T extends keyof FileAttributes>(opts: { where?: { key: T; value: NonNullable<File[T]> }; orderBy?: string } = {}): Promise<File[]> {
 		if (this.db === undefined) return new Promise((resolve) => resolve([]));
 
@@ -167,25 +171,17 @@ export class FileDB {
 				if (this.db.type !== "INDEXEDDB") return;
 				const request = opts.where
 					// @ts-expect-error:
-					? this.db.db.transaction("file", "readwrite").objectStore("file").index(opts.where.key).openCursor(IDBKeyRange.only(opts.where.value))
-					: this.db.db.transaction("file", "readwrite").objectStore("file").openCursor();
+					? this.objectStore().index(opts.where.key).openCursor(opts.where.value)
+					: this.objectStore().openCursor();
 				const results: File[] = [];
 
 				// @ts-expect-error:
 				request.onsuccess = (event: { target: IDBRequest }) => {
-					const cursor: IDBCursorWithValue | null = (event.target as IDBRequest).result;
+					const cursor: IDBCursorWithValue = event.target.result;
 					if (cursor) {
 						results.push(cursor.value);
 						cursor.continue();
 					} else {
-						if (opts.orderBy) {
-							results.sort((a, b) => {
-								const orderBy = (opts.orderBy ?? "hash") as keyof FileAttributes;
-								if ((a[orderBy] ?? "") < (b[orderBy] ?? "")) return -1;
-								if ((a[orderBy] ?? "") > (b[orderBy] ?? "")) return 1;
-								return 0;
-							});
-						}
 						resolve(results);
 					}
 				};
@@ -217,7 +213,7 @@ export class FileDB {
 			);
 		} else if (this.db.type === "INDEXEDDB") {
 			console.log("IndexedDB Insert");
-			const request = this.db.db.transaction("file", "readwrite").objectStore("file").add(file);
+			const request = this.objectStore().add(file);
 
 			request.onsuccess = function (event): void {
 				// @ts-expect-error:
@@ -229,7 +225,7 @@ export class FileDB {
 				console.error("Error adding file:", event.target.error);
 			};
 
-			this.db.db.transaction("file", "readwrite").objectStore("file").add(file);
+			this.objectStore().add(file);
 		}
 	}
 
@@ -263,7 +259,7 @@ export class FileDB {
 			this.db.db.prepare(query).values(params);
 			console.log(`  ${hash}  File UPDATEd - Updated Columns: ${updatedColumn.join(", ")}` + (this._client.config.logLevel === "verbose" ? ` - Query: ${query} - Params: ${params.join(", ")}` : ""));
 		} else {
-			if (this.db.type === "INDEXEDDB") this.db.db.transaction("file", "readwrite").objectStore("file").put(newFile).onerror = console.error;
+			if (this.db.type === "INDEXEDDB") this.objectStore().put(newFile).onerror = console.error;
 			console.log(`  ${hash}  File UPDATEd`);
 		}
 	}
@@ -274,7 +270,7 @@ export class FileDB {
 
 		if (this.db.type === "SQLITE") {
 			this.db.db.exec(query, hash);
-		} else if (this.db.type === "INDEXEDDB") this.db.db.transaction("file", "readwrite").objectStore("file").delete(hash).onerror = console.error;
+		} else if (this.db.type === "INDEXEDDB") this.objectStore().delete(hash).onerror = console.error;
 		console.log(`${hash} File DELETEd`);
 	}
 
@@ -282,14 +278,14 @@ export class FileDB {
 		if (this.db === undefined) return;
 		if (this.db.type === "SQLITE") this.db.db.prepare(`UPDATE file set ${column} = ${column}+1 WHERE hash = ?`).values(hash);
 		else if (this.db.type === "INDEXEDDB") {
-			const request = this.db.db.transaction("file", "readwrite").objectStore("file").get(hash);
+			const request = this.objectStore().get(hash);
 			request.onsuccess = (event) => {
 				const target = event.target;
 				if (!target) return;
 				const file = (target as IDBRequest).result;
 				if (file && this.db.type === "INDEXEDDB") {
 					file[column] = (file[column] || 0) + 1;
-					this.db.db.transaction("file", "readwrite").objectStore("file").put(file).onsuccess = () => console.log(`Incremented ${column} for hash ${hash}`);
+					this.objectStore().put(file).onsuccess = () => console.log(`Incremented ${column} for hash ${hash}`);
 				}
 			};
 		}
@@ -304,7 +300,7 @@ export class FileDB {
 			}
 
 			if (this.db.type === "UNDEFINED") return resolve(0);
-			const request = this.db.db.transaction("file", "readwrite").objectStore("file").count();
+			const request = this.objectStore().count();
 			request.onsuccess = () => resolve(request.result);
 			request.onerror = (event) => reject((event.target as IDBRequest).error);
 		});
@@ -319,7 +315,7 @@ export class FileDB {
 			} else {
 				if (this.db.type === "UNDEFINED") return resolve(0);
 				let sum = 0;
-				const request = this.db.db.transaction("file", "readwrite").objectStore("file").openCursor();
+				const request = this.objectStore().openCursor();
 
 				request.onsuccess = (event) => {
 					const target = event.target;
@@ -366,10 +362,10 @@ class File implements FileAttributes {
 				return resolve(values.hash);
 			}
 
-			(async () => {
+			(() => {
 				if (values.id !== undefined) {
 					// If id exists, attempt to fetch the corresponding hash
-					const filesPromise = (await this._client.FileDB)?.select({ where: { key: "id", value: values.id } });
+					const filesPromise = this._client.fileDB.select({ where: { key: "id", value: values.id } });
 					if (filesPromise !== undefined) {
 						filesPromise.then(async (files) => {
 							const fileHash = files[0]?.hash;
@@ -378,7 +374,7 @@ class File implements FileAttributes {
 							} else {
 								const promises: (() => Promise<void>)[] = [];
 
-								const nodes = (await this._client.nodes).getNodes({ includeSelf: false });
+								const nodes = this._client.nodes.getNodes({ includeSelf: false });
 								for (let i = 0; i < nodes.length; i++) {
 									try {
 										const promise = async () => {
@@ -409,7 +405,7 @@ class File implements FileAttributes {
 					if (!Utils.isValidInfoHash(values.infohash)) {
 						return reject(new Error(`Invalid infohash provided: ${values.infohash}`));
 					}
-					const filesPromise = (await this._client.FileDB)?.select({ where: { key: "infohash", value: values.infohash } });
+					const filesPromise = this._client.fileDB.select({ where: { key: "infohash", value: values.infohash } });
 					if (filesPromise !== undefined) {
 						filesPromise.then((files) => {
 							const fileHash = files[0]?.hash;
@@ -434,10 +430,10 @@ class File implements FileAttributes {
 
 			this.hash = hash;
 
-			let fileAttributes = (await (await this._client.FileDB).select({ where: { key: "hash", value: hash } }))[0];
+			let fileAttributes = (await this._client.fileDB.select({ where: { key: "hash", value: hash } }))[0];
 			if (fileAttributes === undefined) {
-				(await this._client.FileDB).insert(this);
-				fileAttributes = (await (await this._client.FileDB).select({ where: { key: "hash", value: hash } }))[0] ?? { hash };
+				this._client.fileDB.insert(this);
+				fileAttributes = (await this._client.fileDB.select({ where: { key: "hash", value: hash } }))[0] ?? { hash };
 			}
 			const file = fileAttributesDefaults(fileAttributes);
 			this.infohash = file.infohash;
@@ -464,7 +460,7 @@ class File implements FileAttributes {
 
 		const id = this.id;
 		if (id !== undefined && id !== null && id.length > 0) {
-			const nodes = (await this._client.nodes).getNodes({ includeSelf: false });
+			const nodes = this._client.nodes.getNodes({ includeSelf: false });
 			for (let i = 0; i < nodes.length; i++) {
 				try {
 					const response = await fetch(`${nodes[i].host}/file/${id}`);
@@ -521,7 +517,9 @@ class File implements FileAttributes {
 		if (this._client.config.maxCache !== -1 && size > remainingSpace) this._client.utils.purgeCache(size, remainingSpace);
 
 		this._client.fs.writeFile(filePath, file);
-		const savedHash = await Utils.hashUint8Array(await this._client.fs.readFile(filePath));
+		const fileContent = await this._client.fs.readFile(filePath);
+		if (!fileContent) return;
+		const savedHash = await Utils.hashUint8Array(fileContent);
 		if (savedHash !== hash) await this._client.fs.remove(filePath); // In case of broken file
 	}
 
@@ -532,6 +530,7 @@ class File implements FileAttributes {
 		this.seed();
 		if (!await this._client.fs.exists(filePath)) return false;
 		const fileContents = await this._client.fs.readFile(filePath);
+		if (!fileContents) return false;
 		const savedHash = await Utils.hashUint8Array(fileContents);
 		if (savedHash !== this.hash) {
 			await this._client.fs.remove(filePath).catch(console.error);
@@ -626,7 +625,7 @@ class File implements FileAttributes {
 			if (this._client.config.s3Endpoint.length > 0) file = await this.fetchFromS3();
 			if (file !== false) console.log(`  ${hash}  Serving ${this.size !== undefined ? Math.round(this.size / 1024 / 1024) : 0}MB from S3`);
 			else {
-				file = await (await this._client.nodes).getFile(hash, this.size);
+				file = await this._client.nodes.getFile(hash, this.size);
 				if (file === false) {
 					this.found = false;
 					this.save();
@@ -639,8 +638,8 @@ class File implements FileAttributes {
 		return file;
 	}
 
-	async save(): Promise<void> {
-		if (this._client.FileDB) (await this._client.FileDB).update(this.hash, this);
+	save(): void {
+		if (this._client.fileDB) this._client.fileDB.update(this.hash, this);
 	}
 
 	seed(): void {
@@ -662,8 +661,8 @@ class File implements FileAttributes {
 		// });
 	}
 
-	async increment(column: keyof FileAttributes): Promise<void> {
-		if (this._client.FileDB) (await this._client.FileDB).increment(this.hash, column);
+	increment(column: keyof FileAttributes): void {
+		if (this._client.fileDB) this._client.fileDB.increment(this.hash, column);
 		this[column]++;
 	}
 

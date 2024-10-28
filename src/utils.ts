@@ -180,8 +180,12 @@ class Utils {
 
 	async getKeyPair(): Promise<CryptoKeyPair> {
 		if (await this._client.fs.exists("private.key")) {
-			const privateKey = await Utils.importPrivateKey(await this._client.fs.readFile("private.key"));
-			const publicKey = await Utils.importPublicKey(await this._client.fs.readFile("public.key"));
+			const privKey = await this._client.fs.readFile("private.key");
+			if (!privKey) throw new Error("Failed to read private key");
+			const pubKey = await this._client.fs.readFile("public.key");
+			if (!pubKey) throw new Error("Failed to read public key");
+			const privateKey = await Utils.importPrivateKey(privKey);
+			const publicKey = await Utils.importPublicKey(pubKey);
 
 			return {
 				privateKey,
