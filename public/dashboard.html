@@ -76,6 +76,12 @@
     <p>This dashboard is 100% decentralised. It does not rely on any centralised server to function.</p>
   </section>
 
+  <section>
+    <div id="compareFilesProgress">
+
+    </div>
+  </section>
+
   <section id="dashboard" style="overlay:scroll">
     <h2>Dashboard</h2>
     <p>This dashboard is 100% decentralised, your browser is directly connected to the Hydrafiles network.</p>
@@ -100,11 +106,16 @@
     let hideAdvancedColumns = true;
     const advancedColumns = ['hash', 'infohash', 'id', 'found', 'voteHash', 'voteNonce', 'downloadCount'];
 
+    const onCompareFilesProgress = (progress, total) => {
+      const compareFilesProgress = document.getElementById('compareFilesProgress');
+      compareFilesProgress.innerHTML = `Syncing files: ${progress}/${total} (${((progress / total) * 100).toFixed(2)}%)<br>Your node is syncing the list of files with other peers.`;
+    }
+
     document.getElementById('startHydrafilesButton').addEventListener('click', () => {
       document.getElementById('startHydrafiles').style.display = 'none';
       document.getElementById('dashboard').style.display = 'block';
       window.hydrafiles = new Hydrafiles({ logLevel: 'verbose' });
-      window.hydrafiles.start().then(() => {
+      window.hydrafiles.start(onCompareFilesProgress).then(() => {
         console.log('Hydrafiles web node is running', hydrafiles);
         setInterval(fetchAndPopulateFiles, 5000);
         setInterval(fetchAndPopulatePeers, 5000);

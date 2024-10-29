@@ -457,7 +457,9 @@ export default class Peers {
 	}
 
 	async validatePeer(peer: Peer): Promise<boolean> {
-		return await this.downloadFromPeer(peer, new File({ hash: "04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f" }, this._client)) !== false;
+		const file = await File.init({ hash: "04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f" }, this._client);
+		if (!file) throw new Error("Failed to build file");
+		return await this.downloadFromPeer(peer, file) !== false;
 	}
 
 	async announce(): Promise<void> {
@@ -517,15 +519,26 @@ export default class Peers {
 		return result;
 	}
 
-	async compareFileList(peer: PeerAttributes): Promise<void> {
+	async compareFileList(peer: PeerAttributes, onProgress?: (progress: number, total: number) => void): Promise<void> {
 		// TODO: Compare list between all peers and give score based on how similar they are. 100% = all exactly the same, 0% = no items in list were shared. The lower the score, the lower the propagation times, the lower the decentralisation
+		let files: FileAttributes[] = [];
 		try {
 			console.log(`  ${peer.host}  Comparing file list`);
 			const response = await fetch(`${peer.host}/files`);
-			const files = (await response.json()) as FileAttributes[];
-			for (let i = 0; i < files.length; i++) {
-				const newFile = files[i];
-				const currentFile = new File({ hash: files[i].hash, infohash: files[i].infohash ?? undefined }, this._client, false);
+			files = files.concat((await response.json()) as FileAttributes[]);
+		} catch (e) {
+			const err = e as { message: string };
+			console.error(`  ${peer.host}  Failed to compare file list - ${err.message}`);
+			return;
+		}
+
+		for (let i = 0; i < files.length; i++) {
+			if (onProgress) onProgress(i, files.length);
+			const newFile = files[i];
+			try {
+				if (typeof files[i].hash === "undefined") continue;
+				const currentFile = await File.init({ hash: files[i].hash, infohash: files[i].infohash ?? undefined }, this._client);
+				if (!currentFile) continue;
 
 				const keys = Object.keys(newFile) as unknown as (keyof File)[];
 				for (let i = 0; i < keys.length; i++) {
@@ -540,14 +553,12 @@ export default class Peers {
 						currentFile.checkVoteNonce(newFile["voteNonce"]);
 					}
 				}
-
 				currentFile.save();
+			} catch (e) {
+				console.error(e);
 			}
-		} catch (e) {
-			const err = e as { message: string };
-			console.error(`Failed to compare file list with ${peer.host} - ${err.message}`);
-			return;
 		}
+		if (onProgress) onProgress(files.length, files.length);
 	}
 
 	async downloadFile(hash: string, size = 0): Promise<{ file: Uint8Array; signal: number } | false> {
@@ -566,7 +577,8 @@ export default class Peers {
 
 		for (const peer of peers) {
 			const promise = (async (): Promise<{ file: Uint8Array; signal: number } | false> => {
-				const file = new File({ hash }, this._client);
+				const file = await File.init({ hash }, this._client);
+				if (!file) return false;
 				let fileContent: { file: Uint8Array; signal: number } | false = false;
 				try {
 					fileContent = await this.downloadFromPeer(await Peer.init(peer, this._client.peerDB), file);
