@@ -3,7 +3,7 @@ import Utils from "./utils.ts";
 import type { indexedDB } from "https://deno.land/x/indexeddb@v1.1.0/ponyfill.ts";
 import { join } from "https://deno.land/std@0.224.0/path/mod.ts";
 import type { Database } from "jsr:@db/sqlite@0.11";
-
+import FileSystem from "./fs.ts";
 type NonNegativeNumber = number & { readonly brand: unique symbol };
 
 function createNonNegativeNumber(n: number): NonNegativeNumber {
@@ -106,7 +106,7 @@ export class FileDB {
 	}
 
 	static async init(client: Hydrafiles): Promise<FileDB> {
-		await client.fs.mkdir("files");
+		await FileSystem.mkdir("files");
 
 		const fileDB = new FileDB(client);
 
@@ -506,9 +506,12 @@ class File implements FileAttributes {
 		}
 
 		const filePath = join(FILESPATH, hash);
-		if (await this._client.fs.exists(filePath)) {
-			this.size = createNonNegativeNumber(await this._client.fs.getFileSize(filePath));
-			this.save();
+		if (await FileSystem.exists(filePath)) {
+			const fileSize = await FileSystem.getFileSize(filePath);
+			if (fileSize !== false) {
+				this.size = Utils.createNonNegativeNumber(fileSize);
+				this.save();
+			}
 			return this;
 		}
 
@@ -531,22 +534,22 @@ class File implements FileAttributes {
 	async cacheFile(file: Uint8Array): Promise<void> {
 		const hash = this.hash;
 		const filePath = join(FILESPATH, hash);
-		if (await this._client.fs.exists(filePath)) return;
+		if (await FileSystem.exists(filePath)) return;
 
 		let size = this.size;
 		if (size === 0) {
-			size = createNonNegativeNumber(file.byteLength);
+			size = Utils.createNonNegativeNumber(file.byteLength);
 			this.size = size;
 			this.save();
 		}
 		const remainingSpace = await this._client.utils.remainingStorage();
 		if (this._client.config.maxCache !== -1 && size > remainingSpace) this._client.utils.purgeCache(size, remainingSpace);
 
-		this._client.fs.writeFile(filePath, file);
-		const fileContent = await this._client.fs.readFile(filePath);
+		FileSystem.writeFile(filePath, file);
+		const fileContent = await FileSystem.readFile(filePath);
 		if (!fileContent) return;
 		const savedHash = await Utils.hashUint8Array(fileContent);
-		if (savedHash !== hash) await this._client.fs.remove(filePath); // In case of broken file
+		if (savedHash !== hash) await FileSystem.remove(filePath); // In case of broken file
 	}
 
 	private async fetchFromCache(): Promise<{ file: Uint8Array; signal: number } | false> {
@@ -554,12 +557,12 @@ class File implements FileAttributes {
 		console.log(`  ${hash}  Checking Cache`);
 		const filePath = join(FILESPATH, hash);
 		this.seed();
-		if (!await this._client.fs.exists(filePath)) return false;
-		const fileContents = await this._client.fs.readFile(filePath);
+		if (!await FileSystem.exists(filePath)) return false;
+		const fileContents = await FileSystem.readFile(filePath);
 		if (!fileContents) return false;
 		const savedHash = await Utils.hashUint8Array(fileContents);
 		if (savedHash !== this.hash) {
-			await this._client.fs.remove(filePath).catch(console.error);
+			await FileSystem.remove(filePath).catch(console.error);
 			return false;
 		}
 		return {

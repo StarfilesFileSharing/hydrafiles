@@ -7,7 +7,6 @@ import startServer, { hashLocks } from "./server.ts";
 import Utils from "./utils.ts";
 // import Blockchain, { Block } from "./block.ts";
 import { S3Client } from "https://deno.land/x/s3_lite_client@0.7.0/mod.ts";
-import FileSystem from "./fs.ts";
 import { delay } from "https://deno.land/std@0.170.0/async/delay.ts";
 
 // TODO: IDEA: HydraTorrent - New Github repo - "Hydrafiles + WebTorrent Compatibility Layer" - Hydrafiles noes can optionally run HydraTorrent to seed files via webtorrent
@@ -28,7 +27,7 @@ class Hydrafiles {
 	s3: S3Client | undefined;
 	// webtorrent: WebTorrent = new WebTorrent();
 	// blockchain = new Blockchain(this);
-	fs = new FileSystem();
+	keyPair!: CryptoKeyPair;
 	keyPair = this.utils.getKeyPair();
 	fileDB!: FileDB;
 	nodes!: Nodes;
