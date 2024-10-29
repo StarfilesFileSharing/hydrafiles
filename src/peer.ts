@@ -53,7 +53,7 @@ function createIDBDatabase(): Promise<IDBDatabase> {
 
 export class PeerDB {
 	private _client: Hydrafiles;
-	db: DatabaseWrapper = { type: "UNDEFINED", db: undefined };
+	private db: DatabaseWrapper = { type: "UNDEFINED", db: undefined };
 
 	constructor(client: Hydrafiles) {
 		this._client = client;
