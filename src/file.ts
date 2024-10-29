@@ -64,7 +64,7 @@ function createIDBDatabase(): Promise<IDBDatabase> {
 	const dbPromise = new Promise<IDBDatabase>((resolve, reject) => {
 		console.log("Startup: FileDB: Opening IndexedDB Connection");
 		// @ts-expect-error:
-		const request = indexedDB.open("Hydrafiles", 2);
+		const request = indexedDB.open("File", 1);
 		request.onupgradeneeded = (event): void => {
 			console.log("Startup: FileDB: On Upgrade Needed");
 			// @ts-expect-error:
