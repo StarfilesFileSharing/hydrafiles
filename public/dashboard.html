@@ -106,12 +106,12 @@
       window.hydrafiles = new Hydrafiles({ logLevel: 'verbose' });
       window.hydrafiles.start().then(() => {
         console.log('Hydrafiles web node is running', hydrafiles);
+        setInterval(fetchAndPopulateFiles, 5000);
+        setInterval(fetchAndPopulatePeers, 5000);
         fetchAndPopulateFiles();
         fetchAndPopulatePeers();
       }).catch(err => {
         console.error('Error starting Hydrafiles web node', err);
-        setInterval(fetchAndPopulateFiles, 5000);
-        setInterval(fetchAndPopulatePeers, 5000);
       });
     });
 
