@@ -73,6 +73,10 @@ class Hydrafiles {
 		if (this.config.backfill) this.backfillFiles().catch(console.error);
 	}
 
+	public async initFile(values: Partial<File>, vote = false): Promise<File | false> {
+		return await File.init(values, this, vote);
+	}
+
 	private backgroundTasks = async (onCompareFileListProgress?: (progress: number, total: number) => void): Promise<void> => {
 		const peers = this.peers;
 		if (this.config.compareNodes) peers.fetchPeers();

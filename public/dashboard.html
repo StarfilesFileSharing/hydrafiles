@@ -190,7 +190,8 @@
         button.textContent = 'Download';
         button.addEventListener('click', async () => {
           console.log('Downloading file:', file);
-          const fileContent = (await window.hydrafiles.getFile(file.hash).getFile({ logDownloads: true })).file;
+          const fileContent = (await (await window.hydrafiles.initFile({ hash: file.hash }, true)).getFile({ logDownloads: true })).file;
+          console.log('file:', fileContent);
           const url = URL.createObjectURL(new Blob([fileContent], { type: 'application/octet-stream' }));
           const a = document.createElement('a');
           a.href = url;
