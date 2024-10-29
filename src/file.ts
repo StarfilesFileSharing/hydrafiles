@@ -132,8 +132,6 @@ export class FileDB {
 					updatedAt DATETIME
 				)
 			`);
-			fileDB.db.db.exec("UPDATE file SET size = 0 WHERE size < 0");
-			fileDB.db.db.exec("UPDATE file SET name = null WHERE name = 'File'");
 			addColumnIfNotExists(fileDB.db.db, "file", "voteHash", "STRING");
 			addColumnIfNotExists(fileDB.db.db, "file", "voteNonce", "INTEGER");
 			addColumnIfNotExists(fileDB.db.db, "file", "voteDifficulty", "REAL DEFAULT 0");
@@ -267,7 +265,7 @@ export class FileDB {
 		for (let i = 0; i < keys.length; i++) {
 			const key = keys[i] as keyof FileAttributes;
 			if (newFile[key] !== undefined && newFile[key] !== null && newFile[key] !== currentFile[key] && newFile[key] !== defaultValues[key]) {
-				if (key === "name" && newFile[key] === "file") continue;
+				if (key === "name" && newFile[key] === "File") continue;
 				updatedColumn.push(key);
 				params.push(newFile[key]);
 				beforeAndAfter[key] = { before: currentFile[key], after: newFile[key] };
