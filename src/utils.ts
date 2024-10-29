@@ -5,6 +5,7 @@ import { join } from "https://deno.land/std@0.224.0/path/mod.ts";
 import FileSystem from "./fs.ts";
 
 type Base64 = string & { __brand: "Base64" };
+type NonNegativeNumber = number & { readonly brand: unique symbol };
 
 class Utils {
 	_client: Hydrafiles;
@@ -300,6 +301,9 @@ class Utils {
 			runningPromises.push(promise);
 		}
 		await Promise.all(runningPromises);
+	}
+	static createNonNegativeNumber(n: number): NonNegativeNumber {
+		return (Number.isInteger(n) && n >= 0 ? n : 0) as NonNegativeNumber;
 	}
 }
 

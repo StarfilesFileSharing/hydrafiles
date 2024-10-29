@@ -4,11 +4,8 @@ import type { indexedDB } from "https://deno.land/x/indexeddb@v1.1.0/ponyfill.ts
 import { join } from "https://deno.land/std@0.224.0/path/mod.ts";
 import type { Database } from "jsr:@db/sqlite@0.11";
 import FileSystem from "./fs.ts";
-type NonNegativeNumber = number & { readonly brand: unique symbol };
 
-function createNonNegativeNumber(n: number): NonNegativeNumber {
-	return (Number.isInteger(n) && n >= 0 ? n : 0) as NonNegativeNumber;
-}
+type DatabaseWrapper = { type: "UNDEFINED"; db: undefined } | { type: "SQLITE"; db: Database } | { type: "INDEXEDDB"; db: IDBDatabase };
 
 interface Metadata {
 	name: string;
@@ -51,11 +48,11 @@ export function fileAttributesDefaults(values: Partial<FileAttributes>): FileAtt
 	return {
 		hash: values.hash,
 		infohash: values.infohash ?? null,
-		downloadCount: createNonNegativeNumber(values.downloadCount ?? 0),
+		downloadCount: Utils.createNonNegativeNumber(values.downloadCount ?? 0),
 		id: values.id ?? null,
 		name: values.name ?? null,
 		found: values.found !== undefined ? values.found : true,
-		size: createNonNegativeNumber(values.size ?? 0),
+		size: Utils.createNonNegativeNumber(values.size ?? 0),
 		voteHash: values.voteHash ?? null,
 		voteNonce: values.voteNonce ?? 0,
 		voteDifficulty: values.voteDifficulty ?? 0,
@@ -94,7 +91,6 @@ function createIDBDatabase(): Promise<IDBDatabase> {
 
 	return dbPromise;
 }
-
 type DatabaseWrapper = { type: "UNDEFINED"; db: undefined } | { type: "SQLITE"; db: Database } | { type: "INDEXEDDB"; db: IDBDatabase };
 
 export class FileDB {
@@ -367,11 +363,11 @@ export class FileDB {
 class File implements FileAttributes {
 	hash!: string;
 	infohash: string | null = null;
-	downloadCount = createNonNegativeNumber(0);
+	downloadCount = Utils.createNonNegativeNumber(0);
 	id: string | null = null;
 	name: string | null = null;
 	found = true;
-	size = createNonNegativeNumber(0);
+	size = Utils.createNonNegativeNumber(0);
 	voteHash: string | null = null;
 	voteNonce = 0;
 	voteDifficulty = 0;
@@ -460,11 +456,11 @@ class File implements FileAttributes {
 			}
 			const file = fileAttributesDefaults(fileAttributes);
 			this.infohash = file.infohash;
-			this.downloadCount = createNonNegativeNumber(file.downloadCount);
+			this.downloadCount = Utils.createNonNegativeNumber(file.downloadCount);
 			this.id = file.id;
 			this.name = file.name;
 			this.found = file.found;
-			this.size = createNonNegativeNumber(file.size);
+			this.size = Utils.createNonNegativeNumber(file.size);
 			this.voteHash = file.voteHash;
 			this.voteNonce = file.voteNonce;
 			this.voteDifficulty = file.voteDifficulty;
@@ -519,7 +515,7 @@ class File implements FileAttributes {
 			try {
 				const data = await this._client.s3.statObject(`${hash}.stuf`);
 				if (typeof data.size !== "undefined") {
-					this.size = createNonNegativeNumber(data.size);
+					this.size = Utils.createNonNegativeNumber(data.size);
 					this.save();
 					return this;
 				}
