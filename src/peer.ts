@@ -564,7 +564,6 @@ export default class Peers {
 
 	async downloadFile(hash: string, size = 0): Promise<{ file: Uint8Array; signal: number } | false> {
 		const peers = await this.getPeers();
-		const activePromises: Array<Promise<{ file: Uint8Array; signal: number } | false>> = [];
 
 		if (!this._client.utils.hasSufficientMemory(size)) {
 			console.log("Reached memory limit, waiting");
@@ -576,23 +575,15 @@ export default class Peers {
 		}
 
 		for (const peer of peers) {
-			const promise = (async (): Promise<{ file: Uint8Array; signal: number } | false> => {
-				const file = await File.init({ hash }, this._client);
-				if (!file) return false;
-				let fileContent: { file: Uint8Array; signal: number } | false = false;
-				try {
-					fileContent = await this.downloadFromPeer(await Peer.init(peer, this._client.peerDB), file);
-				} catch (e) {
-					console.error(e);
-				}
-				return fileContent !== false ? fileContent : false;
-			})();
-			activePromises.push(promise);
-		}
-
-		const files = await Promise.all(activePromises);
-		for (let i = 0; i < files.length; i++) {
-			if (files[i] !== false) return files[i];
+			const file = await File.init({ hash }, this._client);
+			if (!file) return false;
+			let fileContent: { file: Uint8Array; signal: number } | false = false;
+			try {
+				fileContent = await this.downloadFromPeer(await Peer.init(peer, this._client.peerDB), file);
+			} catch (e) {
+				console.error(e);
+			}
+			if (fileContent) return fileContent;
 		}
 
 		return false;
