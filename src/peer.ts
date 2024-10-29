@@ -536,7 +536,9 @@ export default class Peers {
 			const newFile = files[i];
 			try {
 				if (typeof files[i].hash === "undefined") continue;
-				const currentFile = await File.init({ hash: files[i].hash, infohash: files[i].infohash ?? undefined }, this._client);
+				const fileObj: Partial<FileAttributes> = { hash: files[i].hash };
+				if (files[i].infohash) fileObj.infohash = files[i].infohash;
+				const currentFile = await File.init(fileObj, this._client);
 				if (!currentFile) continue;
 
 				const keys = Object.keys(newFile) as unknown as (keyof File)[];
