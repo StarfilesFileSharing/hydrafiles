@@ -391,61 +391,51 @@ class File implements FileAttributes {
 
 			(() => {
 				if (values.id) {
-					const filesPromise = this._client.fileDB.select({ key: "id", value: values.id });
-					if (filesPromise !== undefined) {
-						filesPromise.then(async (files) => {
-							const fileHash = files[0]?.hash;
-							if (fileHash) {
-								resolve(fileHash);
-							} else {
-								const promises: (() => Promise<void>)[] = [];
+					this._client.fileDB.select({ key: "id", value: values.id }).then(async (files) => {
+						const fileHash = files[0]?.hash;
+						if (fileHash) {
+							resolve(fileHash);
+						} else {
+							const promises: (() => Promise<void>)[] = [];
 
-								const nodes = await this._client.peers.getPeers();
-								for (let i = 0; i < nodes.length; i++) {
-									try {
-										const promise = async () => {
-											try {
-												console.log(`Fetching metadata by id from ${nodes[i].host}/file/${values.id}`);
-												const response = await fetch(`${nodes[i].host}/file/${values.id}`);
-												const body = await response.json() as { result: Metadata } | FileAttributes;
-												const hash = "result" in body ? body.result.hash.sha256 : body.hash;
-												if (Utils.isValidSHA256Hash(hash)) resolve(hash);
-											} catch (e) {
-												if (this._client.config.logLevel === "verbose") console.error(e);
-											}
-										};
-										promises.push(promise);
-									} catch (e) {
-										if (this._client.config.logLevel === "verbose") console.error(e);
-									}
+							const nodes = await this._client.peers.getPeers();
+							for (let i = 0; i < nodes.length; i++) {
+								try {
+									const promise = async () => {
+										try {
+											console.log(`Fetching metadata by id from ${nodes[i].host}/file/${values.id}`);
+											const response = await fetch(`${nodes[i].host}/file/${values.id}`);
+											const body = await response.json() as { result: Metadata } | FileAttributes;
+											const hash = "result" in body ? body.result.hash.sha256 : body.hash;
+											if (Utils.isValidSHA256Hash(hash)) resolve(hash);
+										} catch (e) {
+											if (this._client.config.logLevel === "verbose") console.error(e);
+										}
+									};
+									promises.push(promise);
+								} catch (e) {
+									if (this._client.config.logLevel === "verbose") console.error(e);
 								}
-								await Utils.parallelAsync(promises, 4);
-								throw new Error("No hash found for the provided id");
 							}
-						}).catch(reject);
-					} else {
-						reject(new Error("FileDB not available or unable to fetch files"));
-					}
+							await Utils.parallelAsync(promises, 4);
+							throw new Error("No hash found for the provided id");
+						}
+					}).catch(reject);
 				}
 				if (values.infohash !== undefined && values.infohash !== null) {
 					if (!Utils.isValidInfoHash(values.infohash)) {
 						return reject(new Error(`Invalid infohash provided: ${values.infohash}`));
 					}
-					const filesPromise = this._client.fileDB.select({ key: "infohash", value: values.infohash });
-					if (filesPromise !== undefined) {
-						filesPromise.then((files) => {
-							const fileHash = files[0]?.hash;
-							if (fileHash) {
-								resolve(fileHash);
-							} else {
-								reject(new Error("No hash found for the provided infohash"));
-							}
-						}).catch(reject);
-					} else {
-						reject(new Error("FileDB not available or unable to fetch files"));
-					}
+					this._client.fileDB.select({ key: "infohash", value: values.infohash }).then((files) => {
+						const fileHash = files[0]?.hash;
+						if (fileHash) {
+							resolve(fileHash);
+						} else {
+							reject(new Error("No hash found for the provided infohash"));
+						}
+					}).catch(reject);
 				}
-				reject(new Error("No hash, id, or infohash provided"));
+				reject(new Error("File not found"));
 			})();
 		});
 
@@ -475,6 +465,8 @@ class File implements FileAttributes {
 				console.log(`  ${this.hash}  Voting for file`);
 				await this.checkVoteNonce();
 			}
+		}).catch((e) => {
+			console.error(e);
 		});
 	}
 

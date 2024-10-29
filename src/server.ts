@@ -1,7 +1,7 @@
 import Base32 from "npm:base32";
 import type Hydrafiles from "./hydrafiles.ts";
 // import { BLOCKSDIR } from "./block.ts";
-import File, { fileAttributesDefaults } from "./file.ts";
+import File from "./file.ts";
 import Utils from "./utils.ts";
 import { join } from "https://deno.land/std@0.224.0/path/mod.ts";
 import type Base64 from "npm:base64";
@@ -233,8 +233,9 @@ export const handleRequest = async (req: Request, client: Hydrafiles): Promise<R
 			try {
 				file = stripInvalidProperties(new File({ id }, client));
 			} catch (e) {
-				console.error(e);
-				file = fileAttributesDefaults({ id }) as File;
+				const err = e as Error;
+				if (err.message === "File not found") return new Response("File not found", { headers, status: 404 });
+				else throw err;
 			}
 
 			headers.set("Content-Type", "application/json");
