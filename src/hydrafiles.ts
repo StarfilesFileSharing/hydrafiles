@@ -49,7 +49,7 @@ class Hydrafiles {
 		}
 	}
 
-	public async start(): Promise<void> {
+	public async start(onCompareFileListProgress?: (progress: number, total: number) => void): Promise<void> {
 		console.log("Startup: Populating KeyPair");
 		this.keyPair = await this.utils.getKeyPair();
 		console.log("Startup: Populating FileDB");
@@ -67,23 +67,23 @@ class Hydrafiles {
 		}
 
 		if (this.config.compareSpeed !== -1) {
-			this.backgroundTasks();
+			this.backgroundTasks(onCompareFileListProgress);
 			setInterval(this.backgroundTasks, this.config.compareSpeed);
 		}
 		if (this.config.backfill) this.backfillFiles().catch(console.error);
 	}
 
-	private backgroundTasks = async (): Promise<void> => {
+	private backgroundTasks = async (onCompareFileListProgress?: (progress: number, total: number) => void): Promise<void> => {
 		const peers = this.peers;
 		if (this.config.compareNodes) peers.fetchPeers();
 		if (this.config.compareFiles) {
 			const knownNodes = await peers.getPeers();
 			for (let i = 0; i < knownNodes.length; i++) {
-				await peers.compareFileList(knownNodes[i]);
+				await peers.compareFileList(knownNodes[i], onCompareFileListProgress);
 			}
 		}
 		await delay(600000);
-		this.backgroundTasks();
+		this.backgroundTasks(onCompareFileListProgress);
 	};
 
 	private backfillFiles = async (): Promise<void> => {
