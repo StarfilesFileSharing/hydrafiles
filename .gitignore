@@ -1,6 +1,5 @@
 files/*
 config.json
-nodes.json
 filetable.json
 /index.js
 
@@ -102,10 +101,9 @@ pnpm-lock.yaml
 yarn.lock
 package-lock.json
 
-filemanager.db
 blocks/*
 build/
 
-filemanager.db-journal
-
 *.key
+*.db
+*.db-journal
