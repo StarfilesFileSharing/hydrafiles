@@ -474,7 +474,6 @@ export default class Peers {
 
 	async fetchPeers(): Promise<void> {
 		// TODO: Compare list between all peers and give score based on how similar they are. 100% = all exactly the same, 0% = no items in list were shared. The lower the score, the lower the propagation times, the lower the decentralisation
-		console.log("Fetching peers");
 		const peers = await this.getPeers();
 		for (const peer of peers) {
 			(async () => {
@@ -562,7 +561,6 @@ export default class Peers {
 	}
 
 	async downloadFile(hash: string, size = 0): Promise<{ file: Uint8Array; signal: number } | false> {
-		console.log(`  ${hash}  Checking peers`);
 		const peers = await this.getPeers();
 		const activePromises: Array<Promise<{ file: Uint8Array; signal: number } | false>> = [];
 
