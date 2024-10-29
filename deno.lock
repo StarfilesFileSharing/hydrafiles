@@ -17,6 +17,7 @@
     "jsr:@std/path@0.217": "0.217.0",
     "jsr:@std/path@0.221": "0.221.0",
     "jsr:@std/path@^1.0.6": "1.0.6",
+    "npm:@types/node@*": "22.5.4",
     "npm:base32@*": "0.0.7",
     "npm:base64@*": "2.1.0",
     "npm:esbuild@*": "0.24.0"
@@ -166,6 +167,12 @@
     "@esbuild/win32-x64@0.24.0": {
       "integrity": "sha512-7IAFPrjSQIJrGsK6flwg7NFmwBoSTyF3rl7If0hNUFQU4ilTsEPL6GuMuU9BfIWVVGuRnuIidkSMC+c0Otu8IA=="
     },
+    "@types/node@22.5.4": {
+      "integrity": "sha512-FDuKUJQm/ju9fT/SeX/6+gBzoPzlVCzfzmGkwKvRHQVxi4BntVbyIwf6a4Xn62mrvndLiml6z/UBXIdEVjQLXg==",
+      "dependencies": [
+        "undici-types"
+      ]
+    },
     "base32@0.0.7": {
       "integrity": "sha512-ire9Jmh+BsUk4Idu0wu6aKeJJr/2j28Mlu0qqJBd1SyOGxW/VRotkfwAv3/KE/entVlNwCefs9bxi7kBeCIxTQ==",
       "dependencies": [
@@ -206,6 +213,9 @@
     },
     "minimist@1.2.8": {
       "integrity": "sha512-2yyAR8qBkN3YuheJanUpWC5U3bb5osDywNB8RzDVlDwDHbocAJveqqj1u8+SVD7jkWT4yvsHCpWqqWqAxb0zCA=="
+    },
+    "undici-types@6.19.8": {
+      "integrity": "sha512-ve2KP6f/JnbPBFyobGHuerC9g1FYGn/F8n1LWTwNxCEzd6IfqTwUQcNXgEtmmQ6DlRrC1hrSrBnCZPokRrDHjw=="
     }
   },
   "redirects": {
@@ -456,6 +466,8 @@
     "https://deno.land/x/websql@v1.1.0/src/SQLResultSet.ts": "fa0729dc94735771f2c1389d4a4e89b370b358b731452067ea4792010e213655",
     "https://deno.land/x/websql@v1.1.0/src/SQLResultSetRowList.ts": "0d78f210e73217b9abcbba6fa6101751993e363975b117d06ddd7c18297241f3",
     "https://deno.land/x/websql@v1.1.0/src/SQLTransaction.ts": "dae5f017242b626041d470578df300fbb58d7bf3f18082d6050b9fef20c54607",
-    "https://deno.land/x/websql@v1.1.0/src/SQLiteDBCache.ts": "919add0ea961f8bb50c8158f8674b08c3a14b247eab77a0908bc53ab5abee818"
+    "https://deno.land/x/websql@v1.1.0/src/SQLiteDBCache.ts": "919add0ea961f8bb50c8158f8674b08c3a14b247eab77a0908bc53ab5abee818",
+    "https://esm.sh/peerjs@1.5.4?bundle-deps": "3519fcb911ac3ebeb1fe4046c89d327ac4c13cfdbd850d0a963e5069bc108013",
+    "https://esm.sh/v135/peerjs@1.5.4/denonext/peerjs.bundle.mjs": "7713f2ebac2c1bed39f48b634567fd87428fbaebd7b187d8ac049f7ef2fead60"
   }
 }
