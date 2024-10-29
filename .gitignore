@@ -107,3 +107,5 @@ build/
 *.key
 *.db
 *.db-journal
+
+__sysdb__.sqlite
