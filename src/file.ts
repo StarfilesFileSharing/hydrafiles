@@ -399,7 +399,7 @@ class File implements FileAttributes {
 							} else {
 								const promises: (() => Promise<void>)[] = [];
 
-								const nodes = this._client.nodes.getNodes({ includeSelf: false });
+								const nodes = await this._client.peers.getPeers();
 								for (let i = 0; i < nodes.length; i++) {
 									try {
 										const promise = async () => {
@@ -486,15 +486,15 @@ class File implements FileAttributes {
 
 		const id = this.id;
 		if (id !== undefined && id !== null && id.length > 0) {
-			const nodes = this._client.nodes.getNodes({ includeSelf: false });
-			for (let i = 0; i < nodes.length; i++) {
+			const peers = await this._client.peers.getPeers();
+			for (let i = 0; i < peers.length; i++) {
 				try {
-					const response = await fetch(`${nodes[i].host}/file/${id}`);
+					const response = await fetch(`${peers[i].host}/file/${id}`);
 					if (response.ok) {
 						const body = await response.json();
 						const metadata = body.result as Metadata ?? body as FileAttributes;
 						this.name = metadata.name;
-						this.size = createNonNegativeNumber(metadata.size);
+						this.size = Utils.createNonNegativeNumber(metadata.size);
 						if (this.infohash?.length === 0) this.infohash = metadata.infohash;
 						this.save();
 						return this;
@@ -651,7 +651,7 @@ class File implements FileAttributes {
 			if (this._client.config.s3Endpoint.length > 0) file = await this.fetchFromS3();
 			if (file !== false) console.log(`  ${hash}  Serving ${this.size !== undefined ? Math.round(this.size / 1024 / 1024) : 0}MB from S3`);
 			else {
-				file = await this._client.nodes.getFile(hash, this.size);
+				file = await this._client.peers.downloadFile(hash, this.size);
 				if (file === false) {
 					this.found = false;
 					this.save();

@@ -81,7 +81,7 @@
     <p>This dashboard is 100% decentralised, your browser is directly connected to the Hydrafiles network.</p>
     <h3>Peers</h3>
     <p>Here is a list of peers you know exist and are communicating with.</p>
-    <ul id="nodes"></ul>
+    <ul id="peers"></ul>
     <h3>Files</h3>
     <p>Here you can see all the files that have been indexed by your node.</p>
     <button id="toggleColumnsButton">Toggle Advanced Columns</button>
@@ -107,11 +107,11 @@
       window.hydrafiles.start().then(() => {
         console.log('Hydrafiles web node is running', hydrafiles);
         fetchAndPopulateFiles();
-        fetchAndPopulateNodes();
+        fetchAndPopulatePeers();
       }).catch(err => {
         console.error('Error starting Hydrafiles web node', err);
         setInterval(fetchAndPopulateFiles, 5000);
-        setInterval(fetchAndPopulateNodes, 5000);
+        setInterval(fetchAndPopulatePeers, 5000);
       });
     });
 
@@ -121,16 +121,16 @@
       populateTable();
     });
 
-  function fetchAndPopulateNodes() {
-    const nodes = window.hydrafiles.nodes.getNodes();
-    const nodesEl = document.getElementById('nodes');
-    nodesEl.innerHTML = '';
-    nodes.forEach(node => {
-      const li = document.createElement('li');
-      li.textContent = node.host;
-      nodesEl.appendChild(li);
-    });
-  }
+    async function fetchAndPopulatePeers() {
+      const peers = await window.hydrafiles.peers.getPeers();
+      const peersEl = document.getElementById('peers');
+      peersEl.innerHTML = '';
+      peers.forEach(node => {
+        const li = document.createElement('li');
+        li.textContent = node.host;
+        peersEl.appendChild(li);
+      });
+    }
 
     async function fetchAndPopulateFiles() {
       files = await window.hydrafiles.getFiles(undefined, { key: "voteHash", order: "DESC" });

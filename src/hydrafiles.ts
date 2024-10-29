@@ -1,7 +1,7 @@
 import Base32 from "npm:base32";
 // import WebTorrent from "npm:webtorrent";
 import getConfig, { type Config } from "./config.ts";
-import Nodes from "./nodes.ts";
+import Peers, { PeerDB } from "./peer.ts";
 import File, { type FileAttributes, FileDB } from "./file.ts";
 import startServer, { hashLocks } from "./server.ts";
 import Utils from "./utils.ts";
@@ -11,7 +11,7 @@ import FileSystem from "./fs.ts";
 import { delay } from "https://deno.land/std@0.170.0/async/delay.ts";
 
 // TODO: IDEA: HydraTorrent - New Github repo - "Hydrafiles + WebTorrent Compatibility Layer" - Hydrafiles noes can optionally run HydraTorrent to seed files via webtorrent
-// Change index hash from sha256 to infohash, then allow nodes to leech files from webtorrent + normal torrent
+// Change index hash from sha256 to infohash, then allow peers to leech files from webtorrent + normal torrent
 // HydraTorrent is a WebTorrent hybrid client that plugs into Hydrafiles
 // Then send a PR to WebTorrent for it to connect to the Hydrafiles network as default webseeds
 // HydraTorrent is 2-way, allowing for fetching-seeding files via both hydrafiles and torrent
@@ -64,13 +64,13 @@ class Hydrafiles {
 		if (this.config.backfill) this.backfillFiles().catch(console.error);
 	}
 
-	backgroundTasks = async (): Promise<void> => {
-		const nodes = this.nodes;
-		if (this.config.compareNodes) nodes.compareNodeList();
+	private backgroundTasks = async (): Promise<void> => {
+		const peers = this.peers;
+		if (this.config.compareNodes) peers.fetchPeers();
 		if (this.config.compareFiles) {
-			const knownNodes = nodes.getNodes({ includeSelf: false });
+			const knownNodes = await peers.getPeers();
 			for (let i = 0; i < knownNodes.length; i++) {
-				await nodes.compareFileList(knownNodes[i]);
+				await peers.compareFileList(knownNodes[i]);
 			}
 		}
 		await delay(600000);
@@ -108,7 +108,7 @@ class Hydrafiles {
 			"\n| Processing Files:",
 			hashLocks.size,
 			"\n| Known Nodes:",
-			(await this.nodes).getNodes({ includeSelf: false }).length,
+			(await this.peers.getPeers()).length,
 			// '\n| Seeding Torrent Files:',
 			// (await webtorrentClient()).torrents.length,
 			"\n| Downloads Served:",

@@ -5,6 +5,7 @@ import File, { fileAttributesDefaults } from "./file.ts";
 import Utils from "./utils.ts";
 import { join } from "https://deno.land/std@0.224.0/path/mod.ts";
 import type Base64 from "npm:base64";
+import { Peer } from "./peer.ts";
 
 export const hashLocks = new Map<string, Promise<Response>>();
 
@@ -57,7 +58,7 @@ export const handleRequest = async (req: Request, client: Hydrafiles): Promise<R
 		} else if (url.pathname === "/nodes") {
 			headers.set("Content-Type", "application/json");
 			headers.set("Cache-Control", "public, max-age=300");
-			return new Response(JSON.stringify(await (await client.nodes).getValidNodes()), { headers });
+			return new Response(JSON.stringify(await client.peers.getValidPeers()), { headers });
 		} else if (url.pathname === "/info") {
 			headers.set("Content-Type", "application/json");
 			headers.set("Cache-Control", "public, max-age=300");
@@ -67,15 +68,11 @@ export const handleRequest = async (req: Request, client: Hydrafiles): Promise<R
 
 			if (host === null) return new Response("No hosted given\n", { status: 401 });
 
-			const knownNodes = (await client.nodes).getNodes();
+			const knownNodes = await client.peers.getPeers();
 			if (knownNodes.find((node) => node.host === host) !== undefined) return new Response("Already known\n");
 
-			if ((await (await client.nodes).downloadFromNode((await client.nodes).nodeFrom(host), new File({ hash: "04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f" }, client))) !== false) {
-				await (await client.nodes).add((await client.nodes).nodeFrom(host));
-				return new Response("Announced\n");
-			} else {
-				return new Response("Invalid request\n");
-			}
+			await client.peers.add(host);
+			return new Response("Announced\n");
 		} else if (url.pathname?.startsWith("/download/")) {
 			const hash = url.pathname.split("/")[2];
 			const fileId = url.pathname.split("/")[3] ?? "";
@@ -252,7 +249,7 @@ export const handleRequest = async (req: Request, client: Hydrafiles): Promise<R
 				headers.set("hydra-signature", signature);
 				return new Response(body, { headers });
 			} else {
-				const nodes = (await client.nodes).getNodes({ includeSelf: false });
+				const nodes = await client.peers.getPeers();
 				for (let i = 0; i < nodes.length; i++) {
 					const node = nodes[i];
 					const response = await fetch(`${node.host}/endpoint/${hostname}`);
@@ -291,7 +288,7 @@ const onListen = (client: Hydrafiles): void => {
 
 	const handleListen = async (): Promise<void> => {
 		console.log("Testing network connection");
-		const file = await (await client.nodes).getFile("04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f");
+		const file = await client.peers.downloadFile("04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f");
 		if (file === false) console.error("Download test failed, cannot connect to network");
 		else {
 			console.log("Connected to network");
@@ -301,14 +298,14 @@ const onListen = (client: Hydrafiles): void => {
 				console.log(`Testing downloads ${client.config.publicHostname}/download/04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f`);
 
 				console.log("Testing connectivity");
-				const response = await (await client.nodes).downloadFromNode((await client.nodes).nodeFrom(`${client.config.publicHostname}`), new File({ hash: "04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f" }, client));
+				const response = await client.peers.downloadFromPeer(await Peer.init({ host: client.config.publicHostname }, client.peerDB), new File({ hash: "04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f" }, client));
 				if (response === false) console.error("  04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f  ERROR: Failed to download file from self");
 				else {
 					console.log("  04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f  Test Succeeded");
 					console.log("Announcing to nodes");
-					(await client.nodes).announce();
+					client.peers.announce();
 				}
-				await (await client.nodes).add((await client.nodes).nodeFrom(client.config.publicHostname));
+				await client.peers.add(client.config.publicHostname);
 			}
 		}
 	};
