@@ -32,9 +32,12 @@ class Hydrafiles {
 	peers!: Peers;
 	peerDB!: PeerDB;
 	constructor(customConfig: Partial<Config> = {}) {
+		console.log("Startup: Populating Utils");
 		this.utils = new Utils(this);
+		console.log("Startup: Populating Config");
 		this.config = getConfig(customConfig);
 		if (this.config.s3Endpoint.length) {
+			console.log("Startup: Populating S3");
 			this.s3 = new S3Client({
 				endPoint: this.config.s3Endpoint,
 				region: "us-east-1",
@@ -47,10 +50,13 @@ class Hydrafiles {
 	}
 
 	public async start(): Promise<void> {
+		console.log("Startup: Populating KeyPair");
 		this.keyPair = await this.utils.getKeyPair();
+		console.log("Startup: Populating FileDB");
 		this.fileDB = await FileDB.init(this);
 		console.log("Startup: Populating PeerDB");
 		this.peerDB = await PeerDB.init(this);
+		console.log("Startup: Populating Peers");
 		this.peers = await Peers.init(this);
 
 		startServer(this);

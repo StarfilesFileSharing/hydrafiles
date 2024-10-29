@@ -62,9 +62,11 @@ export function fileAttributesDefaults(values: Partial<FileAttributes>): FileAtt
 
 function createIDBDatabase(): Promise<IDBDatabase> {
 	const dbPromise = new Promise<IDBDatabase>((resolve, reject) => {
+		console.log("Startup: FileDB: Opening IndexedDB Connection");
 		// @ts-expect-error:
 		const request = indexedDB.open("Hydrafiles", 2);
 		request.onupgradeneeded = (event): void => {
+			console.log("Startup: FileDB: On Upgrade Needed");
 			// @ts-expect-error:
 			if (!event.target.result.objectStoreNames.contains("file")) {
 				// @ts-expect-error:
@@ -83,9 +85,13 @@ function createIDBDatabase(): Promise<IDBDatabase> {
 			}
 		};
 		request.onsuccess = () => resolve(request.result as unknown as IDBDatabase);
+			console.log("Startup: FileDB: On Success");
 		request.onerror = () => {
-			console.error("Database error:", request.error);
+			console.error("Startup: FileDB error:", request.error);
 			reject(request.error);
+		};
+		request.onblocked = () => {
+			console.error("Startup: FileDB: Blocked. Close other tabs with this site open.");
 		};
 	});
 
@@ -245,7 +251,7 @@ export class FileDB {
 		// Get the current file attributes before updating
 		const currentFile = fileAttributesDefaults((await this.select({ key: "hash", value: hash }))[0] ?? { hash });
 		if (!currentFile) {
-			console.error(`File with hash ${hash} not found.`);
+			console.error(`  ${hash}  Mot found when updating`);
 			return;
 		}
 
@@ -293,7 +299,7 @@ export class FileDB {
 		if (this.db.type === "SQLITE") {
 			this.db.db.exec(query, hash);
 		} else if (this.db.type === "INDEXEDDB") this.objectStore().delete(hash).onerror = console.error;
-		console.log(`${hash} File DELETEd`);
+		console.log(`  ${hash}  File DELETEd`);
 	}
 
 	increment<T>(hash: string, column: keyof FileAttributes): void {
@@ -697,7 +703,7 @@ class File implements FileAttributes {
 		const decimalValue = BigInt("0x" + voteHash).toString(10);
 		const difficulty = Number(decimalValue) / Number(BigInt("0x" + "f".repeat(64)));
 		if (difficulty > this.voteDifficulty) {
-			console.log(`  ${this.hash}  ${nonce ? "Received" : "Mined"} Difficulty ${difficulty}`);
+			console.log(`  ${this.hash}  ${nonce ? "Received" : "Mined"} Difficulty ${difficulty} - Prev: ${this.voteDifficulty}`);
 			this.voteNonce = voteNonce;
 			this.voteHash = voteHash;
 			this.voteDifficulty = difficulty;
