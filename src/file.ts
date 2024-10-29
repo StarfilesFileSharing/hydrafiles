@@ -245,6 +245,7 @@ export class FileDB {
 	async update(hash: string, updates: Partial<FileAttributes>): Promise<void> {
 		if (this.db === undefined) return;
 		updates.updatedAt = new Date().toISOString();
+		updates.hash = hash;
 		const newFile = fileAttributesDefaults(updates);
 
 		// Get the current file attributes before updating
@@ -379,95 +380,58 @@ class File implements FileAttributes {
 	updatedAt: string = new Date().toISOString();
 	_client: Hydrafiles;
 
-	constructor(values: Partial<FileAttributes>, client: Hydrafiles, vote = true) {
+	constructor(hash: string, client: Hydrafiles, vote = false) {
 		this._client = client;
+		this.hash = hash;
 
-		if (values.hash !== undefined && values.hash !== null) this.hash = values.hash;
-		const hashPromise = new Promise<string>((resolve, reject) => {
-			if (values.hash !== undefined) {
-				// If hash exists, resolve it directly
-				return resolve(values.hash);
-			}
+		if (vote) {
+			console.log(`  ${this.hash}  Voting for file`);
+			this.checkVoteNonce();
+		}
+	}
 
-			(() => {
-				if (values.id) {
-					this._client.fileDB.select({ key: "id", value: values.id }).then(async (files) => {
-						const fileHash = files[0]?.hash;
-						if (fileHash) {
-							resolve(fileHash);
-						} else {
-							const promises: (() => Promise<void>)[] = [];
-
-							const nodes = await this._client.peers.getPeers();
-							for (let i = 0; i < nodes.length; i++) {
-								try {
-									const promise = async () => {
-										try {
-											console.log(`Fetching metadata by id from ${nodes[i].host}/file/${values.id}`);
-											const response = await fetch(`${nodes[i].host}/file/${values.id}`);
-											const body = await response.json() as { result: Metadata } | FileAttributes;
-											const hash = "result" in body ? body.result.hash.sha256 : body.hash;
-											if (Utils.isValidSHA256Hash(hash)) resolve(hash);
-										} catch (e) {
-											if (this._client.config.logLevel === "verbose") console.error(e);
-										}
-									};
-									promises.push(promise);
-								} catch (e) {
-									if (this._client.config.logLevel === "verbose") console.error(e);
-								}
-							}
-							await Utils.parallelAsync(promises, 4);
-							throw new Error("No hash found for the provided id");
-						}
-					}).catch(reject);
-				}
-				if (values.infohash !== undefined && values.infohash !== null) {
-					if (!Utils.isValidInfoHash(values.infohash)) {
-						return reject(new Error(`Invalid infohash provided: ${values.infohash}`));
+	static async init(values: Partial<FileAttributes>, client: Hydrafiles, vote = false): Promise<File | false> {
+		if (!values.hash && values.id) {
+			const files = await client.fileDB.select({ key: "id", value: values.id });
+			values.hash = files[0]?.hash;
+		}
+		if (!values.hash && values.id) {
+			const promises: (() => Promise<void>)[] = [];
+			const nodes = await client.peers.getPeers();
+			for (let i = 0; i < nodes.length; i++) {
+				const promise = async () => {
+					try {
+						console.log(`  ${nodes[i].host}  Fetching file metadata from node`);
+						const response = await fetch(`${nodes[i].host}/file/${values.id}`);
+						const body = await response.json() as { result: Metadata } | FileAttributes;
+						const hash = "result" in body ? body.result.hash.sha256 : body.hash;
+						if (Utils.isValidSHA256Hash(hash)) file.hash = hash;
+					} catch (e) {
+						if (client.config.logLevel === "verbose") console.error(e);
 					}
-					this._client.fileDB.select({ key: "infohash", value: values.infohash }).then((files) => {
-						const fileHash = files[0]?.hash;
-						if (fileHash) {
-							resolve(fileHash);
-						} else {
-							reject(new Error("No hash found for the provided infohash"));
-						}
-					}).catch(reject);
-				}
-				reject(new Error("File not found"));
-			})();
-		});
-
-		hashPromise.then(async (hash) => {
-			if (hash === undefined || !Utils.isValidSHA256Hash(hash)) throw new Error(`  ${hash}  Invalid hash provided`);
-
-			this.hash = hash;
-
-			let fileAttributes = (await this._client.fileDB.select({ key: "hash", value: hash }))[0];
-			if (fileAttributes === undefined) {
-				this._client.fileDB.insert(this);
-				fileAttributes = (await this._client.fileDB.select({ key: "hash", value: hash }))[0] ?? { hash };
+				};
+				promises.push(promise);
 			}
-			const file = fileAttributesDefaults(fileAttributes);
-			this.infohash = file.infohash;
-			this.downloadCount = Utils.createNonNegativeNumber(file.downloadCount);
-			this.id = file.id;
-			this.name = file.name;
-			this.found = file.found;
-			this.size = Utils.createNonNegativeNumber(file.size);
-			this.voteHash = file.voteHash;
-			this.voteNonce = file.voteNonce;
-			this.voteDifficulty = file.voteDifficulty;
-			this.updatedAt = file.updatedAt;
+			await Utils.parallelAsync(promises, 4);
+			throw new Error("No hash found for the provided id");
+		}
+		if (values.infohash !== undefined && values.infohash !== null && Utils.isValidInfoHash(values.infohash)) {
+			const files = await client.fileDB.select({ key: "infohash", value: values.infohash });
+			const fileHash = files[0]?.hash;
+			if (fileHash) values.hash = fileHash;
+		}
+		if (!values.hash) throw new Error("File not found");
 
-			if (vote) {
-				console.log(`  ${this.hash}  Voting for file`);
-				await this.checkVoteNonce();
-			}
-		}).catch((e) => {
-			console.error(e);
-		});
+		if (!Utils.isValidSHA256Hash(values.hash)) throw new Error(`  ${values.hash}  Invalid hash provided`);
+
+		let fileAttributes = (await client.fileDB.select({ key: "hash", value: values.hash }))[0];
+		if (fileAttributes === undefined) {
+			client.fileDB.insert(values);
+			fileAttributes = (await client.fileDB.select({ key: "hash", value: values.hash }))[0] ?? { hash: values.hash };
+		}
+		const file = new File(values.hash, client, vote);
+		Object.assign(file, fileAttributesDefaults(fileAttributes));
+		return file;
 	}
 
 	public async getMetadata(): Promise<this | false> {

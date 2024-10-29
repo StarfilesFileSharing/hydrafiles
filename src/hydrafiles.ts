@@ -90,9 +90,11 @@ class Hydrafiles {
 		try {
 			const fileAttributes = (await this.fileDB.select(undefined, "RANDOM"))[0];
 			if (!fileAttributes) return;
-			const file = new File(fileAttributes, this);
-			console.log(`  ${file.hash}  Backfilling file`);
-			await file.getFile({ logDownloads: false });
+			const file = await File.init(fileAttributes, this);
+			if (file) {
+				console.log(`  ${file.hash}  Backfilling file`);
+				await file.getFile({ logDownloads: false });
+			}
 		} catch (e) {
 			if (this.config.logLevel === "verbose") throw e;
 		}

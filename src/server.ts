@@ -10,18 +10,6 @@ import FileSystem from "./fs.ts";
 
 export const hashLocks = new Map<string, Promise<Response>>();
 
-function stripInvalidProperties<T extends File>(obj: T): File {
-	const result: Partial<File> = {};
-	Object.keys(obj).forEach((key) => {
-		const fileKey = key as keyof File;
-		if (!key.startsWith("_") && key !== "downloadCount") {
-			// @ts-expect-error:
-			if (obj[fileKey] !== undefined && obj[fileKey] !== null) result[fileKey] = obj[fileKey];
-		}
-	});
-
-	return Object.assign({}, result as File);
-}
 export const handleRequest = async (req: Request, client: Hydrafiles): Promise<Response> => {
 	console.log(`Received Request: ${req.url}`);
 	const url = new URL(req.url);
@@ -84,7 +72,8 @@ export const handleRequest = async (req: Request, client: Hydrafiles): Promise<R
 				await hashLocks.get(hash);
 			}
 			const processingPromise = (async () => {
-				const file = new File({ hash, infohash }, client);
+				const file = await File.init({ hash, infohash }, client, true);
+				if (!file) throw new Error("Failed to build file");
 
 				if (fileId.length !== 0) {
 					const id = file.id;
@@ -122,7 +111,7 @@ export const handleRequest = async (req: Request, client: Hydrafiles): Promise<R
 				console.log(`  ${hash}  Signal Strength:`, fileContent.signal, Utils.estimateHops(fileContent.signal));
 
 				headers.set("Content-Length", String(file.size));
-				if (file.name !== null) {
+				if (file.name !== undefined && file.name !== null) {
 					headers.set("Content-Disposition", `attachment; filename="${encodeURIComponent(file.name.replace(/[^a-zA-Z0-9._-]/g, "").replace(/\s+/g, " ").trim()).replace(/%20/g, " ").replace(/(\.\w+)$/, " [HYDRAFILES]$1")}"`);
 				}
 
@@ -146,7 +135,8 @@ export const handleRequest = async (req: Request, client: Hydrafiles): Promise<R
 				await hashLocks.get(infohash);
 			}
 			const processingPromise = (async () => {
-				const file = new File({ infohash }, client);
+				const file = await File.init({ infohash }, client, true);
+				if (!file) throw new Error("Failed to build file");
 
 				await file.getMetadata();
 				let fileContent: { file: Uint8Array; signal: number } | false;
@@ -204,7 +194,8 @@ export const handleRequest = async (req: Request, client: Hydrafiles): Promise<R
 
 			const hash = formData.hash[0];
 
-			const file = new File({ hash }, client);
+			const file = await File.init({ hash }, client, true);
+			if (!file) throw new Error("Failed to build file");
 			if ((file.name === null || file.name.length === 0) && formData.file.name !== null) {
 				file.name = formData.file.name;
 				file.cacheFile(new Uint8Array(await formData.file.arrayBuffer()));
@@ -229,9 +220,9 @@ export const handleRequest = async (req: Request, client: Hydrafiles): Promise<R
 			return new Response(JSON.stringify(rows), { headers });
 		} else if (url.pathname.startsWith("/file/")) {
 			const id = url.pathname.split("/")[2];
-			let file: File;
+			let file: File | false;
 			try {
-				file = stripInvalidProperties(new File({ id }, client));
+				file = await File.init({ id }, client, true);
 			} catch (e) {
 				const err = e as Error;
 				if (err.message === "File not found") return new Response("File not found", { headers, status: 404 });
@@ -299,15 +290,20 @@ const onListen = (client: Hydrafiles): void => {
 			else {
 				console.log(`Testing downloads ${client.config.publicHostname}/download/04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f`);
 
-				console.log("Testing connectivity");
-				const response = await client.peers.downloadFromPeer(await Peer.init({ host: client.config.publicHostname }, client.peerDB), new File({ hash: "04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f" }, client));
-				if (response === false) console.error("  04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f  ERROR: Failed to download file from self");
+				console.log("Testing file build");
+				const file = await File.init({ hash: "04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f" }, client);
+				if (!file) console.error("Failed to build file");
 				else {
-					console.log("  04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f  Test Succeeded");
-					console.log("Announcing to nodes");
-					client.peers.announce();
+					console.log("Testing connectivity");
+					const response = await client.peers.downloadFromPeer(await Peer.init({ host: client.config.publicHostname }, client.peerDB), file);
+					if (response === false) console.error("  04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f  ERROR: Failed to download file from self");
+					else {
+						console.log("  04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f  Test Succeeded");
+						console.log("Announcing to nodes");
+						client.peers.announce();
+					}
+					await client.peers.add(client.config.publicHostname);
 				}
-				await client.peers.add(client.config.publicHostname);
 			}
 		}
 	};
