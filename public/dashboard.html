@@ -133,7 +133,7 @@
     }
 
     async function fetchAndPopulateFiles() {
-      files = await window.hydrafiles.getFiles(undefined, { key: "voteHash", order: "DESC" });
+      files = await window.hydrafiles.search(undefined, { key: "voteHash", order: "DESC" });
       populateTable();
     }
 

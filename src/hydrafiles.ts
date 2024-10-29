@@ -22,16 +22,17 @@ import { delay } from "https://deno.land/std@0.170.0/async/delay.ts";
 
 class Hydrafiles {
 	startTime: number = +new Date();
-	utils = new Utils(this);
+	utils: Utils;
 	config: Config;
 	s3: S3Client | undefined;
 	// webtorrent: WebTorrent = new WebTorrent();
 	// blockchain = new Blockchain(this);
 	keyPair!: CryptoKeyPair;
-	keyPair = this.utils.getKeyPair();
 	fileDB!: FileDB;
-	nodes!: Nodes;
+	peers!: Peers;
+	peerDB!: PeerDB;
 	constructor(customConfig: Partial<Config> = {}) {
+		this.utils = new Utils(this);
 		this.config = getConfig(customConfig);
 		if (this.config.s3Endpoint.length) {
 			this.s3 = new S3Client({
@@ -45,9 +46,12 @@ class Hydrafiles {
 		}
 	}
 
-	async start(): Promise<void> {
+	public async start(): Promise<void> {
+		this.keyPair = await this.utils.getKeyPair();
 		this.fileDB = await FileDB.init(this);
-		this.nodes = await Nodes.init(this);
+		console.log("Startup: Populating PeerDB");
+		this.peerDB = await PeerDB.init(this);
+		this.peers = await Peers.init(this);
 
 		startServer(this);
 
@@ -76,10 +80,12 @@ class Hydrafiles {
 		this.backgroundTasks();
 	};
 
-	backfillFiles = async (): Promise<void> => {
+	private backfillFiles = async (): Promise<void> => {
 		try {
-			const file = new File((await this.fileDB.select(undefined, "RANDOM"))[0], this);
-			console.log(`  ${file.hash}  Backfilling file`, file);
+			const fileAttributes = (await this.fileDB.select(undefined, "RANDOM"))[0];
+			if (!fileAttributes) return;
+			const file = new File(fileAttributes, this);
+			console.log(`  ${file.hash}  Backfilling file`);
 			await file.getFile({ logDownloads: false });
 		} catch (e) {
 			if (this.config.logLevel === "verbose") throw e;
@@ -116,15 +122,7 @@ class Hydrafiles {
 		);
 	}
 
-	search = async <T extends keyof FileAttributes>(where?: { key: T; value: NonNullable<File[T]> }, orderBy?: "RANDOM" | { key: T; direction: "ASC" | "DESC" }): Promise<File[]> => {
-		return await this.fileDB.select(where, orderBy);
-	};
-
-	getFile = (hash: string): File => {
-		return new File({ hash }, this);
-	};
-
-	getFiles = async <T extends keyof FileAttributes>(where?: { key: T; value: NonNullable<File[T]> } | undefined, orderBy?: { key: T; direction: "ASC" | "DESC" } | "RANDOM" | undefined): Promise<File[]> => {
+	public search = async <T extends keyof FileAttributes>(where?: { key: T; value: NonNullable<File[T]> }, orderBy?: "RANDOM" | { key: T; direction: "ASC" | "DESC" }): Promise<FileAttributes[]> => {
 		return await this.fileDB.select(where, orderBy);
 	};
 }
