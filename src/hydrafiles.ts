@@ -1,17 +1,16 @@
 import Base32 from "npm:base32";
 // import WebTorrent from "npm:webtorrent";
 import getConfig, { type Config } from "./config.ts";
-import Nodes from "./nodes.ts";
+import Peers, { PeerDB } from "./peer.ts";
 import File, { type FileAttributes, FileDB } from "./file.ts";
 import startServer, { hashLocks } from "./server.ts";
 import Utils from "./utils.ts";
 // import Blockchain, { Block } from "./block.ts";
 import { S3Client } from "https://deno.land/x/s3_lite_client@0.7.0/mod.ts";
-import FileSystem from "./fs.ts";
 import { delay } from "https://deno.land/std@0.170.0/async/delay.ts";
 
 // TODO: IDEA: HydraTorrent - New Github repo - "Hydrafiles + WebTorrent Compatibility Layer" - Hydrafiles noes can optionally run HydraTorrent to seed files via webtorrent
-// Change index hash from sha256 to infohash, then allow nodes to leech files from webtorrent + normal torrent
+// Change index hash from sha256 to infohash, then allow peers to leech files from webtorrent + normal torrent
 // HydraTorrent is a WebTorrent hybrid client that plugs into Hydrafiles
 // Then send a PR to WebTorrent for it to connect to the Hydrafiles network as default webseeds
 // HydraTorrent is 2-way, allowing for fetching-seeding files via both hydrafiles and torrent
@@ -23,18 +22,22 @@ import { delay } from "https://deno.land/std@0.170.0/async/delay.ts";
 
 class Hydrafiles {
 	startTime: number = +new Date();
-	utils = new Utils(this);
+	utils: Utils;
 	config: Config;
 	s3: S3Client | undefined;
 	// webtorrent: WebTorrent = new WebTorrent();
 	// blockchain = new Blockchain(this);
-	fs = new FileSystem();
-	keyPair = this.utils.getKeyPair();
+	keyPair!: CryptoKeyPair;
 	fileDB!: FileDB;
-	nodes!: Nodes;
+	peers!: Peers;
+	peerDB!: PeerDB;
 	constructor(customConfig: Partial<Config> = {}) {
+		console.log("Startup: Populating Utils");
+		this.utils = new Utils(this);
+		console.log("Startup: Populating Config");
 		this.config = getConfig(customConfig);
 		if (this.config.s3Endpoint.length) {
+			console.log("Startup: Populating S3");
 			this.s3 = new S3Client({
 				endPoint: this.config.s3Endpoint,
 				region: "us-east-1",
@@ -46,9 +49,15 @@ class Hydrafiles {
 		}
 	}
 
-	async start(): Promise<void> {
+	public async start(): Promise<void> {
+		console.log("Startup: Populating KeyPair");
+		this.keyPair = await this.utils.getKeyPair();
+		console.log("Startup: Populating FileDB");
 		this.fileDB = await FileDB.init(this);
-		this.nodes = await Nodes.init(this);
+		console.log("Startup: Populating PeerDB");
+		this.peerDB = await PeerDB.init(this);
+		console.log("Startup: Populating Peers");
+		this.peers = await Peers.init(this);
 
 		startServer(this);
 
@@ -64,24 +73,25 @@ class Hydrafiles {
 		if (this.config.backfill) this.backfillFiles().catch(console.error);
 	}
 
-	backgroundTasks = async (): Promise<void> => {
-		const nodes = this.nodes;
-		if (this.config.compareNodes) nodes.compareNodeList();
+	private backgroundTasks = async (): Promise<void> => {
+		const peers = this.peers;
+		if (this.config.compareNodes) peers.fetchPeers();
 		if (this.config.compareFiles) {
-			const knownNodes = nodes.getNodes({ includeSelf: false });
+			const knownNodes = await peers.getPeers();
 			for (let i = 0; i < knownNodes.length; i++) {
-				await nodes.compareFileList(knownNodes[i]);
+				await peers.compareFileList(knownNodes[i]);
 			}
 		}
 		await delay(600000);
 		this.backgroundTasks();
 	};
 
-	backfillFiles = async (): Promise<void> => {
-		const file = (await this.fileDB.select(undefined, "RANDOM"))[0];
-		if (file === undefined) return;
-		console.log(`  ${file.hash}  Backfilling file`);
+	private backfillFiles = async (): Promise<void> => {
 		try {
+			const fileAttributes = (await this.fileDB.select(undefined, "RANDOM"))[0];
+			if (!fileAttributes) return;
+			const file = new File(fileAttributes, this);
+			console.log(`  ${file.hash}  Backfilling file`);
 			await file.getFile({ logDownloads: false });
 		} catch (e) {
 			if (this.config.logLevel === "verbose") throw e;
@@ -109,7 +119,7 @@ class Hydrafiles {
 			"\n| Processing Files:",
 			hashLocks.size,
 			"\n| Known Nodes:",
-			(await this.nodes).getNodes({ includeSelf: false }).length,
+			(await this.peers.getPeers()).length,
 			// '\n| Seeding Torrent Files:',
 			// (await webtorrentClient()).torrents.length,
 			"\n| Downloads Served:",
@@ -118,15 +128,7 @@ class Hydrafiles {
 		);
 	}
 
-	search = async <T extends keyof FileAttributes>(where?: { key: T; value: NonNullable<File[T]> }, orderBy?: "RANDOM" | { key: T; direction: "ASC" | "DESC" }): Promise<File[]> => {
-		return await this.fileDB.select(where, orderBy);
-	};
-
-	getFile = (hash: string): File => {
-		return new File({ hash }, this);
-	};
-
-	getFiles = async <T extends keyof FileAttributes>(where?: { key: T; value: NonNullable<File[T]> } | undefined, orderBy?: { key: T; direction: "ASC" | "DESC" } | "RANDOM" | undefined): Promise<File[]> => {
+	public search = async <T extends keyof FileAttributes>(where?: { key: T; value: NonNullable<File[T]> }, orderBy?: "RANDOM" | { key: T; direction: "ASC" | "DESC" }): Promise<FileAttributes[]> => {
 		return await this.fileDB.select(where, orderBy);
 	};
 }

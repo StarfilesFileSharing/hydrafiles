@@ -5,48 +5,7 @@
 	"maxCache": -1,
 	"permaFiles": ["04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f"],
 	"preferNode": "HIGHEST_HITRATE",
-	"bootstrapNodes": [
-		{
-			"host": "https://hydrafiles.com",
-			"http": true,
-			"dns": false,
-			"cf": false,
-			"hits": 0,
-			"rejects": 0,
-			"bytes": 0,
-			"duration": 0
-		},
-		{
-			"host": "https://hydra.starfiles.co",
-			"http": true,
-			"dns": false,
-			"cf": false,
-			"hits": 0,
-			"rejects": 0,
-			"bytes": 0,
-			"duration": 0
-		},
-		{
-			"host": "https://api2.starfiles.co",
-			"http": true,
-			"dns": false,
-			"cf": false,
-			"hits": 0,
-			"rejects": 0,
-			"bytes": 0,
-			"duration": 0
-		},
-		{
-			"host": "https://api2.starfiles.bz",
-			"http": true,
-			"dns": false,
-			"cf": false,
-			"hits": 0,
-			"rejects": 0,
-			"bytes": 0,
-			"duration": 0
-		}
-	],
+	"bootstrapNodes": ["https://hydrafiles.com", "https://hydra.starfiles.co", "https://api2.starfiles.co", "https://api2.starfiles.bz"],
 	"burnRate": 0.1,
 	"s3AccessKeyId": "",
 	"s3SecretAccessKey": "",
