@@ -70,7 +70,13 @@ class Hydrafiles {
 			this.backgroundTasks(onCompareFileListProgress);
 			setInterval(this.backgroundTasks, this.config.compareSpeed);
 		}
-		if (this.config.backfill) this.backfillFiles().catch(console.error);
+		if (this.config.backfill) {
+			(async () => {
+				while (true) {
+					await this.backfillFile();
+				}
+			})();
+		}
 	}
 
 	public async initFile(values: Partial<File>, vote = false): Promise<File | false> {
@@ -90,7 +96,7 @@ class Hydrafiles {
 		this.backgroundTasks(onCompareFileListProgress);
 	};
 
-	private backfillFiles = async (): Promise<void> => {
+	private backfillFile = async (): Promise<void> => {
 		try {
 			const fileAttributes = (await this.fileDB.select(undefined, "RANDOM"))[0];
 			if (!fileAttributes) return;
@@ -102,7 +108,6 @@ class Hydrafiles {
 		} catch (e) {
 			if (this.config.logLevel === "verbose") throw e;
 		}
-		this.backfillFiles().catch(console.error);
 	};
 
 	async logState(): Promise<void> {

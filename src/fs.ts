@@ -1,3 +1,5 @@
+import type { indexedDB } from "https://deno.land/x/indexeddb@v1.1.0/ponyfill.ts";
+
 interface FileHandle extends FileSystemFileHandle {
 	remove(): Promise<void>; // Returns a Promise that resolves when the file is removed.
 }
@@ -133,17 +135,161 @@ class DirectoryHandleFileSystem {
 	};
 }
 
-const fs = typeof window === "undefined" ? StandardFileSystem : (typeof globalThis.window.showDirectoryPicker !== "undefined" ? DirectoryHandleFileSystem : false);
-if (!fs) console.error("Unsupported platform - FileSystem acess has been turned off");
+class IndexedDBFileSystem {
+	static dbName = "FileSystemDB";
+	static storeName = "files";
+	static dbPromise: Promise<IDBDatabase>;
+
+	static initDB(): Promise<IDBDatabase> {
+		return new Promise((resolve, reject) => {
+			// @ts-expect-error:
+			const request = indexedDB.open(this.dbName, 1);
+			request.onupgradeneeded = (event) => {
+				const target = event.target;
+				if (!target) {
+					reject(new Error("Failed to open IndexedDB"));
+					return;
+				}
+				// @ts-expect-error:
+				const db = target.result;
+				db.createObjectStore(this.storeName, { keyPath: "path" });
+			};
+			// @ts-expect-error:
+			request.onsuccess = (event) => resolve(event.target.result);
+			// @ts-expect-error:
+			request.onerror = (event) => reject(event.target.error);
+		});
+	}
+
+	static async exists(path: string): Promise<boolean> {
+		const db = await this.dbPromise;
+		return new Promise((resolve) => {
+			const transaction = db.transaction(this.storeName, "readonly");
+			const store = transaction.objectStore(this.storeName);
+			const request = store.get(path);
+			request.onsuccess = () => resolve(request.result !== undefined);
+			request.onerror = () => resolve(false);
+		});
+	}
+
+	static async mkdir(_path: string): Promise<void> {}
+
+	static async readDir(path: string): Promise<string[]> {
+		const db = await this.dbPromise;
+		const files: string[] = [];
+
+		return new Promise((resolve) => {
+			const transaction = db.transaction(this.storeName, "readonly");
+			const store = transaction.objectStore(this.storeName);
+			const request = store.openCursor();
+
+			request.onsuccess = (event) => {
+				// @ts-expect-error:
+				const cursor = event.target.result;
+				if (cursor) {
+					if (cursor.value.path.startsWith(path + "/")) {
+						files.push(cursor.value.path.replace(path + "/", ""));
+					}
+					cursor.continue();
+				} else {
+					resolve(files);
+				}
+			};
+		});
+	}
+
+	static async readFile(path: string): Promise<Uint8Array> {
+		const db = await this.dbPromise;
+		return new Promise((resolve, reject) => {
+			const transaction = db.transaction(this.storeName, "readonly");
+			const store = transaction.objectStore(this.storeName);
+			const request = store.get(path);
+			request.onsuccess = () => {
+				if (request.result) {
+					resolve(new Uint8Array(request.result.data));
+				} else {
+					reject(new Error(`${path} doesn't exist`));
+				}
+			};
+			request.onerror = () => reject(new Error(`Error reading ${path}`));
+		});
+	}
+
+	static async writeFile(path: string, data: Uint8Array): Promise<void> {
+		const db = await this.dbPromise;
+		return new Promise((resolve, reject) => {
+			const transaction = db.transaction(this.storeName, "readwrite");
+			const store = transaction.objectStore(this.storeName);
+			const fileData = { path, data: data.buffer };
+
+			const request = store.put(fileData);
+			request.onsuccess = () => resolve();
+			request.onerror = () => reject(new Error(`Error writing ${path}`));
+		});
+	}
+
+	static async getFileSize(path: string): Promise<number> {
+		const db = await this.dbPromise;
+		return new Promise((resolve, reject) => {
+			const transaction = db.transaction(this.storeName, "readonly");
+			const store = transaction.objectStore(this.storeName);
+			const request = store.get(path);
+			request.onsuccess = () => {
+				if (request.result) {
+					resolve(request.result.data.byteLength);
+				} else {
+					reject(new Error(`${path} doesn't exist`));
+				}
+			};
+			request.onerror = () => reject(new Error(`Error retrieving size of ${path}`));
+		});
+	}
+
+	static async remove(path: string): Promise<void> {
+		const db = await this.dbPromise;
+		return new Promise((resolve, reject) => {
+			const transaction = db.transaction(this.storeName, "readwrite");
+			const store = transaction.objectStore(this.storeName);
+			const request = store.delete(path);
+			request.onsuccess = () => resolve();
+			request.onerror = () => reject(new Error(`Error removing ${path}`));
+		});
+	}
+}
+
+const fs = typeof window === "undefined" ? StandardFileSystem : (typeof globalThis.window.showDirectoryPicker !== "undefined" ? DirectoryHandleFileSystem : IndexedDBFileSystem);
+
+if (typeof IndexedDBFileSystem === typeof fs && "dbPromise" in fs) fs.dbPromise = IndexedDBFileSystem.initDB();
 
 class FileSystem {
-	static exists = async (path: string) => fs ? await fs.exists(path) : false;
-	static mkdir = async (path: string) => fs ? await fs.mkdir(path) : false;
-	static readDir = async (path: string) => fs ? await fs.readDir(path) : [];
-	static readFile = async (path: string) => fs ? await fs.readFile(path) : false;
-	static writeFile = async (path: string, data: Uint8Array) => fs ? await fs.writeFile(path, data) : false;
-	static getFileSize = async (path: string) => fs ? await fs.getFileSize(path) : false;
-	static remove = async (path: string) => fs ? await fs.remove(path) : false;
+	static exists = async (path: string) => {
+		console.log("FS: exists", path);
+		return fs ? await fs.exists(path) : false;
+	};
+	static mkdir = async (path: string) => {
+		console.log("FS: mkdir", path);
+		return fs ? await fs.mkdir(path) : false;
+	};
+	static readDir = async (path: string) => {
+		console.log("FS: readDir", path);
+		return fs ? await fs.readDir(path) : [];
+	};
+	static readFile = async (path: string) => {
+		console.log("FS: readFile", path);
+		return fs ? await fs.readFile(path) : false;
+	};
+	static writeFile = async (path: string, data: Uint8Array) => {
+		console.log("FS: writeFile", path);
+		return fs ? await fs.writeFile(path, data) : false;
+	};
+	static getFileSize = async (path: string) => {
+		console.log("FS: getFileSize", path);
+		return fs ? await fs.getFileSize(path) : false;
+	};
+	static remove = async (path: string) => {
+		console.log("FS: remove", path);
+		return fs ? await fs.remove(path) : false;
+	};
 }
 
 export default FileSystem;
