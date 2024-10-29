@@ -84,8 +84,10 @@ function createIDBDatabase(): Promise<IDBDatabase> {
 				objectStore.createIndex("updatedAt", "updatedAt", { unique: false });
 			}
 		};
-		request.onsuccess = () => resolve(request.result as unknown as IDBDatabase);
+		request.onsuccess = () => {
 			console.log("Startup: FileDB: On Success");
+			resolve(request.result as unknown as IDBDatabase);
+		};
 		request.onerror = () => {
 			console.error("Startup: FileDB error:", request.error);
 			reject(request.error);
@@ -97,7 +99,6 @@ function createIDBDatabase(): Promise<IDBDatabase> {
 
 	return dbPromise;
 }
-type DatabaseWrapper = { type: "UNDEFINED"; db: undefined } | { type: "SQLITE"; db: Database } | { type: "INDEXEDDB"; db: IDBDatabase };
 
 export class FileDB {
 	private _client: Hydrafiles;
@@ -149,7 +150,7 @@ export class FileDB {
 		return this.db.db.transaction("file", "readwrite").objectStore("file");
 	}
 
-	select<T extends keyof FileAttributes>(where?: { key: T; value: NonNullable<File[T]> } | undefined, orderBy?: { key: T; direction: "ASC" | "DESC" } | "RANDOM" | undefined): Promise<File[]> {
+	select<T extends keyof FileAttributes>(where?: { key: T; value: NonNullable<FileAttributes[T]> } | undefined, orderBy?: { key: T; direction: "ASC" | "DESC" } | "RANDOM" | undefined): Promise<FileAttributes[]> {
 		if (this.db === undefined) return new Promise((resolve) => resolve([]));
 
 		if (this.db.type === "SQLITE") {
@@ -165,7 +166,7 @@ export class FileDB {
 				if (orderBy === "RANDOM") query += ` ORDER BY RANDOM()`;
 				else query += ` ORDER BY ${orderBy.key} ${orderBy.direction}`;
 			}
-			const results = this.db.db.prepare(query).all(params) as unknown as File[];
+			const results = this.db.db.prepare(query).all(params) as unknown as FileAttributes[];
 			return new Promise((resolve) => resolve(results));
 		} else if (this.db.type === "INDEXEDDB") {
 			return new Promise((resolve, reject) => {
@@ -174,7 +175,7 @@ export class FileDB {
 					// @ts-expect-error:
 					? this.objectStore().index(where.key).openCursor(where.value)
 					: this.objectStore().openCursor();
-				const results: File[] = [];
+				const results: FileAttributes[] = [];
 
 				// @ts-expect-error:
 				request.onsuccess = (event: { target: IDBRequest }) => {
@@ -211,7 +212,7 @@ export class FileDB {
 
 	insert(values: Partial<FileAttributes>): void {
 		if (typeof this.db === "undefined") return;
-		const file = fileAttributesDefaults(values) as File;
+		const file = fileAttributesDefaults(values);
 		console.log(`  ${file.hash}  File INSERTed`, values);
 		if (this.db.type === "SQLITE") {
 			const query = `INSERT INTO file (hash, infohash, downloadCount, id, name, found, size)VALUES (?, ?, ?, ?, ?, ?, ?)`;
