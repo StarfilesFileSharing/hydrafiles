@@ -18,7 +18,7 @@ export const handleRequest = async (req: Request, client: Hydrafiles): Promise<R
 	headers.set("Access-Control-Allow-Origin", "*");
 
 	try {
-		if (url.pathname === "/ws" && req.headers.get("upgrade") === "websocket") {
+		if (req.headers.get("upgrade") === "websocket") {
 			const { socket, response } = Deno.upgradeWebSocket(req);
 
 			socket.addEventListener("message", ({ data }) => {
