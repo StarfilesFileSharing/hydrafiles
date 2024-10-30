@@ -223,11 +223,7 @@ export class PeerDB {
 				this._client.config.logLevel === "verbose" ? console.log(`  ${host}  Updated Values:`, beforeAndAfter) : "",
 			);
 		} else {
-			if (this.db.type === "INDEXEDDB") {
-				this.objectStore().put(newPeer).onerror = (ev: Event) => {
-					console.error(ev);
-				};
-			}
+			if (this.db.type === "INDEXEDDB") this.objectStore().put(newPeer).onerror = console.error;
 			console.log(
 				`  ${host}  Peer UPDATEd - Updated Columns: ${updatedColumn.join(", ")}` + (this._client.config.logLevel === "verbose" ? ` - Params: ${params.join(", ")}` : ""),
 				this._client.config.logLevel === "verbose" ? console.log(`  ${host}  Updated Values:`, beforeAndAfter) : "",
@@ -316,10 +312,10 @@ export class Peer implements PeerAttributes {
 	bytes = 0;
 	duration = 0;
 	updatedAt: string = new Date().toISOString();
-	db: PeerDB;
+	private _db: PeerDB;
 
 	constructor(values: PeerAttributes, db: PeerDB) {
-		this.db = db;
+		this._db = db;
 
 		if (values.host === undefined || values.host === null) throw new Error("Created peer without host");
 		this.host = values.host;
@@ -353,7 +349,7 @@ export class Peer implements PeerAttributes {
 
 	save(): void {
 		this.updatedAt = new Date().toISOString();
-		if (this.db) this.db.update(this.host, this);
+		if (this._db) this._db.update(this.host, this);
 	}
 }
 
@@ -594,9 +590,9 @@ export default class Peers {
 			});
 		}
 
+		const file = await File.init({ hash }, this._client);
+		if (!file) return false;
 		for (const peer of peers) {
-			const file = await File.init({ hash }, this._client);
-			if (!file) return false;
 			let fileContent: { file: Uint8Array; signal: number } | false = false;
 			try {
 				fileContent = await this.downloadFromPeer(await Peer.init(peer, this._client.peerDB), file);
