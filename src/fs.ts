@@ -282,10 +282,7 @@ class FileSystem {
 		console.log("FS: writeFile", path);
 		return fs ? await fs.writeFile(path, data) : false;
 	};
-	static getFileSize = async (path: string) => {
-		console.log("FS: getFileSize", path);
-		return fs ? await fs.getFileSize(path) : false;
-	};
+	static getFileSize = async (path: string) => fs ? await fs.getFileSize(path) : false;
 	static remove = async (path: string) => {
 		console.log("FS: remove", path);
 		return fs ? await fs.remove(path) : false;
