@@ -266,7 +266,12 @@ export const handleRequest = async (req: Request, client: Hydrafiles): Promise<R
 				}
 				const responses = client.webRTC.sendRequest(`http://localhost/endpoint/${hostname}`);
 				for (let i = 0; i < responses.length; i++) {
-					responses[i];
+					const response = await responses[i];
+					const body = await response.text();
+					const signature = response.headers.get("hydra-signature");
+					if (signature !== null) {
+						const [xBase32, yBase32] = hostname.split(".");
+						if (await Utils.verifySignature(body, signature as Base64, { x: Base32.decode(xBase32), y: Base32.decode(yBase32) })) return new Response(body, { headers });
 				}
 			}
 
