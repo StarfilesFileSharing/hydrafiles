@@ -115,9 +115,12 @@ class Hydrafiles {
 		}
 	};
 
-	async logState(): Promise<void> {
+	getHostname = async () => {
 		const pubKey = await Utils.exportPublicKey(this.keyPair.publicKey);
+		return Base32.encode(pubKey.x).toLowerCase().replaceAll("=", "") + "." + Base32.encode(pubKey.y).toLowerCase().replaceAll("=", "");
+	};
 
+	async logState(): Promise<void> {
 		console.log(
 			"\n===============================================\n========",
 			new Date().toUTCString(),
@@ -125,7 +128,7 @@ class Hydrafiles {
 			"\n| Uptime: ",
 			Utils.convertTime(+new Date() - this.startTime),
 			"\n| Hostname: ",
-			`${Base32.encode(pubKey.x).toLowerCase().replaceAll("=", "")}.${Base32.encode(pubKey.y).toLowerCase().replaceAll("=", "")}`,
+			`${await this.getHostname()}`,
 			"\n| Known (Network) Files:",
 			await this.fileDB.count(),
 			`(${Math.round((100 * (await this.fileDB.sum("size"))) / 1024 / 1024 / 1024) / 100}GB)`,

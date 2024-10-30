@@ -55,8 +55,8 @@ jobs:
       - name: Upload Build Artifacts
         uses: actions/upload-artifact@v3
         with:
-          name: compiled-app
-          path: ./release/
+          name: hydrafiles-${{ steps.get_version.outputs.version }}
+          path: ./release/*
 
       - name: log
         run: echo "Version ${{ steps.get_version.outputs.version }}"
