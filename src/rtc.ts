@@ -72,7 +72,14 @@ class WebRTC {
 	}
 
 	private async createPeerConnection(): Promise<PeerConnection> {
-		const config = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
+		const config = {
+			iceServers: [
+				{ urls: "stun:stun.l.google.com:19302" },
+				{ urls: "stun:stun.ekiga.net" },
+				{ urls: "stun:stun.stunprotocol.org:3478" },
+				{ urls: "stun:stun.voipbuster.com" },
+			],
+		};
 		let conn: RTCPeerConnection;
 		if (typeof window === "undefined") {
 			const { RTCPeerConnection } = await import("npm:werift");

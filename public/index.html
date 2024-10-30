@@ -127,10 +127,12 @@
         <p style="font-size: 1.125rem; color: rgb(51, 51, 51);">
             🌐 Open Source!<br>
             🔗 Clone the GitHub repository!<br>
-            🖥️ Run your own node and contribute to a free and open network!<br>
+            🖥️ Run your own full node and contribute to a free and open network!<br>
             🛠️ Be part of the solution against censorship!
         </p>
-        <a href="https://github.com/StarfilesFileSharing/Hydrafiles" style="text-decoration: none; background-color: rgb(33, 150, 243); color: white; padding: 0.625rem 1.25rem; border-radius: 0.4rem;">Get Started</a>
+        <a href="https://github.com/StarfilesFileSharing/Hydrafiles" style="text-decoration: none; background-color: rgb(33, 150, 243); color: white; padding: 0.625rem 1.25rem; border-radius: 0.4rem;">GitHub</a>
+        <p style="font-size: 1.125rem; color: rgb(51, 51, 51);">Or run a (100% decentralised) web node. </p>
+        <a href="/dashboard.html" style="text-decoration: none; background-color: rgb(33, 150, 243); color: white; padding: 0.625rem 1.25rem; border-radius: 0.4rem;">Web Dashboard</a>
     </div>
 
     <section>
@@ -351,7 +353,7 @@
         })
     }
 
-    fetch('/nodes').then(res => res.json()).then(nodes => {
+    fetch('/peers').then(res => res.json()).then(nodes => {
         const goodHttpNodes = nodes.filter(e => e.http).filter(node => node.hits > 0).filter(node => node.host.startsWith('https://'))
         const bestHttpNode = getBestNode(goodHttpNodes)
         const randomHttpNode = goodHttpNodes[Math.floor(Math.random()*goodHttpNodes.length)]
