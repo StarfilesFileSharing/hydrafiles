@@ -58,7 +58,7 @@ export const handleRequest = async (req: Request, client: Hydrafiles): Promise<R
 		} else if (url.pathname === "/peers") {
 			headers.set("Content-Type", "application/json");
 			headers.set("Cache-Control", "public, max-age=300");
-			return new Response(JSON.stringify(await client.peers.getValidPeers()), { headers });
+			return new Response(JSON.stringify(await client.peers.getPeers()), { headers });
 		} else if (url.pathname === "/info") {
 			headers.set("Content-Type", "application/json");
 			headers.set("Cache-Control", "public, max-age=300");
