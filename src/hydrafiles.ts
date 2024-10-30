@@ -8,6 +8,7 @@ import Utils from "./utils.ts";
 // import Blockchain, { Block } from "./block.ts";
 import { S3Client } from "https://deno.land/x/s3_lite_client@0.7.0/mod.ts";
 import { delay } from "https://deno.land/std@0.170.0/async/delay.ts";
+import WebRTC from "./rtc.ts";
 
 // TODO: IDEA: HydraTorrent - New Github repo - "Hydrafiles + WebTorrent Compatibility Layer" - Hydrafiles noes can optionally run HydraTorrent to seed files via webtorrent
 // Change index hash from sha256 to infohash, then allow peers to leech files from webtorrent + normal torrent
@@ -31,11 +32,13 @@ class Hydrafiles {
 	fileDB!: FileDB;
 	peers!: Peers;
 	peerDB!: PeerDB;
+	webRTC!: WebRTC;
 	constructor(customConfig: Partial<Config> = {}) {
 		console.log("Startup: Populating Utils");
 		this.utils = new Utils(this);
 		console.log("Startup: Populating Config");
 		this.config = getConfig(customConfig);
+
 		if (this.config.s3Endpoint.length) {
 			console.log("Startup: Populating S3");
 			this.s3 = new S3Client({
@@ -58,6 +61,8 @@ class Hydrafiles {
 		this.peerDB = await PeerDB.init(this);
 		console.log("Startup: Populating Peers");
 		this.peers = await Peers.init(this);
+		console.log("Startup: Populating webRTC");
+		this.webRTC = await WebRTC.init(this);
 
 		startServer(this);
 
