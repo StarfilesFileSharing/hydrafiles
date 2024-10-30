@@ -541,6 +541,16 @@ export default class Peers {
 			files = files.concat((await responses[i].json()) as FileAttributes[]);
 		}
 
+		const uniqueFiles = new Set<string>();
+		files = files.filter((file) => {
+			const fileString = JSON.stringify(file);
+			if (!uniqueFiles.has(fileString)) {
+				uniqueFiles.add(fileString);
+				return true;
+			}
+			return false;
+		});
+
 		for (let i = 0; i < files.length; i++) {
 			if (onProgress) onProgress(i, files.length);
 			const newFile = files[i];
