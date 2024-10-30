@@ -305,6 +305,24 @@ class Utils {
 	static createNonNegativeNumber(n: number): NonNegativeNumber {
 		return (Number.isInteger(n) && n >= 0 ? n : 0) as NonNegativeNumber;
 	}
+
+	static async streamToUint8Array(readableStream: ReadableStream): Promise<Uint8Array> {
+		const reader = readableStream.getReader();
+		const chunks = [];
+		while (true) {
+			const { done, value } = await reader.read();
+			if (done) break;
+			chunks.push(value);
+		}
+		const totalLength = chunks.reduce((acc, chunk) => acc + chunk.length, 0);
+		const result = new Uint8Array(totalLength);
+		let position = 0;
+		for (const chunk of chunks) {
+			result.set(chunk, position);
+			position += chunk.length;
+		}
+		return result;
+	}
 }
 
 export default Utils;

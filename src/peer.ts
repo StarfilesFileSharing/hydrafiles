@@ -223,11 +223,7 @@ export class PeerDB {
 				this._client.config.logLevel === "verbose" ? console.log(`  ${host}  Updated Values:`, beforeAndAfter) : "",
 			);
 		} else {
-			if (this.db.type === "INDEXEDDB") {
-				this.objectStore().put(newPeer).onerror = (ev: Event) => {
-					console.error(ev);
-				};
-			}
+			if (this.db.type === "INDEXEDDB") this.objectStore().put(newPeer).onerror = console.error;
 			console.log(
 				`  ${host}  Peer UPDATEd - Updated Columns: ${updatedColumn.join(", ")}` + (this._client.config.logLevel === "verbose" ? ` - Params: ${params.join(", ")}` : ""),
 				this._client.config.logLevel === "verbose" ? console.log(`  ${host}  Updated Values:`, beforeAndAfter) : "",
@@ -316,10 +312,10 @@ export class Peer implements PeerAttributes {
 	bytes = 0;
 	duration = 0;
 	updatedAt: string = new Date().toISOString();
-	db: PeerDB;
+	private _db: PeerDB;
 
 	constructor(values: PeerAttributes, db: PeerDB) {
-		this.db = db;
+		this._db = db;
 
 		if (values.host === undefined || values.host === null) throw new Error("Created peer without host");
 		this.host = values.host;
@@ -353,7 +349,7 @@ export class Peer implements PeerAttributes {
 
 	save(): void {
 		this.updatedAt = new Date().toISOString();
-		if (this.db) this.db.update(this.host, this);
+		if (this._db) this._db.update(this.host, this);
 	}
 }
 
@@ -476,24 +472,29 @@ export default class Peers {
 		// TODO: Compare list between all peers and give score based on how similar they are. 100% = all exactly the same, 0% = no items in list were shared. The lower the score, the lower the propagation times, the lower the decentralisation
 		const peers = await this.getPeers();
 		for (const peer of peers) {
-			(async () => {
-				if (peer.host.startsWith("http://") || peer.host.startsWith("https://")) {
-					console.log(`  ${peer.host}  Fetching peers`);
-					try {
-						const response = await Utils.promiseWithTimeout(fetch(`${peer.host}/peers`), this._client.config.timeout);
-						const remotePeers = (await response.json()) as Peer[];
-						for (const remotePeer of remotePeers) {
-							this.add(remotePeer.host).catch((e) => {
-								if (this._client.config.logLevel === "verbose") console.error(e);
-							});
-						}
-					} catch (e) {
-						if (this._client.config.logLevel === "verbose") {
-							throw e;
-						}
+			if (peer.host.startsWith("http://") || peer.host.startsWith("https://")) {
+				console.log(`  ${peer.host}  Fetching peers`);
+				try {
+					const response = await Utils.promiseWithTimeout(fetch(`${peer.host}/peers`), this._client.config.timeout);
+					const remotePeers = (await response.json()) as Peer[];
+					for (const remotePeer of remotePeers) {
+						this.add(remotePeer.host).catch((e) => {
+							if (this._client.config.logLevel === "verbose") console.error(e);
+						});
 					}
+				} catch (e) {
+					if (this._client.config.logLevel === "verbose") console.error(e);
 				}
-			})().catch(console.error);
+			}
+		}
+		const responses = await Promise.all(this._client.webRTC.sendRequest("http://localhost/peers"));
+		for (let i = 0; i < responses.length; i++) {
+			const remotePeers = (await responses[i].json()) as Peer[];
+			for (const remotePeer of remotePeers) {
+				this.add(remotePeer.host).catch((e) => {
+					if (this._client.config.logLevel === "verbose") console.error(e);
+				});
+			}
 		}
 	}
 
@@ -530,6 +531,21 @@ export default class Peers {
 			console.error(`  ${peer.host}  Failed to compare file list - ${err.message}`);
 			return;
 		}
+
+		const responses = await Promise.all(this._client.webRTC.sendRequest("http://localhost/files"));
+		for (let i = 0; i < responses.length; i++) {
+			files = files.concat((await responses[i].json()) as FileAttributes[]);
+		}
+
+		const uniqueFiles = new Set<string>();
+		files = files.filter((file) => {
+			const fileString = JSON.stringify(file);
+			if (!uniqueFiles.has(fileString)) {
+				uniqueFiles.add(fileString);
+				return true;
+			}
+			return false;
+		});
 
 		for (let i = 0; i < files.length; i++) {
 			if (onProgress) onProgress(i, files.length);
@@ -574,9 +590,9 @@ export default class Peers {
 			});
 		}
 
+		const file = await File.init({ hash }, this._client);
+		if (!file) return false;
 		for (const peer of peers) {
-			const file = await File.init({ hash }, this._client);
-			if (!file) return false;
 			let fileContent: { file: Uint8Array; signal: number } | false = false;
 			try {
 				fileContent = await this.downloadFromPeer(await Peer.init(peer, this._client.peerDB), file);
@@ -584,6 +600,24 @@ export default class Peers {
 				console.error(e);
 			}
 			if (fileContent) return fileContent;
+		}
+
+		console.log(`  ${hash}  Downloading from WebRTC`);
+		const responses = this._client.webRTC.sendRequest(`http://localhost${hash}`);
+		for (let i = 0; i < responses.length; i++) {
+			const hash = file.hash;
+			const response = await responses[i];
+			const peerContent = new Uint8Array(await response.arrayBuffer());
+			console.log(`  ${hash}  Validating hash`);
+			const verifiedHash = await Utils.hashUint8Array(peerContent);
+			console.log(`  ${hash}  Done Validating hash`);
+			if (hash !== verifiedHash) return false;
+			console.log(`  ${hash}  Valid hash`);
+
+			if (file.name === undefined || file.name === null || file.name.length === 0) {
+				file.name = String(response.headers.get("Content-Disposition")?.split("=")[1].replace(/"/g, "").replace(" [HYDRAFILES]", ""));
+				file.save();
+			}
 		}
 
 		return false;

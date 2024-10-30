@@ -9,6 +9,7 @@ import { Peer } from "./peer.ts";
 import FileSystem from "./fs.ts";
 
 export const hashLocks = new Map<string, Promise<Response>>();
+const peers: WebSocket[] = [];
 
 export const handleRequest = async (req: Request, client: Hydrafiles): Promise<Response> => {
 	console.log(`Received Request: ${req.url}`);
@@ -17,7 +18,17 @@ export const handleRequest = async (req: Request, client: Hydrafiles): Promise<R
 	headers.set("Access-Control-Allow-Origin", "*");
 
 	try {
-		if (url.pathname === "/" || url.pathname === undefined) {
+		if (url.pathname === "/ws" && req.headers.get("upgrade") === "websocket") {
+			const { socket, response } = Deno.upgradeWebSocket(req);
+
+			socket.addEventListener("message", ({ data }) => {
+				for (let i = 0; i < peers.length; i++) {
+					if (peers[i] !== socket) peers[i].send(data);
+				}
+			});
+
+			return response;
+		} else if (url.pathname === "/" || url.pathname === undefined) {
 			headers.set("Content-Type", "text/html");
 			headers.set("Cache-Control", "public, max-age=604800");
 			return new Response(await FileSystem.readFile("public/index.html") || "", { headers });
@@ -47,7 +58,7 @@ export const handleRequest = async (req: Request, client: Hydrafiles): Promise<R
 		} else if (url.pathname === "/peers") {
 			headers.set("Content-Type", "application/json");
 			headers.set("Cache-Control", "public, max-age=300");
-			return new Response(JSON.stringify(await client.peers.getValidPeers()), { headers });
+			return new Response(JSON.stringify(await client.peers.getPeers()), { headers });
 		} else if (url.pathname === "/info") {
 			headers.set("Content-Type", "application/json");
 			headers.set("Cache-Control", "public, max-age=300");
@@ -253,6 +264,10 @@ export const handleRequest = async (req: Request, client: Hydrafiles): Promise<R
 						if (await Utils.verifySignature(body, signature as Base64, { x: Base32.decode(xBase32), y: Base32.decode(yBase32) })) return new Response(body, { headers });
 					}
 				}
+				const responses = client.webRTC.sendRequest(`http://localhost/endpoint/${hostname}`);
+				for (let i = 0; i < responses.length; i++) {
+					responses[i];
+				}
 			}
 
 			return new Response("Not found", { headers, status: 404 });
@@ -314,14 +329,24 @@ const startServer = (client: Hydrafiles): void => {
 	if (typeof window !== "undefined") return;
 	console.log("Starting server");
 
-	Deno.serve({
-		port: client.config.port,
-		hostname: client.config.hostname,
-		onListen({ hostname, port }): void {
-			onListen(client);
-			console.log(`Server started at ${hostname}:${port}`);
-		},
-		handler: async (req: Request): Promise<Response> => await handleRequest(req, client),
-	});
+	let port = client.config.port;
+	while (true) {
+		try {
+			Deno.serve({
+				port,
+				hostname: client.config.hostname,
+				onListen({ hostname, port }): void {
+					onListen(client);
+					console.log(`Server started at ${hostname}:${port}`);
+				},
+				handler: async (req: Request): Promise<Response> => await handleRequest(req, client),
+			});
+			return;
+		} catch (e) {
+			const err = e as Error;
+			if (err.name !== "AddrInUse") throw err;
+			port++;
+		}
+	}
 };
 export default startServer;

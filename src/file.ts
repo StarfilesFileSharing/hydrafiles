@@ -401,7 +401,7 @@ class File implements FileAttributes {
 			for (let i = 0; i < nodes.length; i++) {
 				const promise = async () => {
 					try {
-						console.log(`  ${nodes[i].host}  Fetching file metadata from node`);
+						console.log(`  ${nodes[i].host}  Fetching file metadata from node`); // TODO: Merge with getMetadata
 						const response = await fetch(`${nodes[i].host}/file/${values.id}`);
 						const body = await response.json() as { result: Metadata } | FileAttributes;
 						const hash = "result" in body ? body.result.hash.sha256 : body.hash;
@@ -443,22 +443,24 @@ class File implements FileAttributes {
 
 		const id = this.id;
 		if (id !== undefined && id !== null && id.length > 0) {
+			const responses = await Promise.all(this._client.webRTC.sendRequest(`http://localhost/file/${this.id}`));
 			const peers = await this._client.peers.getPeers();
 			for (let i = 0; i < peers.length; i++) {
 				try {
-					const response = await fetch(`${peers[i].host}/file/${id}`);
-					if (response.ok) {
-						const body = await response.json();
-						const metadata = body.result as Metadata ?? body as FileAttributes;
-						this.name = metadata.name;
-						this.size = Utils.createNonNegativeNumber(metadata.size);
-						if (this.infohash?.length === 0) this.infohash = metadata.infohash;
-						this.save();
-						return this;
-					}
+					responses.push(await fetch(`${peers[i].host}/file/${id}`));
 				} catch (e) {
 					if (this._client.config.logLevel === "verbose") console.error(e);
 				}
+			}
+
+			for (let i = 0; i < responses.length; i++) {
+				const body = await responses[i].json();
+				const metadata = body.result as Metadata ?? body as FileAttributes;
+				this.name = metadata.name;
+				this.size = Utils.createNonNegativeNumber(metadata.size);
+				if (this.infohash?.length === 0) this.infohash = metadata.infohash;
+				this.save();
+				return this;
 			}
 		}
 
