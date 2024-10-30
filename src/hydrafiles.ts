@@ -116,7 +116,7 @@ class Hydrafiles {
 	};
 
 	async logState(): Promise<void> {
-		const pubKey = await Utils.exportPublicKey((await this.keyPair).publicKey);
+		const pubKey = await Utils.exportPublicKey(this.keyPair.publicKey);
 
 		console.log(
 			"\n===============================================\n========",
