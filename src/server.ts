@@ -325,14 +325,24 @@ const startServer = (client: Hydrafiles): void => {
 	if (typeof window !== "undefined") return;
 	console.log("Starting server");
 
-	Deno.serve({
-		port: client.config.port,
-		hostname: client.config.hostname,
-		onListen({ hostname, port }): void {
-			onListen(client);
-			console.log(`Server started at ${hostname}:${port}`);
-		},
-		handler: async (req: Request): Promise<Response> => await handleRequest(req, client),
-	});
+	let port = client.config.port;
+	while (true) {
+		try {
+			Deno.serve({
+				port,
+				hostname: client.config.hostname,
+				onListen({ hostname, port }): void {
+					onListen(client);
+					console.log(`Server started at ${hostname}:${port}`);
+				},
+				handler: async (req: Request): Promise<Response> => await handleRequest(req, client),
+			});
+			return;
+		} catch (e) {
+			const err = e as Error;
+			if (err.name !== "AddrInUse") throw err;
+			port++;
+		}
+	}
 };
 export default startServer;
