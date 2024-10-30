@@ -264,6 +264,10 @@ export const handleRequest = async (req: Request, client: Hydrafiles): Promise<R
 						if (await Utils.verifySignature(body, signature as Base64, { x: Base32.decode(xBase32), y: Base32.decode(yBase32) })) return new Response(body, { headers });
 					}
 				}
+				const responses = client.webRTC.sendRequest(`http://localhost/endpoint/${hostname}`);
+				for (let i = 0; i < responses.length; i++) {
+					responses[i];
+				}
 			}
 
 			return new Response("Not found", { headers, status: 404 });
