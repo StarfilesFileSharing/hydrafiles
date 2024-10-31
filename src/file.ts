@@ -454,13 +454,17 @@ class File implements FileAttributes {
 			}
 
 			for (let i = 0; i < responses.length; i++) {
-				const body = await responses[i].json();
-				const metadata = body.result as Metadata ?? body as FileAttributes;
-				this.name = metadata.name;
-				this.size = Utils.createNonNegativeNumber(metadata.size);
-				if (this.infohash?.length === 0) this.infohash = metadata.infohash;
-				this.save();
-				return this;
+				try {
+					const body = await responses[i].json();
+					const metadata = body.result as Metadata ?? body as FileAttributes;
+					this.name = metadata.name;
+					this.size = Utils.createNonNegativeNumber(metadata.size);
+					if (this.infohash?.length === 0) this.infohash = metadata.infohash;
+					this.save();
+					return this;
+				} catch (e) {
+					if (this._client.config.logLevel === "verbose") console.log(e);
+				}
 			}
 		}
 
