@@ -118,7 +118,7 @@ class WebRTC {
 		};
 		conn.addEventListener("iceconnectionstatechange", () => {
 			if (conn.iceConnectionState === "disconnected" || conn.iceConnectionState === "closed" || conn.iceConnectionState === "failed") {
-				console.log("Connection closed. Cleaning up peer connection.");
+				console.log("WebRTC (13/12) Connection closed. Cleaning up peer connection.");
 				this.cleanupPeerConnection(conn);
 			}
 		});
@@ -132,11 +132,11 @@ class WebRTC {
 		if (remotePeerId) {
 			const peerConns = this.peerConnections[remotePeerId];
 			if (peerConns.offered?.conn === conn) {
-				console.log(`13/12  ${remotePeerId}  Offered connecton has ${conn.iceConnectionState}`);
+				console.log(`WebRTC (13/12):  ${remotePeerId}  Offered connecton has ${conn.iceConnectionState}`);
 				peerConns.offered.conn.close();
 				delete peerConns.offered;
 			} else if (peerConns.answered?.conn === conn) {
-				console.log(`13/12  ${remotePeerId}  Answered connecton has ${conn.iceConnectionState}`);
+				console.log(`WebRTC: (13/12):  ${remotePeerId}  Answered connecton has ${conn.iceConnectionState}`);
 				peerConns.answered.conn.close();
 				delete peerConns.answered;
 			}
@@ -240,8 +240,8 @@ class WebRTC {
 			const responsePromise = new Promise<Response>((resolve, reject) => {
 				connection.channel.onmessage = (e) => {
 					try {
-						console.log(`WebRTC: (12/12): Received response`);
 						const { id, status, statusText, headers, body } = JSON.parse(e.data as string);
+						console.log(`WebRTC: (12/12):  ${id}  Received response`);
 						if (id !== requestId) return;
 						const response = new Response(body, {
 							status,

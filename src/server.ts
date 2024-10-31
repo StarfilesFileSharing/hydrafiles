@@ -260,46 +260,40 @@ export const handleRequest = async (req: Request, client: Hydrafiles): Promise<R
 					if (client.config.logLevel === "verbose") console.log(`  ${hostname}  Waiting for existing request with same hostname`);
 					await hashLocks.get(hostname);
 				}
-				const processingPromise = (async (): Promise<Response> => {
-					const nodes = await client.peers.getPeers();
-					for (let i = 0; i < nodes.length; i++) {
-						const node = nodes[i];
-						try {
-							console.log(`  ${hostname}  Fetching endpoint response from ${node.host}`);
-							const response = await Utils.promiseWithTimeout(fetch(`${node.host}/endpoint/${hostname}`), client.config.timeout);
-							const body = await response.text();
-							const signature = response.headers.get("hydra-signature");
-							if (signature !== null) {
-								const [xBase32, yBase32] = hostname.split(".");
-								if (await Utils.verifySignature(body, signature as Base64, { x: Base32.decode(xBase32), y: Base32.decode(yBase32) })) return new Response(body, { headers });
+
+				console.log(`  ${hostname}  Fetching endpoint response from peers`);
+				const requests = [...(await client.peers.getPeers(true)).map((node) => fetch(`${node.host}/endpoint/${hostname}`)), ...client.webRTC.sendRequest(`http://localhost/endpoint/${hostname}`)];
+
+				const processingPromise = new Promise<Response>((resolve, reject) => {
+					(async () => {
+						await Promise.all(requests.map(async (request) => {
+							try {
+								const response = await Utils.promiseWithTimeout(request, client.config.timeout);
+								if (!response) throw new Error("Hostname not found");
+								const body = await response.text();
+								const signature = response.headers.get("hydra-signature");
+								if (signature !== null) {
+									const [xBase32, yBase32] = hostname.split(".");
+									if (await Utils.verifySignature(body, signature as Base64, { x: Base32.decode(xBase32), y: Base32.decode(yBase32) })) resolve(new Response(body, { headers: response.headers }));
+								}
+							} catch (e) {
+								const err = e as Error;
+								if (err.message !== "Hostname not found" && err.message !== "Promise timed out") console.error(e);
 							}
-						} catch (e) {
-							if (client.config.logLevel === "verbose") console.error(e);
-						}
-					}
-					console.log(`  ${hostname}  Fetching endpoint response from WebRTC`);
-					const responses = client.webRTC.sendRequest(`http://localhost/endpoint/${hostname}`);
-					for (let i = 0; i < responses.length; i++) {
-						try {
-							const response = await Utils.promiseWithTimeout(responses[i], client.config.timeout);
-							const body = await response.text();
-							const signature = response.headers.get("hydra-signature");
-							if (signature !== null) {
-								const [xBase32, yBase32] = hostname.split(".");
-								if (await Utils.verifySignature(body, signature as Base64, { x: Base32.decode(xBase32), y: Base32.decode(yBase32) })) return new Response(body, { headers });
-							}
-						} catch (e) {
-							console.error(e);
-						}
-					}
-					return new Response("Not found", { headers, status: 404 });
-				})();
+						}));
+						reject(new Error("Hostname not found"));
+					})();
+				});
 
 				hashLocks.set(hostname, processingPromise);
 
-				let response: Response;
+				let response: Response | undefined;
 				try {
 					response = await processingPromise;
+				} catch (e) {
+					const err = e as Error;
+					if (err.message === "Hstname not found") return new Response("Hostname not found", { headers, status: 404 });
+					else throw err;
 				} finally {
 					hashLocks.delete(hostname);
 				}
@@ -320,7 +314,7 @@ export const handleRequest = async (req: Request, client: Hydrafiles): Promise<R
 			return new Response("404 Page Not Found\n", { status: 404 });
 		}
 	} catch (e) {
-		console.error(e);
+		console.error("Internal Server Error", e);
 		return new Response("Internal Server Error", { status: 500 });
 	}
 	return new Response("Something went wrong", { status: 500 });
