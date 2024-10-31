@@ -246,6 +246,7 @@ export const handleRequest = async (req: Request, client: Hydrafiles): Promise<R
 		} else if (url.pathname.startsWith("/endpoint/")) {
 			const hostname = url.pathname.split("/")[2];
 			const pubKey = await Utils.exportPublicKey(client.keyPair.publicKey);
+
 			if (hostname === `${Base32.encode(pubKey.x).toLowerCase().replaceAll("=", "")}.${Base32.encode(pubKey.y).toLowerCase().replaceAll("=", "")}`) {
 				const body = client.config.reverseProxy ? await (await fetch(client.config.reverseProxy)).text() : "Hello World!"; // TODO: Reverse proxy logic
 				const signature = await Utils.signMessage(client.keyPair.privateKey, body);
@@ -253,30 +254,46 @@ export const handleRequest = async (req: Request, client: Hydrafiles): Promise<R
 				headers.set("hydra-signature", signature);
 				return new Response(body, { headers });
 			} else {
-				const nodes = await client.peers.getPeers();
-				for (let i = 0; i < nodes.length; i++) {
-					const node = nodes[i];
-					const response = await fetch(`${node.host}/endpoint/${hostname}`);
-					const body = await response.text();
-					const signature = response.headers.get("hydra-signature");
-					if (signature !== null) {
-						const [xBase32, yBase32] = hostname.split(".");
-						if (await Utils.verifySignature(body, signature as Base64, { x: Base32.decode(xBase32), y: Base32.decode(yBase32) })) return new Response(body, { headers });
-					}
+				if (hashLocks.has(hostname)) {
+					if (client.config.logLevel === "verbose") console.log(`  ${hostname}  Waiting for existing request with same hostname`);
+					await hashLocks.get(hostname);
 				}
-				const responses = client.webRTC.sendRequest(`http://localhost/endpoint/${hostname}`);
-				for (let i = 0; i < responses.length; i++) {
-					const response = await responses[i];
-					const body = await response.text();
-					const signature = response.headers.get("hydra-signature");
-					if (signature !== null) {
-						const [xBase32, yBase32] = hostname.split(".");
-						if (await Utils.verifySignature(body, signature as Base64, { x: Base32.decode(xBase32), y: Base32.decode(yBase32) })) return new Response(body, { headers });
+				const processingPromise = (async (): Promise<Response> => {
+					const nodes = await client.peers.getPeers();
+					for (let i = 0; i < nodes.length; i++) {
+						const node = nodes[i];
+						const response = await fetch(`${node.host}/endpoint/${hostname}`);
+						const body = await response.text();
+						const signature = response.headers.get("hydra-signature");
+						if (signature !== null) {
+							const [xBase32, yBase32] = hostname.split(".");
+							if (await Utils.verifySignature(body, signature as Base64, { x: Base32.decode(xBase32), y: Base32.decode(yBase32) })) return new Response(body, { headers });
+						}
 					}
+					const responses = client.webRTC.sendRequest(`http://localhost/endpoint/${hostname}`);
+					for (let i = 0; i < responses.length; i++) {
+						const response = await responses[i];
+						const body = await response.text();
+						const signature = response.headers.get("hydra-signature");
+						if (signature !== null) {
+							const [xBase32, yBase32] = hostname.split(".");
+							if (await Utils.verifySignature(body, signature as Base64, { x: Base32.decode(xBase32), y: Base32.decode(yBase32) })) return new Response(body, { headers });
+						}
+					}
+					return new Response("Not found", { headers, status: 404 });
+				})();
+
+				hashLocks.set(hostname, processingPromise);
+
+				let response: Response;
+				try {
+					response = await processingPromise;
+				} finally {
+					hashLocks.delete(hostname);
 				}
+				return response;
 			}
 
-			return new Response("Not found", { headers, status: 404 });
 			// } else if (url.pathname.startsWith("/block/")) {
 			// 	const blockHeight = url.pathname.split("/")[2];
 			// 	headers.set("Content-Type", "application/json");
