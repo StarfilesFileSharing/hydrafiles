@@ -3,7 +3,7 @@
 <p align="center">
   <a href="#how-do-i-setup-a-node">Skip To Deploy Instructions</a>
   <br><br>
-  <img src="/public/favicon.ico">
+  <img src="./public/favicon.ico">
   <br><br>
   Please submit ideas & feature requests as well as any problems you're facing as an issue.
   <br><br>
@@ -22,7 +22,7 @@ node, send a PR and we'd love to add you as a boostrap node!
 
 ## What is Hydrafiles?
 
-Hydrafiles is the web privacy layer, enabling anonymous hosting of both files and APIs. Anyone can host and serve static files or backends via HTTP without revealing their identity.
+Hydrafiles is the web privacy layer, enabling anonymous hosting of both files and APIs. Anyone can host and serve static files or backends over HTTP and/or WebRTC without revealing their identity.
 
 ## Why Hydrafiles?
 
