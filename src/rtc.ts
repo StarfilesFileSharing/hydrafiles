@@ -19,6 +19,8 @@ function arrayBufferToUnicodeString(buffer: ArrayBuffer): string {
 	return result;
 }
 
+const peerId = Math.random();
+
 class WebRTC {
 	_client: Hydrafiles;
 	peerId: number;
@@ -28,7 +30,7 @@ class WebRTC {
 
 	constructor(client: Hydrafiles) {
 		this._client = client;
-		this.peerId = Math.random();
+		this.peerId = peerId;
 		this.websockets = [new WebSocket("wss://rooms.deno.dev/")];
 	}
 
@@ -56,7 +58,7 @@ class WebRTC {
 				const message = JSON.parse(event.data) as Message;
 				const conns = webRTC.peerConnections[message.from];
 				if ("announce" in message) {
-					if (conns) return;
+					if (conns || message.from === peerId) return;
 					console.log(`WebRTC: (2/12): ${message.from} Received announce`);
 					await webRTC.handleAnnounce(message.from);
 				} else if ("offer" in message) {
@@ -125,20 +127,20 @@ class WebRTC {
 	}
 
 	private cleanupPeerConnection(conn: RTCPeerConnection): void {
-		const peerId = Object.keys(this.peerConnections).find((id) => this.peerConnections[id].offered?.conn === conn || this.peerConnections[id].answered?.conn === conn);
+		const remotePeerId = Object.keys(this.peerConnections).find((id) => this.peerConnections[id].offered?.conn === conn || this.peerConnections[id].answered?.conn === conn);
 
-		if (peerId) {
-			const peerConns = this.peerConnections[peerId];
+		if (remotePeerId) {
+			const peerConns = this.peerConnections[remotePeerId];
 			if (peerConns.offered?.conn === conn) {
-				console.log(`13/12  ${peerId}  Offered connecton has ${conn.iceConnectionState}`);
+				console.log(`13/12  ${remotePeerId}  Offered connecton has ${conn.iceConnectionState}`);
 				peerConns.offered.conn.close();
 				delete peerConns.offered;
 			} else if (peerConns.answered?.conn === conn) {
-				console.log(`13/12  ${peerId}  Answered connecton has ${conn.iceConnectionState}`);
+				console.log(`13/12  ${remotePeerId}  Answered connecton has ${conn.iceConnectionState}`);
 				peerConns.answered.conn.close();
 				delete peerConns.answered;
 			}
-			if (!peerConns.offered && !peerConns.answered) delete this.peerConnections[peerId];
+			if (!peerConns.offered && !peerConns.answered) delete this.peerConnections[remotePeerId];
 		}
 	}
 
