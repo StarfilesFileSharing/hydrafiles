@@ -264,22 +264,32 @@ export const handleRequest = async (req: Request, client: Hydrafiles): Promise<R
 					const nodes = await client.peers.getPeers();
 					for (let i = 0; i < nodes.length; i++) {
 						const node = nodes[i];
-						const response = await Utils.promiseWithTimeout(fetch(`${node.host}/endpoint/${hostname}`), client.config.timeout);
-						const body = await response.text();
-						const signature = response.headers.get("hydra-signature");
-						if (signature !== null) {
-							const [xBase32, yBase32] = hostname.split(".");
-							if (await Utils.verifySignature(body, signature as Base64, { x: Base32.decode(xBase32), y: Base32.decode(yBase32) })) return new Response(body, { headers });
+						try {
+							console.log(`  ${hostname}  Fetching endpoint response from ${node.host}`);
+							const response = await Utils.promiseWithTimeout(fetch(`${node.host}/endpoint/${hostname}`), client.config.timeout);
+							const body = await response.text();
+							const signature = response.headers.get("hydra-signature");
+							if (signature !== null) {
+								const [xBase32, yBase32] = hostname.split(".");
+								if (await Utils.verifySignature(body, signature as Base64, { x: Base32.decode(xBase32), y: Base32.decode(yBase32) })) return new Response(body, { headers });
+							}
+						} catch (e) {
+							if (client.config.logLevel === "verbose") console.error(e);
 						}
 					}
+					console.log(`  ${hostname}  Fetching endpoint response from WebRTC`);
 					const responses = client.webRTC.sendRequest(`http://localhost/endpoint/${hostname}`);
 					for (let i = 0; i < responses.length; i++) {
-						const response = await Utils.promiseWithTimeout(responses[i], client.config.timeout);
-						const body = await response.text();
-						const signature = response.headers.get("hydra-signature");
-						if (signature !== null) {
-							const [xBase32, yBase32] = hostname.split(".");
-							if (await Utils.verifySignature(body, signature as Base64, { x: Base32.decode(xBase32), y: Base32.decode(yBase32) })) return new Response(body, { headers });
+						try {
+							const response = await Utils.promiseWithTimeout(responses[i], client.config.timeout);
+							const body = await response.text();
+							const signature = response.headers.get("hydra-signature");
+							if (signature !== null) {
+								const [xBase32, yBase32] = hostname.split(".");
+								if (await Utils.verifySignature(body, signature as Base64, { x: Base32.decode(xBase32), y: Base32.decode(yBase32) })) return new Response(body, { headers });
+							}
+						} catch (e) {
+							console.error(e);
 						}
 					}
 					return new Response("Not found", { headers, status: 404 });
