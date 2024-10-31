@@ -36,7 +36,12 @@ class WebRTC {
 		const webRTC = new WebRTC(client);
 		const peers = await client.peers.getPeers();
 		for (let i = 0; i < peers.length; i++) {
-			webRTC.websockets.push(new WebSocket(peers[i].host.replace("https://", "wss://").replace("http://", "ws://")));
+			try {
+				webRTC.websockets.push(new WebSocket(peers[i].host.replace("https://", "wss://").replace("http://", "ws://")));
+			} catch (e) {
+				console.error(e);
+				continue;
+			}
 		}
 
 		for (let i = 0; i < webRTC.websockets.length; i++) {
