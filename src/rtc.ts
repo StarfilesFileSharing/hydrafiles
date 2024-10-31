@@ -110,8 +110,32 @@ class WebRTC {
 		conn.onicecandidate = (event) => {
 			if (event.candidate) iceCandidates.push(event.candidate);
 		};
+		conn.addEventListener("iceconnectionstatechange", () => {
+			if (conn.iceConnectionState === "disconnected" || conn.iceConnectionState === "closed" || conn.iceConnectionState === "failed") {
+				console.log("Connection closed. Cleaning up peer connection.");
+				this.cleanupPeerConnection(conn);
+			}
+		});
 
 		return { conn, channel, iceCandidates };
+	}
+
+	private cleanupPeerConnection(conn: RTCPeerConnection): void {
+		const peerId = Object.keys(this.peerConnections).find((id) => this.peerConnections[id].offered?.conn === conn || this.peerConnections[id].answered?.conn === conn);
+
+		if (peerId) {
+			const peerConns = this.peerConnections[peerId];
+			if (peerConns.offered?.conn === conn) {
+				console.log(`  ${peerId}  Removing 'offered' connection for peerId`);
+				peerConns.offered.conn.close();
+				delete peerConns.offered;
+			} else if (peerConns.answered?.conn === conn) {
+				console.log(`  ${peerId}  Removing 'answered' connection for peerId`);
+				peerConns.answered.conn.close();
+				delete peerConns.answered;
+			}
+			if (!peerConns.offered && !peerConns.answered) delete this.peerConnections[peerId];
+		}
 	}
 
 	private wsMessage(message: Message): void {
