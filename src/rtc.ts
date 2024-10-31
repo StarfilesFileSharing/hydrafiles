@@ -55,7 +55,7 @@ class WebRTC {
 					console.log(`WebRTC: (2/12): ${message.from} Received announce`);
 					await webRTC.handleAnnounce(message.from);
 				} else if ("offer" in message) {
-					if (typeof message.offer.sdp === "undefined" || message.to !== webRTC.peerId || (conns && conns.offered && conns.offered?.channel.readyState === "open")) return;
+					if (typeof message.offer.sdp === "undefined" || message.to !== webRTC.peerId || (conns && ((conns.offered && conns.offered?.channel.readyState === "open") || conns.answered))) return;
 					console.log(`WebRTC: (4/12): ${message.from} Received offer`);
 					await webRTC.handleOffer(message.from, message.offer);
 				} else if ("answer" in message) {
