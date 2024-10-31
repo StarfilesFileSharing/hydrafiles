@@ -262,31 +262,13 @@ const fs = typeof window === "undefined" ? StandardFileSystem : (typeof globalTh
 if (typeof IndexedDBFileSystem === typeof fs && "dbPromise" in fs) fs.dbPromise = IndexedDBFileSystem.initDB();
 
 class FileSystem {
-	static exists = async (path: string) => {
-		console.log("FS: exists", path);
-		return fs ? await fs.exists(path) : false;
-	};
-	static mkdir = async (path: string) => {
-		console.log("FS: mkdir", path);
-		return fs ? await fs.mkdir(path) : false;
-	};
-	static readDir = async (path: string) => {
-		console.log("FS: readDir", path);
-		return fs ? await fs.readDir(path) : [];
-	};
-	static readFile = async (path: string) => {
-		console.log("FS: readFile", path);
-		return fs ? await fs.readFile(path) : false;
-	};
-	static writeFile = async (path: string, data: Uint8Array) => {
-		console.log("FS: writeFile", path);
-		return fs ? await fs.writeFile(path, data) : false;
-	};
+	static exists = async (path: string) => fs ? await fs.exists(path) : false;
+	static mkdir = async (path: string) => fs ? await fs.mkdir(path) : false;
+	static readDir = async (path: string) => fs ? await fs.readDir(path) : [];
+	static readFile = async (path: string) => fs ? await fs.readFile(path) : false;
+	static writeFile = async (path: string, data: Uint8Array) => fs ? await fs.writeFile(path, data) : false;
 	static getFileSize = async (path: string) => fs ? await fs.getFileSize(path) : false;
-	static remove = async (path: string) => {
-		console.log("FS: remove", path);
-		return fs ? await fs.remove(path) : false;
-	};
+	static remove = async (path: string) => fs ? await fs.remove(path) : false;
 }
 
 export default FileSystem;
