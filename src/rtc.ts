@@ -78,8 +78,9 @@ class WebRTC {
 				{ urls: "stun:stun.ekiga.net" },
 				{ urls: "stun:stun.stunprotocol.org:3478" },
 				{ urls: "stun:stun.voipbuster.com" },
-				{ urls: "turn:turn01.hubl.in?transport=udp" },
-				{ urls: "turn:turn02.hubl.in?transport=tcp" },
+				{ url: "turn:numb.viagenie.ca", credential: "muazkh", username: "webrtc@live.com" },
+				{ url: "turn:192.158.29.39:3478?transport=udp", credential: "JZEOEt2V3Qb0y27GRntt2u2PAYA=", username: "28224511:1379330808" },
+				{ url: "turn:192.158.29.39:3478?transport=tcp", credential: "JZEOEt2V3Qb0y27GRntt2u2PAYA=", username: "28224511:1379330808" },
 			],
 		};
 		let conn: RTCPeerConnection;
