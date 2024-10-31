@@ -4,8 +4,8 @@ import type Hydrafiles from "./hydrafiles.ts";
 import { join } from "https://deno.land/std@0.224.0/path/mod.ts";
 import FileSystem from "./fs.ts";
 
-type Base64 = string & { __brand: "Base64" };
-type NonNegativeNumber = number & { readonly brand: unique symbol };
+export type Base64 = string & { __brand: "Base64" };
+export type NonNegativeNumber = number & { readonly brand: unique symbol };
 
 class Utils {
 	_client: Hydrafiles;
