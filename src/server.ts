@@ -264,7 +264,7 @@ export const handleRequest = async (req: Request, client: Hydrafiles): Promise<R
 					const nodes = await client.peers.getPeers();
 					for (let i = 0; i < nodes.length; i++) {
 						const node = nodes[i];
-						const response = await fetch(`${node.host}/endpoint/${hostname}`);
+						const response = await Utils.promiseWithTimeout(fetch(`${node.host}/endpoint/${hostname}`), client.config.timeout);
 						const body = await response.text();
 						const signature = response.headers.get("hydra-signature");
 						if (signature !== null) {
@@ -274,7 +274,7 @@ export const handleRequest = async (req: Request, client: Hydrafiles): Promise<R
 					}
 					const responses = client.webRTC.sendRequest(`http://localhost/endpoint/${hostname}`);
 					for (let i = 0; i < responses.length; i++) {
-						const response = await responses[i];
+						const response = await Utils.promiseWithTimeout(responses[i], client.config.timeout);
 						const body = await response.text();
 						const signature = response.headers.get("hydra-signature");
 						if (signature !== null) {
