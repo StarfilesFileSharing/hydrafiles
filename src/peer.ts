@@ -184,7 +184,7 @@ export class PeerDB {
 		}
 	}
 
-	async update(host: string, newPeer: PeerAttributes): Promise<void> {
+	async update(host: string, newPeer: PeerAttributes | Peer): Promise<void> {
 		if (this.db === undefined) return;
 
 		// Get the current peer attributes before updating
@@ -223,8 +223,9 @@ export class PeerDB {
 				this._client.config.logLevel === "verbose" ? console.log(`  ${host}  Updated Values:`, beforeAndAfter) : "",
 			);
 		} else {
-			console.log("newPeer", newPeer);
-			if (this.db.type === "INDEXEDDB") this.objectStore().put(newPeer).onerror = console.error;
+			// @ts-expect-error:
+			const { _db, ...clonedPeer } = newPeer;
+			if (this.db.type === "INDEXEDDB") this.objectStore().put(clonedPeer).onerror = console.error;
 			console.log(
 				`  ${host}  Peer UPDATEd - Updated Columns: ${updatedColumn.join(", ")}` + (this._client.config.logLevel === "verbose" ? ` - Params: ${params.join(", ")}` : ""),
 				this._client.config.logLevel === "verbose" ? console.log(`  ${host}  Updated Values:`, beforeAndAfter) : "",
