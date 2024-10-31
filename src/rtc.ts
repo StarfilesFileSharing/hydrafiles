@@ -41,28 +41,30 @@ class WebRTC {
 
 		for (let i = 0; i < webRTC.websockets.length; i++) {
 			webRTC.websockets[i].onopen = () => {
-				console.log(`(1/12) Announcing to ${webRTC.websockets[i].url}`);
-				webRTC.wsMessage({ announce: true, from: webRTC.peerId });
+				console.log(`WebRTC: (1/12): Announcing to ${webRTC.websockets[i].url}`);
+				const message: Message = { announce: true, from: webRTC.peerId };
+				webRTC.wsMessage(message);
+				setInterval(() => webRTC.wsMessage(message), client.config.announceSpeed);
 			};
 
 			webRTC.websockets[i].onmessage = async (event) => {
 				const message = JSON.parse(event.data) as Message;
 				if ("announce" in message) {
 					if (webRTC.peerConnections[message.from]) return;
-					console.log(`(2/12) ${message.from} Received announce`);
+					console.log(`WebRTC: (2/12): ${message.from} Received announce`);
 					await webRTC.handleAnnounce(message.from);
 				} else if ("offer" in message) {
 					if (typeof message.offer.sdp === "undefined" || message.to !== webRTC.peerId) return;
-					console.log(`(4/12) ${message.from} Received offer`);
+					console.log(`WebRTC: (4/12): ${message.from} Received offer`);
 					await webRTC.handleOffer(message.from, message.offer);
 				} else if ("answer" in message) {
 					// @ts-expect-error:
 					if (!webRTC.peerConnections[message.from] || !webRTC.peerConnections[message.from].offered || webRTC.peerConnections[message.from].offered.conn.signalingState === "stable" || message.to !== webRTC.peerId) return;
-					console.log(`(7/12) ${message.from} Received answer`);
+					console.log(`WebRTC: (7/12): ${message.from} Received answer`);
 					await webRTC.handleAnswer(message.from, message.answer);
 				} else if ("iceCandidate" in message) {
 					if (!webRTC.peerConnections[message.from] || !webRTC.peerConnections[message.from].offered || message.to !== webRTC.peerId) return;
-					console.log(`(8/12) ${message.from} Received ICE candidate`);
+					console.log(`WebRTC: (8/12): ${message.from} Received ICE candidate`);
 					// @ts-expect-error: IDK why this isn't getting caught
 					await webRTC.peerConnections[message.from].offered.conn.addIceCandidate(message.iceCandidate);
 				} else console.warn("Unknown message type received", message);
@@ -90,7 +92,7 @@ class WebRTC {
 		const iceCandidates: RTCIceCandidate[] = [];
 
 		channel.onmessage = async (e) => {
-			console.log(`(10/12) Received request`);
+			console.log(`WebRTC: (10/12): Received request`);
 			const { id, url, ...data } = JSON.parse(e.data as string);
 			const req = new Request(url, data);
 			const response = await handleRequest(req, this._client);
@@ -102,7 +104,7 @@ class WebRTC {
 			const status = response.status;
 			const statusText = response.statusText;
 
-			console.log(`(11/12) Sending response`);
+			console.log(`WebRTC: (11/12): Sending response`);
 			channel.send(JSON.stringify({ body, status, statusText, headers: headersObj, id }));
 		};
 		conn.onicecandidate = (event) => {
@@ -154,7 +156,7 @@ class WebRTC {
 		this.peerConnections[from].offered = conn;
 		const offer = await conn.conn.createOffer();
 		await conn.conn.setLocalDescription(offer);
-		console.log(`(3/12) ${from} Sending offer`);
+		console.log(`WebRTC: (3/12): ${from} Sending offer`);
 		this.wsMessage({ offer, to: from, from: this.peerId });
 	}
 
@@ -172,7 +174,7 @@ class WebRTC {
 		const answer = await this.peerConnections[from].answered.conn.createAnswer();
 		await this.peerConnections[from].answered.conn.setLocalDescription(answer);
 		for (let i = 0; i < this.websockets.length; i++) {
-			console.log(`(5/12) ${from} Announcing answer`);
+			console.log(`WebRTC: (5/12): ${from} Announcing answer`);
 			this.wsMessage({ answer, to: from, from: this.peerId });
 		}
 
@@ -180,7 +182,7 @@ class WebRTC {
 		if (peerConnection) {
 			const { iceCandidates } = peerConnection;
 			for (const candidate of iceCandidates) {
-				console.log(`(6/12) ${from} Sending ICE candidate`);
+				console.log(`WebRTC: (6/12): ${from} Sending ICE candidate`);
 				this.wsMessage({ iceCandidate: candidate, to: from, from: this.peerId });
 			}
 		}
@@ -218,13 +220,13 @@ class WebRTC {
 
 			if (!connection) continue;
 
-			console.log(`(9/12) Sending request to ${connIDs[i]}`);
+			console.log(`WebRTC: (9/12): Sending request to ${connIDs[i]}`);
 			connection.channel.send(JSON.stringify(request));
 
 			const responsePromise = new Promise<Response>((resolve, reject) => {
 				connection.channel.onmessage = (e) => {
 					try {
-						console.log(`(12/12) Received response`);
+						console.log(`WebRTC: (12/12): Received response`);
 						const { id, status, statusText, headers, body } = JSON.parse(e.data as string);
 						if (id !== requestId) return;
 						const response = new Response(body, {
