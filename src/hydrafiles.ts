@@ -7,7 +7,6 @@ import startServer, { hashLocks } from "./server.ts";
 import Utils from "./utils.ts";
 // import Blockchain, { Block } from "./block.ts";
 import { S3Client } from "https://deno.land/x/s3_lite_client@0.7.0/mod.ts";
-import { delay } from "https://deno.land/std@0.170.0/async/delay.ts";
 import WebRTC from "./rtc.ts";
 
 // TODO: IDEA: HydraTorrent - New Github repo - "Hydrafiles + WebTorrent Compatibility Layer" - Hydrafiles noes can optionally run HydraTorrent to seed files via webtorrent
@@ -41,14 +40,7 @@ class Hydrafiles {
 
 		if (this.config.s3Endpoint.length) {
 			console.log("Startup: Populating S3");
-			this.s3 = new S3Client({
-				endPoint: this.config.s3Endpoint,
-				region: "us-east-1",
-				bucket: "uploads",
-				accessKey: this.config.s3AccessKeyId,
-				secretKey: this.config.s3SecretAccessKey,
-				pathStyle: false,
-			});
+			this.s3 = new S3Client({ endPoint: this.config.s3Endpoint, region: "us-east-1", bucket: "uploads", accessKey: this.config.s3AccessKeyId, secretKey: this.config.s3SecretAccessKey, pathStyle: false });
 		}
 	}
 
@@ -64,54 +56,37 @@ class Hydrafiles {
 		console.log("Startup: Populating webRTC");
 		this.webRTC = await WebRTC.init(this);
 
+		this.startBackgroundTasks(onCompareFileListProgress);
+	}
+
+	private startBackgroundTasks(onCompareFileListProgress?: (progress: number, total: number) => void): void {
 		startServer(this);
 
-		if (this.config.summarySpeed !== -1) {
-			this.logState();
-			setInterval(() => this.logState, this.config.summarySpeed);
+		if (this.config.summarySpeed !== -1) setInterval(() => this.logState(), this.config.summarySpeed);
+		if (this.config.comparePeersSpeed !== -1) {
+			this.peers.fetchPeers();
+			setInterval(() => this.peers.fetchPeers(), this.config.comparePeersSpeed);
 		}
+		if (this.config.compareFilesSpeed !== -1) {
+			this.peers.compareFileList(onCompareFileListProgress);
+			setInterval(() => this.peers.compareFileList(onCompareFileListProgress), this.config.compareFilesSpeed);
+		}
+		if (this.config.backfill) this.backfillFiles();
+	}
 
-		if (this.config.compareSpeed !== -1) {
-			this.backgroundTasks(onCompareFileListProgress);
-			setInterval(this.backgroundTasks, this.config.compareSpeed);
-		}
-		if (this.config.backfill) {
-			(async () => {
-				while (true) {
-					await this.backfillFile();
+	private backfillFiles = async (): Promise<void> => {
+		while (true) {
+			try {
+				const fileAttributes = (await this.fileDB.select(undefined, "RANDOM"))[0];
+				if (!fileAttributes) return;
+				const file = await this.initFile(fileAttributes, false);
+				if (file) {
+					console.log(`  ${file.hash}  Backfilling file`);
+					await file.getFile({ logDownloads: false });
 				}
-			})();
-		}
-	}
-
-	public async initFile(values: Partial<File>, vote = false): Promise<File | false> {
-		return await File.init(values, this, vote);
-	}
-
-	private backgroundTasks = async (onCompareFileListProgress?: (progress: number, total: number) => void): Promise<void> => {
-		const peers = this.peers;
-		if (this.config.compareNodes) peers.fetchPeers();
-		if (this.config.compareFiles) {
-			const knownNodes = await peers.getPeers();
-			for (let i = 0; i < knownNodes.length; i++) {
-				await peers.compareFileList(knownNodes[i], onCompareFileListProgress);
+			} catch (e) {
+				if (this.config.logLevel === "verbose") throw e;
 			}
-		}
-		await delay(600000);
-		this.backgroundTasks(onCompareFileListProgress);
-	};
-
-	private backfillFile = async (): Promise<void> => {
-		try {
-			const fileAttributes = (await this.fileDB.select(undefined, "RANDOM"))[0];
-			if (!fileAttributes) return;
-			const file = await File.init(fileAttributes, this);
-			if (file) {
-				console.log(`  ${file.hash}  Backfilling file`);
-				await file.getFile({ logDownloads: false });
-			}
-		} catch (e) {
-			if (this.config.logLevel === "verbose") throw e;
 		}
 	};
 
@@ -150,6 +125,10 @@ class Hydrafiles {
 	public search = async <T extends keyof FileAttributes>(where?: { key: T; value: NonNullable<File[T]> }, orderBy?: "RANDOM" | { key: T; direction: "ASC" | "DESC" }): Promise<FileAttributes[]> => {
 		return await this.fileDB.select(where, orderBy);
 	};
+
+	public async initFile(values: Partial<File>, vote = false): Promise<File | false> {
+		return await File.init(values, this, vote);
+	}
 }
 
 export default Hydrafiles;
