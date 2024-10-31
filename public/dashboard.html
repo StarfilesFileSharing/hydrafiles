@@ -93,6 +93,7 @@
         <thead>
             <tr>
                 <th>ID</th>
+                <th>Type</th>
                 <th>Signaling State</th>
                 <th>ICE Gathering State</th>
                 <th>ICE Connection State</th>
@@ -159,6 +160,7 @@
             case "checking":
             case "new":
             case "have-local-offer":
+            case "have-remote-offer":
                 return "#FFD580";
             case "disconnected":
             case "closed":
@@ -170,7 +172,6 @@
     }
 
     async function fetchAndPopulatePeers() {
-      console.log('fetchAndPopulatePeers')
       const peers = await window.hydrafiles.peers.getPeers();
       const peersEl = document.getElementById('peers');
       peersEl.innerHTML = '';
@@ -186,45 +187,53 @@
       tbody.innerHTML = "";
       for (let i = 0; i < rtcPeers.length; i++) {
           const [id, peer] = rtcPeers[i];
-          const conn = Object.values(peer)[0].conn;
-          const row = document.createElement("tr");
+          const peerConns = Object.entries(peer);
+          for (let j = 0; j < peerConns.length; j++) {
+              const [type, peerConn] = peerConns[j];
+              const conn = peerConn.conn;
+              const row = document.createElement("tr");
 
-          const idCell = document.createElement("td");
-          idCell.textContent = id;
+              const idCell = document.createElement("td");
+              idCell.textContent = id;
 
-          const signalingStateCell = document.createElement("td");
-          signalingStateCell.textContent = conn.signalingState;
-          signalingStateCell.style.backgroundColor = getBackgroundColor(conn.signalingState);
+              const typeCell = document.createElement("td");
+              typeCell.textContent = type;
 
-          const iceGatheringStateCell = document.createElement("td");
-          iceGatheringStateCell.textContent = conn.iceGatheringState;
-          iceGatheringStateCell.style.backgroundColor = getBackgroundColor(conn.iceGatheringState);
+              const signalingStateCell = document.createElement("td");
+              signalingStateCell.textContent = conn.signalingState;
+              signalingStateCell.style.backgroundColor = getBackgroundColor(conn.signalingState);
 
-          const iceConnectionStateCell = document.createElement("td");
-          iceConnectionStateCell.textContent = conn.iceConnectionState;
-          iceConnectionStateCell.style.backgroundColor = getBackgroundColor(conn.iceConnectionState);
+              const iceGatheringStateCell = document.createElement("td");
+              iceGatheringStateCell.textContent = conn.iceGatheringState;
+              iceGatheringStateCell.style.backgroundColor = getBackgroundColor(conn.iceGatheringState);
 
-          const connectionStateCell = document.createElement("td");
-          connectionStateCell.textContent = conn.connectionState;
-          connectionStateCell.style.backgroundColor = getBackgroundColor(conn.connectionState);
+              const iceConnectionStateCell = document.createElement("td");
+              iceConnectionStateCell.textContent = conn.iceConnectionState;
+              iceConnectionStateCell.style.backgroundColor = getBackgroundColor(conn.iceConnectionState);
 
-          const channelStateCell = document.createElement("td");
-          channelStateCell.textContent = Object.values(peer)[0].channel.readyState;
-          channelStateCell.style.backgroundColor = getBackgroundColor(Object.values(peer)[0].channel.readyState);
+              const connectionStateCell = document.createElement("td");
+              connectionStateCell.textContent = conn.connectionState;
+              connectionStateCell.style.backgroundColor = getBackgroundColor(conn.connectionState);
 
-          const sctpStateCell = document.createElement("td");
-          sctpStateCell.textContent = conn.sctp.state;
-          sctpStateCell.style.backgroundColor = getBackgroundColor(conn.sctp.state);
+              const channelStateCell = document.createElement("td");
+              channelStateCell.textContent = peerConn.channel.readyState;
+              channelStateCell.style.backgroundColor = getBackgroundColor(peerConn.channel.readyState);
 
-          row.appendChild(idCell);
-          row.appendChild(signalingStateCell);
-          row.appendChild(iceGatheringStateCell);
-          row.appendChild(iceConnectionStateCell);
-          row.appendChild(connectionStateCell);
-          row.appendChild(channelStateCell);
-          row.appendChild(sctpStateCell);
+              const sctpStateCell = document.createElement("td");
+              sctpStateCell.textContent = conn.sctp ? conn.sctp.state : "N/A";
+              sctpStateCell.style.backgroundColor = getBackgroundColor(conn.sctp ? conn.sctp.state : "N/A");
 
-          tbody.appendChild(row);
+              row.appendChild(idCell);
+              row.appendChild(typeCell);
+              row.appendChild(signalingStateCell);
+              row.appendChild(iceGatheringStateCell);
+              row.appendChild(iceConnectionStateCell);
+              row.appendChild(connectionStateCell);
+              row.appendChild(channelStateCell);
+              row.appendChild(sctpStateCell);
+
+              tbody.appendChild(row);
+          }
       }
     }
 
