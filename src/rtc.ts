@@ -36,7 +36,7 @@ class WebRTC {
 
 	static async init(client: Hydrafiles): Promise<WebRTC> {
 		const webRTC = new WebRTC(client);
-		const peers = await client.peers.getPeers();
+		const peers = await client.peers.getPeers(true);
 		for (let i = 0; i < peers.length; i++) {
 			try {
 				webRTC.websockets.push(new WebSocket(peers[i].host.replace("https://", "wss://").replace("http://", "ws://")));

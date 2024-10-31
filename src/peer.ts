@@ -376,8 +376,8 @@ export default class Peers {
 		if (host !== this._client.config.publicHostname) await Peer.init({ host }, this._client.peerDB);
 	}
 
-	public getPeers = async (): Promise<PeerAttributes[]> => {
-		const peers = await this._client.peerDB.select();
+	public getPeers = async (applicablePeers = false): Promise<PeerAttributes[]> => {
+		const peers = (await this._client.peerDB.select()).filter((peer) => !applicablePeers || typeof window === "undefined" || !peer.host.startsWith("http://"));
 
 		if (this._client.config.preferNode === "FASTEST") {
 			return peers.sort((a, b) => a.bytes / a.duration - b.bytes / b.duration);
@@ -472,7 +472,7 @@ export default class Peers {
 
 	async fetchPeers(): Promise<void> {
 		// TODO: Compare list between all peers and give score based on how similar they are. 100% = all exactly the same, 0% = no items in list were shared. The lower the score, the lower the propagation times, the lower the decentralisation
-		const peers = await this.getPeers();
+		const peers = await this.getPeers(true);
 		for (const peer of peers) {
 			if (peer.host.startsWith("http://") || peer.host.startsWith("https://")) {
 				console.log(`  ${peer.host}  Fetching peers`);
@@ -524,7 +524,7 @@ export default class Peers {
 	async compareFileList(onProgress?: (progress: number, total: number) => void): Promise<void> {
 		// TODO: Compare list between all peers and give score based on how similar they are. 100% = all exactly the same, 0% = no items in list were shared. The lower the score, the lower the propagation times, the lower the decentralisation
 
-		const peers = await this.getPeers();
+		const peers = await this.getPeers(true);
 		let files: FileAttributes[] = [];
 		for (let i = 0; i < peers.length; i++) {
 			const peer = peers[i];
@@ -586,7 +586,7 @@ export default class Peers {
 	}
 
 	async downloadFile(hash: string, size = 0): Promise<{ file: Uint8Array; signal: number } | false> {
-		const peers = await this.getPeers();
+		const peers = await this.getPeers(true);
 
 		if (!this._client.utils.hasSufficientMemory(size)) {
 			console.log("Reached memory limit, waiting");
