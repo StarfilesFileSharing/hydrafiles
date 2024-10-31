@@ -78,6 +78,8 @@ class WebRTC {
 				{ urls: "stun:stun.ekiga.net" },
 				{ urls: "stun:stun.stunprotocol.org:3478" },
 				{ urls: "stun:stun.voipbuster.com" },
+				{ urls: "turn:turn01.hubl.in?transport=udp" },
+				{ urls: "turn:turn02.hubl.in?transport=tcp" },
 			],
 		};
 		let conn: RTCPeerConnection;
