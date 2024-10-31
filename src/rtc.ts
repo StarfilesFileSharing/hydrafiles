@@ -36,7 +36,7 @@ class WebRTC {
 
 	static async init(client: Hydrafiles): Promise<WebRTC> {
 		const webRTC = new WebRTC(client);
-		const peers = await client.peers.getPeers();
+		const peers = await client.peers.getPeers(true);
 		for (let i = 0; i < peers.length; i++) {
 			try {
 				webRTC.websockets.push(new WebSocket(peers[i].host.replace("https://", "wss://").replace("http://", "ws://")));
@@ -66,7 +66,7 @@ class WebRTC {
 					console.log(`WebRTC: (4/12): ${message.from} Received offer`);
 					await webRTC.handleOffer(message.from, message.offer);
 				} else if ("answer" in message) {
-					if (!conns || !conns.offered || conns.offered.conn.signalingState === "stable" || message.to !== webRTC.peerId) return;
+					if (!conns || !conns.offered || message.to !== webRTC.peerId) return;
 					console.log(`WebRTC: (7/12): ${message.from} Received answer`);
 					await webRTC.handleAnswer(message.from, message.answer);
 				} else if ("iceCandidate" in message) {
@@ -199,6 +199,7 @@ class WebRTC {
 	}
 
 	private async handleAnswer(from: number, answer: RTCSessionDescription): Promise<void> {
+		if (!this.peerConnections[from].offered || this.peerConnections[from].offered.conn.signalingState === "stable") return;
 		let sessionDescription: RTCSessionDescription;
 		if (typeof window === "undefined") {
 			const { RTCSessionDescription } = await import("npm:werift");
@@ -206,7 +207,6 @@ class WebRTC {
 			// @ts-expect-error:
 		} else sessionDescription = new RTCSessionDescription(answer, "answer");
 		try {
-			// @ts-expect-error:
 			await this.peerConnections[from].offered.conn.setRemoteDescription(sessionDescription);
 		} catch (e) {
 			console.error(e);

@@ -397,7 +397,7 @@ class File implements FileAttributes {
 		}
 		if (!values.hash && values.id) {
 			const promises: (() => Promise<void>)[] = [];
-			const nodes = await client.peers.getPeers();
+			const nodes = await client.peers.getPeers(true);
 			for (let i = 0; i < nodes.length; i++) {
 				const promise = async () => {
 					try {
