@@ -9,6 +9,7 @@ import { Peer } from "./peer.ts";
 import FileSystem from "./fs.ts";
 
 export const hashLocks = new Map<string, Promise<Response>>();
+const cachedHostnames: { [key: string]: Response } = {};
 const sockets: WebSocket[] = [];
 
 export const handleRequest = async (req: Request, client: Hydrafiles): Promise<Response> => {
@@ -260,6 +261,7 @@ export const handleRequest = async (req: Request, client: Hydrafiles): Promise<R
 					if (client.config.logLevel === "verbose") console.log(`  ${hostname}  Waiting for existing request with same hostname`);
 					await hashLocks.get(hostname);
 				}
+				if (hostname in cachedHostnames) return cachedHostnames[hostname];
 
 				console.log(`  ${hostname}  Fetching endpoint response from peers`);
 				const requests = [...(await client.peers.getPeers(true)).map((node) => fetch(`${node.host}/endpoint/${hostname}`)), ...client.webRTC.sendRequest(`http://localhost/endpoint/${hostname}`)];
@@ -297,6 +299,7 @@ export const handleRequest = async (req: Request, client: Hydrafiles): Promise<R
 				} finally {
 					hashLocks.delete(hostname);
 				}
+				cachedHostnames[hostname] = response;
 				return response;
 			}
 
