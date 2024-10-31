@@ -17,10 +17,9 @@
 	"uploadSecret": "",
 	"logLevel": "normal",
 	"summarySpeed": -1,
-	"compareSpeed": 1800000,
 	"backfill": true,
-	"compareNodes": true,
-	"compareFiles": true,
+	"comparePeersSpeed": 3600000,
+	"compareFilesSpeed": 300000,
 	"databaseLogs": false,
 	"reverseProxy": ""
 }
