@@ -85,13 +85,28 @@
   <section id="dashboard" style="overflow:scroll">
     <h2>Dashboard</h2>
     <p>This dashboard is 100% decentralised, your browser is directly connected to the Hydrafiles network.</p>
-    <h3>Peers</h3>
+    <h3>HTTP Peers</h3>
     <p>Here is a list of peers you know exist and are communicating with.</p>
     <ul id="peers"></ul>
+    <h3>WebRTC Peers</h3>
+    <table id="peerTable">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Signaling State</th>
+                <th>ICE Gathering State</th>
+                <th>ICE Connection State</th>
+                <th>Connection State</th>
+                <th>Channel State</th>
+                <th>SCTP State</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
     <h3>Files</h3>
     <p>Here you can see all the files that have been indexed by your node.</p>
     <button id="toggleColumnsButton">Toggle Advanced Columns</button>
-    <table>
+    <table id="files">
       <thead>
         <tr id="table-header"></tr>
       </thead>
@@ -118,7 +133,7 @@
       window.hydrafiles.start(onCompareFilesProgress).then(() => {
         console.log('Hydrafiles web node is running', hydrafiles);
         setInterval(fetchAndPopulateFiles, 5000);
-        setInterval(fetchAndPopulatePeers, 5000);
+        setInterval(fetchAndPopulatePeers, 200);
         fetchAndPopulateFiles();
         fetchAndPopulatePeers();
       }).catch(err => {
@@ -132,7 +147,30 @@
       populateTable();
     });
 
+    function getBackgroundColor(state) {
+        switch (state) {
+            case "connected":
+            case "complete":
+            case "open":
+            case "stable":
+                return "lightgreen";
+            case "gathering":
+            case "connecting":
+            case "checking":
+            case "new":
+            case "have-local-offer":
+                return "#FFD580";
+            case "disconnected":
+            case "closed":
+            case "failed":
+                return "lightcoral";
+            default:
+                return "white";
+        }
+    }
+
     async function fetchAndPopulatePeers() {
+      console.log('fetchAndPopulatePeers')
       const peers = await window.hydrafiles.peers.getPeers();
       const peersEl = document.getElementById('peers');
       peersEl.innerHTML = '';
@@ -141,6 +179,53 @@
         li.textContent = node.host;
         peersEl.appendChild(li);
       });
+
+      const rtcPeers = Object.entries(window.hydrafiles.webRTC.peerConnections);
+      const tbody = document.getElementById("peerTable").querySelector("tbody");
+
+      tbody.innerHTML = "";
+      for (let i = 0; i < rtcPeers.length; i++) {
+          const [id, peer] = rtcPeers[i];
+          const conn = Object.values(peer)[0].conn;
+          const row = document.createElement("tr");
+
+          const idCell = document.createElement("td");
+          idCell.textContent = id;
+
+          const signalingStateCell = document.createElement("td");
+          signalingStateCell.textContent = conn.signalingState;
+          signalingStateCell.style.backgroundColor = getBackgroundColor(conn.signalingState);
+
+          const iceGatheringStateCell = document.createElement("td");
+          iceGatheringStateCell.textContent = conn.iceGatheringState;
+          iceGatheringStateCell.style.backgroundColor = getBackgroundColor(conn.iceGatheringState);
+
+          const iceConnectionStateCell = document.createElement("td");
+          iceConnectionStateCell.textContent = conn.iceConnectionState;
+          iceConnectionStateCell.style.backgroundColor = getBackgroundColor(conn.iceConnectionState);
+
+          const connectionStateCell = document.createElement("td");
+          connectionStateCell.textContent = conn.connectionState;
+          connectionStateCell.style.backgroundColor = getBackgroundColor(conn.connectionState);
+
+          const channelStateCell = document.createElement("td");
+          channelStateCell.textContent = Object.values(peer)[0].channel.readyState;
+          channelStateCell.style.backgroundColor = getBackgroundColor(Object.values(peer)[0].channel.readyState);
+
+          const sctpStateCell = document.createElement("td");
+          sctpStateCell.textContent = conn.sctp.state;
+          sctpStateCell.style.backgroundColor = getBackgroundColor(conn.sctp.state);
+
+          row.appendChild(idCell);
+          row.appendChild(signalingStateCell);
+          row.appendChild(iceGatheringStateCell);
+          row.appendChild(iceConnectionStateCell);
+          row.appendChild(connectionStateCell);
+          row.appendChild(channelStateCell);
+          row.appendChild(sctpStateCell);
+
+          tbody.appendChild(row);
+      }
     }
 
     async function fetchAndPopulateFiles() {
@@ -150,7 +235,7 @@
 
     function populateTable() {
       const tableHeader = document.getElementById('table-header');
-      const tableBody = document.querySelector('table tbody');
+      const tableBody = document.querySelector('#files  tbody');
       tableBody.innerHTML = '';
       if (files.length === 0) return;
       const fileKeys = Object.keys(files[0]);

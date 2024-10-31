@@ -405,7 +405,7 @@ class File implements FileAttributes {
 						const response = await fetch(`${nodes[i].host}/file/${values.id}`);
 						const body = await response.json() as { result: Metadata } | FileAttributes;
 						const hash = "result" in body ? body.result.hash.sha256 : body.hash;
-						if (Utils.isValidSHA256Hash(hash)) file.hash = hash;
+						if (Utils.isValidSHA256Hash(hash)) values.hash = hash;
 					} catch (e) {
 						if (client.config.logLevel === "verbose") console.error(e);
 					}

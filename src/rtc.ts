@@ -161,17 +161,23 @@ class WebRTC {
 
 	private async handleOffer(from: number, offer: RTCSessionDescription): Promise<void> {
 		let remoteDesc: RTCSessionDescription;
+		if (!this.peerConnections[from]) this.peerConnections[from] = {};
+		this.peerConnections[from].answered = await this.createPeerConnection();
+
 		if (typeof window === "undefined") {
 			const { RTCSessionDescription } = await import("npm:werift");
 			remoteDesc = new RTCSessionDescription(offer.sdp, "offer");
 			// @ts-expect-error:
 		} else remoteDesc = new RTCSessionDescription(offer, "offer");
-		if (!this.peerConnections[from]) this.peerConnections[from] = {};
-		this.peerConnections[from].answered = await this.createPeerConnection();
-		if (!this.peerConnections[from].answered) throw new Error("Unreachable code reached");
+
 		await this.peerConnections[from].answered.conn.setRemoteDescription(remoteDesc);
 		const answer = await this.peerConnections[from].answered.conn.createAnswer();
-		await this.peerConnections[from].answered.conn.setLocalDescription(answer);
+		try {
+			await this.peerConnections[from].answered.conn.setLocalDescription(answer);
+		} catch (e) {
+			console.error(e);
+		}
+
 		console.log(`WebRTC: (5/12): ${from} Announcing answer`);
 		this.wsMessage({ answer, to: from, from: this.peerId });
 
@@ -192,7 +198,7 @@ class WebRTC {
 			sessionDescription = new RTCSessionDescription(answer.sdp, "answer");
 			// @ts-expect-error:
 		} else sessionDescription = new RTCSessionDescription(answer, "answer");
-		// @ts-expect-error: IDK why this isn't getting caught
+		// @ts-expect-error:
 		await this.peerConnections[from].offered.conn.setRemoteDescription(sessionDescription);
 	}
 
