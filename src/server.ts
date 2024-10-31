@@ -9,7 +9,7 @@ import { Peer } from "./peer.ts";
 import FileSystem from "./fs.ts";
 
 export const hashLocks = new Map<string, Promise<Response>>();
-const peers: WebSocket[] = [];
+const sockets: WebSocket[] = [];
 
 export const handleRequest = async (req: Request, client: Hydrafiles): Promise<Response> => {
 	console.log(`Received Request: ${req.url}`);
@@ -20,10 +20,11 @@ export const handleRequest = async (req: Request, client: Hydrafiles): Promise<R
 	try {
 		if (req.headers.get("upgrade") === "websocket") {
 			const { socket, response } = Deno.upgradeWebSocket(req);
+			sockets.push(socket);
 
 			socket.addEventListener("message", ({ data }) => {
-				for (let i = 0; i < peers.length; i++) {
-					if (peers[i] !== socket) peers[i].send(data);
+				for (let i = 0; i < sockets.length; i++) {
+					if (sockets[i] !== socket) sockets[i].send(data);
 				}
 			});
 
