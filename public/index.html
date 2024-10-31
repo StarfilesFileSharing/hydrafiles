@@ -320,17 +320,7 @@
     
     <section id="directory">
         <h2>Hydrafiles Directory</h2>
-    <table border="1">
-        <thead>
-            <tr>
-                <th>Host Name</th>
-                <th>HTTP Mirror</th>
-                <th>DNS Mirror</th>
-                <th>Requires Cloudflare</th>
-            </tr>
-        </thead>
-        <tbody id="nodes"></tbody>
-    </table>
+    <ul id="hydrafiles-directory"></ul>
     <h2 id="announce">Announce Domain or IP</h2>
     <p>Donating a domain/subdomain? Donating bandwidth? Donating storage? Enter your domain/ip here, to be added to the network.</p>
     <form action="/announce">
@@ -343,27 +333,17 @@
     <p style="text-align:center">Free information for the people, by the people.<br>They can't stop us all.</p>
 
     <script>
-    function getBestNode(nodes) {
-        const validNodes = nodes
-
-        return validNodes.reduce((bestNode, currentNode) => {
-            const currentRatio = currentNode.rejects === 0 ? Infinity : currentNode.hits / currentNode.rejects
-            const bestRatio = bestNode.rejects === 0 ? Infinity : bestNode.hits / bestNode.rejects
-            return currentRatio > bestRatio ? currentNode : bestNode
-        })
-    }
 
     fetch('/peers').then(res => res.json()).then(nodes => {
-        const goodHttpNodes = nodes.filter(e => e.http).filter(node => node.hits > 0).filter(node => node.host.startsWith('https://'))
-        const bestHttpNode = getBestNode(goodHttpNodes)
+        const goodHttpNodes = nodes.filter(node => node.hits > 0).filter(node => node.host.startsWith('https://') || node.host.startsWith('http://'))
         const randomHttpNode = goodHttpNodes[Math.floor(Math.random()*goodHttpNodes.length)]
         const hostEls = document.getElementsByClassName('hydra-host')
         for(const hostEl of hostEls){
-            hostEl.innerHTML = bestHttpNode.host
+            hostEl.innerHTML = randomHttpNode.host
         }
         document.getElementById('hydra-img1').src = `${randomHttpNode.host}/download/04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f/c8fcb43d6e46`
         for(const node of nodes){
-            document.getElementById('nodes').innerHTML += `<tr><td>${node.host}</td><td>${node.http?'Yes':'No'}</td><td>${node.dns?'Yes':'No'}</td><td>${node.cf?'Yes':'No'}</td></tr>`
+            document.getElementById('hydrafiles-directory').innerHTML += `<li>${node.host}</li>`
         }
     })
     </script>

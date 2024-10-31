@@ -1,5 +1,5 @@
 import type Hydrafiles from "./hydrafiles.ts";
-import Utils from "./utils.ts";
+import Utils, { type NonNegativeNumber } from "./utils.ts";
 import type { indexedDB } from "https://deno.land/x/indexeddb@v1.1.0/ponyfill.ts";
 import { join } from "https://deno.land/std@0.224.0/path/mod.ts";
 import type { Database } from "jsr:@db/sqlite@0.11";
@@ -9,7 +9,7 @@ type DatabaseWrapper = { type: "UNDEFINED"; db: undefined } | { type: "SQLITE"; 
 
 interface Metadata {
 	name: string;
-	size: number;
+	size: NonNegativeNumber;
 	type: string;
 	hash: { sha256: string };
 	id: string;
@@ -19,11 +19,11 @@ interface Metadata {
 export interface FileAttributes {
 	hash: string;
 	infohash: string | null;
-	downloadCount: number;
+	downloadCount: NonNegativeNumber;
 	id: string | null;
 	name: string | null;
 	found: boolean;
-	size: number;
+	size: NonNegativeNumber;
 	voteHash: string | null;
 	voteNonce: number;
 	voteDifficulty: number;

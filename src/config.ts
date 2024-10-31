@@ -19,10 +19,9 @@ export interface Config {
 	timeout: number; // How long to wait before timing out a connection with a node in MS
 	logLevel: "verbose" | "normal"; // Set to verbose if you need better error reporting
 	summarySpeed: number; // How often to log client state in MS (-1 = Off)
-	compareSpeed: number; // How often to compare file list and node list with other nodes
 	backfill: boolean; // Whether or not you'd like to donate spare storage (up to `max_cache`)
-	compareNodes: boolean; // Whether or not to compare nodes with others (DO NOT TURN OFF)
-	compareFiles: boolean; // Whether or not to compare nodes with others
+	comparePeersSpeed: number; // How often to fetch peers from others in MS (DO NOT TURN OFF)
+	compareFilesSpeed: number; // How often to compare file lists with others in MS
 	databaseLogs: boolean; // Whether or not to log successful queries
 	reverseProxy: string; //  See https://github.com/StarfilesFileSharing/hydrafiles/wiki/Using-Hydrafiles-as-Reverse-Proxy-%E2%80%90-Anonymous-APIs
 	cacheS3: boolean; // Whether or not S3 files should be cached
@@ -47,10 +46,9 @@ const getConfig = (config: Partial<Config> = {}): Config => {
 		timeout: config?.timeout ?? defaultConfig.timeout,
 		logLevel: config?.logLevel ?? defaultConfig.logLevel,
 		summarySpeed: config?.summarySpeed ?? defaultConfig.summarySpeed,
-		compareSpeed: config?.compareSpeed ?? defaultConfig.compareSpeed,
 		backfill: config?.backfill ?? defaultConfig.backfill,
-		compareNodes: config?.compareNodes ?? defaultConfig.compareNodes,
-		compareFiles: config?.compareFiles ?? defaultConfig.compareFiles,
+		comparePeersSpeed: config?.comparePeersSpeed ?? defaultConfig.comparePeersSpeed,
+		compareFilesSpeed: config?.compareFilesSpeed ?? defaultConfig.compareFilesSpeed,
 		s3AccessKeyId: config?.s3AccessKeyId ?? defaultConfig.s3AccessKeyId,
 		s3SecretAccessKey: config?.s3SecretAccessKey ?? defaultConfig.s3SecretAccessKey,
 		s3Endpoint: config?.s3Endpoint ?? defaultConfig.s3Endpoint,

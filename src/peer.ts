@@ -519,17 +519,22 @@ export default class Peers {
 		return result;
 	}
 
-	async compareFileList(peer: PeerAttributes, onProgress?: (progress: number, total: number) => void): Promise<void> {
+	async compareFileList(onProgress?: (progress: number, total: number) => void): Promise<void> {
 		// TODO: Compare list between all peers and give score based on how similar they are. 100% = all exactly the same, 0% = no items in list were shared. The lower the score, the lower the propagation times, the lower the decentralisation
+
+		const peers = await this.getPeers();
 		let files: FileAttributes[] = [];
-		try {
-			console.log(`  ${peer.host}  Comparing file list`);
-			const response = await fetch(`${peer.host}/files`);
-			files = files.concat((await response.json()) as FileAttributes[]);
-		} catch (e) {
-			const err = e as { message: string };
-			console.error(`  ${peer.host}  Failed to compare file list - ${err.message}`);
-			return;
+		for (let i = 0; i < peers.length; i++) {
+			const peer = peers[i];
+			try {
+				console.log(`  ${peer.host}  Comparing file list`);
+				const response = await fetch(`${peer.host}/files`);
+				files = files.concat((await response.json()) as FileAttributes[]);
+			} catch (e) {
+				const err = e as { message: string };
+				console.error(`  ${peer.host}  Failed to compare file list - ${err.message}`);
+				return;
+			}
 		}
 
 		const responses = await Promise.all(this._client.webRTC.sendRequest("http://localhost/files"));
