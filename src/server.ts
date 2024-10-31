@@ -9,7 +9,7 @@ import { Peer } from "./peer.ts";
 import FileSystem from "./fs.ts";
 
 export const hashLocks = new Map<string, Promise<Response>>();
-const cachedHostnames: { [key: string]: Response } = {};
+const cachedHostnames: { [key: string]: { body: string; headers: Headers } } = {};
 const sockets: WebSocket[] = [];
 
 export const handleRequest = async (req: Request, client: Hydrafiles): Promise<Response> => {
@@ -261,7 +261,7 @@ export const handleRequest = async (req: Request, client: Hydrafiles): Promise<R
 					if (client.config.logLevel === "verbose") console.log(`  ${hostname}  Waiting for existing request with same hostname`);
 					await hashLocks.get(hostname);
 				}
-				if (hostname in cachedHostnames) return cachedHostnames[hostname];
+				if (hostname in cachedHostnames) return new Response(cachedHostnames[hostname].body, { headers: cachedHostnames[hostname].headers });
 
 				console.log(`  ${hostname}  Fetching endpoint response from peers`);
 				const requests = [...(await client.peers.getPeers(true)).map((node) => fetch(`${node.host}/endpoint/${hostname}`)), ...client.webRTC.sendRequest(`http://localhost/endpoint/${hostname}`)];
@@ -299,8 +299,9 @@ export const handleRequest = async (req: Request, client: Hydrafiles): Promise<R
 				} finally {
 					hashLocks.delete(hostname);
 				}
-				cachedHostnames[hostname] = response;
-				return response;
+				const res = { body: await response.text(), headers: response.headers };
+				cachedHostnames[hostname] = res;
+				return new Response(res.body, { headers: res.headers });
 			}
 
 			// } else if (url.pathname.startsWith("/block/")) {
