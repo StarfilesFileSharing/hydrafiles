@@ -364,8 +364,8 @@ export default class Peers {
 	public static async init(client: Hydrafiles): Promise<Peers> {
 		const peers = new Peers(client);
 
-		for (let i = 0; i < client.config.bootstrapNodes.length; i++) {
-			await peers.add(client.config.bootstrapNodes[i]);
+		for (let i = 0; i < client.config.bootstrapPeers.length; i++) {
+			await peers.add(client.config.bootstrapPeers[i]);
 		}
 		return peers;
 	}
