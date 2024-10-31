@@ -223,6 +223,7 @@ export class PeerDB {
 				this._client.config.logLevel === "verbose" ? console.log(`  ${host}  Updated Values:`, beforeAndAfter) : "",
 			);
 		} else {
+			console.log("newPeer", newPeer);
 			if (this.db.type === "INDEXEDDB") this.objectStore().put(newPeer).onerror = console.error;
 			console.log(
 				`  ${host}  Peer UPDATEd - Updated Columns: ${updatedColumn.join(", ")}` + (this._client.config.logLevel === "verbose" ? ` - Params: ${params.join(", ")}` : ""),
@@ -608,7 +609,7 @@ export default class Peers {
 		}
 
 		console.log(`  ${hash}  Downloading from WebRTC`);
-		const responses = this._client.webRTC.sendRequest(`http://localhost${hash}`);
+		const responses = this._client.webRTC.sendRequest(`http://localhost/download/${hash}`);
 		for (let i = 0; i < responses.length; i++) {
 			const hash = file.hash;
 			const response = await responses[i];
