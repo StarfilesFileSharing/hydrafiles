@@ -24,7 +24,7 @@ export const handleRequest = async (req: Request, client: Hydrafiles): Promise<R
 
 			socket.addEventListener("message", ({ data }) => {
 				for (let i = 0; i < sockets.length; i++) {
-					if (sockets[i] !== socket && socket.readyState === 1) sockets[i].send(data);
+					if (sockets[i] !== socket && sockets[i].readyState === 1) sockets[i].send(data);
 				}
 			});
 
