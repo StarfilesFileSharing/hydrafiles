@@ -124,11 +124,11 @@ class WebRTC {
 		if (peerId) {
 			const peerConns = this.peerConnections[peerId];
 			if (peerConns.offered?.conn === conn) {
-				console.log(`  ${peerId}  Removing 'offered' connection for peerId`);
+				console.log(`13/12  ${peerId}  Offered connecton has ${conn.iceConnectionState}`);
 				peerConns.offered.conn.close();
 				delete peerConns.offered;
 			} else if (peerConns.answered?.conn === conn) {
-				console.log(`  ${peerId}  Removing 'answered' connection for peerId`);
+				console.log(`13/12  ${peerId}  Answered connecton has ${conn.iceConnectionState}`);
 				peerConns.answered.conn.close();
 				delete peerConns.answered;
 			}

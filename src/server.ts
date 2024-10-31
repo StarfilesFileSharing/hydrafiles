@@ -1,7 +1,7 @@
 import Base32 from "npm:base32";
 import type Hydrafiles from "./hydrafiles.ts";
 // import { BLOCKSDIR } from "./block.ts";
-import File from "./file.ts";
+import File, { fileAttributesDefaults } from "./file.ts";
 import Utils from "./utils.ts";
 import { join } from "https://deno.land/std@0.224.0/path/mod.ts";
 import type Base64 from "npm:base64";
@@ -242,7 +242,8 @@ export const handleRequest = async (req: Request, client: Hydrafiles): Promise<R
 
 			headers.set("Content-Type", "application/json");
 			headers.set("Cache-Control", "public, max-age=10800");
-			return new Response(JSON.stringify(file), { headers });
+			if (!file) return new Response("File not found", { headers, status: 404 });
+			return new Response(JSON.stringify(fileAttributesDefaults(file)), { headers });
 		} else if (url.pathname.startsWith("/endpoint/")) {
 			const hostname = url.pathname.split("/")[2];
 			const pubKey = await Utils.exportPublicKey(client.keyPair.publicKey);
