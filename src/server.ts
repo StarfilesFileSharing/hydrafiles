@@ -248,7 +248,7 @@ export const handleRequest = async (req: Request, client: Hydrafiles): Promise<R
 			const pubKey = await Utils.exportPublicKey(client.keyPair.publicKey);
 
 			if (hostname === `${Base32.encode(pubKey.x).toLowerCase().replaceAll("=", "")}.${Base32.encode(pubKey.y).toLowerCase().replaceAll("=", "")}`) {
-				const body = client.config.reverseProxy ? await (await fetch(client.config.reverseProxy)).text() : "Hello World!"; // TODO: Reverse proxy logic
+				const body = client.config.reverseProxy ? await (await fetch(client.config.reverseProxy)).text() : (typeof client.handleRequest === "undefined" ? "Hello World!" : await client.handleRequest(new Request(`hydra://${hostname}/`)));
 				const signature = await Utils.signMessage(client.keyPair.privateKey, body);
 
 				headers.set("hydra-signature", signature);

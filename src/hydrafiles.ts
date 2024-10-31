@@ -32,6 +32,8 @@ class Hydrafiles {
 	peers!: Peers;
 	peerDB!: PeerDB;
 	webRTC!: WebRTC;
+	handleRequest?: (req: Request) => Promise<string>;
+
 	constructor(customConfig: Partial<Config> = {}) {
 		console.log("Startup: Populating Utils");
 		this.utils = new Utils(this);
