@@ -198,8 +198,12 @@ class WebRTC {
 			sessionDescription = new RTCSessionDescription(answer.sdp, "answer");
 			// @ts-expect-error:
 		} else sessionDescription = new RTCSessionDescription(answer, "answer");
-		// @ts-expect-error:
-		await this.peerConnections[from].offered.conn.setRemoteDescription(sessionDescription);
+		try {
+			// @ts-expect-error:
+			await this.peerConnections[from].offered.conn.setRemoteDescription(sessionDescription);
+		} catch (e) {
+			console.error(e);
+		}
 	}
 
 	public sendRequest(input: RequestInfo, init?: RequestInit): Promise<Response>[] {
