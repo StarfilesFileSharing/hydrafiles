@@ -400,7 +400,8 @@ export default class Peers {
 			try {
 				response = await Utils.promiseWithTimeout(fetch(`${peer.host}/download/${hash}`), this._client.config.timeout);
 			} catch (e) {
-				if (this._client.config.logLevel === "verbose") console.error(e);
+				const err = e as Error;
+				if (this._client.config.logLevel === "verbose" && err.message !== "Promise timed out") console.error(e);
 				return false;
 			}
 			const peerContent = new Uint8Array(await response.arrayBuffer());
