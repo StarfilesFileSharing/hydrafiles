@@ -5,8 +5,8 @@ import File, { fileAttributesDefaults } from "./file.ts";
 import Utils from "./utils.ts";
 import { join } from "https://deno.land/std@0.224.0/path/mod.ts";
 import type Base64 from "npm:base64";
-import { Peer } from "./peer.ts";
-import FileSystem from "./fs.ts";
+import { HTTPPeer } from "./peers/HTTPPeers.ts";
+import FileSystem from "./filesystem/filesystem.ts";
 
 export const hashLocks = new Map<string, Promise<Response>>();
 const cachedHostnames: { [key: string]: { body: string; headers: Headers } } = {};
@@ -60,20 +60,17 @@ export const handleRequest = async (req: Request, client: Hydrafiles): Promise<R
 		} else if (url.pathname === "/peers") {
 			headers.set("Content-Type", "application/json");
 			headers.set("Cache-Control", "public, max-age=300");
-			return new Response(JSON.stringify(await client.peers.getPeers()), { headers });
+			return new Response(JSON.stringify(await client.peers.http.getPeers()), { headers });
 		} else if (url.pathname === "/info") {
 			headers.set("Content-Type", "application/json");
 			headers.set("Cache-Control", "public, max-age=300");
 			return new Response(JSON.stringify({ version: JSON.parse(await Deno.readTextFile("deno.jsonc")).version }), { headers });
 		} else if (url.pathname.startsWith("/announce")) {
 			const host = url.searchParams.get("host");
-
 			if (host === null) return new Response("No hosted given\n", { status: 401 });
-
-			const knownNodes = await client.peers.getPeers();
+			const knownNodes = await client.peers.http.getPeers();
 			if (knownNodes.find((node) => node.host === host) !== undefined) return new Response("Already known\n");
-
-			await client.peers.add(host);
+			await client.peers.http.add(host);
 			return new Response("Announced\n");
 		} else if (url.pathname?.startsWith("/download/")) {
 			const hash = url.pathname.split("/")[2];
@@ -264,14 +261,13 @@ export const handleRequest = async (req: Request, client: Hydrafiles): Promise<R
 				if (hostname in cachedHostnames) return new Response(cachedHostnames[hostname].body, { headers: cachedHostnames[hostname].headers });
 
 				console.log(`  ${hostname}  Fetching endpoint response from peers`);
-				const requests = [...(await client.peers.getPeers(true)).map((node) => fetch(`${node.host}/endpoint/${hostname}`)), ...client.webRTC.sendRequest(`http://localhost/endpoint/${hostname}`)];
+				const responses = await client.peers.fetch(`http://localhost/endpoint/${hostname}`);
 
 				const processingPromise = new Promise<Response>((resolve, reject) => {
 					(async () => {
-						await Promise.all(requests.map(async (request) => {
+						await Promise.all(responses.map(async (res) => {
 							try {
-								const response = await Utils.promiseWithTimeout(request, client.config.timeout);
-								if (!response) throw new Error("Hostname not found");
+								const response = await res;
 								const body = await response.text();
 								const signature = response.headers.get("hydra-signature");
 								if (signature !== null) {
@@ -343,14 +339,14 @@ const onListen = (client: Hydrafiles): void => {
 				if (!file) console.error("Failed to build file");
 				else {
 					console.log("Testing connectivity");
-					const response = await client.peers.downloadFromPeer(await Peer.init({ host: client.config.publicHostname }, client.peerDB), file);
+					const response = await client.peers.http.downloadFromPeer(await HTTPPeer.init({ host: client.config.publicHostname }, client.peers.http._db), file);
 					if (response === false) console.error("  04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f  ERROR: Failed to download file from self");
 					else {
 						console.log("  04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f  Test Succeeded");
-						console.log("Announcing to nodes");
-						client.peers.announce();
+						console.log("Announcing HTTP server to nodes");
+						client.peers.announceHTTP();
 					}
-					await client.peers.add(client.config.publicHostname);
+					await client.peers.http.add(client.config.publicHostname);
 				}
 			}
 		}

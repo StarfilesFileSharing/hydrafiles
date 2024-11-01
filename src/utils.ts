@@ -2,7 +2,7 @@ import { crypto } from "jsr:@std/crypto";
 import { encodeHex } from "jsr:@std/encoding/hex";
 import type Hydrafiles from "./hydrafiles.ts";
 import { join } from "https://deno.land/std@0.224.0/path/mod.ts";
-import FileSystem from "./fs.ts";
+import FileSystem from "./filesystem/filesystem.ts";
 
 export type Base64 = string & { __brand: "Base64" };
 export type NonNegativeNumber = number & { readonly brand: unique symbol };

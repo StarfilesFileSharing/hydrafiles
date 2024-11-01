@@ -3,7 +3,7 @@ import Utils, { type NonNegativeNumber } from "./utils.ts";
 import type { indexedDB } from "https://deno.land/x/indexeddb@v1.1.0/ponyfill.ts";
 import { join } from "https://deno.land/std@0.224.0/path/mod.ts";
 import type { Database } from "jsr:@db/sqlite@0.11";
-import FileSystem from "./fs.ts";
+import FileSystem from "./filesystem/filesystem.ts";
 
 type DatabaseWrapper = { type: "UNDEFINED"; db: undefined } | { type: "SQLITE"; db: Database } | { type: "INDEXEDDB"; db: IDBDatabase };
 
@@ -396,23 +396,18 @@ class File implements FileAttributes {
 			values.hash = files[0]?.hash;
 		}
 		if (!values.hash && values.id) {
-			const promises: (() => Promise<void>)[] = [];
-			const nodes = await client.peers.getPeers(true);
-			for (let i = 0; i < nodes.length; i++) {
-				const promise = async () => {
-					try {
-						console.log(`  ${nodes[i].host}  Fetching file metadata from node`); // TODO: Merge with getMetadata
-						const response = await fetch(`${nodes[i].host}/file/${values.id}`);
-						const body = await response.json() as { result: Metadata } | FileAttributes;
-						const hash = "result" in body ? body.result.hash.sha256 : body.hash;
-						if (Utils.isValidSHA256Hash(hash)) values.hash = hash;
-					} catch (e) {
-						if (client.config.logLevel === "verbose") console.error(e);
-					}
-				};
-				promises.push(promise);
+			console.log(`Fetching file metadata`); // TODO: Merge with getMetadata
+			const responses = await client.peers.fetch(`http://localhost/file/${values.id}`);
+			for (let i = 0; i < responses.length; i++) {
+				const response = await responses[i];
+				try {
+					const body = await response.json() as { result: Metadata } | FileAttributes;
+					const hash = "result" in body ? body.result.hash.sha256 : body.hash;
+					if (Utils.isValidSHA256Hash(hash)) values.hash = hash;
+				} catch (e) {
+					if (client.config.logLevel === "verbose") console.error(e);
+				}
 			}
-			await Utils.parallelAsync(promises, 4);
 			throw new Error("No hash found for the provided id");
 		}
 		if (values.infohash !== undefined && values.infohash !== null && Utils.isValidInfoHash(values.infohash)) {
@@ -443,19 +438,12 @@ class File implements FileAttributes {
 
 		const id = this.id;
 		if (id !== undefined && id !== null && id.length > 0) {
-			const responses = await Promise.all(this._client.webRTC.sendRequest(`http://localhost/file/${this.id}`));
-			const peers = await this._client.peers.getPeers();
-			for (let i = 0; i < peers.length; i++) {
-				try {
-					responses.push(await fetch(`${peers[i].host}/file/${id}`));
-				} catch (e) {
-					if (this._client.config.logLevel === "verbose") console.error(e);
-				}
-			}
+			const responses = await this._client.peers.fetch(`http://localhost/file/${this.id}`);
 
 			for (let i = 0; i < responses.length; i++) {
 				try {
-					const body = await responses[i].json();
+					const response = await responses[i];
+					const body = await response.json();
 					const metadata = body.result as Metadata ?? body as FileAttributes;
 					this.name = metadata.name;
 					this.size = Utils.createNonNegativeNumber(metadata.size);
