@@ -30,14 +30,14 @@ async function getFileHandle(directoryHandle: DirectoryHandle, path: string, tou
 }
 
 export default class DirectoryHandleFileSystem {
-  static directoryHandle = async () => {
+  directoryHandle = async () => {
     if ("handle" in globalThis.window && typeof globalThis.window.handle !== "undefined") return globalThis.window.handle;
     const handle = await globalThis.window.showDirectoryPicker();
     globalThis.window.handle = handle;
     return handle;
   };
 
-  static exists = async (path: string): Promise<boolean> => {
+  exists = async (path: string): Promise<boolean> => {
     try {
       await getFileHandle(await this.directoryHandle(), path);
       return true;
@@ -49,12 +49,12 @@ export default class DirectoryHandleFileSystem {
     }
   };
 
-  static mkdir = async (path: string) => {
+  mkdir = async (path: string) => {
     if (await this.exists(path)) return;
     await (await this.directoryHandle()).getDirectoryHandle(path, { create: true });
   };
 
-  static readDir = async (path: string): Promise<string[]> => {
+  readDir = async (path: string): Promise<string[]> => {
     const entries: string[] = [];
     const dirHandle = await (await this.directoryHandle()).getDirectoryHandle(path, { create: false });
     for await (const entry of dirHandle.values()) {
@@ -63,27 +63,27 @@ export default class DirectoryHandleFileSystem {
     return entries;
   };
 
-  static readFile = async (path: string): Promise<Uint8Array> => {
+  readFile = async (path: string): Promise<Uint8Array> => {
     if (!await this.exists(path)) throw new Error(`${path} File doesn't exist`);
     const fileHandle = await getFileHandle(await this.directoryHandle(), path);
     const file = await fileHandle.getFile();
     return new Uint8Array(await file.arrayBuffer());
   };
 
-  static writeFile = async (path: string, data: Uint8Array): Promise<void> => {
+  writeFile = async (path: string, data: Uint8Array): Promise<void> => {
     const fileHandle = await getFileHandle(await this.directoryHandle(), path, true);
     const writable = await fileHandle.createWritable();
     await writable.write(data);
     await writable.close();
   };
 
-  static getFileSize = async (path: string): Promise<number> => {
+  getFileSize = async (path: string): Promise<number> => {
     const fileHandle = await getFileHandle(await this.directoryHandle(), path);
     const file = await fileHandle.getFile();
     return file.size;
   };
 
-  static remove = async (path: string) => {
+  remove = async (path: string) => {
     const fileHandle = await getFileHandle(await this.directoryHandle(), path);
     await fileHandle.remove();
   };

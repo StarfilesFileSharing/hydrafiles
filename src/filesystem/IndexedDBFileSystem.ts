@@ -1,11 +1,11 @@
 import type { indexedDB } from "https://deno.land/x/indexeddb@v1.1.0/ponyfill.ts";
 
 export default class IndexedDBFileSystem {
-  static dbName = "FileSystemDB";
-  static storeName = "files";
-  static dbPromise: Promise<IDBDatabase>;
+  dbName = "FileSystemDB";
+  storeName = "files";
+  dbPromise!: Promise<IDBDatabase>;
 
-  static initDB(): Promise<IDBDatabase> {
+  initDB(): Promise<IDBDatabase> {
     return new Promise((resolve, reject) => {
       // @ts-expect-error:
       const request = indexedDB.open(this.dbName, 1);
@@ -26,7 +26,7 @@ export default class IndexedDBFileSystem {
     });
   }
 
-  static async exists(path: string): Promise<boolean> {
+  async exists(path: string): Promise<boolean> {
     const db = await this.dbPromise;
     return new Promise((resolve) => {
       const transaction = db.transaction(this.storeName, "readonly");
@@ -37,9 +37,9 @@ export default class IndexedDBFileSystem {
     });
   }
 
-  static async mkdir(_path: string): Promise<void> {}
+  async mkdir(_path: string): Promise<void> {}
 
-  static async readDir(path: string): Promise<string[]> {
+  async readDir(path: string): Promise<string[]> {
     const db = await this.dbPromise;
     const files: string[] = [];
 
@@ -63,7 +63,7 @@ export default class IndexedDBFileSystem {
     });
   }
 
-  static async readFile(path: string): Promise<Uint8Array> {
+  async readFile(path: string): Promise<Uint8Array> {
     const db = await this.dbPromise;
     return new Promise((resolve, reject) => {
       const transaction = db.transaction(this.storeName, "readonly");
@@ -80,7 +80,7 @@ export default class IndexedDBFileSystem {
     });
   }
 
-  static async writeFile(path: string, data: Uint8Array): Promise<void> {
+  async writeFile(path: string, data: Uint8Array): Promise<void> {
     const db = await this.dbPromise;
     return new Promise((resolve, reject) => {
       const transaction = db.transaction(this.storeName, "readwrite");
@@ -93,7 +93,7 @@ export default class IndexedDBFileSystem {
     });
   }
 
-  static async getFileSize(path: string): Promise<number> {
+  async getFileSize(path: string): Promise<number> {
     const db = await this.dbPromise;
     return new Promise((resolve, reject) => {
       const transaction = db.transaction(this.storeName, "readonly");
@@ -110,7 +110,7 @@ export default class IndexedDBFileSystem {
     });
   }
 
-  static async remove(path: string): Promise<void> {
+  async remove(path: string): Promise<void> {
     const db = await this.dbPromise;
     return new Promise((resolve, reject) => {
       const transaction = db.transaction(this.storeName, "readwrite");

@@ -2,7 +2,6 @@ import { crypto } from "jsr:@std/crypto";
 import { encodeHex } from "jsr:@std/encoding/hex";
 import type Hydrafiles from "./hydrafiles.ts";
 import { join } from "https://deno.land/std@0.224.0/path/mod.ts";
-import FileSystem from "./filesystem/filesystem.ts";
 
 export type Base64 = string & { __brand: "Base64" };
 export type NonNegativeNumber = number & { readonly brand: unique symbol };
@@ -107,10 +106,10 @@ class Utils {
 		const filesPath = "files/";
 		let usedStorage = 0;
 
-		if (await FileSystem.exists(filesPath)) {
-			const files = await FileSystem.readDir(filesPath);
+		if (await this._client.fs.exists(filesPath)) {
+			const files = await this._client.fs.readDir(filesPath);
 			for (const file of files) {
-				const fileSize = await FileSystem.getFileSize(join(filesPath, file));
+				const fileSize = await this._client.fs.getFileSize(join(filesPath, file));
 				usedStorage += typeof fileSize === "number" ? fileSize : 0;
 			}
 		}
@@ -123,15 +122,15 @@ class Utils {
 		console.warn("WARNING: Your node has reached max storage, some files are getting purged. To prevent this, increase your limit at config.json or add more storage to your machine.");
 
 		const filesPath = "files/";
-		const files = await FileSystem.readDir(filesPath);
+		const files = await this._client.fs.readDir(filesPath);
 
 		for (const file of files) {
 			if (this._client.config.permaFiles.includes(file)) continue;
 
 			const filePath = join(filesPath, file);
 
-			FileSystem.remove(filePath).catch(console.error);
-			const fileSize = await FileSystem.getFileSize(filePath);
+			this._client.fs.remove(filePath).catch(console.error);
+			const fileSize = await this._client.fs.getFileSize(filePath);
 			if (typeof fileSize === "number") remainingSpace += fileSize;
 
 			if (requiredSpace <= remainingSpace && await this.calculateUsedStorage() * (1 - this._client.config.burnRate) <= remainingSpace) {
@@ -183,10 +182,10 @@ class Utils {
 	}
 
 	async getKeyPair(): Promise<CryptoKeyPair> {
-		if (await FileSystem.exists("private.key")) {
-			const privKey = await FileSystem.readFile("private.key");
+		if (await this._client.fs.exists("private.key")) {
+			const privKey = await this._client.fs.readFile("private.key");
 			if (!privKey) throw new Error("Failed to read private key");
-			const pubKey = await FileSystem.readFile("public.key");
+			const pubKey = await this._client.fs.readFile("public.key");
 			if (!pubKey) throw new Error("Failed to read public key");
 			const privateKey = await Utils.importPrivateKey(privKey);
 			const publicKey = await Utils.importPublicKey(pubKey);
@@ -204,8 +203,8 @@ class Utils {
 			true,
 			["sign", "verify"],
 		);
-		FileSystem.writeFile("private.key", new Uint8Array(await crypto.subtle.exportKey("pkcs8", key.privateKey)));
-		FileSystem.writeFile("public.key", new Uint8Array(await crypto.subtle.exportKey("raw", key.publicKey)));
+		this._client.fs.writeFile("private.key", new Uint8Array(await crypto.subtle.exportKey("pkcs8", key.privateKey)));
+		this._client.fs.writeFile("public.key", new Uint8Array(await crypto.subtle.exportKey("raw", key.publicKey)));
 		return key;
 	}
 	static async importPublicKey(pem: ArrayBuffer): Promise<CryptoKey> {
@@ -284,7 +283,7 @@ class Utils {
 	async countFilesInDir(dirPath: string): Promise<number> {
 		if (typeof window !== "undefined") return 0;
 		let count = 0;
-		for await (const _ of await FileSystem.readDir(dirPath)) {
+		for await (const _ of await this._client.fs.readDir(dirPath)) {
 			count++;
 		}
 		return count;

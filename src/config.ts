@@ -31,10 +31,11 @@ export interface Config {
 	s3SecretAccessKey: string;
 	s3Endpoint: string;
 
-	/* Othwe */
+	/* Other */
 	logLevel: "verbose" | "normal"; // Set to verbose if you need better error reporting
 	uploadSecret: string; // Place random string to authenticate HTTP uploads
 	reverseProxy: string; //  See https://github.com/StarfilesFileSharing/hydrafiles/wiki/Using-Hydrafiles-as-Reverse-Proxy-%E2%80%90-Anonymous-APIs
+	dontUseFileSystemAPI: boolean; // Avoid using filesystem api in browser which requires user consent
 }
 
 const defaultConfig: Config = {
@@ -61,6 +62,7 @@ const defaultConfig: Config = {
 	"compareFilesSpeed": 300000,
 	"announceSpeed": 30000,
 	"reverseProxy": "",
+	"dontUseFileSystemAPI": false,
 };
 
 const getConfig = (config: Partial<Config> = {}): Config => ({ ...defaultConfig, ...config });

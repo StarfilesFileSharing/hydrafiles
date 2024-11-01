@@ -6,7 +6,6 @@ import Utils from "./utils.ts";
 import { join } from "https://deno.land/std@0.224.0/path/mod.ts";
 import type Base64 from "npm:base64";
 import { HTTPPeer } from "./peers/HTTPPeers.ts";
-import FileSystem from "./filesystem/filesystem.ts";
 
 export const hashLocks = new Map<string, Promise<Response>>();
 const cachedHostnames: { [key: string]: { body: string; headers: Headers } } = {};
@@ -33,30 +32,30 @@ export const handleRequest = async (req: Request, client: Hydrafiles): Promise<R
 		} else if (url.pathname === "/" || url.pathname === undefined) {
 			headers.set("Content-Type", "text/html");
 			headers.set("Cache-Control", "public, max-age=604800");
-			return new Response(await FileSystem.readFile("public/index.html") || "", { headers });
+			return new Response(await client.fs.readFile("public/index.html") || "", { headers });
 		} else if (url.pathname === "/favicon.ico") {
 			headers.set("Content-Type", "image/x-icon");
 			headers.set("Cache-Control", "public, max-age=604800");
-			return new Response(await FileSystem.readFile("public/favicon.ico") || "", { headers });
+			return new Response(await client.fs.readFile("public/favicon.ico") || "", { headers });
 		} else if (url.pathname === "/status") {
 			headers.set("Content-Type", "application/json");
 			return new Response(JSON.stringify({ status: true }), { headers });
 		} else if (url.pathname === "/hydrafiles-web.esm.js") {
 			headers.set("Content-Type", "application/javascript");
 			headers.set("Cache-Control", "public, max-age=300");
-			return new Response(await FileSystem.readFile("build/hydrafiles-web.esm.js") || "", { headers });
+			return new Response(await client.fs.readFile("build/hydrafiles-web.esm.js") || "", { headers });
 		} else if (url.pathname === "/hydrafiles-web.esm.js.map") {
 			headers.set("Content-Type", "application/json");
 			headers.set("Cache-Control", "public, max-age=300");
-			return new Response(await FileSystem.readFile("build/hydrafiles-web.esm.js.map") || "", { headers });
+			return new Response(await client.fs.readFile("build/hydrafiles-web.esm.js.map") || "", { headers });
 		} else if (url.pathname === "/demo.html") {
 			headers.set("Content-Type", "text/html");
 			headers.set("Cache-Control", "public, max-age=300");
-			return new Response(await FileSystem.readFile("public/demo.html") || "", { headers });
+			return new Response(await client.fs.readFile("public/demo.html") || "", { headers });
 		} else if (url.pathname === "/dashboard.html") {
 			headers.set("Content-Type", "text/html");
 			headers.set("Cache-Control", "public, max-age=300");
-			return new Response(await FileSystem.readFile("public/dashboard.html") || "", { headers });
+			return new Response(await client.fs.readFile("public/dashboard.html") || "", { headers });
 		} else if (url.pathname === "/peers") {
 			headers.set("Content-Type", "application/json");
 			headers.set("Cache-Control", "public, max-age=300");
@@ -214,10 +213,10 @@ export const handleRequest = async (req: Request, client: Hydrafiles): Promise<R
 
 			console.log("Uploading", file.hash);
 
-			if (await FileSystem.exists(join("files", file.hash))) return new Response("200 OK\n");
+			if (await client.fs.exists(join("files", file.hash))) return new Response("200 OK\n");
 
 			if (!client.config.permaFiles.includes(hash)) client.config.permaFiles.push(hash);
-			await FileSystem.writeFile("config.json", new TextEncoder().encode(JSON.stringify(client.config, null, 2)));
+			await client.fs.writeFile("config.json", new TextEncoder().encode(JSON.stringify(client.config, null, 2)));
 			return new Response("200 OK\n");
 		} else if (url.pathname === "/files") {
 			const rows = (await client.fileDB.select()).map((row) => {
@@ -268,11 +267,13 @@ export const handleRequest = async (req: Request, client: Hydrafiles): Promise<R
 						await Promise.all(responses.map(async (res) => {
 							try {
 								const response = await res;
-								const body = await response.text();
-								const signature = response.headers.get("hydra-signature");
-								if (signature !== null) {
-									const [xBase32, yBase32] = hostname.split(".");
-									if (await Utils.verifySignature(body, signature as Base64, { x: Base32.decode(xBase32), y: Base32.decode(yBase32) })) resolve(new Response(body, { headers: response.headers }));
+								if (response) {
+									const body = await response.text();
+									const signature = response.headers.get("hydra-signature");
+									if (signature !== null) {
+										const [xBase32, yBase32] = hostname.split(".");
+										if (await Utils.verifySignature(body, signature as Base64, { x: Base32.decode(xBase32), y: Base32.decode(yBase32) })) resolve(new Response(body, { headers: response.headers }));
+									}
 								}
 							} catch (e) {
 								const err = e as Error;
@@ -304,7 +305,7 @@ export const handleRequest = async (req: Request, client: Hydrafiles): Promise<R
 			// 	const blockHeight = url.pathname.split("/")[2];
 			// 	headers.set("Content-Type", "application/json");
 			// 	// "Cache-Control": "public, max-age=" + (Number(blockHeight) > client.blockchain.lastBlock().height ? 0 : 604800),
-			// 	const block = await FileSystem.readFile(join(BLOCKSDIR, blockHeight));
+			// 	const block = await client.fs.readFile(join(BLOCKSDIR, blockHeight));
 			// 	return new Response(block, { headers });
 		} else if (url.pathname === "/block_height") {
 			headers.set("Content-Type", "application/json");

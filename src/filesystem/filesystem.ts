@@ -1,17 +1,21 @@
+import type Hydrafiles from "../hydrafiles.ts";
 import DirectoryHandleFileSystem from "./DirectoryHandleFileSystem.ts";
 import IndexedDBFileSystem from "./IndexedDBFileSystem.ts";
 import StandardFileSystem from "./StandardFileSystem.ts";
 
-const fs = typeof window === "undefined" ? StandardFileSystem : (typeof globalThis.window.showDirectoryPicker !== "undefined" ? DirectoryHandleFileSystem : IndexedDBFileSystem);
-
-if (typeof IndexedDBFileSystem === typeof fs && "dbPromise" in fs) fs.dbPromise = IndexedDBFileSystem.initDB();
-
 export default class FileSystem {
-	static exists = async (path: string) => fs ? await fs.exists(path) : false;
-	static mkdir = async (path: string) => fs ? await fs.mkdir(path) : false;
-	static readDir = async (path: string) => fs ? await fs.readDir(path) : [];
-	static readFile = async (path: string) => fs ? await fs.readFile(path) : false;
-	static writeFile = async (path: string, data: Uint8Array) => fs ? await fs.writeFile(path, data) : false;
-	static getFileSize = async (path: string) => fs ? await fs.getFileSize(path) : false;
-	static remove = async (path: string) => fs ? await fs.remove(path) : false;
+	fs!: StandardFileSystem | DirectoryHandleFileSystem | IndexedDBFileSystem;
+	static init(client: Hydrafiles): FileSystem {
+		const fileSystem = new FileSystem();
+		const fs = typeof window === "undefined" ? StandardFileSystem : (typeof globalThis.window.showDirectoryPicker !== "undefined" && !client.config.dontUseFileSystemAPI ? DirectoryHandleFileSystem : IndexedDBFileSystem);
+		if (fs instanceof IndexedDBFileSystem) fs.dbPromise = fs.initDB();
+		return fileSystem;
+	}
+	exists = async (path: string) => this.fs ? await this.fs.exists(path) : false;
+	mkdir = async (path: string) => this.fs ? await this.fs.mkdir(path) : false;
+	readDir = async (path: string) => this.fs ? await this.fs.readDir(path) : [];
+	readFile = async (path: string) => this.fs ? await this.fs.readFile(path) : false;
+	writeFile = async (path: string, data: Uint8Array) => this.fs ? await this.fs.writeFile(path, data) : false;
+	getFileSize = async (path: string) => this.fs ? await this.fs.getFileSize(path) : false;
+	remove = async (path: string) => this.fs ? await this.fs.remove(path) : false;
 }

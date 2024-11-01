@@ -9,6 +9,7 @@ import { S3Client } from "https://deno.land/x/s3_lite_client@0.7.0/mod.ts";
 import Peers from "./peers/peers.ts";
 import RTCPeers from "./peers/RTCPeers.ts";
 import HTTPPeers from "./peers/HTTPPeers.ts";
+import FileSystem from "./filesystem/filesystem.ts";
 
 // TODO: IDEA: HydraTorrent - New Github repo - "Hydrafiles + WebTorrent Compatibility Layer" - Hydrafiles noes can optionally run HydraTorrent to seed files via webtorrent
 // Change index hash from sha256 to infohash, then allow peers to leech files from webtorrent + normal torrent
@@ -33,13 +34,13 @@ class Hydrafiles {
 	peers!: Peers;
 	rtc!: RTCPeers;
 	http!: HTTPPeers;
+	fs: FileSystem;
 	handleRequest?: (req: Request) => Promise<string>;
 
 	constructor(customConfig: Partial<Config> = {}) {
-		console.log("Startup: Populating Utils");
 		this.utils = new Utils(this);
-		console.log("Startup: Populating Config");
 		this.config = getConfig(customConfig);
+		this.fs = new FileSystem();
 
 		if (this.config.s3Endpoint.length) {
 			console.log("Startup: Populating S3");
