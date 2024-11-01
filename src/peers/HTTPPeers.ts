@@ -2,7 +2,7 @@ import type Hydrafiles from "../hydrafiles.ts";
 import Utils from "../utils.ts";
 import type { Database } from "jsr:@db/sqlite@0.11";
 import type { indexedDB } from "https://deno.land/x/indexeddb@v1.1.0/ponyfill.ts";
-import File, { type FileAttributes } from "../file.ts";
+import File from "../file.ts";
 
 type DatabaseWrapper = { type: "UNDEFINED"; db: undefined } | { type: "SQLITE"; db: Database } | { type: "INDEXEDDB"; db: IDBDatabase };
 
