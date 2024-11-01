@@ -110,7 +110,7 @@ class Hydrafiles {
 			await this.fileDB.count(),
 			`(${Math.round((100 * (await this.fileDB.sum("size"))) / 1024 / 1024 / 1024) / 100}GB)`,
 			"\n| Stored Files:",
-			await this.utils.countFilesInDir("files/"),
+			(await this.fs.readDir("files/")).length,
 			`(${Math.round((100 * await this.utils.calculateUsedStorage()) / 1024 / 1024 / 1024) / 100}GB)`,
 			"\n| Processing Files:",
 			hashLocks.size,
