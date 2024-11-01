@@ -5,11 +5,10 @@ import StandardFileSystem from "./StandardFileSystem.ts";
 
 export default class FileSystem {
 	fs!: StandardFileSystem | DirectoryHandleFileSystem | IndexedDBFileSystem;
-	static init(client: Hydrafiles): FileSystem {
-		const fileSystem = new FileSystem();
+	constructor(client: Hydrafiles) {
 		const fs = typeof window === "undefined" ? StandardFileSystem : (typeof globalThis.window.showDirectoryPicker !== "undefined" && !client.config.dontUseFileSystemAPI ? DirectoryHandleFileSystem : IndexedDBFileSystem);
-		if (fs instanceof IndexedDBFileSystem) fs.dbPromise = fs.initDB();
-		return fileSystem;
+		this.fs = new fs();
+		if (this.fs instanceof IndexedDBFileSystem) this.fs.dbPromise = this.fs.initDB();
 	}
 	exists = async (path: string) => this.fs ? await this.fs.exists(path) : false;
 	mkdir = async (path: string) => this.fs ? await this.fs.mkdir(path) : false;

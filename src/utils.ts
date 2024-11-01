@@ -280,14 +280,6 @@ class Utils {
 		if (start < 0 || end >= buffer.length || start > end) throw new RangeError("Invalid start or end range.");
 		return buffer.subarray(start, end + 1);
 	}
-	async countFilesInDir(dirPath: string): Promise<number> {
-		if (typeof window !== "undefined") return 0;
-		let count = 0;
-		for await (const _ of await this._client.fs.readDir(dirPath)) {
-			count++;
-		}
-		return count;
-	}
 	static async parallelAsync(promises: (() => Promise<void>)[], processes = 4): Promise<void> {
 		let completed = 0;
 		const runningPromises: Promise<void>[] = [];
