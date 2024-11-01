@@ -3,7 +3,6 @@ import Utils, { type NonNegativeNumber } from "./utils.ts";
 import type { indexedDB } from "https://deno.land/x/indexeddb@v1.1.0/ponyfill.ts";
 import { join } from "https://deno.land/std@0.224.0/path/mod.ts";
 import type { Database } from "jsr:@db/sqlite@0.11";
-import FileSystem from "./fs.ts";
 
 type DatabaseWrapper = { type: "UNDEFINED"; db: undefined } | { type: "SQLITE"; db: Database } | { type: "INDEXEDDB"; db: IDBDatabase };
 
@@ -109,7 +108,7 @@ export class FileDB {
 	}
 
 	static async init(client: Hydrafiles): Promise<FileDB> {
-		await FileSystem.mkdir("files");
+		await client.fs.mkdir("files");
 
 		const fileDB = new FileDB(client);
 
@@ -396,23 +395,19 @@ class File implements FileAttributes {
 			values.hash = files[0]?.hash;
 		}
 		if (!values.hash && values.id) {
-			const promises: (() => Promise<void>)[] = [];
-			const nodes = await client.peers.getPeers(true);
-			for (let i = 0; i < nodes.length; i++) {
-				const promise = async () => {
-					try {
-						console.log(`  ${nodes[i].host}  Fetching file metadata from node`); // TODO: Merge with getMetadata
-						const response = await fetch(`${nodes[i].host}/file/${values.id}`);
-						const body = await response.json() as { result: Metadata } | FileAttributes;
-						const hash = "result" in body ? body.result.hash.sha256 : body.hash;
-						if (Utils.isValidSHA256Hash(hash)) values.hash = hash;
-					} catch (e) {
-						if (client.config.logLevel === "verbose") console.error(e);
-					}
-				};
-				promises.push(promise);
+			console.log(`Fetching file metadata`); // TODO: Merge with getMetadata
+			const responses = await client.peers.fetch(`http://localhost/file/${values.id}`);
+			for (let i = 0; i < responses.length; i++) {
+				const response = await responses[i];
+				if (!response) continue;
+				try {
+					const body = await response.json() as { result: Metadata } | FileAttributes;
+					const hash = "result" in body ? body.result.hash.sha256 : body.hash;
+					if (Utils.isValidSHA256Hash(hash)) values.hash = hash;
+				} catch (e) {
+					if (client.config.logLevel === "verbose") console.error(e);
+				}
 			}
-			await Utils.parallelAsync(promises, 4);
 			throw new Error("No hash found for the provided id");
 		}
 		if (values.infohash !== undefined && values.infohash !== null && Utils.isValidInfoHash(values.infohash)) {
@@ -443,19 +438,13 @@ class File implements FileAttributes {
 
 		const id = this.id;
 		if (id !== undefined && id !== null && id.length > 0) {
-			const responses = await Promise.all(this._client.webRTC.sendRequest(`http://localhost/file/${this.id}`));
-			const peers = await this._client.peers.getPeers();
-			for (let i = 0; i < peers.length; i++) {
-				try {
-					responses.push(await fetch(`${peers[i].host}/file/${id}`));
-				} catch (e) {
-					if (this._client.config.logLevel === "verbose") console.error(e);
-				}
-			}
+			const responses = await this._client.peers.fetch(`http://localhost/file/${this.id}`);
 
 			for (let i = 0; i < responses.length; i++) {
 				try {
-					const body = await responses[i].json();
+					const response = await responses[i];
+					if (!response) continue;
+					const body = await response.json();
 					const metadata = body.result as Metadata ?? body as FileAttributes;
 					this.name = metadata.name;
 					this.size = Utils.createNonNegativeNumber(metadata.size);
@@ -469,8 +458,8 @@ class File implements FileAttributes {
 		}
 
 		const filePath = join(FILESPATH, hash);
-		if (await FileSystem.exists(filePath)) {
-			const fileSize = await FileSystem.getFileSize(filePath);
+		if (await this._client.fs.exists(filePath)) {
+			const fileSize = await this._client.fs.getFileSize(filePath);
 			if (fileSize !== false) {
 				this.size = Utils.createNonNegativeNumber(fileSize);
 				this.save();
@@ -497,7 +486,7 @@ class File implements FileAttributes {
 	async cacheFile(file: Uint8Array): Promise<void> {
 		const hash = this.hash;
 		const filePath = join(FILESPATH, hash);
-		if (await FileSystem.exists(filePath)) return;
+		if (await this._client.fs.exists(filePath)) return;
 
 		let size = this.size;
 		if (size === 0) {
@@ -508,11 +497,11 @@ class File implements FileAttributes {
 		const remainingSpace = await this._client.utils.remainingStorage();
 		if (this._client.config.maxCache !== -1 && size > remainingSpace) this._client.utils.purgeCache(size, remainingSpace);
 
-		FileSystem.writeFile(filePath, file);
-		const fileContent = await FileSystem.readFile(filePath);
+		this._client.fs.writeFile(filePath, file);
+		const fileContent = await this._client.fs.readFile(filePath);
 		if (!fileContent) return;
 		const savedHash = await Utils.hashUint8Array(fileContent);
-		if (savedHash !== hash) await FileSystem.remove(filePath); // In case of broken file
+		if (savedHash !== hash) await this._client.fs.remove(filePath); // In case of broken file
 	}
 
 	private async fetchFromCache(): Promise<{ file: Uint8Array; signal: number } | false> {
@@ -520,12 +509,12 @@ class File implements FileAttributes {
 		console.log(`  ${hash}  Checking Cache`);
 		const filePath = join(FILESPATH, hash);
 		this.seed();
-		if (!await FileSystem.exists(filePath)) return false;
-		const fileContents = await FileSystem.readFile(filePath);
+		if (!await this._client.fs.exists(filePath)) return false;
+		const fileContents = await this._client.fs.readFile(filePath);
 		if (!fileContents) return false;
 		const savedHash = await Utils.hashUint8Array(fileContents);
 		if (savedHash !== this.hash) {
-			await FileSystem.remove(filePath).catch(console.error);
+			await this._client.fs.remove(filePath).catch(console.error);
 			return false;
 		}
 		return {

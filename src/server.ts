@@ -5,8 +5,7 @@ import File, { fileAttributesDefaults } from "./file.ts";
 import Utils from "./utils.ts";
 import { join } from "https://deno.land/std@0.224.0/path/mod.ts";
 import type Base64 from "npm:base64";
-import { Peer } from "./peer.ts";
-import FileSystem from "./fs.ts";
+import { HTTPPeer } from "./peers/HTTPPeers.ts";
 
 export const hashLocks = new Map<string, Promise<Response>>();
 const cachedHostnames: { [key: string]: { body: string; headers: Headers } } = {};
@@ -33,47 +32,44 @@ export const handleRequest = async (req: Request, client: Hydrafiles): Promise<R
 		} else if (url.pathname === "/" || url.pathname === undefined) {
 			headers.set("Content-Type", "text/html");
 			headers.set("Cache-Control", "public, max-age=604800");
-			return new Response(await FileSystem.readFile("public/index.html") || "", { headers });
+			return new Response(await client.fs.readFile("public/index.html") || "", { headers });
 		} else if (url.pathname === "/favicon.ico") {
 			headers.set("Content-Type", "image/x-icon");
 			headers.set("Cache-Control", "public, max-age=604800");
-			return new Response(await FileSystem.readFile("public/favicon.ico") || "", { headers });
+			return new Response(await client.fs.readFile("public/favicon.ico") || "", { headers });
 		} else if (url.pathname === "/status") {
 			headers.set("Content-Type", "application/json");
 			return new Response(JSON.stringify({ status: true }), { headers });
 		} else if (url.pathname === "/hydrafiles-web.esm.js") {
 			headers.set("Content-Type", "application/javascript");
 			headers.set("Cache-Control", "public, max-age=300");
-			return new Response(await FileSystem.readFile("build/hydrafiles-web.esm.js") || "", { headers });
+			return new Response(await client.fs.readFile("build/hydrafiles-web.esm.js") || "", { headers });
 		} else if (url.pathname === "/hydrafiles-web.esm.js.map") {
 			headers.set("Content-Type", "application/json");
 			headers.set("Cache-Control", "public, max-age=300");
-			return new Response(await FileSystem.readFile("build/hydrafiles-web.esm.js.map") || "", { headers });
+			return new Response(await client.fs.readFile("build/hydrafiles-web.esm.js.map") || "", { headers });
 		} else if (url.pathname === "/demo.html") {
 			headers.set("Content-Type", "text/html");
 			headers.set("Cache-Control", "public, max-age=300");
-			return new Response(await FileSystem.readFile("public/demo.html") || "", { headers });
+			return new Response(await client.fs.readFile("public/demo.html") || "", { headers });
 		} else if (url.pathname === "/dashboard.html") {
 			headers.set("Content-Type", "text/html");
 			headers.set("Cache-Control", "public, max-age=300");
-			return new Response(await FileSystem.readFile("public/dashboard.html") || "", { headers });
+			return new Response(await client.fs.readFile("public/dashboard.html") || "", { headers });
 		} else if (url.pathname === "/peers") {
 			headers.set("Content-Type", "application/json");
 			headers.set("Cache-Control", "public, max-age=300");
-			return new Response(JSON.stringify(await client.peers.getPeers()), { headers });
+			return new Response(JSON.stringify(await client.peers.http.getPeers()), { headers });
 		} else if (url.pathname === "/info") {
 			headers.set("Content-Type", "application/json");
 			headers.set("Cache-Control", "public, max-age=300");
 			return new Response(JSON.stringify({ version: JSON.parse(await Deno.readTextFile("deno.jsonc")).version }), { headers });
 		} else if (url.pathname.startsWith("/announce")) {
 			const host = url.searchParams.get("host");
-
 			if (host === null) return new Response("No hosted given\n", { status: 401 });
-
-			const knownNodes = await client.peers.getPeers();
+			const knownNodes = await client.peers.http.getPeers();
 			if (knownNodes.find((node) => node.host === host) !== undefined) return new Response("Already known\n");
-
-			await client.peers.add(host);
+			await client.peers.http.add(host);
 			return new Response("Announced\n");
 		} else if (url.pathname?.startsWith("/download/")) {
 			const hash = url.pathname.split("/")[2];
@@ -217,10 +213,10 @@ export const handleRequest = async (req: Request, client: Hydrafiles): Promise<R
 
 			console.log("Uploading", file.hash);
 
-			if (await FileSystem.exists(join("files", file.hash))) return new Response("200 OK\n");
+			if (await client.fs.exists(join("files", file.hash))) return new Response("200 OK\n");
 
 			if (!client.config.permaFiles.includes(hash)) client.config.permaFiles.push(hash);
-			await FileSystem.writeFile("config.json", new TextEncoder().encode(JSON.stringify(client.config, null, 2)));
+			await client.fs.writeFile("config.json", new TextEncoder().encode(JSON.stringify(client.config, null, 2)));
 			return new Response("200 OK\n");
 		} else if (url.pathname === "/files") {
 			const rows = (await client.fileDB.select()).map((row) => {
@@ -264,19 +260,20 @@ export const handleRequest = async (req: Request, client: Hydrafiles): Promise<R
 				if (hostname in cachedHostnames) return new Response(cachedHostnames[hostname].body, { headers: cachedHostnames[hostname].headers });
 
 				console.log(`  ${hostname}  Fetching endpoint response from peers`);
-				const requests = [...(await client.peers.getPeers(true)).map((node) => fetch(`${node.host}/endpoint/${hostname}`)), ...client.webRTC.sendRequest(`http://localhost/endpoint/${hostname}`)];
+				const responses = await client.peers.fetch(`http://localhost/endpoint/${hostname}`);
 
 				const processingPromise = new Promise<Response>((resolve, reject) => {
 					(async () => {
-						await Promise.all(requests.map(async (request) => {
+						await Promise.all(responses.map(async (res) => {
 							try {
-								const response = await Utils.promiseWithTimeout(request, client.config.timeout);
-								if (!response) throw new Error("Hostname not found");
-								const body = await response.text();
-								const signature = response.headers.get("hydra-signature");
-								if (signature !== null) {
-									const [xBase32, yBase32] = hostname.split(".");
-									if (await Utils.verifySignature(body, signature as Base64, { x: Base32.decode(xBase32), y: Base32.decode(yBase32) })) resolve(new Response(body, { headers: response.headers }));
+								const response = await res;
+								if (response) {
+									const body = await response.text();
+									const signature = response.headers.get("hydra-signature");
+									if (signature !== null) {
+										const [xBase32, yBase32] = hostname.split(".");
+										if (await Utils.verifySignature(body, signature as Base64, { x: Base32.decode(xBase32), y: Base32.decode(yBase32) })) resolve(new Response(body, { headers: response.headers }));
+									}
 								}
 							} catch (e) {
 								const err = e as Error;
@@ -308,7 +305,7 @@ export const handleRequest = async (req: Request, client: Hydrafiles): Promise<R
 			// 	const blockHeight = url.pathname.split("/")[2];
 			// 	headers.set("Content-Type", "application/json");
 			// 	// "Cache-Control": "public, max-age=" + (Number(blockHeight) > client.blockchain.lastBlock().height ? 0 : 604800),
-			// 	const block = await FileSystem.readFile(join(BLOCKSDIR, blockHeight));
+			// 	const block = await client.fs.readFile(join(BLOCKSDIR, blockHeight));
 			// 	return new Response(block, { headers });
 		} else if (url.pathname === "/block_height") {
 			headers.set("Content-Type", "application/json");
@@ -343,14 +340,14 @@ const onListen = (client: Hydrafiles): void => {
 				if (!file) console.error("Failed to build file");
 				else {
 					console.log("Testing connectivity");
-					const response = await client.peers.downloadFromPeer(await Peer.init({ host: client.config.publicHostname }, client.peerDB), file);
+					const response = await client.peers.http.downloadFromPeer(await HTTPPeer.init({ host: client.config.publicHostname }, client.peers.http._db), file);
 					if (response === false) console.error("  04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f  ERROR: Failed to download file from self");
 					else {
 						console.log("  04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f  Test Succeeded");
-						console.log("Announcing to nodes");
-						client.peers.announce();
+						console.log("Announcing HTTP server to nodes");
+						client.peers.announceHTTP();
 					}
-					await client.peers.add(client.config.publicHostname);
+					await client.peers.http.add(client.config.publicHostname);
 				}
 			}
 		}

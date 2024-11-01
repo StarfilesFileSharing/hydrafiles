@@ -1,13 +1,15 @@
 import Base32 from "npm:base32";
 // import WebTorrent from "npm:webtorrent";
 import getConfig, { type Config } from "./config.ts";
-import Peers, { PeerDB } from "./peer.ts";
 import File, { type FileAttributes, FileDB } from "./file.ts";
 import startServer, { hashLocks } from "./server.ts";
 import Utils from "./utils.ts";
 // import Blockchain, { Block } from "./block.ts";
 import { S3Client } from "https://deno.land/x/s3_lite_client@0.7.0/mod.ts";
-import WebRTC from "./rtc.ts";
+import Peers from "./peers/peers.ts";
+import RTCPeers from "./peers/RTCPeers.ts";
+import HTTPPeers from "./peers/HTTPPeers.ts";
+import FileSystem from "./filesystem/filesystem.ts";
 
 // TODO: IDEA: HydraTorrent - New Github repo - "Hydrafiles + WebTorrent Compatibility Layer" - Hydrafiles noes can optionally run HydraTorrent to seed files via webtorrent
 // Change index hash from sha256 to infohash, then allow peers to leech files from webtorrent + normal torrent
@@ -30,15 +32,15 @@ class Hydrafiles {
 	keyPair!: CryptoKeyPair;
 	fileDB!: FileDB;
 	peers!: Peers;
-	peerDB!: PeerDB;
-	webRTC!: WebRTC;
+	rtc!: RTCPeers;
+	http!: HTTPPeers;
+	fs: FileSystem;
 	handleRequest?: (req: Request) => Promise<string>;
 
 	constructor(customConfig: Partial<Config> = {}) {
-		console.log("Startup: Populating Utils");
 		this.utils = new Utils(this);
-		console.log("Startup: Populating Config");
 		this.config = getConfig(customConfig);
+		this.fs = new FileSystem();
 
 		if (this.config.s3Endpoint.length) {
 			console.log("Startup: Populating S3");
@@ -51,12 +53,10 @@ class Hydrafiles {
 		this.keyPair = await this.utils.getKeyPair();
 		console.log("Startup: Populating FileDB");
 		this.fileDB = await FileDB.init(this);
-		console.log("Startup: Populating PeerDB");
-		this.peerDB = await PeerDB.init(this);
 		console.log("Startup: Populating Peers");
-		this.peers = await Peers.init(this);
-		console.log("Startup: Populating webRTC");
-		this.webRTC = await WebRTC.init(this);
+		this.http = await HTTPPeers.init(this);
+		this.rtc = await RTCPeers.init(this);
+		this.peers = new Peers(this, this.http, this.rtc);
 
 		this.startBackgroundTasks(onCompareFileListProgress);
 	}
@@ -66,8 +66,8 @@ class Hydrafiles {
 
 		if (this.config.summarySpeed !== -1) setInterval(() => this.logState(), this.config.summarySpeed);
 		if (this.config.comparePeersSpeed !== -1) {
-			this.peers.fetchPeers();
-			setInterval(() => this.peers.fetchPeers(), this.config.comparePeersSpeed);
+			this.peers.fetchHTTPPeers();
+			setInterval(() => this.peers.fetchHTTPPeers(), this.config.comparePeersSpeed);
 		}
 		if (this.config.compareFilesSpeed !== -1) {
 			this.peers.compareFileList(onCompareFileListProgress);
@@ -115,7 +115,7 @@ class Hydrafiles {
 			"\n| Processing Files:",
 			hashLocks.size,
 			"\n| Known Nodes:",
-			(await this.peers.getPeers()).length,
+			(await this.peers.http.getPeers()).length,
 			// '\n| Seeding Torrent Files:',
 			// (await webtorrentClient()).torrents.length,
 			"\n| Downloads Served:",

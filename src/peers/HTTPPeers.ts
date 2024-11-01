@@ -1,8 +1,8 @@
-import type Hydrafiles from "./hydrafiles.ts";
-import Utils from "./utils.ts";
+import type Hydrafiles from "../hydrafiles.ts";
+import Utils from "../utils.ts";
 import type { Database } from "jsr:@db/sqlite@0.11";
 import type { indexedDB } from "https://deno.land/x/indexeddb@v1.1.0/ponyfill.ts";
-import File, { type FileAttributes } from "./file.ts";
+import File, { type FileAttributes } from "../file.ts";
 
 type DatabaseWrapper = { type: "UNDEFINED"; db: undefined } | { type: "SQLITE"; db: Database } | { type: "INDEXEDDB"; db: IDBDatabase };
 
@@ -184,7 +184,7 @@ export class PeerDB {
 		}
 	}
 
-	async update(host: string, newPeer: PeerAttributes | Peer): Promise<void> {
+	async update(host: string, newPeer: PeerAttributes | HTTPPeer): Promise<void> {
 		if (this.db === undefined) return;
 
 		// Get the current peer attributes before updating
@@ -307,7 +307,7 @@ export class PeerDB {
 	}
 }
 
-export class Peer implements PeerAttributes {
+export class HTTPPeer implements PeerAttributes {
 	host: string;
 	hits = 0;
 	rejects = 0;
@@ -329,7 +329,7 @@ export class Peer implements PeerAttributes {
 		this.updatedAt = values.updatedAt;
 	}
 
-	static async init(values: Partial<PeerAttributes>, db: PeerDB): Promise<Peer> {
+	static async init(values: Partial<PeerAttributes>, db: PeerDB): Promise<HTTPPeer> {
 		if (values.host === undefined) throw new Error("Hash is required");
 		const peerAttributes: PeerAttributes = {
 			host: values.host,
@@ -346,7 +346,7 @@ export class Peer implements PeerAttributes {
 			peer = (await db.select({ key: "host", value: values.host }))[0];
 		}
 
-		return new Peer(peer, db);
+		return new HTTPPeer(peer, db);
 	}
 
 	save(): void {
@@ -356,15 +356,18 @@ export class Peer implements PeerAttributes {
 }
 
 // TODO: Log common user-agents and re-use them to help anonimise non Hydrafiles peers
-export default class Peers {
+export default class HTTPPeers {
 	private _client: Hydrafiles;
+	public _db: PeerDB;
 
-	constructor(client: Hydrafiles) {
+	constructor(client: Hydrafiles, db: PeerDB) {
 		this._client = client;
+		this._db = db;
 	}
 
-	public static async init(client: Hydrafiles): Promise<Peers> {
-		const peers = new Peers(client);
+	public static async init(client: Hydrafiles): Promise<HTTPPeers> {
+		const db = await PeerDB.init(client);
+		const peers = new HTTPPeers(client, db);
 
 		for (let i = 0; i < client.config.bootstrapPeers.length; i++) {
 			await peers.add(client.config.bootstrapPeers[i]);
@@ -373,11 +376,11 @@ export default class Peers {
 	}
 
 	async add(host: string): Promise<void> {
-		if (host !== this._client.config.publicHostname) await Peer.init({ host }, this._client.peerDB);
+		if (host !== this._client.config.publicHostname) await HTTPPeer.init({ host }, this._db);
 	}
 
 	public getPeers = async (applicablePeers = false): Promise<PeerAttributes[]> => {
-		const peers = (await this._client.peerDB.select()).filter((peer) => !applicablePeers || typeof window === "undefined" || !peer.host.startsWith("http://"));
+		const peers = (await this._db.select()).filter((peer) => !applicablePeers || typeof window === "undefined" || !peer.host.startsWith("http://"));
 
 		if (this._client.config.preferNode === "FASTEST") {
 			return peers.sort((a, b) => a.bytes / a.duration - b.bytes / b.duration);
@@ -390,7 +393,7 @@ export default class Peers {
 		}
 	};
 
-	async downloadFromPeer(peer: Peer, file: File): Promise<{ file: Uint8Array; signal: number } | false> {
+	async downloadFromPeer(peer: HTTPPeer, file: File): Promise<{ file: Uint8Array; signal: number } | false> {
 		try {
 			const startTime = Date.now();
 
@@ -434,6 +437,7 @@ export default class Peers {
 			return false;
 		}
 	}
+
 	async getValidPeers(): Promise<PeerAttributes[]> {
 		const peers = await this.getPeers();
 		const results: PeerAttributes[] = [];
@@ -445,7 +449,7 @@ export default class Peers {
 				results.push(peer);
 				continue;
 			}
-			const promise = this.validatePeer(await Peer.init(peer, this._client.peerDB)).then((result) => {
+			const promise = this.validatePeer(await HTTPPeer.init(peer, this._db)).then((result) => {
 				if (result) results.push(peer);
 				executing.splice(executing.indexOf(promise), 1);
 			});
@@ -455,179 +459,26 @@ export default class Peers {
 		return results;
 	}
 
-	async validatePeer(peer: Peer): Promise<boolean> {
+	async validatePeer(peer: HTTPPeer): Promise<boolean> {
 		const file = await File.init({ hash: "04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f" }, this._client);
 		if (!file) throw new Error("Failed to build file");
 		return await this.downloadFromPeer(peer, file) !== false;
 	}
 
-	async announce(): Promise<void> {
-		const peers = await this.getPeers();
-		for (let i = 0; i < peers.length; i++) {
-			const peer = peers[i];
-			if (peer.host === this._client.config.publicHostname) continue;
-			console.log(peer.host, "Announcing to peer");
-			fetch(`${peer.host}/announce?host=${this._client.config.publicHostname}`).catch(console.error);
-		}
-	}
-
-	async fetchPeers(): Promise<void> {
-		// TODO: Compare list between all peers and give score based on how similar they are. 100% = all exactly the same, 0% = no items in list were shared. The lower the score, the lower the propagation times, the lower the decentralisation
+	public async fetch(input: RequestInfo, init?: RequestInit): Promise<Promise<Response | false>[]> {
+		const req = typeof input === "string" ? new Request(input, init) : input;
 		const peers = await this.getPeers(true);
-		for (const peer of peers) {
-			if (peer.host.startsWith("http://") || peer.host.startsWith("https://")) {
-				console.log(`  ${peer.host}  Fetching peers`);
-				try {
-					const response = await Utils.promiseWithTimeout(fetch(`${peer.host}/peers`), this._client.config.timeout);
-					const remotePeers = (await response.json()) as Peer[];
-					for (const remotePeer of remotePeers) {
-						this.add(remotePeer.host).catch((e) => {
-							if (this._client.config.logLevel === "verbose") console.error(e);
-						});
-					}
-				} catch (e) {
-					if (this._client.config.logLevel === "verbose") console.error(e);
-				}
-			}
-		}
-		const responses = await Promise.all(this._client.webRTC.sendRequest("http://localhost/peers"));
-		for (let i = 0; i < responses.length; i++) {
-			const remotePeers = (await responses[i].json()) as Peer[];
-			for (const remotePeer of remotePeers) {
-				this.add(remotePeer.host).catch((e) => {
-					if (this._client.config.logLevel === "verbose") console.error(e);
-				});
-			}
-		}
-	}
-
-	async getBlockHeights(): Promise<{ [key: number]: string[] }> {
-		const blockHeights = await Promise.all(
-			(await this.getPeers()).map(async (peer) => {
-				try {
-					const response = await Utils.promiseWithTimeout(fetch(`${peer.host}/block_height`), this._client.config.timeout);
-					const blockHeight = await response.text();
-					return isNaN(Number(blockHeight)) ? 0 : Number(blockHeight);
-				} catch (error) {
-					console.error(`Error fetching block height from ${peer.host}:`, error);
-					return 0;
-				}
-			}),
-		);
-		const result = (await this.getPeers()).reduce((acc: { [key: number]: string[] }, peer, index) => {
-			if (typeof acc[blockHeights[index]] === "undefined") acc[blockHeights[index]] = [];
-			acc[blockHeights[index]].push(peer.host);
-			return acc;
-		}, {});
-		return result;
-	}
-
-	async compareFileList(onProgress?: (progress: number, total: number) => void): Promise<void> {
-		// TODO: Compare list between all peers and give score based on how similar they are. 100% = all exactly the same, 0% = no items in list were shared. The lower the score, the lower the propagation times, the lower the decentralisation
-
-		const peers = await this.getPeers(true);
-		let files: FileAttributes[] = [];
-		for (let i = 0; i < peers.length; i++) {
-			const peer = peers[i];
+		const fetchPromises = peers.map(async (peer) => {
 			try {
-				console.log(`  ${peer.host}  Comparing file list`);
-				const response = await fetch(`${peer.host}/files`);
-				files = files.concat((await response.json()) as FileAttributes[]);
+				const url = new URL(req.url);
+				url.hostname = peer.host;
+				return await Utils.promiseWithTimeout(fetch(url.toString(), init), this._client.config.timeout);
 			} catch (e) {
-				const err = e as { message: string };
-				console.error(`  ${peer.host}  Failed to compare file list - ${err.message}`);
-				return;
+				if (this._client.config.logLevel === "verbose") console.error(e);
+				return false;
 			}
-		}
-
-		const responses = await Promise.all(this._client.webRTC.sendRequest("http://localhost/files"));
-		for (let i = 0; i < responses.length; i++) {
-			files = files.concat((await responses[i].json()) as FileAttributes[]);
-		}
-
-		const uniqueFiles = new Set<string>();
-		files = files.filter((file) => {
-			const fileString = JSON.stringify(file);
-			if (!uniqueFiles.has(fileString)) {
-				uniqueFiles.add(fileString);
-				return true;
-			}
-			return false;
 		});
 
-		for (let i = 0; i < files.length; i++) {
-			if (onProgress) onProgress(i, files.length);
-			const newFile = files[i];
-			try {
-				if (typeof files[i].hash === "undefined") continue;
-				const fileObj: Partial<FileAttributes> = { hash: files[i].hash };
-				if (files[i].infohash) fileObj.infohash = files[i].infohash;
-				const currentFile = await File.init(fileObj, this._client);
-				if (!currentFile) continue;
-
-				const keys = Object.keys(newFile) as unknown as (keyof File)[];
-				for (let i = 0; i < keys.length; i++) {
-					const key = keys[i] as keyof FileAttributes;
-					if (["downloadCount", "voteHash", "voteNonce", "voteDifficulty"].includes(key)) continue;
-					if (newFile[key] !== undefined && newFile[key] !== null && newFile[key] !== 0 && (currentFile[key] === undefined || currentFile[key] === null || currentFile[key] === 0)) {
-						// @ts-expect-error:
-						currentFile[key] = newFile[key];
-					}
-					if (newFile.voteNonce !== 0 && newFile.voteDifficulty > currentFile.voteDifficulty) {
-						console.log(`  ${newFile.hash}  Checking vote nonce`);
-						currentFile.checkVoteNonce(newFile["voteNonce"]);
-					}
-				}
-				currentFile.save();
-			} catch (e) {
-				console.error(e);
-			}
-		}
-		if (onProgress) onProgress(files.length, files.length);
-	}
-
-	async downloadFile(hash: string, size = 0): Promise<{ file: Uint8Array; signal: number } | false> {
-		const peers = await this.getPeers(true);
-
-		if (!this._client.utils.hasSufficientMemory(size)) {
-			console.log("Reached memory limit, waiting");
-			await new Promise(() => {
-				const intervalId = setInterval(async () => {
-					if (await this._client.utils.hasSufficientMemory(size)) clearInterval(intervalId);
-				}, this._client.config.memoryThresholdReachedWait);
-			});
-		}
-
-		const file = await File.init({ hash }, this._client);
-		if (!file) return false;
-		for (const peer of peers) {
-			let fileContent: { file: Uint8Array; signal: number } | false = false;
-			try {
-				fileContent = await this.downloadFromPeer(await Peer.init(peer, this._client.peerDB), file);
-			} catch (e) {
-				console.error(e);
-			}
-			if (fileContent) return fileContent;
-		}
-
-		console.log(`  ${hash}  Downloading from WebRTC`);
-		const responses = this._client.webRTC.sendRequest(`http://localhost/download/${hash}`);
-		for (let i = 0; i < responses.length; i++) {
-			const hash = file.hash;
-			const response = await responses[i];
-			const peerContent = new Uint8Array(await response.arrayBuffer());
-			console.log(`  ${hash}  Validating hash`);
-			const verifiedHash = await Utils.hashUint8Array(peerContent);
-			console.log(`  ${hash}  Done Validating hash`);
-			if (hash !== verifiedHash) return false;
-			console.log(`  ${hash}  Valid hash`);
-
-			if (file.name === undefined || file.name === null || file.name.length === 0) {
-				file.name = String(response.headers.get("Content-Disposition")?.split("=")[1].replace(/"/g, "").replace(" [HYDRAFILES]", ""));
-				file.save();
-			}
-		}
-
-		return false;
+		return fetchPromises;
 	}
 }

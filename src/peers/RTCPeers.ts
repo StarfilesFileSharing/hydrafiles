@@ -1,6 +1,6 @@
 import type { RTCDataChannel, RTCIceCandidate, RTCPeerConnection, RTCSessionDescription } from "npm:werift";
-import { handleRequest } from "./server.ts";
-import type Hydrafiles from "./hydrafiles.ts";
+import { handleRequest } from "../server.ts";
+import type Hydrafiles from "../hydrafiles.ts";
 
 function extractIPAddress(sdp: string): string {
 	const ipv4Regex = /c=IN IP4 (\d{1,3}(?:\.\d{1,3}){3})/g;
@@ -36,7 +36,7 @@ function arrayBufferToUnicodeString(buffer: ArrayBuffer): string {
 
 const peerId = Math.random();
 
-class WebRTC {
+class RTCPeers {
 	_client: Hydrafiles;
 	peerId: number;
 	websockets: WebSocket[];
@@ -51,9 +51,9 @@ class WebRTC {
 		this.seenMessages = new Set();
 	}
 
-	static async init(client: Hydrafiles): Promise<WebRTC> {
-		const webRTC = new WebRTC(client);
-		const peers = await client.peers.getPeers(true);
+	static async init(client: Hydrafiles): Promise<RTCPeers> {
+		const webRTC = new RTCPeers(client);
+		const peers = await client.http.getPeers(true);
 		for (let i = 0; i < peers.length; i++) {
 			try {
 				webRTC.websockets.push(new WebSocket(peers[i].host.replace("https://", "wss://").replace("http://", "ws://")));
@@ -133,7 +133,7 @@ class WebRTC {
 		};
 		conn.addEventListener("iceconnectionstatechange", () => {
 			if (conn.iceConnectionState === "disconnected" || conn.iceConnectionState === "closed" || conn.iceConnectionState === "failed") {
-				console.log("WebRTC (13/12) Connection closed. Cleaning up peer connection.");
+				console.log(`WebRTC (13/12): ${from} Connection closed. Cleaning up peer connection.`);
 				this.cleanupPeerConnection(conn);
 			}
 		});
@@ -237,7 +237,7 @@ class WebRTC {
 		await this.peerConnections[from].offered.conn.setRemoteDescription(answer);
 	}
 
-	public sendRequest(input: RequestInfo, init?: RequestInit): Promise<Response>[] {
+	public fetch(input: RequestInfo, init?: RequestInit): Promise<Response>[] {
 		const req = typeof input === "string" ? new Request(input, init) : input;
 		const requestId = Math.random();
 		const { method, url, headers } = req;
@@ -285,4 +285,4 @@ class WebRTC {
 	}
 }
 
-export default WebRTC;
+export default RTCPeers;
