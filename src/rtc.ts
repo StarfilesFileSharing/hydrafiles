@@ -133,7 +133,7 @@ class WebRTC {
 		};
 		conn.addEventListener("iceconnectionstatechange", () => {
 			if (conn.iceConnectionState === "disconnected" || conn.iceConnectionState === "closed" || conn.iceConnectionState === "failed") {
-				console.log("WebRTC (13/12) Connection closed. Cleaning up peer connection.");
+				console.log(`WebRTC (13/12): ${from} Connection closed. Cleaning up peer connection.`);
 				this.cleanupPeerConnection(conn);
 			}
 		});
