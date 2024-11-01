@@ -40,7 +40,7 @@ class Hydrafiles {
 	constructor(customConfig: Partial<Config> = {}) {
 		this.utils = new Utils(this);
 		this.config = getConfig(customConfig);
-		this.fs = new FileSystem();
+		this.fs = new FileSystem(this);
 
 		if (this.config.s3Endpoint.length) {
 			console.log("Startup: Populating S3");
