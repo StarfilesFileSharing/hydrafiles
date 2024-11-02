@@ -24,9 +24,10 @@ export const handleRequest = async (req: Request, client: Hydrafiles): Promise<R
 			sockets.push({ socket, id: 0 });
 
 			socket.addEventListener("message", ({ data }) => {
-				const message = JSON.parse(data) as Message;
+				const message = JSON.parse(data) as Message | null;
+				if (message === null) return;
 				for (let i = 0; i < sockets.length; i++) {
-					if (sockets[i].socket !== socket && (message && !("to" in message) || message.to === sockets[i].id)) {
+					if (sockets[i].socket !== socket && (!("to" in message) || message.to === sockets[i].id)) {
 						if (sockets[i].socket.readyState === 1) sockets[i].socket.send(data);
 					} else if ("from" in message) {
 						sockets[i].id = message.from;
