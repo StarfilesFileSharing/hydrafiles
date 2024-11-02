@@ -103,7 +103,7 @@ export default class Peers {
 
 		const file = await File.init({ hash }, this._client);
 		if (!file) return false;
-		const peers = await this._client.http.getPeers();
+		const peers = await this._client.http.getPeers(true);
 		for (const peer of peers) {
 			let fileContent: { file: Uint8Array; signal: number } | false = false;
 			try {
