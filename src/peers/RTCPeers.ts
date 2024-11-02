@@ -73,7 +73,7 @@ class RTCPeers {
 
 			webRTC.websockets[i].onmessage = async (event) => {
 				const message = JSON.parse(event.data) as Message;
-				if (message === null || message.from === peerId || webRTC.seenMessages.has(event.data)) return;
+				if (message === null || message.from === peerId || webRTC.seenMessages.has(event.data) || ("to" in message && message.to !== webRTC.peerId)) return;
 				webRTC.seenMessages.add(event.data);
 				const conns = webRTC.peerConnections[message.from];
 				if ("announce" in message) {
@@ -81,13 +81,15 @@ class RTCPeers {
 				} else if ("offer" in message) {
 					if (message.to === webRTC.peerId) await webRTC.handleOffer(message.from, message.offer);
 				} else if ("answer" in message) {
-					if (!conns || !conns.offered || message.to !== webRTC.peerId) return;
+					if (!conns || !conns.offered) return;
 					await webRTC.handleAnswer(message.from, message.answer);
 				} else if ("iceCandidate" in message) {
-					if (!conns || message.to !== webRTC.peerId) return;
+					if (!conns) return;
 					console.log(`WebRTC: (8/12): ${message.from} Received ICE candidate`);
-					// if (conns.offered && conns.offered.conn.remoteDescription) conns.offered.conn.addIceCandidate(message.iceCandidate).catch(console.error);
-					// if (conns.answered) conns.answered.conn.addIceCandidate(message.iceCandidate).catch(console.error);
+					if (typeof window !== "undefined") { // TODO: Figure out why this broken on desktop
+						if (conns.offered && conns.offered.conn.remoteDescription) conns.offered.conn.addIceCandidate(message.iceCandidate).catch(console.error);
+						if (conns.answered) conns.answered.conn.addIceCandidate(message.iceCandidate).catch(console.error);
+					}
 				} else console.warn("Unknown message type received", message);
 			};
 		}
@@ -234,7 +236,7 @@ class RTCPeers {
 
 	private async handleAnswer(from: number, answer: RTCSessionDescription): Promise<void> {
 		if (!this.peerConnections[from].offered || this.peerConnections[from].offered.conn.signalingState !== "have-local-offer") {
-			console.warn("WebRTC: (13/12): Rejecting answer");
+			console.warn("WebRTC: (13/12): Rejecting answer", this.peerConnections[from].offered?.conn.signalingState);
 			return;
 		}
 		console.log(`WebRTC: (7/12): ${from} Received answer`, extractIPAddress(answer.sdp), this.peerConnections[from].offered.conn.signalingState);
