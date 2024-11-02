@@ -1,6 +1,6 @@
 {
 	"name": "@starfiles/hydrafiles",
-	"version": "0.7.28",
+	"version": "0.7.29",
 	"description": "The web privacy layer.",
 	"main": "src/hydrafiles.ts",
 	"exports": {
@@ -39,7 +39,26 @@
 		"include": ["src/"],
 		"rules": {
 			"tags": ["recommended"],
-			"include": ["camelcase", "default-param-last", "eqeqeq", "explicit-function-return-type", "explicit-module-boundary-types", "guard-for-in", "no-const-assign", "no-inferrable-types", "no-non-null-assertion", "no-self-compare", "no-sparse-arrays", "no-sync-fn-in-async-fn", "no-throw-literal", "no-undef", "constructor-super", "no-async-promise-executor", "no-await-in-sync-fn", "valid-typeof"]
+			"include": [
+				"camelcase",
+				"default-param-last",
+				"eqeqeq",
+				"explicit-function-return-type",
+				"explicit-module-boundary-types",
+				"guard-for-in",
+				"no-const-assign",
+				"no-inferrable-types",
+				"no-non-null-assertion",
+				"no-self-compare",
+				"no-sparse-arrays",
+				"no-sync-fn-in-async-fn",
+				"no-throw-literal",
+				"no-undef",
+				"constructor-super",
+				"no-async-promise-executor",
+				"no-await-in-sync-fn",
+				"valid-typeof"
+			]
 		}
 	},
 	"fmt": {
