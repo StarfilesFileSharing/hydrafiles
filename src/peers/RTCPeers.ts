@@ -87,7 +87,7 @@ class RTCPeers {
 					if (!conns || message.to !== webRTC.peerId) return;
 					console.log(`WebRTC: (8/12): ${message.from} Received ICE candidate`);
 					// if (conns.offered && conns.offered.conn.remoteDescription) conns.offered.conn.addIceCandidate(message.iceCandidate).catch(console.error);
-					if (conns.answered) conns.answered.conn.addIceCandidate(message.iceCandidate).catch(console.error);
+					// if (conns.answered) conns.answered.conn.addIceCandidate(message.iceCandidate).catch(console.error);
 				} else console.warn("Unknown message type received", message);
 			};
 		}
@@ -141,12 +141,16 @@ class RTCPeers {
 			}
 		};
 		conn.onnegotiationneeded = async () => {
-			if (this.peerConnections[from]?.offered?.channel.readyState === "open" || this.peerConnections[from]?.answered?.channel.readyState === "open") return;
+			try {
+				if (this.peerConnections[from]?.offered?.channel.readyState === "open" || this.peerConnections[from]?.answered?.channel.readyState === "open") return;
 
-			const offer = await conn.createOffer();
-			await conn.setLocalDescription(offer);
-			console.log(`WebRTC: (3/12): ${from} Sending offer from`, extractIPAddress(offer.sdp));
-			this.wsMessage({ offer, to: from, from: this.peerId });
+				const offer = await conn.createOffer();
+				await conn.setLocalDescription(offer);
+				console.log(`WebRTC: (3/12): ${from} Sending offer from`, extractIPAddress(offer.sdp));
+				this.wsMessage({ offer, to: from, from: this.peerId });
+			} catch (e) {
+				console.error(e);
+			}
 		};
 
 		return { conn, channel };
