@@ -1,27 +1,22 @@
 import type { FileAttributes } from "../file.ts";
 import type Hydrafiles from "../hydrafiles.ts";
-import HTTPPeers, { HTTPPeer } from "./HTTPPeers.ts";
-import RTCPeers from "./RTCPeers.ts";
+import { HTTPPeer } from "./HTTPPeers.ts";
 import File from "../file.ts";
 import Utils from "../utils.ts";
 
 export default class Peers {
 	_client: Hydrafiles;
-	http!: HTTPPeers;
-	rtc!: RTCPeers;
 
-	constructor(client: Hydrafiles, http: HTTPPeers, rtc: RTCPeers) {
+	constructor(client: Hydrafiles) {
 		this._client = client;
-		this.http = http;
-		this.rtc = rtc;
 	}
 
 	public async fetch(input: RequestInfo, init?: RequestInit): Promise<Promise<Response | false>[]> {
-		return [...await this.http.fetch(input, init), ...this.rtc.fetch(input, init)];
+		return [...await this._client.http.fetch(input, init), ...this._client.rtc.fetch(input, init)];
 	}
 
 	async announceHTTP(): Promise<void> {
-		await Promise.all([...await this.http.fetch(`http://localhost/announce?host=${this._client.config.publicHostname}`), ...this.rtc.fetch(`http://localhost/announce?host=${this._client.config.publicHostname}`)]);
+		await Promise.all([...await this._client.http.fetch(`http://localhost/announce?host=${this._client.config.publicHostname}`), ...this._client.rtc.fetch(`http://localhost/announce?host=${this._client.config.publicHostname}`)]);
 	}
 
 	// TODO: Compare list between all peers and give score based on how similar they are. 100% = all exactly the same, 0% = no items in list were shared. The lower the score, the lower the propagation times, the lower the decentralisation
@@ -35,7 +30,7 @@ export default class Peers {
 				if (response instanceof Response) {
 					const remotePeers = (await response.json()) as HTTPPeer[];
 					for (const remotePeer of remotePeers) {
-						this.http.add(remotePeer.host).catch((e) => {
+						this._client.http.add(remotePeer.host).catch((e) => {
 							if (this._client.config.logLevel === "verbose") console.error(e);
 						});
 					}
@@ -108,11 +103,11 @@ export default class Peers {
 
 		const file = await File.init({ hash }, this._client);
 		if (!file) return false;
-		const peers = await this.http.getPeers();
+		const peers = await this._client.http.getPeers();
 		for (const peer of peers) {
 			let fileContent: { file: Uint8Array; signal: number } | false = false;
 			try {
-				fileContent = await this.http.downloadFromPeer(await HTTPPeer.init(peer, this.http._db), file);
+				fileContent = await this._client.http.downloadFromPeer(await HTTPPeer.init(peer, this._client.http._db), file);
 			} catch (e) {
 				console.error(e);
 			}

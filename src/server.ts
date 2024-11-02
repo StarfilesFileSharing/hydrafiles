@@ -59,7 +59,7 @@ export const handleRequest = async (req: Request, client: Hydrafiles): Promise<R
 		} else if (url.pathname === "/peers") {
 			headers.set("Content-Type", "application/json");
 			headers.set("Cache-Control", "public, max-age=300");
-			return new Response(JSON.stringify(await client.peers.http.getPeers()), { headers });
+			return new Response(JSON.stringify(await client.http.getPeers()), { headers });
 		} else if (url.pathname === "/info") {
 			headers.set("Content-Type", "application/json");
 			headers.set("Cache-Control", "public, max-age=300");
@@ -67,9 +67,9 @@ export const handleRequest = async (req: Request, client: Hydrafiles): Promise<R
 		} else if (url.pathname.startsWith("/announce")) {
 			const host = url.searchParams.get("host");
 			if (host === null) return new Response("No hosted given\n", { status: 401 });
-			const knownNodes = await client.peers.http.getPeers();
+			const knownNodes = await client.http.getPeers();
 			if (knownNodes.find((node) => node.host === host) !== undefined) return new Response("Already known\n");
-			await client.peers.http.add(host);
+			await client.http.add(host);
 			return new Response("Announced\n");
 		} else if (url.pathname?.startsWith("/download/")) {
 			const hash = url.pathname.split("/")[2];
@@ -340,14 +340,14 @@ const onListen = (client: Hydrafiles): void => {
 				if (!file) console.error("Failed to build file");
 				else {
 					console.log("Testing connectivity");
-					const response = await client.peers.http.downloadFromPeer(await HTTPPeer.init({ host: client.config.publicHostname }, client.peers.http._db), file);
+					const response = await client.http.downloadFromPeer(await HTTPPeer.init({ host: client.config.publicHostname }, client.http._db), file);
 					if (response === false) console.error("  04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f  ERROR: Failed to download file from self");
 					else {
 						console.log("  04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f  Test Succeeded");
 						console.log("Announcing HTTP server to nodes");
 						client.peers.announceHTTP();
 					}
-					await client.peers.http.add(client.config.publicHostname);
+					await client.http.add(client.config.publicHostname);
 				}
 			}
 		}

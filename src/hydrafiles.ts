@@ -56,7 +56,7 @@ class Hydrafiles {
 		console.log("Startup: Populating Peers");
 		this.http = await HTTPPeers.init(this);
 		this.rtc = await RTCPeers.init(this);
-		this.peers = new Peers(this, this.http, this.rtc);
+		this.peers = new Peers(this);
 
 		this.startBackgroundTasks(onCompareFileListProgress);
 	}
@@ -115,7 +115,7 @@ class Hydrafiles {
 			"\n| Processing Files:",
 			hashLocks.size,
 			"\n| Known Nodes:",
-			(await this.peers.http.getPeers()).length,
+			(await this.http.getPeers()).length,
 			// '\n| Seeding Torrent Files:',
 			// (await webtorrentClient()).torrents.length,
 			"\n| Downloads Served:",

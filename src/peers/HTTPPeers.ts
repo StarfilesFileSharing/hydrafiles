@@ -471,7 +471,9 @@ export default class HTTPPeers {
 		const fetchPromises = peers.map(async (peer) => {
 			try {
 				const url = new URL(req.url);
-				url.hostname = peer.host;
+				const peerUrl = new URL(peer.host);
+				url.hostname = peerUrl.hostname;
+				url.protocol = peerUrl.protocol;
 				return await Utils.promiseWithTimeout(fetch(url.toString(), init), this._client.config.timeout);
 			} catch (e) {
 				if (this._client.config.logLevel === "verbose") console.error(e);
