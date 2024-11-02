@@ -153,15 +153,16 @@
             case "connected":
             case "complete":
             case "open":
-            case "stable":
                 return "lightgreen";
             case "gathering":
             case "connecting":
             case "checking":
-            case "new":
             case "have-local-offer":
             case "have-remote-offer":
                 return "#FFD580";
+            case "new":
+            case "stable":
+                return "lightblue";
             case "disconnected":
             case "closed":
             case "failed":
@@ -172,7 +173,7 @@
     }
 
     async function fetchAndPopulatePeers() {
-      const peers = await window.hydrafiles.peers.getPeers();
+      const peers = await window.hydrafiles.http.getPeers();
       const peersEl = document.getElementById('peers');
       peersEl.innerHTML = '';
       peers.forEach(node => {
@@ -181,7 +182,7 @@
         peersEl.appendChild(li);
       });
 
-      const rtcPeers = Object.entries(window.hydrafiles.webRTC.peerConnections);
+      const rtcPeers = Object.entries(window.hydrafiles.rtc.peerConnections);
       const tbody = document.getElementById("peerTable").querySelector("tbody");
 
       tbody.innerHTML = "";
@@ -236,7 +237,6 @@
           }
       }
     }
-
     async function fetchAndPopulateFiles() {
       files = await window.hydrafiles.search(undefined, { key: "voteHash", order: "DESC" });
       populateTable();
