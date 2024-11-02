@@ -17,7 +17,7 @@ function extractIPAddress(sdp: string): string {
 	return ipAddresses.filter((ip) => ip !== "0.0.0.0")[0] ?? ipAddresses[0];
 }
 
-type Message = { announce: true; from: number } | { offer: RTCSessionDescription; from: number; to: number } | { answer: RTCSessionDescription; from: number; to: number } | { iceCandidate: RTCIceCandidate; from: number; to: number };
+export type Message = { announce: true; from: number } | { offer: RTCSessionDescription; from: number; to: number } | { answer: RTCSessionDescription; from: number; to: number } | { iceCandidate: RTCIceCandidate; from: number; to: number };
 type PeerConnection = { conn: RTCPeerConnection; channel: RTCDataChannel };
 type PeerConnections = { [id: string]: { offered?: PeerConnection; answered?: PeerConnection } };
 
