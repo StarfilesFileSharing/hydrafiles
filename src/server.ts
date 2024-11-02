@@ -6,10 +6,11 @@ import Utils from "./utils.ts";
 import { join } from "https://deno.land/std@0.224.0/path/mod.ts";
 import type Base64 from "npm:base64";
 import { HTTPPeer } from "./peers/HTTPPeers.ts";
+import { Message } from "./peers/RTCPeers.ts";
 
 export const hashLocks = new Map<string, Promise<Response>>();
 const cachedHostnames: { [key: string]: { body: string; headers: Headers } } = {};
-const sockets: WebSocket[] = [];
+const sockets: { id: number; socket: WebSocket }[] = [];
 
 export const handleRequest = async (req: Request, client: Hydrafiles): Promise<Response> => {
 	console.log(`Received Request: ${req.url}`);
@@ -20,11 +21,16 @@ export const handleRequest = async (req: Request, client: Hydrafiles): Promise<R
 	try {
 		if (req.headers.get("upgrade") === "websocket") {
 			const { socket, response } = Deno.upgradeWebSocket(req);
-			sockets.push(socket);
+			sockets.push({ socket, id: 0 });
 
 			socket.addEventListener("message", ({ data }) => {
+				const message = JSON.parse(data) as Message;
 				for (let i = 0; i < sockets.length; i++) {
-					if (sockets[i] !== socket && sockets[i].readyState === 1) sockets[i].send(data);
+					if (sockets[i].socket !== socket && (!("to" in message) || message.to === sockets[i].id)) {
+						if (sockets[i].socket.readyState === 1) sockets[i].socket.send(data);
+					} else if ("from" in message) {
+						sockets[i].id = message.from;
+					}
 				}
 			});
 
