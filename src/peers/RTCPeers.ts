@@ -198,7 +198,7 @@ class RTCPeers {
 			return;
 		}
 
-		console.log(`WebRTC: (4/12): ${from} Received offer`, extractIPAddress(offer.sdp));
+		console.log(`WebRTC: (4/12): ${from} Received offer from`, extractIPAddress(offer.sdp));
 
 		this.peerConnections[from].answered = await this.createPeerConnection(from);
 		if (this.peerConnections[from].answered.conn.signalingState !== "stable" && this.peerConnections[from].answered.conn.signalingState !== "have-remote-offer") {
