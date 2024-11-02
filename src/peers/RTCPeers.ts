@@ -75,22 +75,11 @@ class RTCPeers {
 				const message = JSON.parse(event.data) as Message;
 				if (message === null || message.from === peerId || webRTC.seenMessages.has(event.data) || ("to" in message && message.to !== webRTC.peerId)) return;
 				webRTC.seenMessages.add(event.data);
-				const conns = webRTC.peerConnections[message.from];
-				if ("announce" in message) {
-					await webRTC.handleAnnounce(message.from);
-				} else if ("offer" in message) {
-					if (message.to === webRTC.peerId) await webRTC.handleOffer(message.from, message.offer);
-				} else if ("answer" in message) {
-					if (!conns || !conns.offered) return;
-					await webRTC.handleAnswer(message.from, message.answer);
-				} else if ("iceCandidate" in message) {
-					if (!conns) return;
-					console.log(`WebRTC: (8/12): ${message.from} Received ICE candidate`);
-					if (typeof window !== "undefined") { // TODO: Figure out why this broken on desktop
-						if (conns.offered && conns.offered.conn.remoteDescription) conns.offered.conn.addIceCandidate(message.iceCandidate).catch(console.error);
-						if (conns.answered) conns.answered.conn.addIceCandidate(message.iceCandidate).catch(console.error);
-					}
-				} else console.warn("Unknown message type received", message);
+				if ("announce" in message) await webRTC.handleAnnounce(message.from);
+				else if ("offer" in message) await webRTC.handleOffer(message.from, message.offer);
+				else if ("answer" in message) await webRTC.handleAnswer(message.from, message.answer);
+				else if ("iceCandidate" in message) webRTC.handleIceCandidate(message.from, message.iceCandidate);
+				else console.warn("WebRTC: (13/12): Unknown message type received", message);
 			};
 		}
 		return webRTC;
@@ -191,7 +180,7 @@ class RTCPeers {
 	private async handleAnnounce(from: number): Promise<void> {
 		console.log(`WebRTC: (2/12): ${from} Received announce`);
 		if (this.peerConnections[from] && this.peerConnections[from].offered) {
-			console.warn("Already offered to peer");
+			console.warn(`WebRTC: (13/12): ${from} Already offered to peer`);
 			return;
 		}
 		if (!this.peerConnections[from]) this.peerConnections[from] = {};
@@ -213,12 +202,12 @@ class RTCPeers {
 
 		this.peerConnections[from].answered = await this.createPeerConnection(from);
 		if (this.peerConnections[from].answered.conn.signalingState !== "stable" && this.peerConnections[from].answered.conn.signalingState !== "have-remote-offer") {
-			console.warn("Peer connection in unexpected state 1:", this.peerConnections[from].answered.conn.signalingState);
+			console.warn(`WebRTC: (13/12): ${from} Peer connection in unexpected state 1: ${this.peerConnections[from].answered.conn.signalingState}`);
 			return;
 		}
 		await this.peerConnections[from].answered.conn.setRemoteDescription(offer);
 		if (this.peerConnections[from].answered.conn.signalingState !== "have-remote-offer") {
-			console.warn("Peer connection in unexpected state 2:", this.peerConnections[from].answered.conn.signalingState);
+			console.warn(`WebRTC: (13/12): ${from} Peer connection in unexpected state 2: ${this.peerConnections[from].answered.conn.signalingState}`);
 			return;
 		}
 		console.log("Current signaling state:", this.peerConnections[from].answered.conn.signalingState);
@@ -235,12 +224,28 @@ class RTCPeers {
 	}
 
 	private async handleAnswer(from: number, answer: RTCSessionDescription): Promise<void> {
-		if (!this.peerConnections[from].offered || this.peerConnections[from].offered.conn.signalingState !== "have-local-offer") {
-			console.warn("WebRTC: (13/12): Rejecting answer", this.peerConnections[from].offered?.conn.signalingState);
+		if (!this.peerConnections[from] || !this.peerConnections[from].offered) {
+			console.warn("WebRTC: (13/12): Rejecting answer - No open handshake");
 			return;
 		}
-		console.log(`WebRTC: (7/12): ${from} Received answer`, extractIPAddress(answer.sdp), this.peerConnections[from].offered.conn.signalingState);
+		if (this.peerConnections[from].offered.conn.signalingState !== "have-local-offer") {
+			console.warn("WebRTC: (13/12): Rejecting answer - Bad signalling state: ", this.peerConnections[from].offered?.conn.signalingState);
+			return;
+		}
+		console.log(`WebRTC: (7/12): ${from} Received answer`, extractIPAddress(answer.sdp));
 		await this.peerConnections[from].offered.conn.setRemoteDescription(answer);
+	}
+
+	private handleIceCandidate(from: number, iceCandidate: RTCIceCandidate): void {
+		if (!this.peerConnections[from]) {
+			console.warn(`WebRTC: (13/12): ${from} Ice candidates received but no open handshake with peer`);
+			return;
+		}
+		console.log(`WebRTC: (8/12): ${from} Received ICE candidate`);
+		if (typeof window !== "undefined") { // TODO: Figure out why this broken on desktop
+			if (this.peerConnections[from].offered && this.peerConnections[from].offered.conn.remoteDescription) this.peerConnections[from].offered.conn.addIceCandidate(iceCandidate).catch(console.error);
+			if (this.peerConnections[from].answered) this.peerConnections[from].answered.conn.addIceCandidate(iceCandidate).catch(console.error);
+		}
 	}
 
 	public fetch(input: RequestInfo, init?: RequestInit): Promise<Response>[] {
