@@ -1,4 +1,4 @@
-import { existsSync } from "jsr:@std/fs@0.221/exists";
+import { existsSync } from "jsr:@std/fs/exists";
 import Hydrafiles from "./hydrafiles.ts";
 
 const configPath = Deno.args[0] ?? "config.json";
