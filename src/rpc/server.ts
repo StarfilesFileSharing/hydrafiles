@@ -1,7 +1,7 @@
 import { encode as base32Encode } from "https://deno.land/std@0.194.0/encoding/base32.ts";
 import type Hydrafiles from "../hydrafiles.ts";
 // import { BLOCKSDIR } from "./block.ts";
-import File, { fileAttributesDefaults } from "../file.ts";
+import File from "../file.ts";
 import Utils from "../utils.ts";
 import { join } from "https://deno.land/std@0.224.0/path/mod.ts";
 import type Base64 from "npm:base64";
@@ -10,8 +10,8 @@ import { Message } from "./peers/rtc.ts";
 
 class RPCServer {
 	private _client: Hydrafiles;
-	private cachedHostnames: { [key: string]: { body: string; headers: Headers } } = {};
-	private sockets: { id: number; socket: WebSocket }[] = [];
+	cachedHostnames: { [key: string]: { body: string; headers: Headers } } = {};
+	sockets: { id: number; socket: WebSocket }[] = [];
 	public hashLocks = new Map<string, Promise<Response>>();
 	public handleCustomRequest?: (req: Request) => Promise<string>;
 
@@ -300,7 +300,7 @@ class RPCServer {
 				headers.set("Content-Type", "application/json");
 				headers.set("Cache-Control", "public, max-age=10800");
 				if (!file) return new Response("File not found", { headers, status: 404 });
-				return new Response(JSON.stringify(fileAttributesDefaults(file)), { headers });
+				return new Response(JSON.stringify(file.toFileAttributes()), { headers });
 			} else if (url.pathname.startsWith("/endpoint/")) {
 				const hostname = url.pathname.split("/")[2];
 				const pubKey = await Utils.exportPublicKey(this._client.keyPair.publicKey);

@@ -5,7 +5,7 @@ import File from "../file.ts";
 import Utils from "../utils.ts";
 
 export default class RPCClient {
-	_client: Hydrafiles;
+	private _client: Hydrafiles;
 	http!: HTTPClient;
 	rtc!: RTCClient;
 

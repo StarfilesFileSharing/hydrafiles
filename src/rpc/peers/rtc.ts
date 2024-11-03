@@ -36,7 +36,7 @@ function arrayBufferToUnicodeString(buffer: ArrayBuffer): string {
 const peerId = Math.random();
 
 class RTCClient {
-	_client: Hydrafiles;
+	private _client: Hydrafiles;
 	peerId: number;
 	websockets: WebSocket[];
 	peerConnections: PeerConnections = {};
@@ -84,7 +84,7 @@ class RTCClient {
 		return webRTC;
 	}
 
-	private async createPeerConnection(from: number): Promise<PeerConnection> {
+	async createPeerConnection(from: number): Promise<PeerConnection> {
 		const config = {
 			iceServers: [
 				{ urls: "stun:stun.l.google.com:19302" },
@@ -146,7 +146,7 @@ class RTCClient {
 		return { conn, channel };
 	}
 
-	private cleanupPeerConnection(conn: RTCPeerConnection): void {
+	cleanupPeerConnection(conn: RTCPeerConnection): void {
 		const remotePeerId = Object.keys(this.peerConnections).find((id) => this.peerConnections[id].offered?.conn === conn || this.peerConnections[id].answered?.conn === conn);
 
 		if (remotePeerId) {
@@ -164,7 +164,7 @@ class RTCClient {
 		}
 	}
 
-	private wsMessage(message: Message): void {
+	wsMessage(message: Message): void {
 		this.messageQueue.push(message);
 		for (let i = 0; i < this.websockets.length; i++) {
 			if (this.websockets[i].readyState === 1) this.websockets[i].send(JSON.stringify(message));
@@ -176,7 +176,7 @@ class RTCClient {
 		}
 	}
 
-	private async handleAnnounce(from: number): Promise<void> {
+	async handleAnnounce(from: number): Promise<void> {
 		console.log(`WebRTC: (2/12): ${from} Received announce`);
 		if (this.peerConnections[from] && this.peerConnections[from].offered) {
 			console.warn(`WebRTC: (13/12): ${from} Already offered to peer`);
@@ -186,7 +186,7 @@ class RTCClient {
 		this.peerConnections[from].offered = await this.createPeerConnection(from);
 	}
 
-	private async handleOffer(from: number, offer: RTCSessionDescription): Promise<void> {
+	async handleOffer(from: number, offer: RTCSessionDescription): Promise<void> {
 		if (typeof this.peerConnections[from] === "undefined") this.peerConnections[from] = {};
 		if (this.peerConnections[from].answered && this.peerConnections[from].answered?.channel.readyState === "open") {
 			console.warn("WebRTC: (13/12): Rejecting offer - Already have open connection answered by you");
@@ -222,7 +222,7 @@ class RTCClient {
 		}
 	}
 
-	private async handleAnswer(from: number, answer: RTCSessionDescription): Promise<void> {
+	async handleAnswer(from: number, answer: RTCSessionDescription): Promise<void> {
 		if (!this.peerConnections[from] || !this.peerConnections[from].offered) {
 			console.warn("WebRTC: (13/12): Rejecting answer - No open handshake");
 			return;
@@ -235,7 +235,7 @@ class RTCClient {
 		await this.peerConnections[from].offered.conn.setRemoteDescription(answer);
 	}
 
-	private handleIceCandidate(from: number, iceCandidate: RTCIceCandidate): void {
+	handleIceCandidate(from: number, iceCandidate: RTCIceCandidate): void {
 		if (!this.peerConnections[from]) {
 			console.warn(`WebRTC: (13/12): ${from} Ice candidates received but no open handshake with peer`);
 			return;

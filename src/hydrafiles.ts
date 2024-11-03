@@ -56,7 +56,7 @@ class Hydrafiles {
 		});
 	}
 
-	private startBackgroundTasks(onUpdateFileListProgress?: (progress: number, total: number) => void): void {
+	startBackgroundTasks(onUpdateFileListProgress?: (progress: number, total: number) => void): void {
 		if (this.config.summarySpeed !== -1) setInterval(() => this.logState(), this.config.summarySpeed);
 		if (this.config.comparePeersSpeed !== -1) {
 			this.rpcClient.http.updatePeers();
@@ -69,7 +69,7 @@ class Hydrafiles {
 		if (this.config.backfill) this.backfillFiles();
 	}
 
-	private backfillFiles = async (): Promise<void> => {
+	backfillFiles = async (): Promise<void> => {
 		while (true) {
 			try {
 				const fileAttributes = (await this.fileDB.select(undefined, "RANDOM"))[0];

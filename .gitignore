@@ -109,3 +109,4 @@ build/
 *.db-journal
 
 __sysdb__.sqlite
+public/docs/

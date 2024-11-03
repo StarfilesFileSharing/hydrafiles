@@ -1,0 +1,24 @@
+{
+	"$schema": "https://typedoc.org/schema.json",
+	"entryPoints": ["./src/**/*.ts"],
+	"out": "./public/docs",
+	"skipErrorChecking": true,
+	"readme": "./README.md",
+	"projectDocuments": ["./docs"],
+	"name": "Hydrafiles",
+	"entryPointStrategy": "expand",
+	"exclude": ["./src/start.ts", "./src/filesystem/*FileSystem.ts"],
+	"customFooterHtml": "Free information for the people, by the people.<br>They can't stop us all.",
+	"basePath": "./src",
+	"hideGenerator": true,
+	"searchInComments": true,
+	"searchInDocuments": true,
+	"navigationLinks": {
+		"Test1": "http://example.com"
+	},
+	"sidebarLinks": {
+		"Test2": "http://example.com"
+	},
+	"excludeInternal": true,
+	"sort": ["static-first", "required-first"]
+}

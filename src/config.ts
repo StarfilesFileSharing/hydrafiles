@@ -1,41 +1,154 @@
+/**
+ * Configuration options for Hydrafiles.
+ */
 export interface Config {
-	/* HTTP Server */
-	port: number; // HTTP listen port
-	hostname: string; // HTTP listen hostname
-	publicHostname: string; // Root URL (`https://hostname[:port]`) to announce to other nodes
+	/**
+	 * HTTP listen port.
+	 * @default 80
+	 */
+	port: number;
 
-	/* Intervals (in MS) (-1 = Off) */
-	summarySpeed: number; // How often to log client state
-	announceSpeed: number; // How often to re-announce to WebSocket
-	compareFilesSpeed: number; // How often to compare file lists with others
-	comparePeersSpeed: number; // How often to fetch peers from others
+	/**
+	 * HTTP listen hostname.
+	 * @default "0.0.0.0"
+	 */
+	hostname: string;
 
-	/* Storage */
-	maxCache: number; // Max cache size in bytes, will purge cache when reached (0 = No Cache, -1 = Unlimited)
-	permaFiles: string[]; // Files to keep during cache purge
-	burnRate: number; // If `max_cache` isn't -1: Percentage of cache to clear when `max_cache` reached (0 = 0% deleted, 0.5 = 50% deleted, 1 = 100% deleted) (Files will still be deleted even with this option set to 0, this config deletes additional space to make cache purges less frequent)
-	backfill: boolean; // Whether or not you'd like to donate spare storage to improve anonimity (up to `max_cache`)
+	/**
+	 * Root URL (`https://hostname[:port]`) to announce to other nodes.
+	 * @default "http://127.0.0.1:80"
+	 */
+	publicHostname: string;
 
-	/* Memory */
-	memoryThreshold: number; // When expected RAM usage + `memory_threshold` is greater than free memory, pause tasks
-	memoryThresholdReachedWait: number; // How frequently to recheck memory usage if tasks are paused in MS
+	/**
+	 * How often to log client state (in milliseconds).
+	 * -1 to disable.
+	 * @default -1
+	 */
+	summarySpeed: number;
 
-	/* Peers */
-	bootstrapPeers: string[]; // Root URL (`https://hostname:port`) of nodes to bootstrap network connection off
-	preferNode: "FASTEST" | "LEAST_USED" | "RANDOM" | "HIGHEST_HITRATE"; // Order to check nodes when fetching data from the network
-	timeout: number; // How long to wait before timing out a connection with a peer in MS
+	/**
+	 * How often to re-announce to WebSocket (in milliseconds).
+	 * @default 30000
+	 */
+	announceSpeed: number;
 
-	/* S3 (Compatible) Buckets */
-	cacheS3: boolean; // Whether or not S3 files should be cached
+	/**
+	 * How often to compare file lists with others (in milliseconds).
+	 * @default 300000
+	 */
+	compareFilesSpeed: number;
+
+	/**
+	 * How often to fetch peers from others (in milliseconds).
+	 * @default 3600000
+	 */
+	comparePeersSpeed: number;
+
+	/**
+	 * Max cache size in bytes; will purge cache when reached.
+	 * 0 for no cache, -1 for unlimited.
+	 * @default -1
+	 */
+	maxCache: number;
+
+	/**
+	 * Files to keep during cache purge.
+	 * @default ["04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f"]
+	 */
+	permaFiles: string[];
+
+	/**
+	 * If `maxCache` isn't -1, percentage of cache to clear when `maxCache` is reached.
+	 * Range: 0 to 1, where 0.1 means 10%.
+	 * @default 0.1
+	 */
+	burnRate: number;
+
+	/**
+	 * Donate spare storage to improve anonymity (up to `maxCache`).
+	 * @default true
+	 */
+	backfill: boolean;
+
+	/**
+	 * Pause tasks if expected RAM usage + `memoryThreshold` exceeds free memory.
+	 * @default 0
+	 */
+	memoryThreshold: number;
+
+	/**
+	 * Recheck memory usage if tasks are paused (in milliseconds).
+	 * @default 100
+	 */
+	memoryThresholdReachedWait: number;
+
+	/**
+	 * Root URLs of peers to bootstrap network connection.
+	 * @default ["https://hydrafiles.com", "https://hydra.starfiles.co", "https://api2.starfiles.co", "https://api2.starfiles.bz"]
+	 */
+	bootstrapPeers: string[];
+
+	/**
+	 * Node selection strategy when fetching data from the network.
+	 * @default "HIGHEST_HITRATE"
+	 */
+	preferNode: "FASTEST" | "LEAST_USED" | "RANDOM" | "HIGHEST_HITRATE";
+
+	/**
+	 * Timeout for peer connections (in milliseconds).
+	 * @default 60000
+	 */
+	timeout: number;
+
+	/**
+	 * Cache S3-compatible files.
+	 * @default true
+	 */
+	cacheS3: boolean;
+
+	/**
+	 * S3 access key ID.
+	 * @default ""
+	 */
 	s3AccessKeyId: string;
+
+	/**
+	 * S3 secret access key.
+	 * @default ""
+	 */
 	s3SecretAccessKey: string;
+
+	/**
+	 * S3 endpoint.
+	 * @default ""
+	 */
 	s3Endpoint: string;
 
-	/* Other */
-	logLevel: "verbose" | "normal"; // Set to verbose if you need better error reporting
-	uploadSecret: string; // Place random string to authenticate HTTP uploads
-	reverseProxy: string; //  See https://github.com/StarfilesFileSharing/hydrafiles/wiki/Using-Hydrafiles-as-Reverse-Proxy-%E2%80%90-Anonymous-APIs
-	dontUseFileSystemAPI: boolean; // Avoid using filesystem api in browser which requires user consent
+	/**
+	 * Logging verbosity.
+	 * @default "normal"
+	 */
+	logLevel: "verbose" | "normal";
+
+	/**
+	 * Secret for authenticating HTTP uploads.
+	 * @default ""
+	 */
+	uploadSecret: string;
+
+	/**
+	 * URL for reverse proxy setup.
+	 * See https://github.com/StarfilesFileSharing/hydrafiles/wiki/Using-Hydrafiles-as-Reverse-Proxy-%E2%80%90-Anonymous-APIs
+	 * @default ""
+	 */
+	reverseProxy: string;
+
+	/**
+	 * Avoid filesystem API in browser to prevent user consent requirement.
+	 * @default false
+	 */
+	dontUseFileSystemAPI: boolean;
 }
 
 const defaultConfig: Config = {
@@ -65,6 +178,7 @@ const defaultConfig: Config = {
 	"dontUseFileSystemAPI": false,
 };
 
+/** @internal */
 const getConfig = (config: Partial<Config> = {}): Config => ({ ...defaultConfig, ...config });
 
 export default getConfig;

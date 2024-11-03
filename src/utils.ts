@@ -8,7 +8,7 @@ export type Base64 = string & { __brand: "Base64" };
 export type NonNegativeNumber = number & { readonly brand: unique symbol };
 
 class Utils {
-	_client: Hydrafiles;
+	private _client: Hydrafiles;
 	constructor(client: Hydrafiles) {
 		this._client = client;
 	}
