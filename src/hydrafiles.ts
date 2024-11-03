@@ -2,13 +2,11 @@ import { encode as base32Encode } from "https://deno.land/std@0.194.0/encoding/b
 // import WebTorrent from "npm:webtorrent";
 import getConfig, { type Config } from "./config.ts";
 import File, { type FileAttributes, FileDB } from "./file.ts";
-import startServer, { hashLocks } from "./server.ts";
 import Utils from "./utils.ts";
 // import Blockchain, { Block } from "./block.ts";
 import { S3Client } from "https://deno.land/x/s3_lite_client@0.7.0/mod.ts";
-import Peers from "./peers/peers.ts";
-import RTCPeers from "./peers/RTCPeers.ts";
-import HTTPPeers from "./peers/HTTPPeers.ts";
+import RPCServer from "./rpc/server.ts";
+import RPCClient from "./rpc/client.ts";
 import FileSystem from "./filesystem/filesystem.ts";
 
 // TODO: IDEA: HydraTorrent - New Github repo - "Hydrafiles + WebTorrent Compatibility Layer" - Hydrafiles noes can optionally run HydraTorrent to seed files via webtorrent
@@ -24,18 +22,15 @@ import FileSystem from "./filesystem/filesystem.ts";
 
 class Hydrafiles {
 	startTime: number = +new Date();
+	fs: FileSystem;
 	utils: Utils;
 	config: Config;
 	s3: S3Client | undefined;
-	// webtorrent: WebTorrent = new WebTorrent();
-	// blockchain = new Blockchain(this);
 	keyPair!: CryptoKeyPair;
+	rpcServer!: RPCServer;
+	rpcClient!: RPCClient;
 	fileDB!: FileDB;
-	peers!: Peers;
-	rtc!: RTCPeers;
-	http!: HTTPPeers;
-	fs: FileSystem;
-	handleRequest?: (req: Request) => Promise<string>;
+	// webtorrent: WebTorrent = new WebTorrent();
 
 	constructor(customConfig: Partial<Config> = {}) {
 		this.utils = new Utils(this);
@@ -48,30 +43,28 @@ class Hydrafiles {
 		}
 	}
 
-	public async start(onCompareFileListProgress?: (progress: number, total: number) => void): Promise<void> {
+	public async start(onUpdateFileListProgress?: (progress: number, total: number) => void): Promise<void> {
 		console.log("Startup: Populating KeyPair");
 		this.keyPair = await this.utils.getKeyPair();
 		console.log("Startup: Populating FileDB");
 		this.fileDB = await FileDB.init(this);
-		console.log("Startup: Populating Peers");
-		this.http = await HTTPPeers.init(this);
-		this.rtc = await RTCPeers.init(this);
-		this.peers = new Peers(this);
-
-		this.startBackgroundTasks(onCompareFileListProgress);
+		console.log("Startup: Populating RPC Client & Server");
+		this.rpcClient = new RPCClient(this);
+		this.rpcClient.start().then(() => {
+			this.rpcServer = new RPCServer(this);
+			this.startBackgroundTasks(onUpdateFileListProgress);
+		});
 	}
 
-	private startBackgroundTasks(onCompareFileListProgress?: (progress: number, total: number) => void): void {
-		startServer(this);
-
+	private startBackgroundTasks(onUpdateFileListProgress?: (progress: number, total: number) => void): void {
 		if (this.config.summarySpeed !== -1) setInterval(() => this.logState(), this.config.summarySpeed);
 		if (this.config.comparePeersSpeed !== -1) {
-			this.peers.fetchHTTPPeers();
-			setInterval(() => this.peers.fetchHTTPPeers(), this.config.comparePeersSpeed);
+			this.rpcClient.http.updatePeers();
+			setInterval(() => this.rpcClient.http.updatePeers(), this.config.comparePeersSpeed);
 		}
 		if (this.config.compareFilesSpeed !== -1) {
-			this.peers.compareFileList(onCompareFileListProgress);
-			setInterval(() => this.peers.compareFileList(onCompareFileListProgress), this.config.compareFilesSpeed);
+			this.updateFileList(onUpdateFileListProgress);
+			setInterval(() => this.updateFileList(onUpdateFileListProgress), this.config.compareFilesSpeed);
 		}
 		if (this.config.backfill) this.backfillFiles();
 	}
@@ -91,6 +84,56 @@ class Hydrafiles {
 			}
 		}
 	};
+
+	// TODO: Compare list between all peers and give score based on how similar they are. 100% = all exactly the same, 0% = no items in list were shared. The lower the score, the lower the propagation times, the lower the decentralisation
+	async updateFileList(onProgress?: (progress: number, total: number) => void): Promise<void> {
+		console.log(`Comparing file list`);
+		let files: FileAttributes[] = [];
+		const responses = await Promise.all(await this.rpcClient.fetch("http://localhost/files"));
+		for (let i = 0; i < responses.length; i++) {
+			if (responses[i] !== false) files = files.concat((await (responses[i] as Response).json()) as FileAttributes[]);
+		}
+
+		const uniqueFiles = new Set<string>();
+		files = files.filter((file) => {
+			const fileString = JSON.stringify(file);
+			if (!uniqueFiles.has(fileString)) {
+				uniqueFiles.add(fileString);
+				return true;
+			}
+			return false;
+		});
+
+		for (let i = 0; i < files.length; i++) {
+			if (onProgress) onProgress(i, files.length);
+			const newFile = files[i];
+			try {
+				if (typeof files[i].hash === "undefined") continue;
+				const fileObj: Partial<FileAttributes> = { hash: files[i].hash };
+				if (files[i].infohash) fileObj.infohash = files[i].infohash;
+				const currentFile = await File.init(fileObj, this);
+				if (!currentFile) continue;
+
+				const keys = Object.keys(newFile) as unknown as (keyof File)[];
+				for (let i = 0; i < keys.length; i++) {
+					const key = keys[i] as keyof FileAttributes;
+					if (["downloadCount", "voteHash", "voteNonce", "voteDifficulty"].includes(key)) continue;
+					if (newFile[key] !== undefined && newFile[key] !== null && newFile[key] !== 0 && (currentFile[key] === undefined || currentFile[key] === null || currentFile[key] === 0)) {
+						// @ts-expect-error:
+						currentFile[key] = newFile[key];
+					}
+					if (newFile.voteNonce !== 0 && newFile.voteDifficulty > currentFile.voteDifficulty) {
+						console.log(`  ${newFile.hash}  Checking vote nonce`);
+						currentFile.checkVoteNonce(newFile["voteNonce"]);
+					}
+				}
+				currentFile.save();
+			} catch (e) {
+				console.error(e);
+			}
+		}
+		if (onProgress) onProgress(files.length, files.length);
+	}
 
 	async getHostname(): Promise<string> {
 		const pubKey = await Utils.exportPublicKey(this.keyPair.publicKey);
@@ -115,9 +158,9 @@ class Hydrafiles {
 			(await this.fs.readDir("files/")).length,
 			`(${Math.round((100 * await this.utils.calculateUsedStorage()) / 1024 / 1024 / 1024) / 100}GB)`,
 			"\n| Processing Files:",
-			hashLocks.size,
-			"\n| Known Nodes:",
-			(await this.http.getPeers()).length,
+			this.rpcServer.hashLocks.size,
+			"\n| Known HTTP Peers:",
+			(await this.rpcClient.http.getPeers()).length,
 			// '\n| Seeding Torrent Files:',
 			// (await webtorrentClient()).torrents.length,
 			"\n| Downloads Served:",

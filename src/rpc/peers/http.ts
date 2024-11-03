@@ -1,8 +1,8 @@
-import type Hydrafiles from "../hydrafiles.ts";
-import Utils from "../utils.ts";
+import type Hydrafiles from "../../hydrafiles.ts";
+import Utils from "../../utils.ts";
 import type { Database } from "jsr:@db/sqlite@0.11";
 import type { indexedDB } from "https://deno.land/x/indexeddb@v1.1.0/ponyfill.ts";
-import File from "../file.ts";
+import File from "../../file.ts";
 
 type DatabaseWrapper = { type: "UNDEFINED"; db: undefined } | { type: "SQLITE"; db: Database } | { type: "INDEXEDDB"; db: IDBDatabase };
 
@@ -356,7 +356,7 @@ export class HTTPPeer implements PeerAttributes {
 }
 
 // TODO: Log common user-agents and re-use them to help anonimise non Hydrafiles peers
-export default class HTTPPeers {
+export default class HTTPClient {
 	private _client: Hydrafiles;
 	public _db: PeerDB;
 
@@ -365,9 +365,9 @@ export default class HTTPPeers {
 		this._db = db;
 	}
 
-	public static async init(client: Hydrafiles): Promise<HTTPPeers> {
+	public static async init(client: Hydrafiles): Promise<HTTPClient> {
 		const db = await PeerDB.init(client);
-		const peers = new HTTPPeers(client, db);
+		const peers = new HTTPClient(client, db);
 
 		for (let i = 0; i < client.config.bootstrapPeers.length; i++) {
 			await peers.add(client.config.bootstrapPeers[i]);
@@ -482,5 +482,27 @@ export default class HTTPPeers {
 		});
 
 		return fetchPromises;
+	}
+
+	// TODO: Compare list between all peers and give score based on how similar they are. 100% = all exactly the same, 0% = no items in list were shared. The lower the score, the lower the propagation times, the lower the decentralisation
+	async updatePeers(): Promise<void> {
+		console.log(`Fetching peers`);
+		const responses = await Promise.all(await this._client.rpcClient.fetch("http://localhost/peers"));
+		for (let i = 0; i < responses.length; i++) {
+			try {
+				if (!(responses[i] instanceof Response)) continue;
+				const response = responses[i];
+				if (response instanceof Response) {
+					const remotePeers = (await response.json()) as HTTPPeer[];
+					for (const remotePeer of remotePeers) {
+						this.add(remotePeer.host).catch((e) => {
+							if (this._client.config.logLevel === "verbose") console.error(e);
+						});
+					}
+				}
+			} catch (e) {
+				if (this._client.config.logLevel === "verbose") console.error(e);
+			}
+		}
 	}
 }
