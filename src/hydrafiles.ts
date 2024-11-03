@@ -1,4 +1,4 @@
-import Base32 from "npm:base32";
+import { encode as base32Encode } from "https://deno.land/std@0.194.0/encoding/base32.ts";
 // import WebTorrent from "npm:webtorrent";
 import getConfig, { type Config } from "./config.ts";
 import File, { type FileAttributes, FileDB } from "./file.ts";
@@ -92,10 +92,12 @@ class Hydrafiles {
 		}
 	};
 
-	getHostname = async () => {
+	async getHostname(): Promise<string> {
 		const pubKey = await Utils.exportPublicKey(this.keyPair.publicKey);
-		return Base32.encode(pubKey.x).toLowerCase().replaceAll("=", "") + "." + Base32.encode(pubKey.y).toLowerCase().replaceAll("=", "");
-	};
+		const xEncoded = base32Encode(new TextEncoder().encode(pubKey.x)).toLowerCase().replace(/=+$/, "");
+		const yEncoded = base32Encode(new TextEncoder().encode(pubKey.y)).toLowerCase().replace(/=+$/, "");
+		return `${xEncoded}.${yEncoded}`;
+	}
 
 	async logState(): Promise<void> {
 		console.log(

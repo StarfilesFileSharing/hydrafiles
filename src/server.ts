@@ -1,4 +1,4 @@
-import Base32 from "npm:base32";
+import { encode as base32Encode } from "https://deno.land/std@0.194.0/encoding/base32.ts";
 import type Hydrafiles from "./hydrafiles.ts";
 // import { BLOCKSDIR } from "./block.ts";
 import File, { fileAttributesDefaults } from "./file.ts";
@@ -253,7 +253,7 @@ export const handleRequest = async (req: Request, client: Hydrafiles): Promise<R
 			const hostname = url.pathname.split("/")[2];
 			const pubKey = await Utils.exportPublicKey(client.keyPair.publicKey);
 
-			if (hostname === `${Base32.encode(pubKey.x).toLowerCase().replaceAll("=", "")}.${Base32.encode(pubKey.y).toLowerCase().replaceAll("=", "")}`) {
+			if (hostname === `${base32Encode(new TextEncoder().encode(pubKey.x)).toLowerCase().replace(/=+$/, "")}.${base32Encode(new TextEncoder().encode(pubKey.y)).toLowerCase().replace(/=+$/, "")}`) {
 				const body = client.config.reverseProxy ? await (await fetch(client.config.reverseProxy)).text() : (typeof client.handleRequest === "undefined" ? "Hello World!" : await client.handleRequest(new Request(`hydra://${hostname}/`)));
 				const signature = await Utils.signMessage(client.keyPair.privateKey, body);
 
@@ -279,7 +279,7 @@ export const handleRequest = async (req: Request, client: Hydrafiles): Promise<R
 									const signature = response.headers.get("hydra-signature");
 									if (signature !== null) {
 										const [xBase32, yBase32] = hostname.split(".");
-										if (await Utils.verifySignature(body, signature as Base64, { x: Base32.decode(xBase32), y: Base32.decode(yBase32) })) resolve(new Response(body, { headers: response.headers }));
+										if (await Utils.verifySignature(body, signature as Base64, { xBase32, yBase32 })) resolve(new Response(body, { headers: response.headers }));
 									}
 								}
 							} catch (e) {
