@@ -113,8 +113,8 @@ export class FileDB {
 		const fileDB = new FileDB(client);
 
 		if (typeof window === "undefined") {
-			const database = (await import("jsr:@db/sqlite@0.11")).Database;
-			fileDB.db = { type: "SQLITE", db: new database("filemanager.db") };
+			const { Database } = await import("jsr:@db/sqlite");
+			fileDB.db = { type: "SQLITE", db: new Database("filemanager.db") };
 			fileDB.db.db.exec(`
 				CREATE TABLE IF NOT EXISTS file (
 					hash TEXT PRIMARY KEY,
