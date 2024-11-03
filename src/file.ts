@@ -2,7 +2,7 @@ import type Hydrafiles from "./hydrafiles.ts";
 import Utils, { type NonNegativeNumber } from "./utils.ts";
 import type { indexedDB } from "https://deno.land/x/indexeddb@v1.1.0/ponyfill.ts";
 import { join } from "https://deno.land/std@0.224.0/path/mod.ts";
-import type { Database } from "jsr:@db/sqlite@0.11";
+import type { Database } from "jsr:@db/sqlite";
 
 type DatabaseWrapper = { type: "UNDEFINED"; db: undefined } | { type: "SQLITE"; db: Database } | { type: "INDEXEDDB"; db: IDBDatabase };
 
@@ -113,8 +113,8 @@ export class FileDB {
 		const fileDB = new FileDB(client);
 
 		if (typeof window === "undefined") {
-			const database = (await import("jsr:@db/sqlite@0.11")).Database;
-			fileDB.db = { type: "SQLITE", db: new database("filemanager.db") };
+			const { Database } = await import("jsr:@db/sqlite");
+			fileDB.db = { type: "SQLITE", db: new Database("filemanager.db") };
 			fileDB.db.db.exec(`
 				CREATE TABLE IF NOT EXISTS file (
 					hash TEXT PRIMARY KEY,
@@ -396,7 +396,7 @@ class File implements FileAttributes {
 		}
 		if (!values.hash && values.id) {
 			console.log(`Fetching file metadata`); // TODO: Merge with getMetadata
-			const responses = await client.peers.fetch(`http://localhost/file/${values.id}`);
+			const responses = await client.rpcClient.fetch(`http://localhost/file/${values.id}`);
 			for (let i = 0; i < responses.length; i++) {
 				const response = await responses[i];
 				if (!response) continue;
@@ -438,7 +438,7 @@ class File implements FileAttributes {
 
 		const id = this.id;
 		if (id !== undefined && id !== null && id.length > 0) {
-			const responses = await this._client.peers.fetch(`http://localhost/file/${this.id}`);
+			const responses = await this._client.rpcClient.fetch(`http://localhost/file/${this.id}`);
 
 			for (let i = 0; i < responses.length; i++) {
 				try {
@@ -606,7 +606,7 @@ class File implements FileAttributes {
 			if (this._client.config.s3Endpoint.length > 0) file = await this.fetchFromS3();
 			if (file !== false) console.log(`  ${hash}  Serving ${this.size !== undefined ? Math.round(this.size / 1024 / 1024) : 0}MB from S3`);
 			else {
-				file = await this._client.peers.downloadFile(hash, this.size);
+				file = await this._client.rpcClient.downloadFile(hash, this.size);
 				if (file === false) {
 					this.found = false;
 					this.save();

@@ -2,6 +2,7 @@ import { crypto } from "jsr:@std/crypto";
 import { encodeHex } from "jsr:@std/encoding/hex";
 import type Hydrafiles from "./hydrafiles.ts";
 import { join } from "https://deno.land/std@0.224.0/path/mod.ts";
+import { decodeBase32 } from "jsr:@std/encoding@^1.0.5/base32";
 
 export type Base64 = string & { __brand: "Base64" };
 export type NonNegativeNumber = number & { readonly brand: unique symbol };
@@ -257,13 +258,20 @@ class Utils {
 		);
 		return this.bufferToBase64(signature);
 	}
-	static async verifySignature(message: string, signature: Base64, pubKey: { x: string; y: string }): Promise<boolean> {
+	static async verifySignature(message: string, signature: Base64, pubKey: { x: string; y: string } | { xBase32: string; yBase32: string }): Promise<boolean> {
 		const encoder = new TextEncoder();
 		const data = encoder.encode(message);
 
+		const decodedPubKey = "xBase32" in pubKey
+			? {
+				x: new TextDecoder().decode(decodeBase32(pubKey.xBase32)),
+				y: new TextDecoder().decode(decodeBase32(pubKey.yBase32)),
+			}
+			: pubKey;
+
 		const importedPublicKey = await crypto.subtle.importKey(
 			"jwk",
-			this.buildJWT(pubKey),
+			this.buildJWT(decodedPubKey),
 			{ name: "ECDSA", namedCurve: "P-256" },
 			true,
 			["verify"],

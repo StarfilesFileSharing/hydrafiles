@@ -1,6 +1,5 @@
 import type { RTCDataChannel, RTCIceCandidate, RTCPeerConnection, RTCSessionDescription } from "npm:werift";
-import { handleRequest } from "../server.ts";
-import type Hydrafiles from "../hydrafiles.ts";
+import type Hydrafiles from "../../hydrafiles.ts";
 
 function extractIPAddress(sdp: string): string {
 	const ipv4Regex = /c=IN IP4 (\d{1,3}(?:\.\d{1,3}){3})/g;
@@ -36,7 +35,7 @@ function arrayBufferToUnicodeString(buffer: ArrayBuffer): string {
 
 const peerId = Math.random();
 
-class RTCPeers {
+class RTCClient {
 	_client: Hydrafiles;
 	peerId: number;
 	websockets: WebSocket[];
@@ -51,9 +50,9 @@ class RTCPeers {
 		this.seenMessages = new Set();
 	}
 
-	static async init(client: Hydrafiles): Promise<RTCPeers> {
-		const webRTC = new RTCPeers(client);
-		const peers = await client.http.getPeers(true);
+	static async init(client: Hydrafiles): Promise<RTCClient> {
+		const webRTC = new RTCClient(client);
+		const peers = await client.rpcClient.http.getPeers(true);
 		for (let i = 0; i < peers.length; i++) {
 			try {
 				webRTC.websockets.push(new WebSocket(peers[i].host.replace("https://", "wss://").replace("http://", "ws://")));
@@ -106,7 +105,7 @@ class RTCPeers {
 			console.log(`WebRTC: (10/12): Received request`);
 			const { id, url, ...data } = JSON.parse(e.data as string);
 			const req = new Request(url, data);
-			const response = await handleRequest(req, this._client);
+			const response = await this._client.rpcServer.handleRequest(req);
 			const headersObj: Record<string, string> = {};
 			response.headers.forEach((value, key) => {
 				headersObj[key] = value;
@@ -296,4 +295,4 @@ class RTCPeers {
 	}
 }
 
-export default RTCPeers;
+export default RTCClient;
