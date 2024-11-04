@@ -91,7 +91,13 @@ class Hydrafiles {
 		let files: FileAttributes[] = [];
 		const responses = await Promise.all(await this.rpcClient.fetch("http://localhost/files"));
 		for (let i = 0; i < responses.length; i++) {
-			if (responses[i] !== false) files = files.concat((await (responses[i] as Response).json()) as FileAttributes[]);
+			if (responses[i] !== false) {
+				try {
+					files = files.concat((await (responses[i] as Response).json()) as FileAttributes[]);
+				} catch (e) {
+					if (this.config.logLevel === "verbose") console.log(e);
+				}
+			}
 		}
 
 		const uniqueFiles = new Set<string>();
