@@ -43,7 +43,7 @@ class RTCClient {
 	messageQueue: Message[] = [];
 	seenMessages: Set<string>;
 
-	constructor(client: Hydrafiles) {
+	private constructor(client: Hydrafiles) {
 		this._client = client;
 		this.peerId = peerId;
 		this.websockets = [new WebSocket("wss://rooms.deno.dev/")];
@@ -57,7 +57,7 @@ class RTCClient {
 			try {
 				webRTC.websockets.push(new WebSocket(peers[i].host.replace("https://", "wss://").replace("http://", "ws://")));
 			} catch (e) {
-				console.error(e);
+				if (client.config.logLevel === "verbose") console.error(e);
 				continue;
 			}
 		}
