@@ -461,7 +461,7 @@ export default class HTTPClient {
 	}
 
 	async validatePeer(peer: HTTPPeer): Promise<boolean> {
-		const file = await File.init({ hash: "04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f" }, this._client);
+		const file = await File.init({ hash: Utils.sha256("04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f") }, this._client);
 		if (!file) throw new Error("Failed to build file");
 		return await this.downloadFromPeer(peer, file) !== false;
 	}

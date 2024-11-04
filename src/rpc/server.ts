@@ -43,14 +43,14 @@ class RPCServer {
 	onListen = async (hostname: string, port: number): Promise<void> => {
 		console.log(`Server started at ${hostname}:${port}`);
 		console.log("Testing network connection");
-		const file = await this._client.rpcClient.downloadFile("04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f");
+		const file = await this._client.rpcClient.downloadFile(Utils.sha256("04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f"));
 		if (file === false) console.error("Download test failed, cannot connect to network");
 		else {
 			console.log("Connected to network");
 			if (Utils.isIp(this._client.config.publicHostname) && Utils.isPrivateIP(this._client.config.publicHostname)) console.error("Public hostname is a private IP address, cannot announce to other nodes");
 			else {
 				console.log(`Testing downloads ${this._client.config.publicHostname}/download/04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f`);
-				const file = await File.init({ hash: "04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f" }, this._client);
+				const file = await File.init({ hash: Utils.sha256("04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f") }, this._client);
 				if (!file) console.error("Failed to build file");
 				else {
 					const response = await this._client.rpcClient.http.downloadFromPeer(await HTTPPeer.init({ host: this._client.config.publicHostname }, this._client.rpcClient.http._db), file);
@@ -116,7 +116,7 @@ class RPCServer {
 				await this._client.rpcClient.http.add(host);
 				return new Response("Announced\n");
 			} else if (url.pathname?.startsWith("/download/")) {
-				const hash = url.pathname.split("/")[2];
+				const hash = Utils.sha256(url.pathname.split("/")[2]);
 				const fileId = url.pathname.split("/")[3] ?? "";
 				const infohash = Array.from(decodeURIComponent(url.searchParams.get("info_hash") ?? "")).map((char) => char.charCodeAt(0).toString(16).padStart(2, "0")).join("");
 
@@ -245,7 +245,7 @@ class RPCServer {
 
 				if (typeof formData.hash === "undefined" || typeof formData.file === "undefined" || formData.file === null) return new Response("400 Bad Request\n", { status: 400 });
 
-				const hash = formData.hash[0];
+				const hash = Utils.sha256(formData.hash[0]);
 
 				const file = await File.init({ hash }, this._client, true);
 				if (!file) throw new Error("Failed to build file");
