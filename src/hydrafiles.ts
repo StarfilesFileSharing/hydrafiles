@@ -56,7 +56,7 @@ class Hydrafiles {
 		});
 	}
 
-	private startBackgroundTasks(onUpdateFileListProgress?: (progress: number, total: number) => void): void {
+	startBackgroundTasks(onUpdateFileListProgress?: (progress: number, total: number) => void): void {
 		if (this.config.summarySpeed !== -1) setInterval(() => this.logState(), this.config.summarySpeed);
 		if (this.config.comparePeersSpeed !== -1) {
 			this.rpcClient.http.updatePeers();
@@ -69,7 +69,7 @@ class Hydrafiles {
 		if (this.config.backfill) this.backfillFiles();
 	}
 
-	private backfillFiles = async (): Promise<void> => {
+	backfillFiles = async (): Promise<void> => {
 		while (true) {
 			try {
 				const fileAttributes = (await this.fileDB.select(undefined, "RANDOM"))[0];
@@ -91,7 +91,13 @@ class Hydrafiles {
 		let files: FileAttributes[] = [];
 		const responses = await Promise.all(await this.rpcClient.fetch("http://localhost/files"));
 		for (let i = 0; i < responses.length; i++) {
-			if (responses[i] !== false) files = files.concat((await (responses[i] as Response).json()) as FileAttributes[]);
+			if (responses[i] !== false) {
+				try {
+					files = files.concat((await (responses[i] as Response).json()) as FileAttributes[]);
+				} catch (e) {
+					if (this.config.logLevel === "verbose") console.log(e);
+				}
+			}
 		}
 
 		const uniqueFiles = new Set<string>();

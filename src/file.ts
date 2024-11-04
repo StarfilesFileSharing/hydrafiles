@@ -41,7 +41,7 @@ function addColumnIfNotExists(db: Database, tableName: string, columnName: strin
 	}
 }
 
-export function fileAttributesDefaults(values: Partial<FileAttributes>): FileAttributes {
+function fileAttributesDefaults(values: Partial<FileAttributes>): FileAttributes {
 	if (values.hash === undefined) throw new Error("Hash is required");
 
 	return {
@@ -248,7 +248,7 @@ export class FileDB {
 		const newFile = fileAttributesDefaults(updates);
 
 		// Get the current file attributes before updating
-		const currentFile = fileAttributesDefaults((await this.select({ key: "hash", value: hash }))[0] ?? { hash });
+		const currentFile = (await this.select({ key: "hash", value: hash }))[0] ?? fileAttributesDefaults({ hash });
 		if (!currentFile) {
 			console.error(`  ${hash}  Mot found when updating`);
 			return;
@@ -377,7 +377,7 @@ class File implements FileAttributes {
 	voteNonce = 0;
 	voteDifficulty = 0;
 	updatedAt: string = new Date().toISOString();
-	_client: Hydrafiles;
+	private _client: Hydrafiles;
 
 	constructor(hash: string, client: Hydrafiles, vote = false) {
 		this._client = client;
@@ -427,6 +427,24 @@ class File implements FileAttributes {
 		const file = new File(values.hash, client, vote);
 		Object.assign(file, fileAttributesDefaults(fileAttributes));
 		return file;
+	}
+
+	toFileAttributes(): FileAttributes {
+		if (this.hash === undefined) throw new Error("Hash is required");
+
+		return {
+			hash: this.hash,
+			infohash: this.infohash ?? null,
+			downloadCount: Utils.createNonNegativeNumber(this.downloadCount ?? 0),
+			id: this.id ?? null,
+			name: this.name ?? null,
+			found: this.found !== undefined ? this.found : true,
+			size: Utils.createNonNegativeNumber(this.size ?? 0),
+			voteHash: this.voteHash ?? null,
+			voteNonce: this.voteNonce ?? 0,
+			voteDifficulty: this.voteDifficulty ?? 0,
+			updatedAt: this.updatedAt ?? new Date().toISOString(),
+		};
 	}
 
 	public async getMetadata(): Promise<this | false> {
@@ -504,7 +522,7 @@ class File implements FileAttributes {
 		if (savedHash !== hash) await this._client.fs.remove(filePath); // In case of broken file
 	}
 
-	private async fetchFromCache(): Promise<{ file: Uint8Array; signal: number } | false> {
+	async fetchFromCache(): Promise<{ file: Uint8Array; signal: number } | false> {
 		const hash = this.hash;
 		console.log(`  ${hash}  Checking Cache`);
 		const filePath = join(FILESPATH, hash);

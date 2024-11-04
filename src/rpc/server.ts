@@ -1,17 +1,18 @@
 import { encode as base32Encode } from "https://deno.land/std@0.194.0/encoding/base32.ts";
 import type Hydrafiles from "../hydrafiles.ts";
 // import { BLOCKSDIR } from "./block.ts";
-import File, { fileAttributesDefaults } from "../file.ts";
+import File from "../file.ts";
 import Utils from "../utils.ts";
 import { join } from "https://deno.land/std@0.224.0/path/mod.ts";
 import type Base64 from "npm:base64";
 import { HTTPPeer } from "./peers/http.ts";
 import { Message } from "./peers/rtc.ts";
+import { serveFile } from "https://deno.land/std@0.115.0/http/file_server.ts";
 
 class RPCServer {
 	private _client: Hydrafiles;
-	private cachedHostnames: { [key: string]: { body: string; headers: Headers } } = {};
-	private sockets: { id: number; socket: WebSocket }[] = [];
+	cachedHostnames: { [key: string]: { body: string; headers: Headers } } = {};
+	sockets: { id: number; socket: WebSocket }[] = [];
 	public hashLocks = new Map<string, Promise<Response>>();
 	public handleCustomRequest?: (req: Request) => Promise<string>;
 
@@ -88,14 +89,6 @@ class RPCServer {
 				});
 
 				return response;
-			} else if (url.pathname === "/" || url.pathname === undefined) {
-				headers.set("Content-Type", "text/html");
-				headers.set("Cache-Control", "public, max-age=604800");
-				return new Response(await this._client.fs.readFile("public/index.html") || "", { headers });
-			} else if (url.pathname === "/favicon.ico") {
-				headers.set("Content-Type", "image/x-icon");
-				headers.set("Cache-Control", "public, max-age=604800");
-				return new Response(await this._client.fs.readFile("public/favicon.ico") || "", { headers });
 			} else if (url.pathname === "/status") {
 				headers.set("Content-Type", "application/json");
 				return new Response(JSON.stringify({ status: true }), { headers });
@@ -107,14 +100,6 @@ class RPCServer {
 				headers.set("Content-Type", "application/json");
 				headers.set("Cache-Control", "public, max-age=300");
 				return new Response(await this._client.fs.readFile("build/hydrafiles-web.esm.js.map") || "", { headers });
-			} else if (url.pathname === "/demo.html") {
-				headers.set("Content-Type", "text/html");
-				headers.set("Cache-Control", "public, max-age=300");
-				return new Response(await this._client.fs.readFile("public/demo.html") || "", { headers });
-			} else if (url.pathname === "/dashboard.html") {
-				headers.set("Content-Type", "text/html");
-				headers.set("Cache-Control", "public, max-age=300");
-				return new Response(await this._client.fs.readFile("public/dashboard.html") || "", { headers });
 			} else if (url.pathname === "/peers") {
 				headers.set("Content-Type", "application/json");
 				headers.set("Cache-Control", "public, max-age=300");
@@ -300,7 +285,7 @@ class RPCServer {
 				headers.set("Content-Type", "application/json");
 				headers.set("Cache-Control", "public, max-age=10800");
 				if (!file) return new Response("File not found", { headers, status: 404 });
-				return new Response(JSON.stringify(fileAttributesDefaults(file)), { headers });
+				return new Response(JSON.stringify(file.toFileAttributes()), { headers });
 			} else if (url.pathname.startsWith("/endpoint/")) {
 				const hostname = url.pathname.split("/")[2];
 				const pubKey = await Utils.exportPublicKey(this._client.keyPair.publicKey);
@@ -361,12 +346,18 @@ class RPCServer {
 					this.cachedHostnames[hostname] = res;
 					return new Response(res.body, { headers: res.headers });
 				}
-			} else if (url.pathname === "/block_height") {
-				headers.set("Content-Type", "application/json");
-				headers.set("Cache-Control", "public, max-age=30");
-				// return new Response(String(this._client.blockchain.lastBlock().height));
 			} else {
-				return new Response("404 Page Not Found\n", { status: 404 });
+				try {
+					if (url.pathname === "/" || url.pathname === "/docs") {
+						headers.set("Location", "/docs/");
+						return new Response("", { headers, status: 301 });
+					}
+					const filePath = `./public${url.pathname.endsWith("/") ? `${url.pathname}index.html` : url.pathname}`;
+					return await serveFile(req, filePath);
+				} catch (e) {
+					console.log(e);
+					return new Response("404 Page Not Found\n", { status: 404 });
+				}
 			}
 		} catch (e) {
 			console.error("Internal Server Error", e);

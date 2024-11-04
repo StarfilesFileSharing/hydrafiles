@@ -1,7 +1,7 @@
 {
 	"name": "@starfiles/hydrafiles",
 	"version": "0.7.31",
-	"description": "The web privacy layer.",
+	"description": "The (P2P) web privacy layer.",
 	"main": "src/hydrafiles.ts",
 	"exports": {
 		".": "./src/hydrafiles.ts",
@@ -28,6 +28,7 @@
 		"build-mac-arm64": "deno fmt && deno lint && deno compile --allow-read --allow-env --allow-net --allow-sys --allow-ffi --allow-write --allow-import --allow-run --output build/start-mac-arm64 --target aarch64-apple-darwin src/start.ts",
 		"build-windows": "deno fmt && deno lint && deno compile --allow-read --allow-env --allow-net --allow-sys --allow-ffi --allow-write --allow-import --allow-run --output build/start-windows --target x86_64-pc-windows-msvc --icon=./public/favicon.ico src/start.ts",
 		"build-web": "deno fmt && deno lint && deno --allow-env --allow-read --allow-run build.ts",
+		"build-website": "npx typedoc",
 		"test": "deno test --allow-read --allow-env --allow-net --allow-sys --allow-ffi --allow-write --allow-import --watch src/tests.ts"
 	},
 	"nodeModulesDir": "auto",

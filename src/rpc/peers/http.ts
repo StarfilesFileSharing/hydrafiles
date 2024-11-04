@@ -53,7 +53,7 @@ function createIDBDatabase(): Promise<IDBDatabase> {
 
 export class PeerDB {
 	private _client: Hydrafiles;
-	private db: DatabaseWrapper = { type: "UNDEFINED", db: undefined };
+	db: DatabaseWrapper = { type: "UNDEFINED", db: undefined };
 
 	constructor(client: Hydrafiles) {
 		this._client = client;
@@ -358,6 +358,7 @@ export class HTTPPeer implements PeerAttributes {
 // TODO: Log common user-agents and re-use them to help anonimise non Hydrafiles peers
 export default class HTTPClient {
 	private _client: Hydrafiles;
+	/** @internal */
 	public _db: PeerDB;
 
 	constructor(client: Hydrafiles, db: PeerDB) {
