@@ -1,5 +1,9 @@
 /**
- * Configuration options for Hydrafiles.
+ * Configuration
+ *
+ *  - If running via startup file, custom config can be set at `./config.json` in the project.
+ *  - If running via compiled binary, config can be piped like this: `./hydrafiles ./config.json`.
+ *  - If using as library, config can be piped like this: `new Hydrafiles(config)`.
  */
 export interface Config {
 	/**
