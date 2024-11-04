@@ -53,7 +53,7 @@ class RPCServer {
 				const file = await File.init({ hash: Utils.sha256("04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f") }, this._client);
 				if (!file) console.error("Failed to build file");
 				else {
-					const response = await this._client.rpcClient.http.downloadFromPeer(await HTTPPeer.init({ host: this._client.config.publicHostname }, this._client.rpcClient.http._db), file);
+					const response = await (await HTTPPeer.init({ host: this._client.config.publicHostname }, this._client.rpcClient.http._db, this._client)).downloadFile(file);
 					if (response === false) console.error("Test: Failed to download file from self");
 					else {
 						console.log("Announcing HTTP server to nodes");

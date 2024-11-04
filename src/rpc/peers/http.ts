@@ -51,7 +51,7 @@ function createIDBDatabase(): Promise<IDBDatabase> {
 	return dbPromise;
 }
 
-export class PeerDB {
+class PeerDB {
 	private _client: Hydrafiles;
 	db: DatabaseWrapper = { type: "UNDEFINED", db: undefined };
 
@@ -320,8 +320,10 @@ export class HTTPPeer implements PeerAttributes {
 	duration = 0;
 	updatedAt: string = new Date().toISOString();
 	private _db: PeerDB;
+	private _client: Hydrafiles;
 
-	private constructor(values: PeerAttributes, db: PeerDB) {
+	private constructor(values: PeerAttributes, db: PeerDB, client: Hydrafiles) {
+		this._client = client;
 		this._db = db;
 
 		if (values.host === undefined || values.host === null) throw new Error("Created peer without host");
@@ -339,7 +341,7 @@ export class HTTPPeer implements PeerAttributes {
 	 * @returns {HTTPPeer} A new instance of HTTPPeer.
 	 * @default
 	 */
-	static async init(values: Partial<PeerAttributes>, db: PeerDB): Promise<HTTPPeer> {
+	static async init(values: Partial<PeerAttributes>, db: PeerDB, client: Hydrafiles): Promise<HTTPPeer> {
 		if (values.host === undefined) throw new Error("Hash is required");
 		const peerAttributes: PeerAttributes = {
 			host: values.host,
@@ -356,12 +358,57 @@ export class HTTPPeer implements PeerAttributes {
 			peer = (await db.select({ key: "host", value: values.host }))[0];
 		}
 
-		return new HTTPPeer(peer, db);
+		return new HTTPPeer(peer, db, client);
 	}
 
 	save(): void {
 		this.updatedAt = new Date().toISOString();
 		if (this._db) this._db.update(this.host, this);
+	}
+
+	async downloadFile(file: File): Promise<{ file: Uint8Array; signal: number } | false> {
+		try {
+			const startTime = Date.now();
+
+			const hash = file.hash;
+			console.log(`  ${hash}  Downloading from ${this.host}`);
+			let response;
+			try {
+				response = await Utils.promiseWithTimeout(fetch(`${this.host}/download/${hash}`), this._client.config.timeout);
+			} catch (e) {
+				const err = e as Error;
+				if (this._client.config.logLevel === "verbose" && err.message !== "Promise timed out") console.error(e);
+				return false;
+			}
+			const peerContent = new Uint8Array(await response.arrayBuffer());
+			console.log(`  ${hash}  Validating hash`);
+			const verifiedHash = await Utils.hashUint8Array(peerContent);
+			console.log(`  ${hash}  Done Validating hash`);
+			if (hash !== verifiedHash) return false;
+			console.log(`  ${hash}  Valid hash`);
+
+			if (file.name === undefined || file.name === null || file.name.length === 0) {
+				file.name = String(response.headers.get("Content-Disposition")?.split("=")[1].replace(/"/g, "").replace(" [HYDRAFILES]", ""));
+				file.save();
+			}
+
+			this.duration += Date.now() - startTime;
+			this.bytes += peerContent.byteLength;
+			this.hits++;
+			this.save();
+
+			await file.cacheFile(peerContent);
+			return {
+				file: peerContent,
+				signal: Utils.interfere(Number(response.headers.get("Signal-Strength"))),
+			};
+		} catch (e) {
+			console.error(e);
+			this.rejects++;
+
+			this.save();
+			return false;
+		}
 	}
 }
 
@@ -392,7 +439,7 @@ export default class HTTPClient {
 	}
 
 	async add(host: string): Promise<void> {
-		if (host !== this._client.config.publicHostname) await HTTPPeer.init({ host }, this._db);
+		if (host !== this._client.config.publicHostname) await HTTPPeer.init({ host }, this._db, this._client);
 	}
 
 	public getPeers = async (applicablePeers = false): Promise<PeerAttributes[]> => {
@@ -409,51 +456,6 @@ export default class HTTPClient {
 		}
 	};
 
-	async downloadFromPeer(peer: HTTPPeer, file: File): Promise<{ file: Uint8Array; signal: number } | false> {
-		try {
-			const startTime = Date.now();
-
-			const hash = file.hash;
-			console.log(`  ${hash}  Downloading from ${peer.host}`);
-			let response;
-			try {
-				response = await Utils.promiseWithTimeout(fetch(`${peer.host}/download/${hash}`), this._client.config.timeout);
-			} catch (e) {
-				const err = e as Error;
-				if (this._client.config.logLevel === "verbose" && err.message !== "Promise timed out") console.error(e);
-				return false;
-			}
-			const peerContent = new Uint8Array(await response.arrayBuffer());
-			console.log(`  ${hash}  Validating hash`);
-			const verifiedHash = await Utils.hashUint8Array(peerContent);
-			console.log(`  ${hash}  Done Validating hash`);
-			if (hash !== verifiedHash) return false;
-			console.log(`  ${hash}  Valid hash`);
-
-			if (file.name === undefined || file.name === null || file.name.length === 0) {
-				file.name = String(response.headers.get("Content-Disposition")?.split("=")[1].replace(/"/g, "").replace(" [HYDRAFILES]", ""));
-				file.save();
-			}
-
-			peer.duration += Date.now() - startTime;
-			peer.bytes += peerContent.byteLength;
-			peer.hits++;
-			peer.save();
-
-			await file.cacheFile(peerContent);
-			return {
-				file: peerContent,
-				signal: Utils.interfere(Number(response.headers.get("Signal-Strength"))),
-			};
-		} catch (e) {
-			console.error(e);
-			peer.rejects++;
-
-			peer.save();
-			return false;
-		}
-	}
-
 	async getValidPeers(): Promise<PeerAttributes[]> {
 		const peers = await this.getPeers();
 		const results: PeerAttributes[] = [];
@@ -465,7 +467,7 @@ export default class HTTPClient {
 				results.push(peer);
 				continue;
 			}
-			const promise = this.validatePeer(await HTTPPeer.init(peer, this._db)).then((result) => {
+			const promise = this.validatePeer(await HTTPPeer.init(peer, this._db, this._client)).then((result) => {
 				if (result) results.push(peer);
 				executing.splice(executing.indexOf(promise), 1);
 			});
@@ -478,7 +480,7 @@ export default class HTTPClient {
 	async validatePeer(peer: HTTPPeer): Promise<boolean> {
 		const file = await File.init({ hash: Utils.sha256("04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f") }, this._client);
 		if (!file) throw new Error("Failed to build file");
-		return await this.downloadFromPeer(peer, file) !== false;
+		return await peer.downloadFile(file) !== false;
 	}
 
 	public async fetch(input: RequestInfo, init?: RequestInit): Promise<Promise<Response | false>[]> {
