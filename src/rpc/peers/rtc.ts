@@ -50,6 +50,11 @@ class RTCClient {
 		this.seenMessages = new Set();
 	}
 
+	/**
+	 * Initializes an instance of RTCClient.
+	 * @returns {RTCClient} A new instance of RTCClient.
+	 * @default
+	 */
 	static async init(client: Hydrafiles): Promise<RTCClient> {
 		const webRTC = new RTCClient(client);
 		const peers = await client.rpcClient.http.getPeers(true);

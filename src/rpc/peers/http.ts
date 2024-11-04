@@ -59,6 +59,11 @@ export class PeerDB {
 		this._client = client;
 	}
 
+	/**
+	 * Initializes an instance of PeerDB.
+	 * @returns {PeerDB} A new instance of PeerDB.
+	 * @default
+	 */
 	static async init(client: Hydrafiles): Promise<PeerDB> {
 		const peerDB = new PeerDB(client);
 
@@ -329,6 +334,11 @@ export class HTTPPeer implements PeerAttributes {
 		this.updatedAt = values.updatedAt;
 	}
 
+	/**
+	 * Initializes an instance of HTTPPeer.
+	 * @returns {HTTPPeer} A new instance of HTTPPeer.
+	 * @default
+	 */
 	static async init(values: Partial<PeerAttributes>, db: PeerDB): Promise<HTTPPeer> {
 		if (values.host === undefined) throw new Error("Hash is required");
 		const peerAttributes: PeerAttributes = {
@@ -366,6 +376,11 @@ export default class HTTPClient {
 		this._db = db;
 	}
 
+	/**
+	 * Initializes an instance of HTTPClient.
+	 * @returns {HTTPClient} A new instance of HTTPClient.
+	 * @default
+	 */
 	public static async init(client: Hydrafiles): Promise<HTTPClient> {
 		const db = await PeerDB.init(client);
 		const peers = new HTTPClient(client, db);

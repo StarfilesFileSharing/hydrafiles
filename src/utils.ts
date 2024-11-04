@@ -1,4 +1,4 @@
-import { crypto } from "jsr:@std/crypto";
+// import { crypto } from "jsr:@std/crypto";
 import { encodeHex } from "jsr:@std/encoding/hex";
 import type Hydrafiles from "./hydrafiles.ts";
 import { join } from "https://deno.land/std@0.224.0/path/mod.ts";
@@ -20,6 +20,9 @@ class Utils {
 	static isIp = (host: string): boolean => /^https?:\/\/(?:\d+\.){3}\d+(?::\d+)?$/.test(host);
 	static isPrivateIP = (ip: string): boolean => /^https?:\/\/(?:10\.|(?:172\.(?:1[6-9]|2\d|3[0-1]))\.|192\.168\.|169\.254\.|127\.|224\.0\.0\.|255\.255\.255\.255)/.test(ip);
 	static interfere = (signalStrength: number): number => signalStrength >= 95 ? this.getRandomNumber(90, 100) : Math.ceil(signalStrength * (1 - (this.getRandomNumber(0, 10) / 100)));
+	remainingStorage = async (): Promise<number> => this._client.config.maxCache - await this.calculateUsedStorage();
+	static createNonNegativeNumber = (n: number): NonNegativeNumber => (Number.isInteger(n) && n >= 0 ? n : 0) as NonNegativeNumber;
+
 	hasSufficientMemory = async (fileSize: number): Promise<boolean> => {
 		if (typeof window !== "undefined") return true;
 		const os = await import("https://deno.land/std@0.170.0/node/os.ts");
@@ -35,23 +38,6 @@ class Utils {
 				)
 			),
 		]);
-
-	static promiseWrapper = <T>(promise: Promise<T>): { promise: Promise<T>; isFulfilled: boolean } => {
-		let isFulfilled = false;
-		const wrappedPromise = promise
-			.then((value: T) => {
-				isFulfilled = true;
-				return value;
-			})
-			.catch((error: unknown) => {
-				isFulfilled = true;
-				throw error;
-			});
-		return {
-			promise: wrappedPromise,
-			isFulfilled,
-		};
-	};
 
 	static estimateHops = (signalStrength: number): { hop: number | null; certainty: number } => {
 		const hopData = [
@@ -99,8 +85,6 @@ class Utils {
 			certainty: Math.round(closestCertainty * 10000) / 100,
 		};
 	};
-
-	remainingStorage = async (): Promise<number> => this._client.config.maxCache - await this.calculateUsedStorage();
 
 	calculateUsedStorage = async (): Promise<number> => {
 		if (typeof window !== "undefined") return 0;
@@ -220,6 +204,7 @@ class Utils {
 			["verify"],
 		);
 	}
+
 	static async exportPublicKey(key: CryptoKey): Promise<{ x: string; y: string }> {
 		const jwk = await crypto.subtle.exportKey("jwk", key);
 		return { x: jwk.x as string, y: jwk.y as string }; // Return both x and y
@@ -284,46 +269,10 @@ class Utils {
 			data,
 		);
 	}
-	static extractBufferSection(buffer: Uint8Array, start: number, end: number): Uint8Array {
-		if (start < 0 || end >= buffer.length || start > end) throw new RangeError("Invalid start or end range.");
-		return buffer.subarray(start, end + 1);
-	}
-	static async parallelAsync(promises: (() => Promise<void>)[], processes = 4): Promise<void> {
-		let completed = 0;
-		const runningPromises: Promise<void>[] = [];
-		for (let i = 0; i < promises.length; i++) {
-			const promise = promises[i]();
-			if (i - completed > processes) {
-				await Promise.race(runningPromises);
-				completed++;
-			}
-			runningPromises.push(promise);
-		}
-		await Promise.all(runningPromises);
-	}
-	static createNonNegativeNumber(n: number): NonNegativeNumber {
-		return (Number.isInteger(n) && n >= 0 ? n : 0) as NonNegativeNumber;
-	}
+
 	static sha256(hash: string): Sha256 {
 		if (!/^[a-f0-9]{64}$/.test(hash)) throw new Error("Invalid sha256 provided");
 		return hash as Sha256;
-	}
-	static async streamToUint8Array(readableStream: ReadableStream): Promise<Uint8Array> {
-		const reader = readableStream.getReader();
-		const chunks = [];
-		while (true) {
-			const { done, value } = await reader.read();
-			if (done) break;
-			chunks.push(value);
-		}
-		const totalLength = chunks.reduce((acc, chunk) => acc + chunk.length, 0);
-		const result = new Uint8Array(totalLength);
-		let position = 0;
-		for (const chunk of chunks) {
-			result.set(chunk, position);
-			position += chunk.length;
-		}
-		return result;
 	}
 }
 

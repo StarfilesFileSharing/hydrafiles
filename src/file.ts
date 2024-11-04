@@ -108,6 +108,11 @@ export class FileDB {
 		this._client = client;
 	}
 
+	/**
+	 * Initializes an instance of FileDB.
+	 * @returns {FileDB} A new instance of FileDB.
+	 * @default
+	 */
 	static async init(client: Hydrafiles): Promise<FileDB> {
 		await client.fs.mkdir("files");
 
@@ -390,6 +395,11 @@ class File implements FileAttributes {
 		}
 	}
 
+	/**
+	 * Initializes an instance of File.
+	 * @returns {File} A new instance of File.
+	 * @default
+	 */
 	static async init(values: Partial<FileAttributes>, client: Hydrafiles, vote = false): Promise<File | false> {
 		if (!values.hash && values.id) {
 			const files = await client.fileDB.select({ key: "id", value: values.id });
