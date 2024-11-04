@@ -1,10 +1,24 @@
 import type Hydrafiles from "./hydrafiles.ts";
-import Utils, { type NonNegativeNumber } from "./utils.ts";
+import Utils, { type NonNegativeNumber, type Sha256 } from "./utils.ts";
 import type { indexedDB } from "https://deno.land/x/indexeddb@v1.1.0/ponyfill.ts";
 import { join } from "https://deno.land/std@0.224.0/path/mod.ts";
 import type { Database } from "jsr:@db/sqlite";
 
 type DatabaseWrapper = { type: "UNDEFINED"; db: undefined } | { type: "SQLITE"; db: Database } | { type: "INDEXEDDB"; db: IDBDatabase };
+
+export interface FileAttributes {
+	hash: Sha256;
+	infohash: string | null;
+	downloadCount: NonNegativeNumber;
+	id: string | null;
+	name: string | null;
+	found: boolean;
+	size: NonNegativeNumber;
+	voteHash: Sha256 | null;
+	voteNonce: number;
+	voteDifficulty: number;
+	updatedAt: string;
+}
 
 interface Metadata {
 	name: string;
@@ -13,20 +27,6 @@ interface Metadata {
 	hash: { sha256: string };
 	id: string;
 	infohash: string;
-}
-
-export interface FileAttributes {
-	hash: string;
-	infohash: string | null;
-	downloadCount: NonNegativeNumber;
-	id: string | null;
-	name: string | null;
-	found: boolean;
-	size: NonNegativeNumber;
-	voteHash: string | null;
-	voteNonce: number;
-	voteDifficulty: number;
-	updatedAt: string;
 }
 
 const FILESPATH = "files/";
@@ -41,7 +41,8 @@ function addColumnIfNotExists(db: Database, tableName: string, columnName: strin
 	}
 }
 
-function fileAttributesDefaults(values: Partial<FileAttributes>): FileAttributes {
+function fileAttributesDefaults(values?: Partial<FileAttributes>): FileAttributes {
+	if (!values) values = { hash: "" as unknown as Sha256 };
 	if (values.hash === undefined) throw new Error("Hash is required");
 
 	return {
@@ -103,7 +104,7 @@ export class FileDB {
 	private _client: Hydrafiles;
 	db: DatabaseWrapper = { type: "UNDEFINED", db: undefined };
 
-	constructor(client: Hydrafiles) {
+	private constructor(client: Hydrafiles) {
 		this._client = client;
 	}
 
@@ -216,7 +217,7 @@ export class FileDB {
 
 			this.db.db.exec(
 				query,
-				file.hash,
+				file.hash.toString(),
 				file.infohash,
 				file.downloadCount,
 				file.id,
@@ -241,7 +242,7 @@ export class FileDB {
 		}
 	}
 
-	async update(hash: string, updates: Partial<FileAttributes>): Promise<void> {
+	async update(hash: Sha256, updates: Partial<FileAttributes>): Promise<void> {
 		if (this.db === undefined) return;
 		updates.updatedAt = new Date().toISOString();
 		updates.hash = hash;
@@ -257,7 +258,7 @@ export class FileDB {
 		const updatedColumn: string[] = [];
 		const params: (string | number | boolean)[] = [];
 		const keys = Object.keys(newFile);
-		const defaultValues = fileAttributesDefaults({ hash: "" });
+		const defaultValues = fileAttributesDefaults();
 
 		type BeforeAfter = Record<string, { before: FileAttributes[keyof FileAttributes]; after: FileAttributes[keyof FileAttributes] }>;
 		const beforeAndAfter: BeforeAfter = {};
@@ -275,7 +276,7 @@ export class FileDB {
 		if (updatedColumn.length <= 1) return;
 
 		if (this.db.type === "SQLITE") {
-			params.push(hash);
+			params.push(hash.toString());
 			const query = `UPDATE file SET ${updatedColumn.map((column) => `${column} = ?`).join(", ")} WHERE hash = ?`;
 			this.db.db.prepare(query).values(params);
 			console.log(
@@ -291,21 +292,21 @@ export class FileDB {
 		}
 	}
 
-	delete(hash: string): void {
+	delete(hash: Sha256): void {
 		if (this.db === undefined) return;
 		const query = `DELETE FROM file WHERE hash = ?`;
 
 		if (this.db.type === "SQLITE") {
-			this.db.db.exec(query, hash);
-		} else if (this.db.type === "INDEXEDDB") this.objectStore().delete(hash).onerror = console.error;
+			this.db.db.exec(query, hash.toString());
+		} else if (this.db.type === "INDEXEDDB") this.objectStore().delete(hash.toString()).onerror = console.error;
 		console.log(`  ${hash}  File DELETEd`);
 	}
 
-	increment<T>(hash: string, column: keyof FileAttributes): void {
+	increment<T>(hash: Sha256, column: keyof FileAttributes): void {
 		if (this.db === undefined) return;
-		if (this.db.type === "SQLITE") this.db.db.prepare(`UPDATE file set ${column} = ${column}+1 WHERE hash = ?`).values(hash);
+		if (this.db.type === "SQLITE") this.db.db.prepare(`UPDATE file set ${column} = ${column}+1 WHERE hash = ?`).values(hash.toString());
 		else if (this.db.type === "INDEXEDDB") {
-			const request = this.objectStore().get(hash);
+			const request = this.objectStore().get(hash.toString());
 			request.onsuccess = (event) => {
 				const target = event.target;
 				if (!target) return;
@@ -366,20 +367,20 @@ export class FileDB {
 }
 
 class File implements FileAttributes {
-	hash!: string;
+	hash!: Sha256;
 	infohash: string | null = null;
 	downloadCount = Utils.createNonNegativeNumber(0);
 	id: string | null = null;
 	name: string | null = null;
 	found = true;
 	size = Utils.createNonNegativeNumber(0);
-	voteHash: string | null = null;
+	voteHash: Sha256 | null = null;
 	voteNonce = 0;
 	voteDifficulty = 0;
 	updatedAt: string = new Date().toISOString();
 	private _client: Hydrafiles;
 
-	constructor(hash: string, client: Hydrafiles, vote = false) {
+	private constructor(hash: Sha256, client: Hydrafiles, vote = false) {
 		this._client = client;
 		this.hash = hash;
 
@@ -403,7 +404,7 @@ class File implements FileAttributes {
 				try {
 					const body = await response.json() as { result: Metadata } | FileAttributes;
 					const hash = "result" in body ? body.result.hash.sha256 : body.hash;
-					if (Utils.isValidSHA256Hash(hash)) values.hash = hash;
+					values.hash = Utils.sha256(hash);
 				} catch (e) {
 					if (client.config.logLevel === "verbose") console.error(e);
 				}
@@ -416,8 +417,6 @@ class File implements FileAttributes {
 			if (fileHash) values.hash = fileHash;
 		}
 		if (!values.hash) throw new Error("File not found");
-
-		if (!Utils.isValidSHA256Hash(values.hash)) throw new Error(`  ${values.hash}  Invalid hash provided`);
 
 		let fileAttributes = (await client.fileDB.select({ key: "hash", value: values.hash }))[0];
 		if (fileAttributes === undefined) {
@@ -475,7 +474,7 @@ class File implements FileAttributes {
 			}
 		}
 
-		const filePath = join(FILESPATH, hash);
+		const filePath = join(FILESPATH, hash.toString());
 		if (await this._client.fs.exists(filePath)) {
 			const fileSize = await this._client.fs.getFileSize(filePath);
 			if (fileSize !== false) {
@@ -503,7 +502,7 @@ class File implements FileAttributes {
 
 	async cacheFile(file: Uint8Array): Promise<void> {
 		const hash = this.hash;
-		const filePath = join(FILESPATH, hash);
+		const filePath = join(FILESPATH, hash.toString());
 		if (await this._client.fs.exists(filePath)) return;
 
 		let size = this.size;
@@ -525,7 +524,7 @@ class File implements FileAttributes {
 	async fetchFromCache(): Promise<{ file: Uint8Array; signal: number } | false> {
 		const hash = this.hash;
 		console.log(`  ${hash}  Checking Cache`);
-		const filePath = join(FILESPATH, hash);
+		const filePath = join(FILESPATH, hash.toString());
 		this.seed();
 		if (!await this._client.fs.exists(filePath)) return false;
 		const fileContents = await this._client.fs.readFile(filePath);
@@ -567,7 +566,7 @@ class File implements FileAttributes {
 			if (this._client.config.cacheS3) await this.cacheFile(file);
 
 			const hash = await Utils.hashUint8Array(file);
-			if (hash !== this.hash) return false;
+			if (hash.toString() !== this.hash.toString()) return false;
 			return {
 				file,
 				signal: Utils.interfere(100),
@@ -667,7 +666,7 @@ class File implements FileAttributes {
 
 	async checkVoteNonce(nonce?: number): Promise<void> {
 		const voteNonce = nonce || Number(crypto.getRandomValues(new Uint32Array(1)));
-		const voteHash = await Utils.hashString(this.hash + voteNonce);
+		const voteHash = await Utils.hashString(this.hash.toString() + voteNonce);
 		const decimalValue = BigInt("0x" + voteHash).toString(10);
 		const difficulty = Number(decimalValue) / Number(BigInt("0x" + "f".repeat(64)));
 		if (difficulty > this.voteDifficulty) {

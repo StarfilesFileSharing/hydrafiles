@@ -2,7 +2,7 @@ import type Hydrafiles from "../hydrafiles.ts";
 import HTTPClient, { HTTPPeer } from "./peers/http.ts";
 import RTCClient from "./peers/rtc.ts";
 import File from "../file.ts";
-import Utils from "../utils.ts";
+import Utils, { type Sha256 } from "../utils.ts";
 
 export default class RPCClient {
 	private _client: Hydrafiles;
@@ -21,7 +21,7 @@ export default class RPCClient {
 		return [...await this.http.fetch(input, init), ...this.rtc.fetch(input, init)];
 	}
 
-	async downloadFile(hash: string, size = 0): Promise<{ file: Uint8Array; signal: number } | false> {
+	async downloadFile(hash: Sha256, size = 0): Promise<{ file: Uint8Array; signal: number } | false> {
 		if (!this._client.utils.hasSufficientMemory(size)) {
 			console.log("Reached memory limit, waiting");
 			await new Promise(() => {

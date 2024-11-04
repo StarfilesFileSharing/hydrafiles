@@ -4,8 +4,9 @@ import type Hydrafiles from "./hydrafiles.ts";
 import { join } from "https://deno.land/std@0.224.0/path/mod.ts";
 import { decodeBase32 } from "jsr:@std/encoding@^1.0.5/base32";
 
-export type Base64 = string & { __brand: "Base64" };
+export type Base64 = string & { readonly brand: unique symbol };
 export type NonNegativeNumber = number & { readonly brand: unique symbol };
+export type Sha256 = string & { readonly brand: unique symbol };
 
 class Utils {
 	private _client: Hydrafiles;
@@ -14,8 +15,7 @@ class Utils {
 	}
 
 	static getRandomNumber = (min: number, max: number): number => Math.floor(Math.random() * (max - min + 1)) + min;
-	static isValidSHA256Hash = (hash: string): boolean => /^[a-f0-9]{64}$/.test(hash);
-	static hashUint8Array = async (uint8Array: Uint8Array): Promise<string> => encodeHex(await crypto.subtle.digest("SHA-256", uint8Array));
+	static hashUint8Array = async (uint8Array: Uint8Array): Promise<Sha256> => encodeHex(await crypto.subtle.digest("SHA-256", uint8Array)) as Sha256;
 	static isValidInfoHash = (hash: string): boolean => /^[a-f0-9]{40}$/.test(hash);
 	static isIp = (host: string): boolean => /^https?:\/\/(?:\d+\.){3}\d+(?::\d+)?$/.test(host);
 	static isPrivateIP = (ip: string): boolean => /^https?:\/\/(?:10\.|(?:172\.(?:1[6-9]|2\d|3[0-1]))\.|192\.168\.|169\.254\.|127\.|224\.0\.0\.|255\.255\.255\.255)/.test(ip);
@@ -173,13 +173,13 @@ class Utils {
 		return byteArray.buffer;
 	}
 
-	static async hashString(input: string): Promise<string> {
+	static async hashString(input: string): Promise<Sha256> {
 		const encoder = new TextEncoder();
 		const data = encoder.encode(input);
 		const hashBuffer = await crypto.subtle.digest("SHA-256", data);
 		const hashArray = new Uint8Array(hashBuffer);
 		const hexHash = Array.from(hashArray).map((byte) => byte.toString(16).padStart(2, "0")).join("");
-		return hexHash;
+		return hexHash as Sha256;
 	}
 
 	async getKeyPair(): Promise<CryptoKeyPair> {
@@ -304,7 +304,10 @@ class Utils {
 	static createNonNegativeNumber(n: number): NonNegativeNumber {
 		return (Number.isInteger(n) && n >= 0 ? n : 0) as NonNegativeNumber;
 	}
-
+	static sha256(hash: string): Sha256 {
+		if (!/^[a-f0-9]{64}$/.test(hash)) throw new Error("Invalid sha256 provided");
+		return hash as Sha256;
+	}
 	static async streamToUint8Array(readableStream: ReadableStream): Promise<Uint8Array> {
 		const reader = readableStream.getReader();
 		const chunks = [];

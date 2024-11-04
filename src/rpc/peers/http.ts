@@ -55,7 +55,7 @@ export class PeerDB {
 	private _client: Hydrafiles;
 	db: DatabaseWrapper = { type: "UNDEFINED", db: undefined };
 
-	constructor(client: Hydrafiles) {
+	private constructor(client: Hydrafiles) {
 		this._client = client;
 	}
 
@@ -316,7 +316,7 @@ export class HTTPPeer implements PeerAttributes {
 	updatedAt: string = new Date().toISOString();
 	private _db: PeerDB;
 
-	constructor(values: PeerAttributes, db: PeerDB) {
+	private constructor(values: PeerAttributes, db: PeerDB) {
 		this._db = db;
 
 		if (values.host === undefined || values.host === null) throw new Error("Created peer without host");
@@ -361,7 +361,7 @@ export default class HTTPClient {
 	/** @internal */
 	public _db: PeerDB;
 
-	constructor(client: Hydrafiles, db: PeerDB) {
+	private constructor(client: Hydrafiles, db: PeerDB) {
 		this._client = client;
 		this._db = db;
 	}
@@ -461,7 +461,7 @@ export default class HTTPClient {
 	}
 
 	async validatePeer(peer: HTTPPeer): Promise<boolean> {
-		const file = await File.init({ hash: "04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f" }, this._client);
+		const file = await File.init({ hash: Utils.sha256("04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f") }, this._client);
 		if (!file) throw new Error("Failed to build file");
 		return await this.downloadFromPeer(peer, file) !== false;
 	}
