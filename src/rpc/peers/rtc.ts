@@ -125,7 +125,7 @@ class RTCPeers {
 
 		conn.onicecandidate = (event) => {
 			if (event.candidate) {
-				console.log(`WebRTC: (6/12): ${from} Sending ICE candidate`);
+				if (this._rpcClient._client.config.logLevel === "verbose") console.log(`WebRTC: (6/12): ${from} Sending ICE candidate`);
 				this.wsMessage({ iceCandidate: event.candidate, to: from, from: this.peerId });
 			}
 		};
@@ -245,7 +245,7 @@ class RTCPeers {
 			console.warn(`WebRTC: (13/12): ${from} Ice candidates received but no open handshake with peer`);
 			return;
 		}
-		console.log(`WebRTC: (8/12): ${from} Received ICE candidate`);
+		if (this._rpcClient._client.config.logLevel === "verbose") console.log(`WebRTC: (8/12): ${from} Received ICE candidate`);
 		if (typeof window !== "undefined") { // TODO: Figure out why this breaks on desktop
 			if (this.peerConnections[from].answered) this.peerConnections[from].answered.conn.addIceCandidate(iceCandidate).catch(console.error);
 			if (this.peerConnections[from].offered && this.peerConnections[from].offered.conn.remoteDescription) this.peerConnections[from].offered.conn.addIceCandidate(iceCandidate).catch(console.error);
