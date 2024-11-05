@@ -11,7 +11,7 @@ import type { PeerAttributes } from "./peers/http.ts";
 class RPCServer {
 	private _client: Hydrafiles;
 	cachedHostnames: { [key: string]: { body: string; headers: Headers } } = {};
-	sockets: { id: number; socket: WebSocket }[] = [];
+	sockets: { id: string; socket: WebSocket }[] = [];
 	public processingRequests = new Map<string, Promise<Response>>();
 	public handleCustomRequest?: (req: Request) => Promise<string>;
 
@@ -73,7 +73,7 @@ class RPCServer {
 		try {
 			if (req.headers.get("upgrade") === "websocket") {
 				const { socket, response } = Deno.upgradeWebSocket(req);
-				this.sockets.push({ socket, id: 0 });
+				this.sockets.push({ socket, id: "" });
 
 				socket.addEventListener("message", ({ data }) => {
 					const message = JSON.parse(data) as SignallingMessage | null;

@@ -1,5 +1,6 @@
 import type { RTCDataChannel, RTCIceCandidate, RTCPeerConnection, RTCSessionDescription } from "npm:werift";
 import type RPCClient from "../client.ts";
+import { encodeBase32 } from "jsr:@std/encoding@^1.0.5/base32";
 
 function extractIPAddress(sdp: string): string {
 	const ipv4Regex = /c=IN IP4 (\d{1,3}(?:\.\d{1,3}){3})/g;
@@ -16,10 +17,10 @@ function extractIPAddress(sdp: string): string {
 	return ipAddresses.filter((ip) => ip !== "0.0.0.0")[0] ?? ipAddresses[0];
 }
 
-export type SignallingAnnounce = { announce: true; from: number };
-export type SignallingOffer = { offer: RTCSessionDescription; from: number; to: number };
-export type SignallingAnswer = { answer: RTCSessionDescription; from: number; to: number };
-export type SignallingIceCandidate = { iceCandidate: RTCIceCandidate; from: number; to: number };
+export type SignallingAnnounce = { announce: true; from: string };
+export type SignallingOffer = { offer: RTCSessionDescription; from: string; to: string };
+export type SignallingAnswer = { answer: RTCSessionDescription; from: string; to: string };
+export type SignallingIceCandidate = { iceCandidate: RTCIceCandidate; from: string; to: string };
 export type SignallingMessage = SignallingAnnounce | SignallingOffer | SignallingAnswer | SignallingIceCandidate;
 
 type PeerConnection = { conn: RTCPeerConnection; channel: RTCDataChannel; startTime: number };
@@ -38,7 +39,7 @@ function arrayBufferToUnicodeString(buffer: ArrayBuffer): string {
 	return result;
 }
 
-const peerId = Math.random();
+const peerId = encodeBase32(String(Math.random()).replaceAll("=", ""));
 
 class RTCPeers {
 	private _rpcClient: RPCClient;
@@ -83,7 +84,7 @@ class RTCPeers {
 		}
 	}
 
-	async createPeerConnection(from: number): Promise<PeerConnection> {
+	async createPeerConnection(from: string): Promise<PeerConnection> {
 		const config = {
 			iceServers: [
 				{ urls: "stun:stun.l.google.com:19302" },
@@ -118,14 +119,14 @@ class RTCPeers {
 		};
 		conn.addEventListener("iceconnectionstatechange", () => {
 			if (conn.iceConnectionState === "disconnected" || conn.iceConnectionState === "closed" || conn.iceConnectionState === "failed") {
-				console.warn(`WebRTC (13/12): ${from} Connection closed. Cleaning up peer connection.`);
+				console.warn(`WebRTC (13/12): ${from}  Connection closed. Cleaning up peer connection.`);
 				this.cleanupPeerConnection(conn);
 			}
 		});
 
 		conn.onicecandidate = (event) => {
 			if (event.candidate) {
-				if (this._rpcClient._client.config.logLevel === "verbose") console.log(`WebRTC: (6/12): ${from} Sending ICE candidate`);
+				if (this._rpcClient._client.config.logLevel === "verbose") console.log(`WebRTC: (6/12): ${from}  Sending ICE candidate`);
 				this.wsMessage({ iceCandidate: event.candidate, to: from, from: this.peerId });
 			}
 		};
@@ -135,7 +136,7 @@ class RTCPeers {
 
 				const offer = await conn.createOffer();
 				await conn.setLocalDescription(offer);
-				console.log(`WebRTC: (3/12): ${from} Sending offer from`, extractIPAddress(offer.sdp));
+				console.log(`WebRTC: (3/12): ${from}  Sending offer from`, extractIPAddress(offer.sdp));
 				this.wsMessage({ offer, to: from, from: this.peerId });
 			} catch (e) {
 				console.error(e);
@@ -144,7 +145,7 @@ class RTCPeers {
 
 		setTimeout(() => {
 			if (conn.signalingState === "have-local-offer") {
-				console.warn(`WebRTC: (13/12): ${from} Connection timed out. Cleaning up peer connection.`);
+				console.warn(`WebRTC: (13/12): ${from}  Connection timed out. Cleaning up peer connection.`);
 				this.cleanupPeerConnection(conn);
 			}
 		}, this._rpcClient._client.config.timeout);
@@ -182,8 +183,8 @@ class RTCPeers {
 		}
 	}
 
-	async handleAnnounce(from: number): Promise<void> {
-		console.log(`WebRTC: (2/12): ${from} Received announce`);
+	async handleAnnounce(from: string): Promise<void> {
+		console.log(`WebRTC: (2/12): ${from}  Received announce`);
 		if (this.peerConnections[from] && this.peerConnections[from].offered) {
 			console.warn(`WebRTC: (13/12): ${from} Already offered to peer`);
 			return;
@@ -192,7 +193,7 @@ class RTCPeers {
 		this.peerConnections[from].offered = await this.createPeerConnection(from);
 	}
 
-	async handleOffer(from: number, offer: RTCSessionDescription): Promise<void> {
+	async handleOffer(from: string, offer: RTCSessionDescription): Promise<void> {
 		if (typeof this.peerConnections[from] === "undefined") this.peerConnections[from] = {};
 		if (this.peerConnections[from].answered && this.peerConnections[from].answered?.channel.readyState === "open") {
 			console.warn("WebRTC: (13/12): Rejecting offer - Already have open connection answered by you");
@@ -203,16 +204,16 @@ class RTCPeers {
 			return;
 		}
 
-		console.log(`WebRTC: (4/12): ${from} Received offer from`, extractIPAddress(offer.sdp));
+		console.log(`WebRTC: (4/12): ${from}  Received offer from`, extractIPAddress(offer.sdp));
 
 		this.peerConnections[from].answered = await this.createPeerConnection(from);
 		if (this.peerConnections[from].answered.conn.signalingState !== "stable" && this.peerConnections[from].answered.conn.signalingState !== "have-remote-offer") {
-			console.warn(`WebRTC: (13/12): ${from} Peer connection in unexpected state 1: ${this.peerConnections[from].answered.conn.signalingState}`);
+			console.warn(`WebRTC: (13/12): ${from}  Peer connection in unexpected state 1: ${this.peerConnections[from].answered.conn.signalingState}`);
 			return;
 		}
 		await this.peerConnections[from].answered.conn.setRemoteDescription(offer);
 		if (this.peerConnections[from].answered.conn.signalingState !== "have-remote-offer") {
-			console.warn(`WebRTC: (13/12): ${from} Peer connection in unexpected state 2: ${this.peerConnections[from].answered.conn.signalingState}`);
+			console.warn(`WebRTC: (13/12): ${from}  Peer connection in unexpected state 2: ${this.peerConnections[from].answered.conn.signalingState}`);
 			return;
 		}
 		try {
@@ -220,14 +221,14 @@ class RTCPeers {
 			if (this.peerConnections[from].answered.conn.signalingState !== "have-remote-offer") return;
 			await this.peerConnections[from].answered.conn.setLocalDescription(answer);
 
-			console.log(`WebRTC: (5/12): ${from} Sending answer from`, extractIPAddress(answer.sdp));
+			console.log(`WebRTC: (5/12): ${from}  Sending answer from`, extractIPAddress(answer.sdp));
 			this.wsMessage({ answer, to: from, from: this.peerId });
 		} catch (e) {
 			console.error(e);
 		}
 	}
 
-	async handleAnswer(from: number, answer: RTCSessionDescription): Promise<void> {
+	async handleAnswer(from: string, answer: RTCSessionDescription): Promise<void> {
 		if (!this.peerConnections[from] || !this.peerConnections[from].offered) {
 			console.warn("WebRTC: (13/12): Rejecting answer - No open handshake");
 			return;
@@ -236,16 +237,16 @@ class RTCPeers {
 			console.warn("WebRTC: (13/12): Rejecting answer - Bad signalling state: ", this.peerConnections[from].offered?.conn.signalingState);
 			return;
 		}
-		console.log(`WebRTC: (7/12): ${from} Received answer`, extractIPAddress(answer.sdp));
+		console.log(`WebRTC: (7/12): ${from}  Received answer`, extractIPAddress(answer.sdp));
 		await this.peerConnections[from].offered.conn.setRemoteDescription(answer);
 	}
 
-	handleIceCandidate(from: number, iceCandidate: RTCIceCandidate): void {
+	handleIceCandidate(from: string, iceCandidate: RTCIceCandidate): void {
 		if (!this.peerConnections[from]) {
-			console.warn(`WebRTC: (13/12): ${from} Ice candidates received but no open handshake with peer`);
+			console.warn(`WebRTC: (13/12): ${from}  Ice candidates received but no open handshake with peer`);
 			return;
 		}
-		if (this._rpcClient._client.config.logLevel === "verbose") console.log(`WebRTC: (8/12): ${from} Received ICE candidate`);
+		if (this._rpcClient._client.config.logLevel === "verbose") console.log(`WebRTC: (8/12): ${from}  Received ICE candidate`);
 		if (typeof window !== "undefined") { // TODO: Figure out why this breaks on desktop
 			if (this.peerConnections[from].answered) this.peerConnections[from].answered.conn.addIceCandidate(iceCandidate).catch(console.error);
 			if (this.peerConnections[from].offered && this.peerConnections[from].offered.conn.remoteDescription) this.peerConnections[from].offered.conn.addIceCandidate(iceCandidate).catch(console.error);
