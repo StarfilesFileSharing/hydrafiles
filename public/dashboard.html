@@ -173,7 +173,7 @@
     }
 
     async function fetchAndPopulatePeers() {
-      const peers = await window.hydrafiles.rpcClient.http.getPeers();
+      const peers = window.hydrafiles.rpcClient.http.getPeers();
       const peersEl = document.getElementById('peers');
       peersEl.innerHTML = '';
       peers.forEach(node => {

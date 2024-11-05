@@ -13,11 +13,11 @@ export default class RPCClient {
 	static async init(client: Hydrafiles): Promise<RPCClient> {
 		const rpcClient = new RPCClient(client);
 		rpcClient.http = await HTTPPeers.init(rpcClient);
-		rpcClient.rtc = await RTCPeers.init(rpcClient);
+		rpcClient.rtc = new RTCPeers(rpcClient);
 		return rpcClient;
 	}
 
-	public async fetch(input: RequestInfo, init?: RequestInit): Promise<Promise<Response | false>[]> {
-		return [...await this.http.fetch(input, init), ...this.rtc.fetch(input, init)];
+	public fetch(input: RequestInfo, init?: RequestInit): Promise<Response | false>[] {
+		return [...this.http.fetch(input, init), ...this.rtc.fetch(input, init)];
 	}
 }

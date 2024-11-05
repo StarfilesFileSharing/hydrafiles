@@ -42,56 +42,45 @@ const peerId = Math.random();
 
 class RTCPeers {
 	private _rpcClient: RPCClient;
-	peerId: number;
+	peerId = peerId;
 	websockets: WebSocket[];
 	peerConnections: PeerConnections = {};
 	messageQueue: SignallingMessage[] = [];
-	seenMessages: Set<string>;
+	seenMessages: Set<string> = new Set();
 
-	private constructor(rpcClient: RPCClient) {
+	constructor(rpcClient: RPCClient) {
 		this._rpcClient = rpcClient;
-		this.peerId = peerId;
 		this.websockets = [new WebSocket("wss://rooms.deno.dev/")];
-		this.seenMessages = new Set();
-	}
 
-	/**
-	 * Initializes an instance of RTCPeers.
-	 * @returns {RTCPeers} A new instance of RTCPeers.
-	 * @default
-	 */
-	static async init(rpcClient: RPCClient): Promise<RTCPeers> {
-		const webRTC = new RTCPeers(rpcClient);
-		const peers = await rpcClient.http.getPeers(true);
+		const peers = rpcClient.http.getPeers(true);
 		for (let i = 0; i < peers.length; i++) {
 			try {
-				webRTC.websockets.push(new WebSocket(peers[i].host.replace("https://", "wss://").replace("http://", "ws://")));
+				this.websockets.push(new WebSocket(peers[i].host.replace("https://", "wss://").replace("http://", "ws://")));
 			} catch (e) {
 				if (rpcClient._client.config.logLevel === "verbose") console.error(e);
 				continue;
 			}
 		}
 
-		for (let i = 0; i < webRTC.websockets.length; i++) {
-			webRTC.websockets[i].onopen = () => {
-				console.log(`WebRTC: (1/12): Announcing to ${webRTC.websockets[i].url}`);
-				const message: SignallingMessage = { announce: true, from: webRTC.peerId };
-				webRTC.wsMessage(message);
-				setInterval(() => webRTC.wsMessage(message), rpcClient._client.config.announceSpeed);
+		for (let i = 0; i < this.websockets.length; i++) {
+			this.websockets[i].onopen = () => {
+				console.log(`WebRTC: (1/12): Announcing to ${this.websockets[i].url}`);
+				const message: SignallingMessage = { announce: true, from: this.peerId };
+				this.wsMessage(message);
+				setInterval(() => this.wsMessage(message), rpcClient._client.config.announceSpeed);
 			};
 
-			webRTC.websockets[i].onmessage = async (event) => {
+			this.websockets[i].onmessage = async (event) => {
 				const message = JSON.parse(event.data) as SignallingMessage;
-				if (message === null || message.from === peerId || webRTC.seenMessages.has(event.data) || ("to" in message && message.to !== webRTC.peerId)) return;
-				webRTC.seenMessages.add(event.data);
-				if ("announce" in message) await webRTC.handleAnnounce(message.from);
-				else if ("offer" in message) await webRTC.handleOffer(message.from, message.offer);
-				else if ("answer" in message) await webRTC.handleAnswer(message.from, message.answer);
-				else if ("iceCandidate" in message) webRTC.handleIceCandidate(message.from, message.iceCandidate);
+				if (message === null || message.from === peerId || this.seenMessages.has(event.data) || ("to" in message && message.to !== this.peerId)) return;
+				this.seenMessages.add(event.data);
+				if ("announce" in message) await this.handleAnnounce(message.from);
+				else if ("offer" in message) await this.handleOffer(message.from, message.offer);
+				else if ("answer" in message) await this.handleAnswer(message.from, message.answer);
+				else if ("iceCandidate" in message) this.handleIceCandidate(message.from, message.iceCandidate);
 				else console.warn("WebRTC: (13/12): Unknown message type received", message);
 			};
 		}
-		return webRTC;
 	}
 
 	async createPeerConnection(from: number): Promise<PeerConnection> {
@@ -219,7 +208,6 @@ class RTCPeers {
 			console.warn(`WebRTC: (13/12): ${from} Peer connection in unexpected state 2: ${this.peerConnections[from].answered.conn.signalingState}`);
 			return;
 		}
-		console.log("Current signaling state:", this.peerConnections[from].answered.conn.signalingState);
 		try {
 			const answer = await this.peerConnections[from].answered.conn.createAnswer();
 			if (this.peerConnections[from].answered.conn.signalingState !== "have-remote-offer") return;

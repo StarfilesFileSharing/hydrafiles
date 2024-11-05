@@ -1,11 +1,11 @@
 import { encode as base32Encode } from "https://deno.land/std@0.194.0/encoding/base32.ts";
 import type Hydrafiles from "../hydrafiles.ts";
 // import { BLOCKSDIR } from "./block.ts";
-import File from "../file.ts";
 import Utils, { type Base64 } from "../utils.ts";
 import { join } from "https://deno.land/std@0.224.0/path/mod.ts";
 import { SignallingMessage } from "./peers/rtc.ts";
 import { serveFile } from "https://deno.land/std@0.115.0/http/file_server.ts";
+import { File } from "../file.ts";
 
 class RPCServer {
 	private _client: Hydrafiles;
@@ -41,14 +41,14 @@ class RPCServer {
 	private onListen = async (hostname: string, port: number): Promise<void> => {
 		console.log(`Server started at ${hostname}:${port}`);
 		console.log("Testing network connection");
-		const file = await (await File.init({ hash: Utils.sha256("04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f") }, this._client, true)).download();
-		if (file === false) console.error("Download test failed, cannot connect to network");
+		const file = this._client.files.files.get("04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f");
+		if (!file) return;
+		if (!(await file.download())) console.error("Download test failed, cannot connect to network");
 		else {
 			console.log("Connected to network");
 			if (Utils.isIp(this._client.config.publicHostname) && Utils.isPrivateIP(this._client.config.publicHostname)) console.error("Public hostname is a private IP address, cannot announce to other nodes");
 			else {
 				console.log(`Testing downloads ${this._client.config.publicHostname}/download/04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f`);
-				const file = await File.init({ hash: Utils.sha256("04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f") }, this._client);
 				if (!file) console.error("Failed to build file");
 				else {
 					const response = await this._client.rpcClient.http.getSelf().downloadFile(file); // TODO: HTTPPeers.getSelf()
@@ -101,7 +101,7 @@ class RPCServer {
 			} else if (url.pathname === "/peers") {
 				headers.set("Content-Type", "application/json");
 				headers.set("Cache-Control", "public, max-age=300");
-				return new Response(JSON.stringify(await this._client.rpcClient.http.getPeers()), { headers });
+				return new Response(JSON.stringify(this._client.rpcClient.http.getPeers()), { headers });
 			} else if (url.pathname === "/info") {
 				headers.set("Content-Type", "application/json");
 				headers.set("Cache-Control", "public, max-age=300");
@@ -186,8 +186,8 @@ class RPCServer {
 					await this.processingRequests.get(infohash);
 				}
 				const processingPromise = (async () => {
-					const file = await File.init({ infohash }, this._client, true);
-					if (!file) throw new Error("Failed to build file");
+					const file = this._client.files.files.get(infohash);
+					if (!file) throw new Error("Failed to find file");
 
 					await file.getMetadata();
 					let fileContent: { file: Uint8Array; signal: number } | false;
@@ -261,7 +261,7 @@ class RPCServer {
 				await this._client.fs.writeFile("config.json", new TextEncoder().encode(JSON.stringify(this._client.config, null, 2)));
 				return new Response("200 OK\n");
 			} else if (url.pathname === "/files") {
-				const rows = (await this._client.fileDB.select()).map((row) => {
+				const rows = Array.from(this._client.files.files.values()).map((row) => {
 					const { downloadCount, found, ...rest } = row;
 					const _ = { downloadCount, found };
 					return rest;
@@ -271,9 +271,9 @@ class RPCServer {
 				return new Response(JSON.stringify(rows), { headers });
 			} else if (url.pathname.startsWith("/file/")) {
 				const id = url.pathname.split("/")[2];
-				let file: File | false;
+				let file: File | undefined;
 				try {
-					file = await File.init({ id }, this._client, true);
+					file = this._client.files.files.get(id);
 				} catch (e) {
 					const err = e as Error;
 					if (err.message === "File not found") return new Response("File not found", { headers, status: 404 });
@@ -304,7 +304,7 @@ class RPCServer {
 					if (hostname in this.cachedHostnames) return new Response(this.cachedHostnames[hostname].body, { headers: this.cachedHostnames[hostname].headers });
 
 					console.log(`  ${hostname}  Fetching endpoint response from peers`);
-					const responses = await this._client.rpcClient.fetch(`http://localhost/endpoint/${hostname}`);
+					const responses = this._client.rpcClient.fetch(`http://localhost/endpoint/${hostname}`);
 
 					const processingPromise = new Promise<Response>((resolve, reject) => {
 						(async () => {

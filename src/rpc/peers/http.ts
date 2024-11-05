@@ -2,7 +2,7 @@ import type Hydrafiles from "../../hydrafiles.ts";
 import Utils, { type NonNegativeNumber } from "../../utils.ts";
 import type { Database } from "jsr:@db/sqlite@0.11";
 import type { indexedDB } from "https://deno.land/x/indexeddb@v1.1.0/ponyfill.ts";
-import File from "../../file.ts";
+import { File } from "../../file.ts";
 import type RPCClient from "../client.ts";
 
 type DatabaseWrapper = { type: "UNDEFINED"; db: undefined } | { type: "SQLITE"; db: Database } | { type: "INDEXEDDB"; db: IDBDatabase };
@@ -504,7 +504,7 @@ export default class HTTPPeers {
 	// TODO: Compare list between all peers and give score based on how similar they are. 100% = all exactly the same, 0% = no items in list were shared. The lower the score, the lower the propagation times, the lower the decentralisation
 	async updatePeers(): Promise<void> {
 		console.log(`Fetching peers`);
-		const responses = await Promise.all(await this._rpcClient._client.rpcClient.fetch("http://localhost/peers"));
+		const responses = await Promise.all(this._rpcClient._client.rpcClient.fetch("http://localhost/peers"));
 		for (let i = 0; i < responses.length; i++) {
 			try {
 				if (!(responses[i] instanceof Response)) continue;
