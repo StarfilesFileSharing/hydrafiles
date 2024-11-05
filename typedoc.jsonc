@@ -7,7 +7,7 @@
 	"projectDocuments": ["./docs"],
 	"name": "Hydrafiles",
 	"entryPointStrategy": "expand",
-	"exclude": ["./src/start.ts", "./src/filesystem/*FileSystem.ts"],
+	"exclude": ["./src/start.ts"],
 	"customFooterHtml": "Free information for the people, by the people.<br>They can't stop us all.",
 	"basePath": "./",
 	"hideGenerator": true,
