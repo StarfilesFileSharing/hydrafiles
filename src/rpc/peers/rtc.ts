@@ -246,9 +246,10 @@ class RTCPeers {
 			return;
 		}
 		console.log(`WebRTC: (8/12): ${from} Received ICE candidate`);
-		if (this.peerConnections[from].answered) this.peerConnections[from].answered.conn.addIceCandidate(iceCandidate).catch(console.error);
-		// TODO: Figure out why this breaks on desktop
-		if (typeof window !== "undefined" && this.peerConnections[from].offered && this.peerConnections[from].offered.conn.remoteDescription) this.peerConnections[from].offered.conn.addIceCandidate(iceCandidate).catch(console.error);
+		if (typeof window !== "undefined") { // TODO: Figure out why this breaks on desktop
+			if (this.peerConnections[from].answered) this.peerConnections[from].answered.conn.addIceCandidate(iceCandidate).catch(console.error);
+			if (this.peerConnections[from].offered && this.peerConnections[from].offered.conn.remoteDescription) this.peerConnections[from].offered.conn.addIceCandidate(iceCandidate).catch(console.error);
+		}
 	}
 
 	public fetch(input: RequestInfo, init?: RequestInit): Promise<Response>[] {
