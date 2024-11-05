@@ -40,7 +40,7 @@ function arrayBufferToUnicodeString(buffer: ArrayBuffer): string {
 
 const peerId = Math.random();
 
-class RTCClient {
+class RTCPeers {
 	private _rpcClient: RPCClient;
 	peerId: number;
 	websockets: WebSocket[];
@@ -56,12 +56,12 @@ class RTCClient {
 	}
 
 	/**
-	 * Initializes an instance of RTCClient.
-	 * @returns {RTCClient} A new instance of RTCClient.
+	 * Initializes an instance of RTCPeers.
+	 * @returns {RTCPeers} A new instance of RTCPeers.
 	 * @default
 	 */
-	static async init(rpcClient: RPCClient): Promise<RTCClient> {
-		const webRTC = new RTCClient(rpcClient);
+	static async init(rpcClient: RPCClient): Promise<RTCPeers> {
+		const webRTC = new RTCPeers(rpcClient);
 		const peers = await rpcClient.http.getPeers(true);
 		for (let i = 0; i < peers.length; i++) {
 			try {
@@ -305,4 +305,4 @@ class RTCClient {
 	}
 }
 
-export default RTCClient;
+export default RTCPeers;

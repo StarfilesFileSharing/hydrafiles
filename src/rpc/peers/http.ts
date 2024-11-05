@@ -308,7 +308,7 @@ class PeerDB {
 	}
 }
 
-export class HTTPPeer implements PeerAttributes {
+class HTTPPeer implements PeerAttributes {
 	host: string;
 	hits: NonNegativeNumber = 0 as NonNegativeNumber;
 	rejects: NonNegativeNumber = 0 as NonNegativeNumber;
@@ -409,9 +409,10 @@ export class HTTPPeer implements PeerAttributes {
 }
 
 // TODO: Log common user-agents and re-use them to help anonimise non Hydrafiles peers
-export default class HTTPClient {
+export default class HTTPPeers {
 	private _rpcClient: RPCClient;
 	public db: PeerDB;
+	public peers = new Map<string, HTTPPeer>();
 
 	private constructor(rpcClient: RPCClient, db: PeerDB) {
 		this._rpcClient = rpcClient;
@@ -419,35 +420,37 @@ export default class HTTPClient {
 	}
 
 	/**
-	 * Initializes an instance of HTTPClient.
-	 * @returns {HTTPClient} A new instance of HTTPClient.
+	 * Initializes an instance of HTTPPeers.
+	 * @returns {HTTPPeers} A new instance of HTTPPeers.
 	 * @default
 	 */
-	public static async init(rpcClient: RPCClient): Promise<HTTPClient> {
+	public static async init(rpcClient: RPCClient): Promise<HTTPPeers> {
 		const db = await PeerDB.init(rpcClient);
-		const peers = new HTTPClient(rpcClient, db);
+		const httpPeers = new HTTPPeers(rpcClient, db);
+
+		(await Promise.all((await db.select()).map((peer) => HTTPPeer.init(peer, db, httpPeers._rpcClient._client)))).forEach((peer) => httpPeers.peers.set(peer.host, peer));
 
 		for (let i = 0; i < rpcClient._client.config.bootstrapPeers.length; i++) {
-			await peers.add(rpcClient._client.config.bootstrapPeers[i]);
+			await httpPeers.add(rpcClient._client.config.bootstrapPeers[i]);
 		}
-		return peers;
+		return httpPeers;
 	}
 
 	async add(host: string): Promise<void> {
 		if (host !== this._rpcClient._client.config.publicHostname) await HTTPPeer.init({ host }, this.db, this._rpcClient._client);
 	}
 
-	public getPeers = async (applicablePeers = false): Promise<PeerAttributes[]> => {
-		const peers = (await this.db.select()).filter((peer) => !applicablePeers || typeof window === "undefined" || !peer.host.startsWith("http://"));
+	public getPeers = (applicablePeers = false): HTTPPeer[] => {
+		const peers = Array.from(this.peers).filter((peer) => !applicablePeers || typeof window === "undefined" || !peer[0].startsWith("http://"));
 
 		if (this._rpcClient._client.config.preferNode === "FASTEST") {
-			return peers.sort((a, b) => a.bytes / a.duration - b.bytes / b.duration);
+			return peers.map(([_, peer]) => peer).sort((a, b) => a.bytes / a.duration - b.bytes / b.duration);
 		} else if (this._rpcClient._client.config.preferNode === "LEAST_USED") {
-			return peers.sort((a, b) => a.hits - a.rejects - (b.hits - b.rejects));
+			return peers.map(([_, peer]) => peer).sort((a, b) => a.hits - a.rejects - (b.hits - b.rejects));
 		} else if (this._rpcClient._client.config.preferNode === "HIGHEST_HITRATE") {
-			return peers.sort((a, b) => a.hits - a.rejects - (b.hits - b.rejects));
+			return peers.sort((a, b) => a[1].hits - a[1].rejects - (b[1].hits - b[1].rejects)).map(([_, peer]) => peer);
 		} else {
-			return peers;
+			return peers.map(([_, peer]) => peer);
 		}
 	};
 
@@ -478,9 +481,9 @@ export default class HTTPClient {
 		return await peer.downloadFile(file) !== false;
 	}
 
-	public async fetch(input: RequestInfo, init?: RequestInit): Promise<Promise<Response | false>[]> {
+	public fetch(input: RequestInfo, init?: RequestInit): Promise<Response | false>[] {
 		const req = typeof input === "string" ? new Request(input, init) : input;
-		const peers = await this.getPeers(true);
+		const peers = this.getPeers(true);
 		const fetchPromises = peers.map(async (peer) => {
 			try {
 				const url = new URL(req.url);
@@ -517,5 +520,11 @@ export default class HTTPClient {
 				if (this._rpcClient._client.config.logLevel === "verbose") console.error(e);
 			}
 		}
+	}
+
+	public getSelf(): HTTPPeer {
+		const peer = this.peers.get(this._rpcClient._client.config.publicHostname);
+		if (!peer) throw new Error("Could not find self");
+		return peer;
 	}
 }

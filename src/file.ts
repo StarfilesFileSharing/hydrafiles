@@ -393,7 +393,7 @@ class File implements FileAttributes {
 	 * @returns {File} A new instance of File.
 	 * @default
 	 */
-	static async init(values: Partial<FileAttributes>, client: Hydrafiles, vote = false): Promise<File | false> {
+	static async init(values: Partial<FileAttributes>, client: Hydrafiles, vote = false): Promise<File> {
 		if (!values.hash && values.id) {
 			const files = await client.fileDB.select({ key: "id", value: values.id });
 			values.hash = files[0]?.hash;
@@ -626,7 +626,7 @@ class File implements FileAttributes {
 			if (this._client.config.s3Endpoint.length > 0) file = await this.fetchFromS3();
 			if (file !== false) console.log(`  ${hash}  Serving ${this.size !== undefined ? Math.round(this.size / 1024 / 1024) : 0}MB from S3`);
 			else {
-				file = await this._client.rpcClient.downloadFile(hash, this.size);
+				file = await this.download();
 				if (file === false) {
 					this.found = false;
 					this.save();
@@ -680,6 +680,55 @@ class File implements FileAttributes {
 			this.save();
 		}
 	}
+
+	async download(): Promise<{ file: Uint8Array; signal: number } | false> {
+		let size = this.size;
+		if (size === 0) {
+			this.getMetadata();
+			size = this.size;
+		}
+		if (!this._client.utils.hasSufficientMemory(size)) {
+			console.log("Reached memory limit, waiting");
+			await new Promise(() => {
+				const intervalId = setInterval(async () => {
+					if (await this._client.utils.hasSufficientMemory(size)) clearInterval(intervalId);
+				}, this._client.config.memoryThresholdReachedWait);
+			});
+		}
+
+		const peers = this._client.rpcClient.http.getPeers(true);
+		for (const peer of peers) {
+			let fileContent: { file: Uint8Array; signal: number } | false = false;
+			try {
+				fileContent = await peer.downloadFile(this);
+			} catch (e) {
+				console.error(e);
+			}
+			if (fileContent) return fileContent;
+		}
+
+		console.log(`  ${this.hash}  Downloading from WebRTC`);
+		const responses = this._client.rpcClient.rtc.fetch(`http://localhost/download/${this.hash}`);
+		for (let i = 0; i < responses.length; i++) {
+			const response = await responses[i];
+			const peerContent = new Uint8Array(await response.arrayBuffer());
+			console.log(`  ${this.hash}  Validating hash`);
+			const verifiedHash = await Utils.hashUint8Array(peerContent);
+			console.log(`  ${this.hash}  Done Validating hash`);
+			if (this.hash !== verifiedHash) return false;
+			console.log(`  ${this.hash}  Valid hash`);
+
+			if (this.name === null || this.name.length === 0) {
+				this.name = String(response.headers.get("Content-Disposition")?.split("=")[1].replace(/"/g, "").replace(" [HYDRAFILES]", ""));
+				this.save();
+			}
+		}
+
+		return false;
+	}
 }
+
+// class Files {
+// }
 
 export default File;

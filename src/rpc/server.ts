@@ -4,7 +4,6 @@ import type Hydrafiles from "../hydrafiles.ts";
 import File from "../file.ts";
 import Utils, { type Base64 } from "../utils.ts";
 import { join } from "https://deno.land/std@0.224.0/path/mod.ts";
-import { HTTPPeer } from "./peers/http.ts";
 import { SignallingMessage } from "./peers/rtc.ts";
 import { serveFile } from "https://deno.land/std@0.115.0/http/file_server.ts";
 
@@ -42,7 +41,7 @@ class RPCServer {
 	private onListen = async (hostname: string, port: number): Promise<void> => {
 		console.log(`Server started at ${hostname}:${port}`);
 		console.log("Testing network connection");
-		const file = await this._client.rpcClient.downloadFile(Utils.sha256("04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f"));
+		const file = await (await File.init({ hash: Utils.sha256("04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f") }, this._client, true)).download();
 		if (file === false) console.error("Download test failed, cannot connect to network");
 		else {
 			console.log("Connected to network");
@@ -52,7 +51,7 @@ class RPCServer {
 				const file = await File.init({ hash: Utils.sha256("04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f") }, this._client);
 				if (!file) console.error("Failed to build file");
 				else {
-					const response = await (await HTTPPeer.init({ host: this._client.config.publicHostname }, this._client.rpcClient.http.db, this._client)).downloadFile(file);
+					const response = await this._client.rpcClient.http.getSelf().downloadFile(file); // TODO: HTTPPeers.getSelf()
 					if (response === false) console.error("Test: Failed to download file from self");
 					else {
 						console.log("Announcing HTTP server to nodes");
@@ -110,7 +109,7 @@ class RPCServer {
 			} else if (url.pathname.startsWith("/announce")) {
 				const host = url.searchParams.get("host");
 				if (host === null) return new Response("No hosted given\n", { status: 401 });
-				const knownNodes = await this._client.rpcClient.http.getPeers();
+				const knownNodes = this._client.rpcClient.http.getPeers();
 				if (knownNodes.find((node) => node.host === host) !== undefined) return new Response("Already known\n");
 				await this._client.rpcClient.http.add(host);
 				return new Response("Announced\n");
