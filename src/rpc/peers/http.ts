@@ -406,6 +406,12 @@ class HTTPPeer implements PeerAttributes {
 			return false;
 		}
 	}
+
+	async validate(): Promise<boolean> {
+		const file = await File.init({ hash: Utils.sha256("04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f") }, this._client);
+		if (!file) throw new Error("Failed to build file");
+		return await this.downloadFile(file) !== false;
+	}
 }
 
 // TODO: Log common user-agents and re-use them to help anonimise non Hydrafiles peers
@@ -456,7 +462,7 @@ export default class HTTPPeers {
 	};
 
 	async getValidPeers(): Promise<PeerAttributes[]> {
-		const peers = await this.getPeers();
+		const peers = this.getPeers();
 		const results: PeerAttributes[] = [];
 		const executing: Array<Promise<void>> = [];
 
@@ -466,7 +472,7 @@ export default class HTTPPeers {
 				results.push(peer);
 				continue;
 			}
-			const promise = this.validatePeer(await HTTPPeer.init(peer, this.db, this._rpcClient._client)).then((result) => {
+			const promise = peer.validate().then((result) => {
 				if (result) results.push(peer);
 				executing.splice(executing.indexOf(promise), 1);
 			});
@@ -474,12 +480,6 @@ export default class HTTPPeers {
 		}
 		await Promise.all(executing);
 		return results;
-	}
-
-	async validatePeer(peer: HTTPPeer): Promise<boolean> {
-		const file = await File.init({ hash: Utils.sha256("04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f") }, this._rpcClient._client);
-		if (!file) throw new Error("Failed to build file");
-		return await peer.downloadFile(file) !== false;
 	}
 
 	public fetch(input: RequestInfo, init?: RequestInit): Promise<Response | false>[] {
