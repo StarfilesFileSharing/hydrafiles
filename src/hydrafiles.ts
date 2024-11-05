@@ -33,9 +33,9 @@ class Hydrafiles {
 	// webtorrent: WebTorrent = new WebTorrent();
 
 	constructor(customConfig: Partial<Config> = {}) {
-		this.utils = new Utils(this);
 		this.config = getConfig(customConfig);
 		this.fs = new FileSystem(this);
+		this.utils = new Utils(this.config, this.fs);
 
 		if (this.config.s3Endpoint.length) {
 			console.log("Startup: Populating S3");
