@@ -277,7 +277,14 @@ class RPCServer {
 				const rows = Array.from(this._client.files.files.values()).map((row) => {
 					const { downloadCount, found, ...rest } = row;
 					const _ = { downloadCount, found };
-					return rest;
+					const filteredRest = Object.keys(rest)
+						.filter((key) => !key.startsWith("_"))
+						.reduce((obj, key) => {
+							// @ts-expect-error:
+							obj[key] = rest[key];
+							return obj;
+						}, {});
+					return filteredRest;
 				});
 				headers.set("Content-Type", "application/json");
 				headers.set("Cache-Control", "public, max-age=10800");
