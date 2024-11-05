@@ -107,7 +107,7 @@ class RPCServer {
 						this._client.rpcClient.http.getPeers().map((peer) => {
 							const outputPeer: Partial<PeerAttributes> = {};
 							for (const [key, value] of Object.entries(peer)) {
-								if (key.startsWith("_")) return;
+								if (key.startsWith("_")) continue;
 								outputPeer[key as keyof PeerAttributes] = value;
 							}
 							return outputPeer;
