@@ -49,11 +49,9 @@ class Hydrafiles {
 		console.log("Startup: Populating FileDB");
 		this.fileDB = await FileDB.init(this);
 		console.log("Startup: Populating RPC Client & Server");
-		this.rpcClient = new RPCClient(this);
-		this.rpcClient.start().then(() => {
-			this.rpcServer = new RPCServer(this);
-			this.startBackgroundTasks(onUpdateFileListProgress);
-		});
+		this.rpcClient = await RPCClient.init(this);
+		this.rpcServer = new RPCServer(this);
+		this.startBackgroundTasks(onUpdateFileListProgress);
 	}
 
 	startBackgroundTasks(onUpdateFileListProgress?: (progress: number, total: number) => void): void {
@@ -164,7 +162,7 @@ class Hydrafiles {
 			(await this.fs.readDir("files/")).length,
 			`(${Math.round((100 * await this.utils.calculateUsedStorage()) / 1024 / 1024 / 1024) / 100}GB)`,
 			"\n| Processing Files:",
-			this.rpcServer.hashLocks.size,
+			this.rpcServer.processingRequests.size,
 			"\n| Known HTTP Peers:",
 			(await this.rpcClient.http.getPeers()).length,
 			// '\n| Seeding Torrent Files:',

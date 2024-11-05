@@ -6,14 +6,14 @@ import Utils from "../utils.ts";
 import { join } from "https://deno.land/std@0.224.0/path/mod.ts";
 import type Base64 from "npm:base64";
 import { HTTPPeer } from "./peers/http.ts";
-import { Message } from "./peers/rtc.ts";
+import { SignallingMessage } from "./peers/rtc.ts";
 import { serveFile } from "https://deno.land/std@0.115.0/http/file_server.ts";
 
 class RPCServer {
 	private _client: Hydrafiles;
 	cachedHostnames: { [key: string]: { body: string; headers: Headers } } = {};
 	sockets: { id: number; socket: WebSocket }[] = [];
-	public hashLocks = new Map<string, Promise<Response>>();
+	public processingRequests = new Map<string, Promise<Response>>();
 	public handleCustomRequest?: (req: Request) => Promise<string>;
 
 	constructor(client: Hydrafiles) {
@@ -40,7 +40,7 @@ class RPCServer {
 		}
 	}
 
-	onListen = async (hostname: string, port: number): Promise<void> => {
+	private onListen = async (hostname: string, port: number): Promise<void> => {
 		console.log(`Server started at ${hostname}:${port}`);
 		console.log("Testing network connection");
 		const file = await this._client.rpcClient.downloadFile(Utils.sha256("04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f"));
@@ -53,7 +53,7 @@ class RPCServer {
 				const file = await File.init({ hash: Utils.sha256("04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f") }, this._client);
 				if (!file) console.error("Failed to build file");
 				else {
-					const response = await this._client.rpcClient.http.downloadFromPeer(await HTTPPeer.init({ host: this._client.config.publicHostname }, this._client.rpcClient.http._db), file);
+					const response = await (await HTTPPeer.init({ host: this._client.config.publicHostname }, this._client.rpcClient.http.db, this._client)).downloadFile(file);
 					if (response === false) console.error("Test: Failed to download file from self");
 					else {
 						console.log("Announcing HTTP server to nodes");
@@ -77,7 +77,7 @@ class RPCServer {
 				this.sockets.push({ socket, id: 0 });
 
 				socket.addEventListener("message", ({ data }) => {
-					const message = JSON.parse(data) as Message | null;
+					const message = JSON.parse(data) as SignallingMessage | null;
 					if (message === null) return;
 					for (let i = 0; i < this.sockets.length; i++) {
 						if (this.sockets[i].socket !== socket && (!("to" in message) || message.to === this.sockets[i].id)) {
@@ -120,9 +120,9 @@ class RPCServer {
 				const fileId = url.pathname.split("/")[3] ?? "";
 				const infohash = Array.from(decodeURIComponent(url.searchParams.get("info_hash") ?? "")).map((char) => char.charCodeAt(0).toString(16).padStart(2, "0")).join("");
 
-				if (this.hashLocks.has(hash)) {
+				if (this.processingRequests.has(hash)) {
 					if (this._client.config.logLevel === "verbose") console.log(`  ${hash}  Waiting for existing request with same hash`);
-					await this.hashLocks.get(hash);
+					await this.processingRequests.get(hash);
 				}
 				const processingPromise = (async () => {
 					const file = await File.init({ hash, infohash }, this._client, true);
@@ -171,21 +171,21 @@ class RPCServer {
 					return new Response(fileContent.file, { headers });
 				})();
 
-				this.hashLocks.set(hash, processingPromise);
+				this.processingRequests.set(hash, processingPromise);
 
 				let response: Response;
 				try {
 					response = await processingPromise;
 				} finally {
-					this.hashLocks.delete(hash);
+					this.processingRequests.delete(hash);
 				}
 				return response;
 			} else if (url.pathname?.startsWith("/infohash/")) {
 				const infohash = url.pathname.split("/")[2];
 
-				if (this.hashLocks.has(infohash)) {
+				if (this.processingRequests.has(infohash)) {
 					console.log(`  ${infohash}  Waiting for existing request with same infohash`);
-					await this.hashLocks.get(infohash);
+					await this.processingRequests.get(infohash);
 				}
 				const processingPromise = (async () => {
 					const file = await File.init({ infohash }, this._client, true);
@@ -224,12 +224,12 @@ class RPCServer {
 					return new Response(fileContent.file, { headers });
 				})();
 
-				this.hashLocks.set(infohash, processingPromise);
+				this.processingRequests.set(infohash, processingPromise);
 
 				try {
 					await processingPromise;
 				} finally {
-					this.hashLocks.delete(infohash);
+					this.processingRequests.delete(infohash);
 				}
 			} else if (url.pathname === "/upload") {
 				const uploadSecret = req.headers.get("x-hydra-upload-secret");
@@ -299,9 +299,9 @@ class RPCServer {
 					headers.set("hydra-signature", signature);
 					return new Response(body, { headers });
 				} else {
-					if (this.hashLocks.has(hostname)) {
+					if (this.processingRequests.has(hostname)) {
 						if (this._client.config.logLevel === "verbose") console.log(`  ${hostname}  Waiting for existing request with same hostname`);
-						await this.hashLocks.get(hostname);
+						await this.processingRequests.get(hostname);
 					}
 					if (hostname in this.cachedHostnames) return new Response(this.cachedHostnames[hostname].body, { headers: this.cachedHostnames[hostname].headers });
 
@@ -330,7 +330,7 @@ class RPCServer {
 						})();
 					});
 
-					this.hashLocks.set(hostname, processingPromise);
+					this.processingRequests.set(hostname, processingPromise);
 
 					let response: Response | undefined;
 					try {
@@ -340,7 +340,7 @@ class RPCServer {
 						if (err.message === "Hstname not found") return new Response("Hostname not found", { headers, status: 404 });
 						else throw err;
 					} finally {
-						this.hashLocks.delete(hostname);
+						this.processingRequests.delete(hostname);
 					}
 					const res = { body: await response.text(), headers: response.headers };
 					this.cachedHostnames[hostname] = res;

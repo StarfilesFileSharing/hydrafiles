@@ -1,5 +1,6 @@
 import type { RTCDataChannel, RTCIceCandidate, RTCPeerConnection, RTCSessionDescription } from "npm:werift";
 import type Hydrafiles from "../../hydrafiles.ts";
+import type RPCClient from "../client.ts";
 
 function extractIPAddress(sdp: string): string {
 	const ipv4Regex = /c=IN IP4 (\d{1,3}(?:\.\d{1,3}){3})/g;
@@ -16,7 +17,12 @@ function extractIPAddress(sdp: string): string {
 	return ipAddresses.filter((ip) => ip !== "0.0.0.0")[0] ?? ipAddresses[0];
 }
 
-export type Message = { announce: true; from: number } | { offer: RTCSessionDescription; from: number; to: number } | { answer: RTCSessionDescription; from: number; to: number } | { iceCandidate: RTCIceCandidate; from: number; to: number };
+export type SignallingAnnounce = { announce: true; from: number };
+export type SignallingOffer = { offer: RTCSessionDescription; from: number; to: number };
+export type SignallingAnswer = { answer: RTCSessionDescription; from: number; to: number };
+export type SignallingIceCandidate = { iceCandidate: RTCIceCandidate; from: number; to: number };
+export type SignallingMessage = SignallingAnnounce | SignallingOffer | SignallingAnswer | SignallingIceCandidate;
+
 type PeerConnection = { conn: RTCPeerConnection; channel: RTCDataChannel };
 type PeerConnections = { [id: string]: { offered?: PeerConnection; answered?: PeerConnection } };
 
@@ -36,15 +42,15 @@ function arrayBufferToUnicodeString(buffer: ArrayBuffer): string {
 const peerId = Math.random();
 
 class RTCClient {
-	private _client: Hydrafiles;
+	private _rpcClient: RPCClient;
 	peerId: number;
 	websockets: WebSocket[];
 	peerConnections: PeerConnections = {};
-	messageQueue: Message[] = [];
+	messageQueue: SignallingMessage[] = [];
 	seenMessages: Set<string>;
 
-	private constructor(client: Hydrafiles) {
-		this._client = client;
+	private constructor(rpcClient: RPCClient) {
+		this._rpcClient = rpcClient;
 		this.peerId = peerId;
 		this.websockets = [new WebSocket("wss://rooms.deno.dev/")];
 		this.seenMessages = new Set();
@@ -55,14 +61,14 @@ class RTCClient {
 	 * @returns {RTCClient} A new instance of RTCClient.
 	 * @default
 	 */
-	static async init(client: Hydrafiles): Promise<RTCClient> {
-		const webRTC = new RTCClient(client);
-		const peers = await client.rpcClient.http.getPeers(true);
+	static async init(rpcClient: RPCClient): Promise<RTCClient> {
+		const webRTC = new RTCClient(rpcClient);
+		const peers = await rpcClient.http.getPeers(true);
 		for (let i = 0; i < peers.length; i++) {
 			try {
 				webRTC.websockets.push(new WebSocket(peers[i].host.replace("https://", "wss://").replace("http://", "ws://")));
 			} catch (e) {
-				if (client.config.logLevel === "verbose") console.error(e);
+				if (rpcClient._client.config.logLevel === "verbose") console.error(e);
 				continue;
 			}
 		}
@@ -70,13 +76,13 @@ class RTCClient {
 		for (let i = 0; i < webRTC.websockets.length; i++) {
 			webRTC.websockets[i].onopen = () => {
 				console.log(`WebRTC: (1/12): Announcing to ${webRTC.websockets[i].url}`);
-				const message: Message = { announce: true, from: webRTC.peerId };
+				const message: SignallingMessage = { announce: true, from: webRTC.peerId };
 				webRTC.wsMessage(message);
-				setInterval(() => webRTC.wsMessage(message), client.config.announceSpeed);
+				setInterval(() => webRTC.wsMessage(message), rpcClient._client.config.announceSpeed);
 			};
 
 			webRTC.websockets[i].onmessage = async (event) => {
-				const message = JSON.parse(event.data) as Message;
+				const message = JSON.parse(event.data) as SignallingMessage;
 				if (message === null || message.from === peerId || webRTC.seenMessages.has(event.data) || ("to" in message && message.to !== webRTC.peerId)) return;
 				webRTC.seenMessages.add(event.data);
 				if ("announce" in message) await webRTC.handleAnnounce(message.from);
@@ -110,7 +116,7 @@ class RTCClient {
 			console.log(`WebRTC: (10/12): Received request`);
 			const { id, url, ...data } = JSON.parse(e.data as string);
 			const req = new Request(url, data);
-			const response = await this._client.rpcServer.handleRequest(req);
+			const response = await this._rpcClient._client.rpcServer.handleRequest(req);
 			const headersObj: Record<string, string> = {};
 			response.headers.forEach((value, key) => {
 				headersObj[key] = value;
@@ -169,7 +175,7 @@ class RTCClient {
 		}
 	}
 
-	wsMessage(message: Message): void {
+	wsMessage(message: SignallingMessage): void {
 		this.messageQueue.push(message);
 		for (let i = 0; i < this.websockets.length; i++) {
 			if (this.websockets[i].readyState === 1) this.websockets[i].send(JSON.stringify(message));
