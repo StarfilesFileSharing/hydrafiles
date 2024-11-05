@@ -2,9 +2,8 @@ import { encode as base32Encode } from "https://deno.land/std@0.194.0/encoding/b
 import type Hydrafiles from "../hydrafiles.ts";
 // import { BLOCKSDIR } from "./block.ts";
 import File from "../file.ts";
-import Utils from "../utils.ts";
+import Utils, { type Base64 } from "../utils.ts";
 import { join } from "https://deno.land/std@0.224.0/path/mod.ts";
-import type Base64 from "npm:base64";
 import { HTTPPeer } from "./peers/http.ts";
 import { SignallingMessage } from "./peers/rtc.ts";
 import { serveFile } from "https://deno.land/std@0.115.0/http/file_server.ts";

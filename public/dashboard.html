@@ -173,7 +173,7 @@
     }
 
     async function fetchAndPopulatePeers() {
-      const peers = await window.hydrafiles.http.getPeers();
+      const peers = await window.hydrafiles.rpcClient.http.getPeers();
       const peersEl = document.getElementById('peers');
       peersEl.innerHTML = '';
       peers.forEach(node => {
@@ -182,7 +182,7 @@
         peersEl.appendChild(li);
       });
 
-      const rtcPeers = Object.entries(window.hydrafiles.rtc.peerConnections);
+      const rtcPeers = Object.entries(window.hydrafiles.rpcClient.rtc.peerConnections);
       const tbody = document.getElementById("peerTable").querySelector("tbody");
 
       tbody.innerHTML = "";
