@@ -20,7 +20,7 @@
 		"Web Dashboard": "/dashboard.html",
 		"Source Code": "https://github.com/StarfilesFileSharing/Hydrafiles"
 	},
-	"excludeInternal": true,
+	"sourceLinkExternal": true,
 	"sort": ["static-first", "required-first"]
 	// "theme": "./typedoc-theme"
 }
