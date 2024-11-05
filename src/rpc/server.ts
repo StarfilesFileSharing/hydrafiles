@@ -6,7 +6,7 @@ import Utils from "../utils.ts";
 import { join } from "https://deno.land/std@0.224.0/path/mod.ts";
 import type Base64 from "npm:base64";
 import { HTTPPeer } from "./peers/http.ts";
-import { Message } from "./peers/rtc.ts";
+import { SignallingMessage } from "./peers/rtc.ts";
 import { serveFile } from "https://deno.land/std@0.115.0/http/file_server.ts";
 
 class RPCServer {
@@ -53,7 +53,7 @@ class RPCServer {
 				const file = await File.init({ hash: Utils.sha256("04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f") }, this._client);
 				if (!file) console.error("Failed to build file");
 				else {
-					const response = await (await HTTPPeer.init({ host: this._client.config.publicHostname }, this._client.rpcClient.http._db, this._client)).downloadFile(file);
+					const response = await (await HTTPPeer.init({ host: this._client.config.publicHostname }, this._client.rpcClient.http.db, this._client)).downloadFile(file);
 					if (response === false) console.error("Test: Failed to download file from self");
 					else {
 						console.log("Announcing HTTP server to nodes");
@@ -77,7 +77,7 @@ class RPCServer {
 				this.sockets.push({ socket, id: 0 });
 
 				socket.addEventListener("message", ({ data }) => {
-					const message = JSON.parse(data) as Message | null;
+					const message = JSON.parse(data) as SignallingMessage | null;
 					if (message === null) return;
 					for (let i = 0; i < this.sockets.length; i++) {
 						if (this.sockets[i].socket !== socket && (!("to" in message) || message.to === this.sockets[i].id)) {

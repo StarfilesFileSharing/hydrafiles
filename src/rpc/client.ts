@@ -37,7 +37,7 @@ export default class RPCClient {
 		for (const peer of peers) {
 			let fileContent: { file: Uint8Array; signal: number } | false = false;
 			try {
-				fileContent = await (await HTTPPeer.init(peer, this.http._db, this._client)).downloadFile(file);
+				fileContent = await (await HTTPPeer.init(peer, this.http.db, this._client)).downloadFile(file);
 			} catch (e) {
 				console.error(e);
 			}

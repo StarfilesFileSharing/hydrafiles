@@ -16,7 +16,12 @@ function extractIPAddress(sdp: string): string {
 	return ipAddresses.filter((ip) => ip !== "0.0.0.0")[0] ?? ipAddresses[0];
 }
 
-export type Message = { announce: true; from: number } | { offer: RTCSessionDescription; from: number; to: number } | { answer: RTCSessionDescription; from: number; to: number } | { iceCandidate: RTCIceCandidate; from: number; to: number };
+export type SignallingAnnounce = { announce: true; from: number };
+export type SignallingOffer = { offer: RTCSessionDescription; from: number; to: number };
+export type SignallingAnswer = { answer: RTCSessionDescription; from: number; to: number };
+export type SignallingIceCandidate = { iceCandidate: RTCIceCandidate; from: number; to: number };
+export type SignallingMessage = SignallingAnnounce | SignallingOffer | SignallingAnswer | SignallingIceCandidate;
+
 type PeerConnection = { conn: RTCPeerConnection; channel: RTCDataChannel };
 type PeerConnections = { [id: string]: { offered?: PeerConnection; answered?: PeerConnection } };
 
@@ -40,7 +45,7 @@ class RTCClient {
 	peerId: number;
 	websockets: WebSocket[];
 	peerConnections: PeerConnections = {};
-	messageQueue: Message[] = [];
+	messageQueue: SignallingMessage[] = [];
 	seenMessages: Set<string>;
 
 	private constructor(client: Hydrafiles) {
@@ -70,13 +75,13 @@ class RTCClient {
 		for (let i = 0; i < webRTC.websockets.length; i++) {
 			webRTC.websockets[i].onopen = () => {
 				console.log(`WebRTC: (1/12): Announcing to ${webRTC.websockets[i].url}`);
-				const message: Message = { announce: true, from: webRTC.peerId };
+				const message: SignallingMessage = { announce: true, from: webRTC.peerId };
 				webRTC.wsMessage(message);
 				setInterval(() => webRTC.wsMessage(message), client.config.announceSpeed);
 			};
 
 			webRTC.websockets[i].onmessage = async (event) => {
-				const message = JSON.parse(event.data) as Message;
+				const message = JSON.parse(event.data) as SignallingMessage;
 				if (message === null || message.from === peerId || webRTC.seenMessages.has(event.data) || ("to" in message && message.to !== webRTC.peerId)) return;
 				webRTC.seenMessages.add(event.data);
 				if ("announce" in message) await webRTC.handleAnnounce(message.from);
@@ -169,7 +174,7 @@ class RTCClient {
 		}
 	}
 
-	wsMessage(message: Message): void {
+	wsMessage(message: SignallingMessage): void {
 		this.messageQueue.push(message);
 		for (let i = 0; i < this.websockets.length; i++) {
 			if (this.websockets[i].readyState === 1) this.websockets[i].send(JSON.stringify(message));

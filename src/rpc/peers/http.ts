@@ -1,5 +1,5 @@
 import type Hydrafiles from "../../hydrafiles.ts";
-import Utils from "../../utils.ts";
+import Utils, { type NonNegativeNumber } from "../../utils.ts";
 import type { Database } from "jsr:@db/sqlite@0.11";
 import type { indexedDB } from "https://deno.land/x/indexeddb@v1.1.0/ponyfill.ts";
 import File from "../../file.ts";
@@ -8,10 +8,10 @@ type DatabaseWrapper = { type: "UNDEFINED"; db: undefined } | { type: "SQLITE"; 
 
 interface PeerAttributes {
 	host: string;
-	hits: number;
-	rejects: number;
-	bytes: number;
-	duration: number;
+	hits: NonNegativeNumber;
+	rejects: NonNegativeNumber;
+	bytes: NonNegativeNumber;
+	duration: NonNegativeNumber;
 	updatedAt: string;
 }
 
@@ -51,6 +51,9 @@ function createIDBDatabase(): Promise<IDBDatabase> {
 	return dbPromise;
 }
 
+/**
+ * @group Database
+ */
 class PeerDB {
 	private _client: Hydrafiles;
 	db: DatabaseWrapper = { type: "UNDEFINED", db: undefined };
@@ -314,10 +317,10 @@ class PeerDB {
 
 export class HTTPPeer implements PeerAttributes {
 	host: string;
-	hits = 0;
-	rejects = 0;
-	bytes = 0;
-	duration = 0;
+	hits: NonNegativeNumber = 0 as NonNegativeNumber;
+	rejects: NonNegativeNumber = 0 as NonNegativeNumber;
+	bytes: NonNegativeNumber = 0 as NonNegativeNumber;
+	duration: NonNegativeNumber = 0 as NonNegativeNumber;
 	updatedAt: string = new Date().toISOString();
 	private _db: PeerDB;
 	private _client: Hydrafiles;
@@ -392,8 +395,8 @@ export class HTTPPeer implements PeerAttributes {
 				file.save();
 			}
 
-			this.duration += Date.now() - startTime;
-			this.bytes += peerContent.byteLength;
+			this.duration = Utils.createNonNegativeNumber(this.duration + Date.now() - startTime);
+			this.bytes = Utils.createNonNegativeNumber(this.bytes + peerContent.byteLength);
 			this.hits++;
 			this.save();
 
@@ -415,12 +418,11 @@ export class HTTPPeer implements PeerAttributes {
 // TODO: Log common user-agents and re-use them to help anonimise non Hydrafiles peers
 export default class HTTPClient {
 	private _client: Hydrafiles;
-	/** @internal */
-	public _db: PeerDB;
+	public db: PeerDB;
 
 	private constructor(client: Hydrafiles, db: PeerDB) {
 		this._client = client;
-		this._db = db;
+		this.db = db;
 	}
 
 	/**
@@ -439,11 +441,11 @@ export default class HTTPClient {
 	}
 
 	async add(host: string): Promise<void> {
-		if (host !== this._client.config.publicHostname) await HTTPPeer.init({ host }, this._db, this._client);
+		if (host !== this._client.config.publicHostname) await HTTPPeer.init({ host }, this.db, this._client);
 	}
 
 	public getPeers = async (applicablePeers = false): Promise<PeerAttributes[]> => {
-		const peers = (await this._db.select()).filter((peer) => !applicablePeers || typeof window === "undefined" || !peer.host.startsWith("http://"));
+		const peers = (await this.db.select()).filter((peer) => !applicablePeers || typeof window === "undefined" || !peer.host.startsWith("http://"));
 
 		if (this._client.config.preferNode === "FASTEST") {
 			return peers.sort((a, b) => a.bytes / a.duration - b.bytes / b.duration);
@@ -467,7 +469,7 @@ export default class HTTPClient {
 				results.push(peer);
 				continue;
 			}
-			const promise = this.validatePeer(await HTTPPeer.init(peer, this._db, this._client)).then((result) => {
+			const promise = this.validatePeer(await HTTPPeer.init(peer, this.db, this._client)).then((result) => {
 				if (result) results.push(peer);
 				executing.splice(executing.indexOf(promise), 1);
 			});
