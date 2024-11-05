@@ -154,8 +154,6 @@ export class FileDB {
 	}
 
 	select<T extends keyof FileAttributes>(where?: { key: T; value: NonNullable<FileAttributes[T]> } | undefined, orderBy?: { key: T; direction: "ASC" | "DESC" } | "RANDOM" | undefined): Promise<FileAttributes[]> {
-		if (this.db === undefined) return new Promise((resolve) => resolve([]));
-
 		if (this.db.type === "SQLITE") {
 			let query = "SELECT * FROM file";
 			const params: (string | number | boolean)[] = [];
@@ -248,7 +246,6 @@ export class FileDB {
 	}
 
 	async update(hash: Sha256, updates: Partial<FileAttributes>): Promise<void> {
-		if (this.db === undefined) return;
 		updates.updatedAt = new Date().toISOString();
 		updates.hash = hash;
 		const newFile = fileAttributesDefaults(updates);
@@ -298,7 +295,6 @@ export class FileDB {
 	}
 
 	delete(hash: Sha256): void {
-		if (this.db === undefined) return;
 		const query = `DELETE FROM file WHERE hash = ?`;
 
 		if (this.db.type === "SQLITE") {
@@ -308,7 +304,6 @@ export class FileDB {
 	}
 
 	increment<T>(hash: Sha256, column: keyof FileAttributes): void {
-		if (this.db === undefined) return;
 		if (this.db.type === "SQLITE") this.db.db.prepare(`UPDATE file set ${column} = ${column}+1 WHERE hash = ?`).values(hash.toString());
 		else if (this.db.type === "INDEXEDDB") {
 			const request = this.objectStore().get(hash.toString());
@@ -326,8 +321,7 @@ export class FileDB {
 
 	count(): Promise<number> {
 		return new Promise((resolve, reject) => {
-			if (this.db === undefined) return resolve(0);
-			else if (this.db.type === "SQLITE") {
+			if (this.db.type === "SQLITE") {
 				const result = this.db.db.prepare("SELECT COUNT(*) FROM file").value() as number[];
 				return resolve(result[0]);
 			}
@@ -341,7 +335,6 @@ export class FileDB {
 
 	sum(column: string, where = ""): Promise<number> {
 		return new Promise((resolve, reject) => {
-			if (this.db === undefined) return resolve(0);
 			if (this.db.type === "SQLITE") {
 				const result = this.db.db.prepare(`SELECT SUM(${column}) FROM file${where.length !== 0 ? ` WHERE ${where}` : ""}`).value() as number[];
 				return resolve(result === undefined ? 0 : result[0]);

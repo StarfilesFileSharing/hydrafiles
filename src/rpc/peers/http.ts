@@ -98,8 +98,6 @@ class PeerDB {
 	}
 
 	select<T extends keyof PeerAttributes>(where?: { key: T; value: NonNullable<PeerAttributes[T]> } | undefined, orderBy?: { key: T; direction: "ASC" | "DESC" } | "RANDOM" | undefined): Promise<PeerAttributes[]> {
-		if (this.db === undefined) return new Promise((resolve) => resolve([]));
-
 		if (this.db.type === "SQLITE") {
 			let query = "SELECT * FROM peer";
 			const params: (string | number | boolean)[] = [];
@@ -194,8 +192,6 @@ class PeerDB {
 	}
 
 	async update(host: string, newPeer: PeerAttributes | HTTPPeer): Promise<void> {
-		if (this.db === undefined) return;
-
 		// Get the current peer attributes before updating
 		const currentPeer = (await this.select({ key: "host", value: host }))[0] ?? { host };
 		if (!currentPeer) {
@@ -243,7 +239,6 @@ class PeerDB {
 	}
 
 	delete(host: string): void {
-		if (this.db === undefined) return;
 		const query = `DELETE FROM peer WHERE host = ?`;
 
 		if (this.db.type === "SQLITE") {
@@ -253,7 +248,6 @@ class PeerDB {
 	}
 
 	increment<T>(host: string, column: keyof PeerAttributes): void {
-		if (this.db === undefined) return;
 		if (this.db.type === "SQLITE") this.db.db.prepare(`UPDATE peer set ${column} = ${column}+1 WHERE host = ?`).values(host);
 		else if (this.db.type === "INDEXEDDB") {
 			const request = this.objectStore().get(host);
@@ -271,8 +265,7 @@ class PeerDB {
 
 	count(): Promise<number> {
 		return new Promise((resolve, reject) => {
-			if (this.db === undefined) return resolve(0);
-			else if (this.db.type === "SQLITE") {
+			if (this.db.type === "SQLITE") {
 				const result = this.db.db.prepare("SELECT COUNT(*) FROM peer").value() as number[];
 				return resolve(result[0]);
 			}
@@ -286,7 +279,6 @@ class PeerDB {
 
 	sum(column: string, where = ""): Promise<number> {
 		return new Promise((resolve, reject) => {
-			if (this.db === undefined) return resolve(0);
 			if (this.db.type === "SQLITE") {
 				const result = this.db.db.prepare(`SELECT SUM(${column}) FROM peer${where.length !== 0 ? ` WHERE ${where}` : ""}`).value() as number[];
 				return resolve(result === undefined ? 0 : result[0]);
