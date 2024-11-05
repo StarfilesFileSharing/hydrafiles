@@ -428,7 +428,7 @@ export default class HTTPPeers {
 		const db = await PeerDB.init(rpcClient);
 		const httpPeers = new HTTPPeers(rpcClient, db);
 
-		(await Promise.all((await db.select()).map((peer) => HTTPPeer.init(peer, db, httpPeers._rpcClient._client)))).forEach((peer) => httpPeers.peers.set(peer.host, peer));
+		(await Promise.all((await db.select()).map((peer) => HTTPPeer.init(peer, db, rpcClient._client)))).forEach((peer) => httpPeers.peers.set(peer.host, peer));
 
 		for (let i = 0; i < rpcClient._client.config.bootstrapPeers.length; i++) {
 			await httpPeers.add(rpcClient._client.config.bootstrapPeers[i]);
@@ -437,7 +437,8 @@ export default class HTTPPeers {
 	}
 
 	async add(host: string): Promise<void> {
-		if (host !== this._rpcClient._client.config.publicHostname) await HTTPPeer.init({ host }, this.db, this._rpcClient._client);
+		const peer = await HTTPPeer.init({ host }, this.db, this._rpcClient._client);
+		if (host !== this._rpcClient._client.config.publicHostname) this.peers.set(peer.host, peer);
 	}
 
 	public getPeers = (applicablePeers = false): HTTPPeer[] => {
