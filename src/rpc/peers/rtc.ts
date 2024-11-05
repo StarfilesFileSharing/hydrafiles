@@ -22,7 +22,7 @@ export type SignallingAnswer = { answer: RTCSessionDescription; from: number; to
 export type SignallingIceCandidate = { iceCandidate: RTCIceCandidate; from: number; to: number };
 export type SignallingMessage = SignallingAnnounce | SignallingOffer | SignallingAnswer | SignallingIceCandidate;
 
-type PeerConnection = { conn: RTCPeerConnection; channel: RTCDataChannel };
+type PeerConnection = { conn: RTCPeerConnection; channel: RTCDataChannel; startTime: number };
 type PeerConnections = { [id: string]: { offered?: PeerConnection; answered?: PeerConnection } };
 
 function arrayBufferToUnicodeString(buffer: ArrayBuffer): string {
@@ -142,7 +142,14 @@ class RTCPeers {
 			}
 		};
 
-		return { conn, channel };
+		setTimeout(() => {
+			if (conn.signalingState === "have-local-offer") {
+				console.warn(`WebRTC: (13/12): ${from} Connection timed out. Cleaning up peer connection.`);
+				this.cleanupPeerConnection(conn);
+			}
+		}, this._rpcClient._client.config.timeout);
+
+		return { conn, channel, startTime: +new Date() };
 	}
 
 	cleanupPeerConnection(conn: RTCPeerConnection): void {
@@ -151,11 +158,11 @@ class RTCPeers {
 		if (remotePeerId) {
 			const peerConns = this.peerConnections[remotePeerId];
 			if (peerConns.offered?.conn === conn) {
-				console.log(`WebRTC (13/12):  ${remotePeerId}  Offered connecton has ${conn.iceConnectionState}`);
+				console.warn(`WebRTC (13/12):  ${remotePeerId}  Offered connecton is ${conn.iceConnectionState}`);
 				peerConns.offered.conn.close();
 				delete peerConns.offered;
 			} else if (peerConns.answered?.conn === conn) {
-				console.log(`WebRTC: (13/12):  ${remotePeerId}  Answered connecton has ${conn.iceConnectionState}`);
+				console.warn(`WebRTC: (13/12):  ${remotePeerId}  Answered connecton is ${conn.iceConnectionState}`);
 				peerConns.answered.conn.close();
 				delete peerConns.answered;
 			}
@@ -239,10 +246,10 @@ class RTCPeers {
 			return;
 		}
 		console.log(`WebRTC: (8/12): ${from} Received ICE candidate`);
-		if (typeof window !== "undefined") { // TODO: Figure out why this broken on desktop
-			if (this.peerConnections[from].offered && this.peerConnections[from].offered.conn.remoteDescription) this.peerConnections[from].offered.conn.addIceCandidate(iceCandidate).catch(console.error);
-			if (this.peerConnections[from].answered) this.peerConnections[from].answered.conn.addIceCandidate(iceCandidate).catch(console.error);
-		}
+		// if (typeof window !== "undefined") { // TODO: If running in both desktop and browser, desktop crashes from port already in use error
+		if (this.peerConnections[from].offered && this.peerConnections[from].offered.conn.remoteDescription) this.peerConnections[from].offered.conn.addIceCandidate(iceCandidate).catch(console.error);
+		if (this.peerConnections[from].answered) this.peerConnections[from].answered.conn.addIceCandidate(iceCandidate).catch(console.error);
+		// }
 	}
 
 	public fetch(input: RequestInfo, init?: RequestInit): Promise<Response>[] {
