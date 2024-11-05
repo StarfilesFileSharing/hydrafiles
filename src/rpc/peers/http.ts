@@ -7,7 +7,7 @@ import type RPCClient from "../client.ts";
 
 type DatabaseWrapper = { type: "UNDEFINED"; db: undefined } | { type: "SQLITE"; db: Database } | { type: "INDEXEDDB"; db: IDBDatabase };
 
-interface PeerAttributes {
+export interface PeerAttributes {
 	host: string;
 	hits: NonNegativeNumber;
 	rejects: NonNegativeNumber;
