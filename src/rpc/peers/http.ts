@@ -2,7 +2,7 @@ import type Hydrafiles from "../../hydrafiles.ts";
 import Utils, { type NonNegativeNumber } from "../../utils.ts";
 import type { Database } from "jsr:@db/sqlite@0.11";
 import type { indexedDB } from "https://deno.land/x/indexeddb@v1.1.0/ponyfill.ts";
-import File from "../../file.ts";
+import { File } from "../../file.ts";
 import type RPCClient from "../client.ts";
 
 type DatabaseWrapper = { type: "UNDEFINED"; db: undefined } | { type: "SQLITE"; db: Database } | { type: "INDEXEDDB"; db: IDBDatabase };
@@ -98,8 +98,6 @@ class PeerDB {
 	}
 
 	select<T extends keyof PeerAttributes>(where?: { key: T; value: NonNullable<PeerAttributes[T]> } | undefined, orderBy?: { key: T; direction: "ASC" | "DESC" } | "RANDOM" | undefined): Promise<PeerAttributes[]> {
-		if (this.db === undefined) return new Promise((resolve) => resolve([]));
-
 		if (this.db.type === "SQLITE") {
 			let query = "SELECT * FROM peer";
 			const params: (string | number | boolean)[] = [];
@@ -194,8 +192,6 @@ class PeerDB {
 	}
 
 	async update(host: string, newPeer: PeerAttributes | HTTPPeer): Promise<void> {
-		if (this.db === undefined) return;
-
 		// Get the current peer attributes before updating
 		const currentPeer = (await this.select({ key: "host", value: host }))[0] ?? { host };
 		if (!currentPeer) {
@@ -243,7 +239,6 @@ class PeerDB {
 	}
 
 	delete(host: string): void {
-		if (this.db === undefined) return;
 		const query = `DELETE FROM peer WHERE host = ?`;
 
 		if (this.db.type === "SQLITE") {
@@ -253,7 +248,6 @@ class PeerDB {
 	}
 
 	increment<T>(host: string, column: keyof PeerAttributes): void {
-		if (this.db === undefined) return;
 		if (this.db.type === "SQLITE") this.db.db.prepare(`UPDATE peer set ${column} = ${column}+1 WHERE host = ?`).values(host);
 		else if (this.db.type === "INDEXEDDB") {
 			const request = this.objectStore().get(host);
@@ -271,8 +265,7 @@ class PeerDB {
 
 	count(): Promise<number> {
 		return new Promise((resolve, reject) => {
-			if (this.db === undefined) return resolve(0);
-			else if (this.db.type === "SQLITE") {
+			if (this.db.type === "SQLITE") {
 				const result = this.db.db.prepare("SELECT COUNT(*) FROM peer").value() as number[];
 				return resolve(result[0]);
 			}
@@ -286,7 +279,6 @@ class PeerDB {
 
 	sum(column: string, where = ""): Promise<number> {
 		return new Promise((resolve, reject) => {
-			if (this.db === undefined) return resolve(0);
 			if (this.db.type === "SQLITE") {
 				const result = this.db.db.prepare(`SELECT SUM(${column}) FROM peer${where.length !== 0 ? ` WHERE ${where}` : ""}`).value() as number[];
 				return resolve(result === undefined ? 0 : result[0]);
@@ -316,7 +308,7 @@ class PeerDB {
 	}
 }
 
-export class HTTPPeer implements PeerAttributes {
+class HTTPPeer implements PeerAttributes {
 	host: string;
 	hits: NonNegativeNumber = 0 as NonNegativeNumber;
 	rejects: NonNegativeNumber = 0 as NonNegativeNumber;
@@ -414,12 +406,19 @@ export class HTTPPeer implements PeerAttributes {
 			return false;
 		}
 	}
+
+	async validate(): Promise<boolean> {
+		const file = await File.init({ hash: Utils.sha256("04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f") }, this._client);
+		if (!file) throw new Error("Failed to build file");
+		return await this.downloadFile(file) !== false;
+	}
 }
 
 // TODO: Log common user-agents and re-use them to help anonimise non Hydrafiles peers
-export default class HTTPClient {
+export default class HTTPPeers {
 	private _rpcClient: RPCClient;
 	public db: PeerDB;
+	public peers = new Map<string, HTTPPeer>();
 
 	private constructor(rpcClient: RPCClient, db: PeerDB) {
 		this._rpcClient = rpcClient;
@@ -427,40 +426,43 @@ export default class HTTPClient {
 	}
 
 	/**
-	 * Initializes an instance of HTTPClient.
-	 * @returns {HTTPClient} A new instance of HTTPClient.
+	 * Initializes an instance of HTTPPeers.
+	 * @returns {HTTPPeers} A new instance of HTTPPeers.
 	 * @default
 	 */
-	public static async init(rpcClient: RPCClient): Promise<HTTPClient> {
+	public static async init(rpcClient: RPCClient): Promise<HTTPPeers> {
 		const db = await PeerDB.init(rpcClient);
-		const peers = new HTTPClient(rpcClient, db);
+		const httpPeers = new HTTPPeers(rpcClient, db);
+
+		(await Promise.all((await db.select()).map((peer) => HTTPPeer.init(peer, db, rpcClient._client)))).forEach((peer) => httpPeers.peers.set(peer.host, peer));
 
 		for (let i = 0; i < rpcClient._client.config.bootstrapPeers.length; i++) {
-			await peers.add(rpcClient._client.config.bootstrapPeers[i]);
+			await httpPeers.add(rpcClient._client.config.bootstrapPeers[i]);
 		}
-		return peers;
+		return httpPeers;
 	}
 
 	async add(host: string): Promise<void> {
-		if (host !== this._rpcClient._client.config.publicHostname) await HTTPPeer.init({ host }, this.db, this._rpcClient._client);
+		const peer = await HTTPPeer.init({ host }, this.db, this._rpcClient._client);
+		if (host !== this._rpcClient._client.config.publicHostname) this.peers.set(peer.host, peer);
 	}
 
-	public getPeers = async (applicablePeers = false): Promise<PeerAttributes[]> => {
-		const peers = (await this.db.select()).filter((peer) => !applicablePeers || typeof window === "undefined" || !peer.host.startsWith("http://"));
+	public getPeers = (applicablePeers = false): HTTPPeer[] => {
+		const peers = Array.from(this.peers).filter((peer) => !applicablePeers || typeof window === "undefined" || !peer[0].startsWith("http://"));
 
 		if (this._rpcClient._client.config.preferNode === "FASTEST") {
-			return peers.sort((a, b) => a.bytes / a.duration - b.bytes / b.duration);
+			return peers.map(([_, peer]) => peer).sort((a, b) => a.bytes / a.duration - b.bytes / b.duration);
 		} else if (this._rpcClient._client.config.preferNode === "LEAST_USED") {
-			return peers.sort((a, b) => a.hits - a.rejects - (b.hits - b.rejects));
+			return peers.map(([_, peer]) => peer).sort((a, b) => a.hits - a.rejects - (b.hits - b.rejects));
 		} else if (this._rpcClient._client.config.preferNode === "HIGHEST_HITRATE") {
-			return peers.sort((a, b) => a.hits - a.rejects - (b.hits - b.rejects));
+			return peers.sort((a, b) => a[1].hits - a[1].rejects - (b[1].hits - b[1].rejects)).map(([_, peer]) => peer);
 		} else {
-			return peers;
+			return peers.map(([_, peer]) => peer);
 		}
 	};
 
 	async getValidPeers(): Promise<PeerAttributes[]> {
-		const peers = await this.getPeers();
+		const peers = this.getPeers();
 		const results: PeerAttributes[] = [];
 		const executing: Array<Promise<void>> = [];
 
@@ -470,7 +472,7 @@ export default class HTTPClient {
 				results.push(peer);
 				continue;
 			}
-			const promise = this.validatePeer(await HTTPPeer.init(peer, this.db, this._rpcClient._client)).then((result) => {
+			const promise = peer.validate().then((result) => {
 				if (result) results.push(peer);
 				executing.splice(executing.indexOf(promise), 1);
 			});
@@ -480,15 +482,9 @@ export default class HTTPClient {
 		return results;
 	}
 
-	async validatePeer(peer: HTTPPeer): Promise<boolean> {
-		const file = await File.init({ hash: Utils.sha256("04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f") }, this._rpcClient._client);
-		if (!file) throw new Error("Failed to build file");
-		return await peer.downloadFile(file) !== false;
-	}
-
-	public async fetch(input: RequestInfo, init?: RequestInit): Promise<Promise<Response | false>[]> {
+	public fetch(input: RequestInfo, init?: RequestInit): Promise<Response | false>[] {
 		const req = typeof input === "string" ? new Request(input, init) : input;
-		const peers = await this.getPeers(true);
+		const peers = this.getPeers(true);
 		const fetchPromises = peers.map(async (peer) => {
 			try {
 				const url = new URL(req.url);
@@ -508,7 +504,7 @@ export default class HTTPClient {
 	// TODO: Compare list between all peers and give score based on how similar they are. 100% = all exactly the same, 0% = no items in list were shared. The lower the score, the lower the propagation times, the lower the decentralisation
 	async updatePeers(): Promise<void> {
 		console.log(`Fetching peers`);
-		const responses = await Promise.all(await this._rpcClient._client.rpcClient.fetch("http://localhost/peers"));
+		const responses = await Promise.all(this._rpcClient._client.rpcClient.fetch("http://localhost/peers"));
 		for (let i = 0; i < responses.length; i++) {
 			try {
 				if (!(responses[i] instanceof Response)) continue;
@@ -525,5 +521,11 @@ export default class HTTPClient {
 				if (this._rpcClient._client.config.logLevel === "verbose") console.error(e);
 			}
 		}
+	}
+
+	public getSelf(): HTTPPeer {
+		const peer = this.peers.get(this._rpcClient._client.config.publicHostname);
+		if (!peer) throw new Error("Could not find self");
+		return peer;
 	}
 }

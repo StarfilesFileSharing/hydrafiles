@@ -100,7 +100,7 @@ function createIDBDatabase(): Promise<IDBDatabase> {
 	return dbPromise;
 }
 
-export class FileDB {
+class FileDB {
 	private _client: Hydrafiles;
 	db: DatabaseWrapper = { type: "UNDEFINED", db: undefined };
 
@@ -154,8 +154,6 @@ export class FileDB {
 	}
 
 	select<T extends keyof FileAttributes>(where?: { key: T; value: NonNullable<FileAttributes[T]> } | undefined, orderBy?: { key: T; direction: "ASC" | "DESC" } | "RANDOM" | undefined): Promise<FileAttributes[]> {
-		if (this.db === undefined) return new Promise((resolve) => resolve([]));
-
 		if (this.db.type === "SQLITE") {
 			let query = "SELECT * FROM file";
 			const params: (string | number | boolean)[] = [];
@@ -248,7 +246,6 @@ export class FileDB {
 	}
 
 	async update(hash: Sha256, updates: Partial<FileAttributes>): Promise<void> {
-		if (this.db === undefined) return;
 		updates.updatedAt = new Date().toISOString();
 		updates.hash = hash;
 		const newFile = fileAttributesDefaults(updates);
@@ -298,7 +295,6 @@ export class FileDB {
 	}
 
 	delete(hash: Sha256): void {
-		if (this.db === undefined) return;
 		const query = `DELETE FROM file WHERE hash = ?`;
 
 		if (this.db.type === "SQLITE") {
@@ -308,7 +304,6 @@ export class FileDB {
 	}
 
 	increment<T>(hash: Sha256, column: keyof FileAttributes): void {
-		if (this.db === undefined) return;
 		if (this.db.type === "SQLITE") this.db.db.prepare(`UPDATE file set ${column} = ${column}+1 WHERE hash = ?`).values(hash.toString());
 		else if (this.db.type === "INDEXEDDB") {
 			const request = this.objectStore().get(hash.toString());
@@ -326,8 +321,7 @@ export class FileDB {
 
 	count(): Promise<number> {
 		return new Promise((resolve, reject) => {
-			if (this.db === undefined) return resolve(0);
-			else if (this.db.type === "SQLITE") {
+			if (this.db.type === "SQLITE") {
 				const result = this.db.db.prepare("SELECT COUNT(*) FROM file").value() as number[];
 				return resolve(result[0]);
 			}
@@ -341,7 +335,6 @@ export class FileDB {
 
 	sum(column: string, where = ""): Promise<number> {
 		return new Promise((resolve, reject) => {
-			if (this.db === undefined) return resolve(0);
 			if (this.db.type === "SQLITE") {
 				const result = this.db.db.prepare(`SELECT SUM(${column}) FROM file${where.length !== 0 ? ` WHERE ${where}` : ""}`).value() as number[];
 				return resolve(result === undefined ? 0 : result[0]);
@@ -371,7 +364,7 @@ export class FileDB {
 	}
 }
 
-class File implements FileAttributes {
+export class File implements FileAttributes {
 	hash!: Sha256;
 	infohash: string | null = null;
 	downloadCount = Utils.createNonNegativeNumber(0);
@@ -400,14 +393,14 @@ class File implements FileAttributes {
 	 * @returns {File} A new instance of File.
 	 * @default
 	 */
-	static async init(values: Partial<FileAttributes>, client: Hydrafiles, vote = false): Promise<File | false> {
+	static async init(values: Partial<FileAttributes>, client: Hydrafiles, vote = false): Promise<File> {
 		if (!values.hash && values.id) {
-			const files = await client.fileDB.select({ key: "id", value: values.id });
+			const files = await client.files.db.select({ key: "id", value: values.id });
 			values.hash = files[0]?.hash;
 		}
 		if (!values.hash && values.id) {
 			console.log(`Fetching file metadata`); // TODO: Merge with getMetadata
-			const responses = await client.rpcClient.fetch(`http://localhost/file/${values.id}`);
+			const responses = client.rpcClient.fetch(`http://localhost/file/${values.id}`);
 			for (let i = 0; i < responses.length; i++) {
 				const response = await responses[i];
 				if (!response) continue;
@@ -422,16 +415,16 @@ class File implements FileAttributes {
 			throw new Error("No hash found for the provided id");
 		}
 		if (values.infohash !== undefined && values.infohash !== null && Utils.isValidInfoHash(values.infohash)) {
-			const files = await client.fileDB.select({ key: "infohash", value: values.infohash });
+			const files = await client.files.db.select({ key: "infohash", value: values.infohash });
 			const fileHash = files[0]?.hash;
 			if (fileHash) values.hash = fileHash;
 		}
 		if (!values.hash) throw new Error("File not found");
 
-		let fileAttributes = (await client.fileDB.select({ key: "hash", value: values.hash }))[0];
+		let fileAttributes = (await client.files.db.select({ key: "hash", value: values.hash }))[0];
 		if (fileAttributes === undefined) {
-			client.fileDB.insert(values);
-			fileAttributes = (await client.fileDB.select({ key: "hash", value: values.hash }))[0] ?? { hash: values.hash };
+			client.files.db.insert(values);
+			fileAttributes = (await client.files.db.select({ key: "hash", value: values.hash }))[0] ?? { hash: values.hash };
 		}
 		const file = new File(values.hash, client, vote);
 		Object.assign(file, fileAttributesDefaults(fileAttributes));
@@ -465,7 +458,7 @@ class File implements FileAttributes {
 
 		const id = this.id;
 		if (id !== undefined && id !== null && id.length > 0) {
-			const responses = await this._client.rpcClient.fetch(`http://localhost/file/${this.id}`);
+			const responses = this._client.rpcClient.fetch(`http://localhost/file/${this.id}`);
 
 			for (let i = 0; i < responses.length; i++) {
 				try {
@@ -633,7 +626,7 @@ class File implements FileAttributes {
 			if (this._client.config.s3Endpoint.length > 0) file = await this.fetchFromS3();
 			if (file !== false) console.log(`  ${hash}  Serving ${this.size !== undefined ? Math.round(this.size / 1024 / 1024) : 0}MB from S3`);
 			else {
-				file = await this._client.rpcClient.downloadFile(hash, this.size);
+				file = await this.download();
 				if (file === false) {
 					this.found = false;
 					this.save();
@@ -647,7 +640,7 @@ class File implements FileAttributes {
 	}
 
 	save(): void {
-		if (this._client.fileDB) this._client.fileDB.update(this.hash, this);
+		this._client.files.db.update(this.hash, this);
 	}
 
 	seed(): void {
@@ -670,7 +663,7 @@ class File implements FileAttributes {
 	}
 
 	increment(column: keyof FileAttributes): void {
-		if (this._client.fileDB) this._client.fileDB.increment(this.hash, column);
+		this._client.files.db.increment(this.hash, column);
 		this[column]++;
 	}
 
@@ -687,6 +680,155 @@ class File implements FileAttributes {
 			this.save();
 		}
 	}
+
+	async download(): Promise<{ file: Uint8Array; signal: number } | false> {
+		let size = this.size;
+		if (size === 0) {
+			this.getMetadata();
+			size = this.size;
+		}
+		if (!this._client.utils.hasSufficientMemory(size)) {
+			console.log("Reached memory limit, waiting");
+			await new Promise(() => {
+				const intervalId = setInterval(async () => {
+					if (await this._client.utils.hasSufficientMemory(size)) clearInterval(intervalId);
+				}, this._client.config.memoryThresholdReachedWait);
+			});
+		}
+
+		const peers = this._client.rpcClient.http.getPeers(true);
+		for (const peer of peers) {
+			let fileContent: { file: Uint8Array; signal: number } | false = false;
+			try {
+				fileContent = await peer.downloadFile(this);
+			} catch (e) {
+				console.error(e);
+			}
+			if (fileContent) return fileContent;
+		}
+
+		console.log(`  ${this.hash}  Downloading from WebRTC`);
+		const responses = this._client.rpcClient.rtc.fetch(`http://localhost/download/${this.hash}`);
+		for (let i = 0; i < responses.length; i++) {
+			const response = await responses[i];
+			const peerContent = new Uint8Array(await response.arrayBuffer());
+			console.log(`  ${this.hash}  Validating hash`);
+			const verifiedHash = await Utils.hashUint8Array(peerContent);
+			console.log(`  ${this.hash}  Done Validating hash`);
+			if (this.hash !== verifiedHash) return false;
+			console.log(`  ${this.hash}  Valid hash`);
+
+			if (this.name === null || this.name.length === 0) {
+				this.name = String(response.headers.get("Content-Disposition")?.split("=")[1].replace(/"/g, "").replace(" [HYDRAFILES]", ""));
+				this.save();
+			}
+		}
+
+		return false;
+	}
 }
 
-export default File;
+class Files {
+	private _client: Hydrafiles;
+	public db: FileDB;
+	public files = new Map<string, File>(); // TODO: add inserts
+
+	private constructor(client: Hydrafiles, db: FileDB) {
+		this._client = client;
+		this.db = db;
+
+		setTimeout(async () => {
+			const files = await this.db.select();
+			for (const file of files) {
+				this.add(file);
+			}
+		}, 1000); // Runs 1 sec late to ensure Files gets saves to this._client
+	}
+
+	static async init(client: Hydrafiles): Promise<Files> {
+		return new Files(client, await FileDB.init(client));
+	}
+
+	public async add(values: Partial<FileAttributes>): Promise<File> {
+		if (!values.hash) throw new Error("Hash not defined");
+		const file = await File.init(values, this._client, false);
+		this.files.set(values.hash, file);
+		if (values.infohash) this.files.set(values.infohash, file);
+		if (values.name) this.files.set(values.name, file);
+		return file;
+	}
+
+	backfillFiles = async (): Promise<void> => {
+		while (true) {
+			try {
+				const keys = Array.from(this.files.keys());
+				if (keys.length === 0) return;
+				const randomKey = keys[Math.floor(Math.random() * keys.length)];
+				const file = this.files.get(randomKey);
+				if (!file) return;
+				if (file) {
+					console.log(`  ${file.hash}  Backfilling file`);
+					await file.getFile({ logDownloads: false });
+				}
+			} catch (e) {
+				if (this._client.config.logLevel === "verbose") throw e;
+			}
+		}
+	};
+
+	// TODO: Compare list between all peers and give score based on how similar they are. 100% = all exactly the same, 0% = no items in list were shared. The lower the score, the lower the propagation times, the lower the decentralisation
+	async updateFileList(onProgress?: (progress: number, total: number) => void): Promise<void> {
+		console.log(`Comparing file list`);
+		let files: FileAttributes[] = [];
+		const responses = await Promise.all(this._client.rpcClient.fetch("http://localhost/files"));
+		for (let i = 0; i < responses.length; i++) {
+			if (responses[i] !== false) {
+				try {
+					files = files.concat((await (responses[i] as Response).json()) as FileAttributes[]);
+				} catch (e) {
+					if (this._client.config.logLevel === "verbose") console.log(e);
+				}
+			}
+		}
+
+		const uniqueFiles = new Set<string>();
+		files = files.filter((file) => {
+			const fileString = JSON.stringify(file);
+			if (!uniqueFiles.has(fileString)) {
+				uniqueFiles.add(fileString);
+				return true;
+			}
+			return false;
+		});
+
+		for (let i = 0; i < files.length; i++) {
+			if (onProgress) onProgress(i, files.length);
+			const newFile = files[i];
+			try {
+				if (typeof files[i].hash === "undefined") continue;
+				const fileObj: Partial<FileAttributes> = { hash: files[i].hash };
+				if (files[i].infohash) fileObj.infohash = files[i].infohash;
+				const currentFile = await this.add(fileObj);
+				if (!currentFile) continue;
+
+				const keys = Object.keys(newFile) as unknown as (keyof File)[];
+				for (let i = 0; i < keys.length; i++) {
+					const key = keys[i] as keyof FileAttributes;
+					if (["downloadCount", "voteHash", "voteNonce", "voteDifficulty"].includes(key)) continue;
+					// @ts-expect-error:
+					if (newFile[key] !== undefined && newFile[key] !== null && newFile[key] !== 0 && (currentFile[key] === null || currentFile[key] === 0)) currentFile[key] = newFile[key];
+					if (newFile.voteNonce !== 0 && newFile.voteDifficulty > currentFile.voteDifficulty && newFile["voteNonce"] > 0) {
+						console.log(`  ${newFile.hash}  Checking vote nonce ${newFile["voteNonce"]}`);
+						currentFile.checkVoteNonce(newFile["voteNonce"]);
+					}
+				}
+				currentFile.save();
+			} catch (e) {
+				console.error(e);
+			}
+		}
+		if (onProgress) onProgress(files.length, files.length);
+	}
+}
+
+export default Files;
