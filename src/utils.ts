@@ -1,17 +1,20 @@
 // import { crypto } from "jsr:@std/crypto";
 import { encodeHex } from "jsr:@std/encoding/hex";
-import type Hydrafiles from "./hydrafiles.ts";
 import { join } from "https://deno.land/std@0.224.0/path/mod.ts";
 import { decodeBase32 } from "jsr:@std/encoding@^1.0.5/base32";
+import type { Config } from "./config.ts";
+import FS from "./filesystem/filesystem.ts";
 
 export type Base64 = string & { readonly brand: unique symbol };
 export type NonNegativeNumber = number & { readonly brand: unique symbol };
 export type Sha256 = string & { readonly brand: unique symbol };
 
 class Utils {
-	private _client: Hydrafiles;
-	constructor(client: Hydrafiles) {
-		this._client = client;
+	private _config: Config;
+	private _fs: FS;
+	constructor(config: Config, fs: FS) {
+		this._config = config;
+		this._fs = fs;
 	}
 
 	static getRandomNumber = (min: number, max: number): number => Math.floor(Math.random() * (max - min + 1)) + min;
@@ -20,13 +23,13 @@ class Utils {
 	static isIp = (host: string): boolean => /^https?:\/\/(?:\d+\.){3}\d+(?::\d+)?$/.test(host);
 	static isPrivateIP = (ip: string): boolean => /^https?:\/\/(?:10\.|(?:172\.(?:1[6-9]|2\d|3[0-1]))\.|192\.168\.|169\.254\.|127\.|224\.0\.0\.|255\.255\.255\.255)/.test(ip);
 	static interfere = (signalStrength: number): number => signalStrength >= 95 ? this.getRandomNumber(90, 100) : Math.ceil(signalStrength * (1 - (this.getRandomNumber(0, 10) / 100)));
-	remainingStorage = async (): Promise<number> => this._client.config.maxCache - await this.calculateUsedStorage();
+	remainingStorage = async (): Promise<number> => this._config.maxCache - await this.calculateUsedStorage();
 	static createNonNegativeNumber = (n: number): NonNegativeNumber => (Number.isInteger(n) && n >= 0 ? n : 0) as NonNegativeNumber;
 
 	hasSufficientMemory = async (fileSize: number): Promise<boolean> => {
 		if (typeof window !== "undefined") return true;
 		const os = await import("https://deno.land/std@0.170.0/node/os.ts");
-		return os.freemem() > (fileSize + this._client.config.memoryThreshold);
+		return os.freemem() > (fileSize + this._config.memoryThreshold);
 	};
 	static promiseWithTimeout = async <T>(promise: Promise<T>, timeoutDuration: number): Promise<T> =>
 		await Promise.race([
@@ -91,10 +94,10 @@ class Utils {
 		const filesPath = "files/";
 		let usedStorage = 0;
 
-		if (await this._client.fs.exists(filesPath)) {
-			const files = await this._client.fs.readDir(filesPath);
+		if (await this._fs.exists(filesPath)) {
+			const files = await this._fs.readDir(filesPath);
 			for (const file of files) {
-				const fileSize = await this._client.fs.getFileSize(join(filesPath, file));
+				const fileSize = await this._fs.getFileSize(join(filesPath, file));
 				usedStorage += typeof fileSize === "number" ? fileSize : 0;
 			}
 		}
@@ -107,18 +110,18 @@ class Utils {
 		console.warn("WARNING: Your node has reached max storage, some files are getting purged. To prevent this, increase your limit at config.json or add more storage to your machine.");
 
 		const filesPath = "files/";
-		const files = await this._client.fs.readDir(filesPath);
+		const files = await this._fs.readDir(filesPath);
 
 		for (const file of files) {
-			if (this._client.config.permaFiles.includes(file)) continue;
+			if (this._config.permaFiles.includes(file)) continue;
 
 			const filePath = join(filesPath, file);
 
-			this._client.fs.remove(filePath).catch(console.error);
-			const fileSize = await this._client.fs.getFileSize(filePath);
+			this._fs.remove(filePath).catch(console.error);
+			const fileSize = await this._fs.getFileSize(filePath);
 			if (typeof fileSize === "number") remainingSpace += fileSize;
 
-			if (requiredSpace <= remainingSpace && await this.calculateUsedStorage() * (1 - this._client.config.burnRate) <= remainingSpace) {
+			if (requiredSpace <= remainingSpace && await this.calculateUsedStorage() * (1 - this._config.burnRate) <= remainingSpace) {
 				break;
 			}
 		}
@@ -167,10 +170,10 @@ class Utils {
 	}
 
 	async getKeyPair(): Promise<CryptoKeyPair> {
-		if (await this._client.fs.exists("private.key")) {
-			const privKey = await this._client.fs.readFile("private.key");
+		if (await this._fs.exists("private.key")) {
+			const privKey = await this._fs.readFile("private.key");
 			if (!privKey) throw new Error("Failed to read private key");
-			const pubKey = await this._client.fs.readFile("public.key");
+			const pubKey = await this._fs.readFile("public.key");
 			if (!pubKey) throw new Error("Failed to read public key");
 			const privateKey = await Utils.importPrivateKey(privKey);
 			const publicKey = await Utils.importPublicKey(pubKey);
@@ -188,8 +191,8 @@ class Utils {
 			true,
 			["sign", "verify"],
 		);
-		this._client.fs.writeFile("private.key", new Uint8Array(await crypto.subtle.exportKey("pkcs8", key.privateKey)));
-		this._client.fs.writeFile("public.key", new Uint8Array(await crypto.subtle.exportKey("raw", key.publicKey)));
+		this._fs.writeFile("private.key", new Uint8Array(await crypto.subtle.exportKey("pkcs8", key.privateKey)));
+		this._fs.writeFile("public.key", new Uint8Array(await crypto.subtle.exportKey("raw", key.publicKey)));
 		return key;
 	}
 	static async importPublicKey(pem: ArrayBuffer): Promise<CryptoKey> {
