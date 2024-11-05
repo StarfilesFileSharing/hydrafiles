@@ -6,6 +6,7 @@ import { join } from "https://deno.land/std@0.224.0/path/mod.ts";
 import { SignallingMessage } from "./peers/rtc.ts";
 import { serveFile } from "https://deno.land/std@0.115.0/http/file_server.ts";
 import { File } from "../file.ts";
+import type { PeerAttributes } from "./peers/http.ts";
 
 class RPCServer {
 	private _client: Hydrafiles;
@@ -101,7 +102,19 @@ class RPCServer {
 			} else if (url.pathname === "/peers") {
 				headers.set("Content-Type", "application/json");
 				headers.set("Cache-Control", "public, max-age=300");
-				return new Response(JSON.stringify(this._client.rpcClient.http.getPeers()), { headers });
+				return new Response(
+					JSON.stringify(
+						this._client.rpcClient.http.getPeers().map((peer) => {
+							const outputPeer: Partial<PeerAttributes> = {};
+							for (const [key, value] of Object.entries(peer)) {
+								if (key.startsWith("_")) return;
+								outputPeer[key as keyof PeerAttributes] = value;
+							}
+							return outputPeer;
+						}),
+					),
+					{ headers },
+				);
 			} else if (url.pathname === "/info") {
 				headers.set("Content-Type", "application/json");
 				headers.set("Cache-Control", "public, max-age=300");
