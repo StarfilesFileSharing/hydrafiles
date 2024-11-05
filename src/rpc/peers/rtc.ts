@@ -246,10 +246,10 @@ class RTCPeers {
 			return;
 		}
 		console.log(`WebRTC: (8/12): ${from} Received ICE candidate`);
-		// if (typeof window !== "undefined") { // TODO: If running in both desktop and browser, desktop crashes from port already in use error
 		if (this.peerConnections[from].offered && this.peerConnections[from].offered.conn.remoteDescription) this.peerConnections[from].offered.conn.addIceCandidate(iceCandidate).catch(console.error);
+		if (typeof window !== "undefined") { // TODO: If running in both desktop and browser, desktop crashes from port already in use error
 		if (this.peerConnections[from].answered) this.peerConnections[from].answered.conn.addIceCandidate(iceCandidate).catch(console.error);
-		// }
+		}
 	}
 
 	public fetch(input: RequestInfo, init?: RequestInit): Promise<Response>[] {
