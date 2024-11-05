@@ -1,5 +1,4 @@
 import type { RTCDataChannel, RTCIceCandidate, RTCPeerConnection, RTCSessionDescription } from "npm:werift";
-import type Hydrafiles from "../../hydrafiles.ts";
 import type RPCClient from "../client.ts";
 
 function extractIPAddress(sdp: string): string {
