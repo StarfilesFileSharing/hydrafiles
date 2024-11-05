@@ -3,6 +3,7 @@ import Utils, { type NonNegativeNumber } from "../../utils.ts";
 import type { Database } from "jsr:@db/sqlite@0.11";
 import type { indexedDB } from "https://deno.land/x/indexeddb@v1.1.0/ponyfill.ts";
 import File from "../../file.ts";
+import type RPCClient from "../client.ts";
 
 type DatabaseWrapper = { type: "UNDEFINED"; db: undefined } | { type: "SQLITE"; db: Database } | { type: "INDEXEDDB"; db: IDBDatabase };
 
@@ -55,11 +56,11 @@ function createIDBDatabase(): Promise<IDBDatabase> {
  * @group Database
  */
 class PeerDB {
-	private _client: Hydrafiles;
+	private _rpcClient: RPCClient;
 	db: DatabaseWrapper = { type: "UNDEFINED", db: undefined };
 
-	private constructor(client: Hydrafiles) {
-		this._client = client;
+	private constructor(rpcClient: RPCClient) {
+		this._rpcClient = rpcClient;
 	}
 
 	/**
@@ -67,8 +68,8 @@ class PeerDB {
 	 * @returns {PeerDB} A new instance of PeerDB.
 	 * @default
 	 */
-	static async init(client: Hydrafiles): Promise<PeerDB> {
-		const peerDB = new PeerDB(client);
+	static async init(rpcClient: RPCClient): Promise<PeerDB> {
+		const peerDB = new PeerDB(rpcClient);
 
 		if (typeof window === "undefined") {
 			const database = (await import("jsr:@db/sqlite@0.11")).Database;
@@ -227,16 +228,16 @@ class PeerDB {
 			const query = `UPDATE peer SET ${updatedColumn.map((column) => `${column} = ?`).join(", ")} WHERE host = ?`;
 			this.db.db.prepare(query).values(params);
 			console.log(
-				`  ${host}  Peer UPDATEd - Updated Columns: ${updatedColumn.join(", ")}` + (this._client.config.logLevel === "verbose" ? ` - Params: ${params.join(", ")}  - Query: ${query}` : ""),
-				this._client.config.logLevel === "verbose" ? console.log(`  ${host}  Updated Values:`, beforeAndAfter) : "",
+				`  ${host}  Peer UPDATEd - Updated Columns: ${updatedColumn.join(", ")}` + (this._rpcClient._client.config.logLevel === "verbose" ? ` - Params: ${params.join(", ")}  - Query: ${query}` : ""),
+				this._rpcClient._client.config.logLevel === "verbose" ? console.log(`  ${host}  Updated Values:`, beforeAndAfter) : "",
 			);
 		} else {
 			// @ts-expect-error:
 			const { _db, ...clonedPeer } = newPeer;
 			if (this.db.type === "INDEXEDDB") this.objectStore().put(clonedPeer).onerror = console.error;
 			console.log(
-				`  ${host}  Peer UPDATEd - Updated Columns: ${updatedColumn.join(", ")}` + (this._client.config.logLevel === "verbose" ? ` - Params: ${params.join(", ")}` : ""),
-				this._client.config.logLevel === "verbose" ? console.log(`  ${host}  Updated Values:`, beforeAndAfter) : "",
+				`  ${host}  Peer UPDATEd - Updated Columns: ${updatedColumn.join(", ")}` + (this._rpcClient._client.config.logLevel === "verbose" ? ` - Params: ${params.join(", ")}` : ""),
+				this._rpcClient._client.config.logLevel === "verbose" ? console.log(`  ${host}  Updated Values:`, beforeAndAfter) : "",
 			);
 		}
 	}
@@ -417,11 +418,11 @@ export class HTTPPeer implements PeerAttributes {
 
 // TODO: Log common user-agents and re-use them to help anonimise non Hydrafiles peers
 export default class HTTPClient {
-	private _client: Hydrafiles;
+	private _rpcClient: RPCClient;
 	public db: PeerDB;
 
-	private constructor(client: Hydrafiles, db: PeerDB) {
-		this._client = client;
+	private constructor(rpcClient: RPCClient, db: PeerDB) {
+		this._rpcClient = rpcClient;
 		this.db = db;
 	}
 
@@ -430,28 +431,28 @@ export default class HTTPClient {
 	 * @returns {HTTPClient} A new instance of HTTPClient.
 	 * @default
 	 */
-	public static async init(client: Hydrafiles): Promise<HTTPClient> {
-		const db = await PeerDB.init(client);
-		const peers = new HTTPClient(client, db);
+	public static async init(rpcClient: RPCClient): Promise<HTTPClient> {
+		const db = await PeerDB.init(rpcClient);
+		const peers = new HTTPClient(rpcClient, db);
 
-		for (let i = 0; i < client.config.bootstrapPeers.length; i++) {
-			await peers.add(client.config.bootstrapPeers[i]);
+		for (let i = 0; i < rpcClient._client.config.bootstrapPeers.length; i++) {
+			await peers.add(rpcClient._client.config.bootstrapPeers[i]);
 		}
 		return peers;
 	}
 
 	async add(host: string): Promise<void> {
-		if (host !== this._client.config.publicHostname) await HTTPPeer.init({ host }, this.db, this._client);
+		if (host !== this._rpcClient._client.config.publicHostname) await HTTPPeer.init({ host }, this.db, this._rpcClient._client);
 	}
 
 	public getPeers = async (applicablePeers = false): Promise<PeerAttributes[]> => {
 		const peers = (await this.db.select()).filter((peer) => !applicablePeers || typeof window === "undefined" || !peer.host.startsWith("http://"));
 
-		if (this._client.config.preferNode === "FASTEST") {
+		if (this._rpcClient._client.config.preferNode === "FASTEST") {
 			return peers.sort((a, b) => a.bytes / a.duration - b.bytes / b.duration);
-		} else if (this._client.config.preferNode === "LEAST_USED") {
+		} else if (this._rpcClient._client.config.preferNode === "LEAST_USED") {
 			return peers.sort((a, b) => a.hits - a.rejects - (b.hits - b.rejects));
-		} else if (this._client.config.preferNode === "HIGHEST_HITRATE") {
+		} else if (this._rpcClient._client.config.preferNode === "HIGHEST_HITRATE") {
 			return peers.sort((a, b) => a.hits - a.rejects - (b.hits - b.rejects));
 		} else {
 			return peers;
@@ -465,11 +466,11 @@ export default class HTTPClient {
 
 		for (let i = 0; i < peers.length; i++) {
 			const peer = peers[i];
-			if (peer.host === this._client.config.publicHostname) {
+			if (peer.host === this._rpcClient._client.config.publicHostname) {
 				results.push(peer);
 				continue;
 			}
-			const promise = this.validatePeer(await HTTPPeer.init(peer, this.db, this._client)).then((result) => {
+			const promise = this.validatePeer(await HTTPPeer.init(peer, this.db, this._rpcClient._client)).then((result) => {
 				if (result) results.push(peer);
 				executing.splice(executing.indexOf(promise), 1);
 			});
@@ -480,7 +481,7 @@ export default class HTTPClient {
 	}
 
 	async validatePeer(peer: HTTPPeer): Promise<boolean> {
-		const file = await File.init({ hash: Utils.sha256("04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f") }, this._client);
+		const file = await File.init({ hash: Utils.sha256("04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f") }, this._rpcClient._client);
 		if (!file) throw new Error("Failed to build file");
 		return await peer.downloadFile(file) !== false;
 	}
@@ -494,9 +495,9 @@ export default class HTTPClient {
 				const peerUrl = new URL(peer.host);
 				url.hostname = peerUrl.hostname;
 				url.protocol = peerUrl.protocol;
-				return await Utils.promiseWithTimeout(fetch(url.toString(), init), this._client.config.timeout);
+				return await Utils.promiseWithTimeout(fetch(url.toString(), init), this._rpcClient._client.config.timeout);
 			} catch (e) {
-				if (this._client.config.logLevel === "verbose") console.error(e);
+				if (this._rpcClient._client.config.logLevel === "verbose") console.error(e);
 				return false;
 			}
 		});
@@ -507,7 +508,7 @@ export default class HTTPClient {
 	// TODO: Compare list between all peers and give score based on how similar they are. 100% = all exactly the same, 0% = no items in list were shared. The lower the score, the lower the propagation times, the lower the decentralisation
 	async updatePeers(): Promise<void> {
 		console.log(`Fetching peers`);
-		const responses = await Promise.all(await this._client.rpcClient.fetch("http://localhost/peers"));
+		const responses = await Promise.all(await this._rpcClient._client.rpcClient.fetch("http://localhost/peers"));
 		for (let i = 0; i < responses.length; i++) {
 			try {
 				if (!(responses[i] instanceof Response)) continue;
@@ -516,12 +517,12 @@ export default class HTTPClient {
 					const remotePeers = (await response.json()) as HTTPPeer[];
 					for (const remotePeer of remotePeers) {
 						this.add(remotePeer.host).catch((e) => {
-							if (this._client.config.logLevel === "verbose") console.error(e);
+							if (this._rpcClient._client.config.logLevel === "verbose") console.error(e);
 						});
 					}
 				}
 			} catch (e) {
-				if (this._client.config.logLevel === "verbose") console.error(e);
+				if (this._rpcClient._client.config.logLevel === "verbose") console.error(e);
 			}
 		}
 	}

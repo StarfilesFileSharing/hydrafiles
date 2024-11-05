@@ -5,16 +5,18 @@ import File from "../file.ts";
 import Utils, { type Sha256 } from "../utils.ts";
 
 export default class RPCClient {
-	private _client: Hydrafiles;
+	_client: Hydrafiles;
 	http!: HTTPClient;
 	rtc!: RTCClient;
 
-	constructor(client: Hydrafiles) {
+	private constructor(client: Hydrafiles) {
 		this._client = client;
 	}
-	async start(): Promise<void> {
-		this.http = await HTTPClient.init(this._client);
-		this.rtc = await RTCClient.init(this._client);
+	static async init(client: Hydrafiles): Promise<RPCClient> {
+		const rpcClient = new RPCClient(client);
+		rpcClient.http = await HTTPClient.init(rpcClient);
+		rpcClient.rtc = await RTCClient.init(rpcClient);
+		return rpcClient;
 	}
 
 	public async fetch(input: RequestInfo, init?: RequestInit): Promise<Promise<Response | false>[]> {
