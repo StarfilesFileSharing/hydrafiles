@@ -60,6 +60,7 @@
       display: none;
     }
   </style>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 
 <body>
@@ -77,9 +78,8 @@
   </section>
 
   <section>
-    <div id="compareFilesProgress">
-
-    </div>
+    <div id="compareFilesProgress"></div>
+    <div id="charts"></div>
   </section>
 
   <section id="dashboard" style="overflow:scroll">
@@ -135,8 +135,10 @@
         console.log('Hydrafiles web node is running', hydrafiles);
         setInterval(fetchAndPopulateFiles, 5000);
         setInterval(fetchAndPopulatePeers, 200);
+        setInterval(fetchAndPopulateCharts, 5000);
         fetchAndPopulateFiles();
         fetchAndPopulatePeers();
+        fetchAndPopulateCharts();
       }).catch(err => {
         console.error('Error starting Hydrafiles web node', err);
       });
@@ -300,6 +302,65 @@
 
         tableBody.appendChild(row);
       });
+    }
+
+    let chartInstances = [];
+
+    function fetchAndPopulateCharts() {
+      const tables = window.hydrafiles.events.logs;
+      for (const table in tables) {
+        const data = tables[table];
+        populateChart(table, data);
+      }
+    }
+
+    function getRandomColor(opacity = 1) {
+      const r = Math.floor(Math.random() * 255);
+      const g = Math.floor(Math.random() * 255);
+      const b = Math.floor(Math.random() * 255);
+      return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+    }
+
+    function populateChart(name, data) {
+      const events = Object.keys(data);
+      const times = Object.keys(data[events[0]]);
+
+      const datasets = events.map(label => ({
+        label: label,
+        data: times.map(time => data[label][time] ?? 0),
+        backgroundColor: getRandomColor(),
+        fill: true
+      }));
+
+      if (chartInstances[name]) {
+        chartInstances[name].data.labels = times;
+        chartInstances[name].data.datasets.forEach((dataset, index) => {
+          dataset.labels = times;
+          dataset.data = datasets[index].data;
+        });
+        chartInstances[name].update();
+      } else {
+        const canvas = document.createElement('canvas');
+        canvas.id = name;
+        document.getElementById('charts').appendChild(canvas);
+        const lineChartCtx = document.getElementById(name).getContext('2d');
+        chartInstances[name] = new Chart(lineChartCtx, {
+          type: 'line',
+          data: { times, datasets },
+          options: {
+            responsive: true,
+            plugins: {
+              legend: { position: 'top' }
+            },
+            scales: {
+              y: {
+                stacked: true,
+                beginAtZero: true
+              }
+            }
+          }
+        });
+      }
     }
   </script>
 </body>

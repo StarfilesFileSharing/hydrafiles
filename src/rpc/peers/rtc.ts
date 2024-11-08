@@ -85,6 +85,7 @@ class RTCPeers {
 	}
 
 	async createPeerConnection(from: string): Promise<PeerConnection> {
+		this._rpcClient._client.events.log(this._rpcClient._client.events.rtcEvents.RTCOpen);
 		const config = {
 			iceServers: [
 				{ urls: "stun:stun.l.google.com:19302" },
@@ -119,7 +120,7 @@ class RTCPeers {
 		};
 		conn.addEventListener("iceconnectionstatechange", () => {
 			if (conn.iceConnectionState === "disconnected" || conn.iceConnectionState === "closed" || conn.iceConnectionState === "failed") {
-				console.warn(`WebRTC (13/12): ${from}  Connection closed. Cleaning up peer connection.`);
+				console.warn(`WebRTC: (13/12): ${from}  Connection closed. Cleaning up peer connection.`);
 				this.cleanupPeerConnection(conn);
 			}
 		});
@@ -154,12 +155,13 @@ class RTCPeers {
 	}
 
 	cleanupPeerConnection(conn: RTCPeerConnection): void {
+		this._rpcClient._client.events.log(this._rpcClient._client.events.rtcEvents.RTCClose);
 		const remotePeerId = Object.keys(this.peerConnections).find((id) => this.peerConnections[id].offered?.conn === conn || this.peerConnections[id].answered?.conn === conn);
 
 		if (remotePeerId) {
 			const peerConns = this.peerConnections[remotePeerId];
 			if (peerConns.offered?.conn === conn) {
-				console.warn(`WebRTC (13/12):  ${remotePeerId}  Offered connecton is ${conn.iceConnectionState}`);
+				console.warn(`WebRTC: (13/12):  ${remotePeerId}  Offered connecton is ${conn.iceConnectionState}`);
 				peerConns.offered.conn.close();
 				delete peerConns.offered;
 			} else if (peerConns.answered?.conn === conn) {
@@ -184,6 +186,7 @@ class RTCPeers {
 	}
 
 	async handleAnnounce(from: string): Promise<void> {
+		this._rpcClient._client.events.log(this._rpcClient._client.events.rtcEvents.RTCAnnounce);
 		console.log(`WebRTC: (2/12): ${from}  Received announce`);
 		if (this.peerConnections[from] && this.peerConnections[from].offered) {
 			console.warn(`WebRTC: (13/12): ${from} Already offered to peer`);
@@ -194,6 +197,7 @@ class RTCPeers {
 	}
 
 	async handleOffer(from: string, offer: RTCSessionDescription): Promise<void> {
+		this._rpcClient._client.events.log(this._rpcClient._client.events.rtcEvents.RTCOffer);
 		if (typeof this.peerConnections[from] === "undefined") this.peerConnections[from] = {};
 		if (this.peerConnections[from].answered && this.peerConnections[from].answered?.channel.readyState === "open") {
 			console.warn("WebRTC: (13/12): Rejecting offer - Already have open connection answered by you");
@@ -229,6 +233,7 @@ class RTCPeers {
 	}
 
 	async handleAnswer(from: string, answer: RTCSessionDescription): Promise<void> {
+		this._rpcClient._client.events.log(this._rpcClient._client.events.rtcEvents.RTCAnswer);
 		if (!this.peerConnections[from] || !this.peerConnections[from].offered) {
 			console.warn("WebRTC: (13/12): Rejecting answer - No open handshake");
 			return;
@@ -242,6 +247,7 @@ class RTCPeers {
 	}
 
 	handleIceCandidate(from: string, iceCandidate: RTCIceCandidate): void {
+		this._rpcClient._client.events.log(this._rpcClient._client.events.rtcEvents.RTCIce);
 		if (!this.peerConnections[from]) {
 			console.warn(`WebRTC: (13/12): ${from}  Ice candidates received but no open handshake with peer`);
 			return;

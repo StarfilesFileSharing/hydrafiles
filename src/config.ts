@@ -89,7 +89,7 @@ export interface Config {
 
 	/**
 	 * Root URLs of peers to bootstrap network connection.
-	 * @default ["https://hydrafiles.com", "https://hydra.starfiles.co", "https://api2.starfiles.co", "https://api2.starfiles.bz"]
+	 * @default ["https://hydrafiles.com", "https://hydra.starfiles.co", "https://api2.starfiles.co", "https://api2.starfiles.bz", "https://hydra.sts.st"]
 	 */
 	bootstrapPeers: string[];
 
@@ -162,7 +162,7 @@ const defaultConfig: Config = {
 	"maxCache": -1,
 	"permaFiles": ["04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f"],
 	"preferNode": "HIGHEST_HITRATE",
-	"bootstrapPeers": ["https://hydrafiles.com", "https://hydra.starfiles.co", "https://api2.starfiles.co", "https://api2.starfiles.bz"],
+	"bootstrapPeers": ["https://hydrafiles.com", "https://hydra.starfiles.co", "https://api2.starfiles.co", "https://api2.starfiles.bz", "https://hydra.sts.st"],
 	"burnRate": 0.1,
 	"s3AccessKeyId": "",
 	"s3SecretAccessKey": "",
