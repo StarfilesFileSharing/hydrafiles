@@ -8,6 +8,7 @@ import { S3Client } from "https://deno.land/x/s3_lite_client@0.7.0/mod.ts";
 import RPCServer from "./rpc/server.ts";
 import RPCClient from "./rpc/client.ts";
 import FileSystem from "./filesystem/filesystem.ts";
+import Events from "./events.ts";
 
 // TODO: IDEA: HydraTorrent - New Github repo - "Hydrafiles + WebTorrent Compatibility Layer" - Hydrafiles noes can optionally run HydraTorrent to seed files via webtorrent
 // Change index hash from sha256 to infohash, then allow peers to leech files from webtorrent + normal torrent
@@ -25,6 +26,7 @@ class Hydrafiles {
 	fs: FileSystem;
 	utils: Utils;
 	config: Config;
+	events: Events;
 	s3: S3Client | undefined;
 	keyPair!: CryptoKeyPair;
 	rpcServer!: RPCServer;
@@ -36,6 +38,7 @@ class Hydrafiles {
 		this.config = getConfig(customConfig);
 		this.fs = new FileSystem(this);
 		this.utils = new Utils(this.config, this.fs);
+		this.events = new Events();
 
 		if (this.config.s3Endpoint.length) {
 			console.log("Startup: Populating S3");
@@ -84,7 +87,7 @@ class Hydrafiles {
 			"\n| Hostname: ",
 			`${await this.getHostname()}`,
 			"\n| Known (Network) Files:",
-			this.files.db.count(),
+			await this.files.db.count(),
 			`(${Math.round((100 * (await this.files.db.sum("size"))) / 1024 / 1024 / 1024) / 100}GB)`,
 			"\n| Stored Files:",
 			(await this.fs.readDir("files/")).length,

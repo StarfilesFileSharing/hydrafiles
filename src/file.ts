@@ -604,7 +604,6 @@ export class File implements FileAttributes {
 			return false;
 		}
 		if (opts.logDownloads === undefined || opts.logDownloads) this.increment("downloadCount");
-		this.save();
 
 		// console.log(` ${this.hash}  Checking memory usage`);
 		// if (this.size !== 0 && !Utils.hasSufficientMemory(this.size)) {
@@ -629,11 +628,13 @@ export class File implements FileAttributes {
 				file = await this.download();
 				if (file === false) {
 					this.found = false;
+					this._client.events.log(this._client.events.fileEvents.FileNotFound);
 					this.save();
 				}
 			}
 		}
 
+		this._client.events.log(this._client.events.fileEvents.FileServed);
 		if (file !== false) this.seed();
 
 		return file;
