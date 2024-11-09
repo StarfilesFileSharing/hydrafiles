@@ -27,7 +27,7 @@ export interface Config {
 	/**
 	 * How often to log client state (in milliseconds).
 	 * -1 to disable.
-	 * @default -1
+	 * @default 30000
 	 */
 	summarySpeed: number;
 
@@ -173,7 +173,7 @@ const defaultConfig: Config = {
 	"timeout": 60000,
 	"uploadSecret": "",
 	"logLevel": "normal",
-	"summarySpeed": -1,
+	"summarySpeed": 300000,
 	"backfill": true,
 	"comparePeersSpeed": 3600000,
 	"compareFilesSpeed": 300000,
