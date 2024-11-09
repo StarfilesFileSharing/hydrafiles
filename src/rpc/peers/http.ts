@@ -385,7 +385,7 @@ class HTTPPeer implements PeerAttributes {
 			console.log(`  ${hash}  Valid hash`);
 
 			const ethAddress = response.headers.get("Ethereum-Address");
-			if (ethAddress) this._client.wallet.transfer(ethAddress as EthAddress, 0.0001);
+			if (ethAddress) this._client.wallet.transfer(ethAddress as EthAddress, 0.00001);
 
 			if (file.name === undefined || file.name === null || file.name.length === 0) {
 				file.name = String(response.headers.get("Content-Disposition")?.split("=")[1].replace(/"/g, "").replace(" [HYDRAFILES]", ""));
@@ -516,6 +516,7 @@ export default class HTTPPeers {
 				if (response instanceof Response) {
 					const remotePeers = (await response.json()) as HTTPPeer[];
 					for (const remotePeer of remotePeers) {
+						if (Utils.isPrivateIP(remotePeer.host)) continue;
 						this.add(remotePeer.host).catch((e) => {
 							if (this._rpcClient._client.config.logLevel === "verbose") console.error(e);
 						});
