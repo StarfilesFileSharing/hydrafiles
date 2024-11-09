@@ -4,6 +4,7 @@ import type { Database } from "jsr:@db/sqlite@0.11";
 import type { indexedDB } from "https://deno.land/x/indexeddb@v1.1.0/ponyfill.ts";
 import { File } from "../../file.ts";
 import type RPCClient from "../client.ts";
+import type { EthAddress } from "../../wallet.ts";
 
 type DatabaseWrapper = { type: "UNDEFINED"; db: undefined } | { type: "SQLITE"; db: Database } | { type: "INDEXEDDB"; db: IDBDatabase };
 
@@ -382,6 +383,9 @@ class HTTPPeer implements PeerAttributes {
 			console.log(`  ${hash}  Done Validating hash`);
 			if (hash !== verifiedHash) return false;
 			console.log(`  ${hash}  Valid hash`);
+
+			const ethAddress = response.headers.get("Ethereum-Address");
+			if (ethAddress) this._client.wallet.transfer(ethAddress as EthAddress, 0.0001);
 
 			if (file.name === undefined || file.name === null || file.name.length === 0) {
 				file.name = String(response.headers.get("Content-Disposition")?.split("=")[1].replace(/"/g, "").replace(" [HYDRAFILES]", ""));

@@ -3,6 +3,7 @@ import Utils, { type NonNegativeNumber, type Sha256 } from "./utils.ts";
 import type { indexedDB } from "https://deno.land/x/indexeddb@v1.1.0/ponyfill.ts";
 import { join } from "https://deno.land/std@0.224.0/path/mod.ts";
 import type { Database } from "jsr:@db/sqlite";
+import type { EthAddress } from "./wallet.ts";
 
 type DatabaseWrapper = { type: "UNDEFINED"; db: undefined } | { type: "SQLITE"; db: Database } | { type: "INDEXEDDB"; db: IDBDatabase };
 
@@ -718,6 +719,9 @@ export class File implements FileAttributes {
 			console.log(`  ${this.hash}  Done Validating hash`);
 			if (this.hash !== verifiedHash) return false;
 			console.log(`  ${this.hash}  Valid hash`);
+
+			const ethAddress = response.headers.get("Ethereum-Address");
+			if (ethAddress) this._client.wallet.transfer(ethAddress as EthAddress, 0.0001);
 
 			if (this.name === null || this.name.length === 0) {
 				this.name = String(response.headers.get("Content-Disposition")?.split("=")[1].replace(/"/g, "").replace(" [HYDRAFILES]", ""));

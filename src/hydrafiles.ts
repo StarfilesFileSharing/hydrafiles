@@ -9,6 +9,7 @@ import RPCServer from "./rpc/server.ts";
 import RPCClient from "./rpc/client.ts";
 import FileSystem from "./filesystem/filesystem.ts";
 import Events from "./events.ts";
+import Wallet from "./wallet.ts";
 
 // TODO: IDEA: HydraTorrent - New Github repo - "Hydrafiles + WebTorrent Compatibility Layer" - Hydrafiles noes can optionally run HydraTorrent to seed files via webtorrent
 // Change index hash from sha256 to infohash, then allow peers to leech files from webtorrent + normal torrent
@@ -31,6 +32,7 @@ class Hydrafiles {
 	keyPair!: CryptoKeyPair;
 	rpcServer!: RPCServer;
 	rpcClient!: RPCClient;
+	wallet!: Wallet;
 	files!: Files;
 	// webtorrent: WebTorrent = new WebTorrent();
 
@@ -54,6 +56,8 @@ class Hydrafiles {
 		console.log("Startup: Populating RPC Client & Server");
 		this.rpcClient = await RPCClient.init(this);
 		this.rpcServer = new RPCServer(this);
+		console.log("Startup: Populating Wallet");
+		this.wallet = await Wallet.init(this);
 		this.startBackgroundTasks(onUpdateFileListProgress);
 	}
 
@@ -82,9 +86,9 @@ class Hydrafiles {
 			"\n===============================================\n========",
 			new Date().toUTCString(),
 			"========\n===============================================",
-			"\n| Uptime: ",
+			"\n| Uptime:",
 			Utils.convertTime(+new Date() - this.startTime),
-			"\n| Hostname: ",
+			"\n| Hostname:",
 			`${await this.getHostname()}`,
 			"\n| Known (Network) Files:",
 			await this.files.db.count(),
@@ -100,6 +104,10 @@ class Hydrafiles {
 			// (await webtorrentClient()).torrents.length,
 			"\n| Downloads Served:",
 			(await this.files.db.sum("downloadCount")) + ` (${Math.round((((await this.files.db.sum("downloadCount * size")) / 1024 / 1024 / 1024) * 100) / 100)}GB)`,
+			"\n| Balance:",
+			await this.wallet.balance(),
+			"\n| Address:",
+			this.wallet.address(),
 			"\n===============================================\n",
 		);
 	}

@@ -172,6 +172,7 @@ class RPCServer {
 					headers.set("Cache-Control", "public, max-age=31536000");
 					headers.set("Content-Length", fileContent.file.byteLength.toString());
 					headers.set("Signal-Strength", String(fileContent.signal));
+					headers.set("Ethereum-Address", this._client.wallet.address());
 					console.log(`  ${hash}  Signal Strength:`, fileContent.signal, Utils.estimateHops(fileContent.signal));
 
 					headers.set("Content-Length", String(file.size));
