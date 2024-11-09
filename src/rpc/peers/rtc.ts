@@ -26,6 +26,8 @@ export type SignallingMessage = SignallingAnnounce | SignallingOffer | Signallin
 type PeerConnection = { conn: RTCPeerConnection; channel: RTCDataChannel; startTime: number };
 type PeerConnections = { [id: string]: { offered?: PeerConnection; answered?: PeerConnection } };
 
+const receivedPackets: Record<string, string[]> = {};
+
 function arrayBufferToUnicodeString(buffer: ArrayBuffer): string {
 	const uint16Array = new Uint16Array(buffer);
 	const chunkSize = 10000;
@@ -107,16 +109,32 @@ class RTCPeers {
 			const { id, url, ...data } = JSON.parse(e.data as string);
 			const req = new Request(url, data);
 			const response = await this._rpcClient._client.rpcServer.handleRequest(req);
-			const headersObj: Record<string, string> = {};
+			const headers: Record<string, string> = {};
 			response.headers.forEach((value, key) => {
-				headersObj[key] = value;
+				headers[key] = value;
 			});
 			const body = arrayBufferToUnicodeString(new Uint8Array(await response.arrayBuffer()));
 			const status = response.status;
 			const statusText = response.statusText;
 
 			console.log(`WebRTC: (11/12): Sending response`);
-			channel.send(JSON.stringify({ body, status, statusText, headers: headersObj, id }));
+			const message = JSON.stringify({ body, status, statusText, headers, id });
+			channel.send(message);
+
+			const maxPacketSize = 8 * 1024;
+			const total = Math.ceil(message.length / maxPacketSize);
+
+			for (let i = 0; i < total; i++) {
+				const start = i * maxPacketSize;
+				const end = start + maxPacketSize;
+				const packet = {
+					id,
+					i,
+					total,
+					body: message.slice(start, end),
+				};
+				channel.send(JSON.stringify(packet));
+			}
 		};
 		conn.addEventListener("iceconnectionstatechange", () => {
 			if (conn.iceConnectionState === "disconnected" || conn.iceConnectionState === "closed" || conn.iceConnectionState === "failed") {
@@ -286,6 +304,18 @@ class RTCPeers {
 
 			const responsePromise = new Promise<Response>((resolve, reject) => {
 				connection.channel.onmessage = (e) => {
+					const packet = JSON.parse(e.data as string);
+
+					if (!receivedPackets[packet.id]) receivedPackets[packet.id] = [];
+					receivedPackets[packet.id][packet.index] = packet.body;
+
+					if (receivedPackets[packet.id].filter(Boolean).length === packet.total) {
+						const message = receivedPackets[packet.id].join("");
+						delete receivedPackets[packet.id];
+						const fullMessage = JSON.parse(message);
+						console.log("Received full message:", fullMessage);
+					}
+
 					try {
 						const { id, status, statusText, headers, body } = JSON.parse(e.data as string);
 						console.log(`WebRTC: (12/12):  ${id}  Received response`);

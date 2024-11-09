@@ -4,6 +4,7 @@ import type { indexedDB } from "https://deno.land/x/indexeddb@v1.1.0/ponyfill.ts
 import { join } from "https://deno.land/std@0.224.0/path/mod.ts";
 import type { Database } from "jsr:@db/sqlite";
 import type { EthAddress } from "./wallet.ts";
+import { delay } from "https://deno.land/std@0.170.0/async/delay.ts";
 
 type DatabaseWrapper = { type: "UNDEFINED"; db: undefined } | { type: "SQLITE"; db: Database } | { type: "INDEXEDDB"; db: IDBDatabase };
 
@@ -721,7 +722,7 @@ export class File implements FileAttributes {
 			console.log(`  ${this.hash}  Valid hash`);
 
 			const ethAddress = response.headers.get("Ethereum-Address");
-			if (ethAddress) this._client.wallet.transfer(ethAddress as EthAddress, 0.0001);
+			if (ethAddress) this._client.wallet.transfer(ethAddress as EthAddress, 0.00001);
 
 			if (this.name === null || this.name.length === 0) {
 				this.name = String(response.headers.get("Content-Disposition")?.split("=")[1].replace(/"/g, "").replace(" [HYDRAFILES]", ""));
@@ -763,22 +764,24 @@ class Files {
 		return file;
 	}
 
-	backfillFiles = async (): Promise<void> => {
-		while (true) {
-			try {
+	backfillFiles = (): void => {
+		setTimeout(async () => {
+			while (true) {
+				console.log("Backfilling file");
 				const keys = Array.from(this.files.keys());
-				if (keys.length === 0) return;
+				if (keys.length === 0) {
+					await delay(500);
+					continue;
+				}
 				const randomKey = keys[Math.floor(Math.random() * keys.length)];
 				const file = this.files.get(randomKey);
-				if (!file) return;
+				if (!file) continue;
 				if (file) {
 					console.log(`  ${file.hash}  Backfilling file`);
 					await file.getFile({ logDownloads: false });
 				}
-			} catch (e) {
-				if (this._client.config.logLevel === "verbose") throw e;
 			}
-		}
+		}, 2000); // Run 2 secs late because of Files construct being async
 	};
 
 	// TODO: Compare list between all peers and give score based on how similar they are. 100% = all exactly the same, 0% = no items in list were shared. The lower the score, the lower the propagation times, the lower the decentralisation

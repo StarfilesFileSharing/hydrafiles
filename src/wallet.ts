@@ -46,6 +46,7 @@ class Wallet {
 	}
 
 	public async transfer(to: EthAddress, amount: number): Promise<void> {
+		console.log(`Transferring ${amount} to ${to}`);
 		const hash = await this.client.sendTransaction({
 			account: this.account,
 			chain: sepolia,
