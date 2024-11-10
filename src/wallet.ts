@@ -55,13 +55,17 @@ class Wallet {
 		}
 
 		console.log(`Transferring ${amount} to ${to}`);
-		const hash = await this.client.sendTransaction({
-			account: this.account,
-			chain: sepolia,
-			to,
-			value: amount,
-		});
-		console.log("Transaction Hash:", hash);
+		try {
+			const hash = await this.client.sendTransaction({
+				account: this.account,
+				chain: sepolia,
+				to,
+				value: amount,
+			});
+			console.log("Transaction Hash:", hash);
+		} catch (e) {
+			if (this._client.config.logLevel === "verbose") console.error(e);
+		}
 		return true;
 	}
 
