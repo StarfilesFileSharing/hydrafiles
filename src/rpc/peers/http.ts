@@ -516,7 +516,7 @@ export default class HTTPPeers {
 				if (response instanceof Response) {
 					const remotePeers = (await response.json()) as HTTPPeer[];
 					for (const remotePeer of remotePeers) {
-						if (Utils.isPrivateIP(remotePeer.host)) continue;
+						if (Utils.isPrivateIP(remotePeer.host) || remotePeer.host.startsWith("hydra://")) continue;
 						this.add(remotePeer.host).catch((e) => {
 							if (this._rpcClient._client.config.logLevel === "verbose") console.error(e);
 						});
