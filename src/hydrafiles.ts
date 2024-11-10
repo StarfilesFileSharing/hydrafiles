@@ -1,5 +1,5 @@
 import { encode as base32Encode } from "https://deno.land/std@0.194.0/encoding/base32.ts";
-// import WebTorrent from "npm:webtorrent";
+import type WebTorrent from "https://cdn.jsdelivr.net/npm/webtorrent@latest/webtorrent.min.js";
 import getConfig, { type Config } from "./config.ts";
 import Files, { FileAttributes } from "./file.ts";
 import Utils from "./utils.ts";
@@ -34,7 +34,7 @@ class Hydrafiles {
 	rpcClient!: RPCClient;
 	wallet!: Wallet;
 	files!: Files;
-	// webtorrent: WebTorrent = new WebTorrent();
+	webtorrent?: WebTorrent;
 
 	constructor(customConfig: Partial<Config> = {}) {
 		this.config = getConfig(customConfig);
@@ -48,7 +48,7 @@ class Hydrafiles {
 		}
 	}
 
-	public async start(onUpdateFileListProgress?: (progress: number, total: number) => void): Promise<void> {
+	public async start(onUpdateFileListProgress?: (progress: number, total: number) => void, webtorrent?: WebTorrent): Promise<void> {
 		console.log("Startup: Populating KeyPair");
 		this.keyPair = await this.utils.getKeyPair();
 		console.log("Startup: Populating FileDB");
@@ -58,6 +58,9 @@ class Hydrafiles {
 		this.rpcServer = new RPCServer(this);
 		console.log("Startup: Populating Wallet");
 		this.wallet = await Wallet.init(this);
+		console.log("Startup: Starting WebTorrent");
+		this.webtorrent = webtorrent;
+
 		this.startBackgroundTasks(onUpdateFileListProgress);
 	}
 

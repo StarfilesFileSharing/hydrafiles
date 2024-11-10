@@ -117,6 +117,7 @@
 
   <script type="module">
     import Hydrafiles from './hydrafiles-web.esm.js';
+    import WebTorrent from 'https://esm.sh/webtorrent';
 
     let files;
     let hideAdvancedColumns = true;
@@ -131,7 +132,7 @@
       document.getElementById('startHydrafiles').style.display = 'none';
       document.getElementById('dashboard').style.display = 'block';
       window.hydrafiles = new Hydrafiles({ logLevel: 'verbose' });
-      window.hydrafiles.start(onCompareFilesProgress).then(() => {
+      window.hydrafiles.start(onCompareFilesProgress, new WebTorrent()).then(() => {
         console.log('Hydrafiles web node is running', hydrafiles);
         setInterval(fetchAndPopulateFiles, 5000);
         setInterval(fetchAndPopulatePeers, 200);

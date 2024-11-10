@@ -8,6 +8,8 @@ import { delay } from "https://deno.land/std@0.170.0/async/delay.ts";
 
 type DatabaseWrapper = { type: "UNDEFINED"; db: undefined } | { type: "SQLITE"; db: Database } | { type: "INDEXEDDB"; db: IDBDatabase };
 
+const seeding: string[] = [];
+
 export interface FileAttributes {
 	hash: Sha256;
 	infohash: string | null;
@@ -646,23 +648,24 @@ export class File implements FileAttributes {
 		this._client.files.db.update(this.hash, this);
 	}
 
-	seed(): void {
+	async seed(): Promise<void> {
 		// TODO: webtorrent.add() all known files
-		// if (seeding.includes(this.hash)) return;
-		// seeding.push(this.hash);
-		// const filePath = join(FILESPATH, this.hash);
-		// if (!existsSync(filePath)) return;
-		// this._client.webtorrent.seed(filePath, {
-		//   createdBy: "Hydrafiles/0.1",
-		//   name: (this.name ?? this.hash).replace(/(\.\w+)$/, " [HYDRAFILES]$1"),
-		//   destroyStoreOnDestroy: true,
-		//   addUID: true,
-		//   comment: "Anonymously seeded with Hydrafiles",
-		// }, async (torrent: { infoHash: string }) => {
-		//   console.log(`  ${this.hash}  Seeding with infohash ${torrent.infoHash}`);
-		//   this.infohash = torrent.infoHash;
-		//   await this.save();
-		// });
+		if (!this._client.webtorrent) return;
+		if (seeding.includes(this.hash)) return;
+		seeding.push(this.hash);
+		const filePath = join(FILESPATH, this.hash);
+		if (!this._client.fs.exists(filePath)) return;
+		this._client.webtorrent.seed(typeof window === "undefined" ? filePath : await this._client.fs.readFile(filePath), {
+			createdBy: "Hydrafiles/0.1",
+			name: (this.name ?? this.hash).replace(/(\.\w+)$/, " [HYDRAFILES]$1"),
+			destroyStoreOnDestroy: true,
+			addUID: true,
+			comment: "Anonymously seeded with Hydrafiles",
+		}, (torrent: { infoHash: string }) => {
+			console.log(`  ${this.hash}  Seeding with infohash ${torrent.infoHash}`);
+			this.infohash = torrent.infoHash;
+			this.save();
+		});
 	}
 
 	increment(column: keyof FileAttributes): void {
