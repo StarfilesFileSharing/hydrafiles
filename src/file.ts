@@ -104,7 +104,7 @@ function createIDBDatabase(): Promise<IDBDatabase> {
 	return dbPromise;
 }
 
-class FileDB {
+export class FileDB {
 	private _client: Hydrafiles;
 	db: DatabaseWrapper = { type: "UNDEFINED", db: undefined };
 

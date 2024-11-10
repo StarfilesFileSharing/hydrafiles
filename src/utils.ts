@@ -9,6 +9,8 @@ export type Base64 = string & { readonly brand: unique symbol };
 export type NonNegativeNumber = number & { readonly brand: unique symbol };
 export type Sha256 = string & { readonly brand: unique symbol };
 
+export type PubKey = { x: string; y: string };
+
 class Utils {
 	private _config: Config;
 	private _fs: FS;
@@ -208,7 +210,7 @@ class Utils {
 		);
 	}
 
-	static async exportPublicKey(key: CryptoKey): Promise<{ x: string; y: string }> {
+	static async exportPublicKey(key: CryptoKey): Promise<PubKey> {
 		const jwk = await crypto.subtle.exportKey("jwk", key);
 		return { x: jwk.x as string, y: jwk.y as string }; // Return both x and y
 	}
@@ -224,7 +226,7 @@ class Utils {
 			["sign"],
 		);
 	}
-	static buildJWT(pubKey: { x: string; y: string }): { kty: string; crv: string; x: string; y: string; ext: boolean } {
+	static buildJWT(pubKey:  PubKey): { kty: string; crv: string; x: string; y: string; ext: boolean } {
 		return {
 			kty: "EC",
 			crv: "P-256",
@@ -246,7 +248,7 @@ class Utils {
 		);
 		return this.bufferToBase64(signature);
 	}
-	static async verifySignature(message: string, signature: Base64, pubKey: { x: string; y: string } | { xBase32: string; yBase32: string }): Promise<boolean> {
+	static async verifySignature(message: string, signature: Base64, pubKey:  PubKey | { xBase32: string; yBase32: string }): Promise<boolean> {
 		const encoder = new TextEncoder();
 		const data = encoder.encode(message);
 

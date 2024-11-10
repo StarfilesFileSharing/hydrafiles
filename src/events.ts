@@ -1,9 +1,9 @@
-enum FileEvent {
+export enum FileEvent {
 	FileServed = "FileServed",
 	FileNotFound = "FileNotFound",
 }
 
-enum RTCEvent {
+export enum RTCEvent {
 	RTCAnnounce = "RTCAnnounce",
 	RTCOpen = "RTCOpen",
 	RTCOffer = "RTCOffer",
@@ -12,13 +12,13 @@ enum RTCEvent {
 	RTCClose = "RTCClose",
 }
 
-interface EventsLogs {
+export interface EventsLogs {
 	file: Record<FileEvent, Record<number, number>>;
 	rtc: Record<RTCEvent, Record<number, number>>;
 }
 
 class Events {
-	interval = 5;
+	interval = 10000;
 	lastInterval = 0;
 	startTime: number;
 	logs: EventsLogs = {
@@ -43,7 +43,7 @@ class Events {
 	}
 
 	public log = (event: FileEvent | RTCEvent) => {
-		const interval = Math.floor((+new Date() - this.startTime) / 1000 / this.interval);
+		const interval = Math.floor((+new Date() - this.startTime) / this.interval);
 
 		for (let i = this.lastInterval + 1; i < interval; i++) {
 			Object.values(FileEvent).forEach((fileEvent) => {

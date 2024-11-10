@@ -48,7 +48,7 @@ class Hydrafiles {
 		}
 	}
 
-	public async start(onUpdateFileListProgress?: (progress: number, total: number) => void, webtorrent?: WebTorrent): Promise<void> {
+	public async start(opts: { onUpdateFileListProgress?: (progress: number, total: number) => void; webtorrent?: WebTorrent } = {}): Promise<void> {
 		console.log("Startup: Populating KeyPair");
 		this.keyPair = await this.utils.getKeyPair();
 		console.log("Startup: Populating FileDB");
@@ -59,9 +59,9 @@ class Hydrafiles {
 		console.log("Startup: Populating Wallet");
 		this.wallet = await Wallet.init(this);
 		console.log("Startup: Starting WebTorrent");
-		this.webtorrent = webtorrent;
+		this.webtorrent = opts.webtorrent;
 
-		this.startBackgroundTasks(onUpdateFileListProgress);
+		this.startBackgroundTasks(opts.onUpdateFileListProgress);
 	}
 
 	startBackgroundTasks(onUpdateFileListProgress?: (progress: number, total: number) => void): void {
