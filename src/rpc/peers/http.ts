@@ -377,15 +377,15 @@ class HTTPPeer implements PeerAttributes {
 				if (this._client.config.logLevel === "verbose" && err.message !== "Promise timed out") console.error(e);
 				return false;
 			}
-			const peerContent = new Uint8Array(await response.arrayBuffer());
+			const fileContent = new Uint8Array(await response.arrayBuffer());
 			console.log(`  ${hash}  Validating hash`);
-			const verifiedHash = await Utils.hashUint8Array(peerContent);
+			const verifiedHash = await Utils.hashUint8Array(fileContent);
 			console.log(`  ${hash}  Done Validating hash`);
 			if (hash !== verifiedHash) return false;
 			console.log(`  ${hash}  Valid hash`);
 
 			const ethAddress = response.headers.get("Ethereum-Address");
-			if (ethAddress) this._client.wallet.transfer(ethAddress as EthAddress, 0.00001);
+			if (ethAddress) this._client.wallet.transfer(ethAddress as EthAddress, 1_000_000n * BigInt(fileContent.byteLength));
 
 			if (file.name === undefined || file.name === null || file.name.length === 0) {
 				file.name = String(response.headers.get("Content-Disposition")?.split("=")[1].replace(/"/g, "").replace(" [HYDRAFILES]", ""));
@@ -393,13 +393,13 @@ class HTTPPeer implements PeerAttributes {
 			}
 
 			this.duration = Utils.createNonNegativeNumber(this.duration + Date.now() - startTime);
-			this.bytes = Utils.createNonNegativeNumber(this.bytes + peerContent.byteLength);
+			this.bytes = Utils.createNonNegativeNumber(this.bytes + fileContent.byteLength);
 			this.hits++;
 			this.save();
 
-			await file.cacheFile(peerContent);
+			await file.cacheFile(fileContent);
 			return {
-				file: peerContent,
+				file: fileContent,
 				signal: Utils.interfere(Number(response.headers.get("Signal-Strength"))),
 			};
 		} catch (e) {

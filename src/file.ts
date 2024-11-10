@@ -714,15 +714,15 @@ export class File implements FileAttributes {
 		const responses = this._client.rpcClient.rtc.fetch(`http://localhost/download/${this.hash}`);
 		for (let i = 0; i < responses.length; i++) {
 			const response = await responses[i];
-			const peerContent = new Uint8Array(await response.arrayBuffer());
+			const fileContent = new Uint8Array(await response.arrayBuffer());
 			console.log(`  ${this.hash}  Validating hash`);
-			const verifiedHash = await Utils.hashUint8Array(peerContent);
+			const verifiedHash = await Utils.hashUint8Array(fileContent);
 			console.log(`  ${this.hash}  Done Validating hash`);
 			if (this.hash !== verifiedHash) return false;
 			console.log(`  ${this.hash}  Valid hash`);
 
 			const ethAddress = response.headers.get("Ethereum-Address");
-			if (ethAddress) this._client.wallet.transfer(ethAddress as EthAddress, 0.00001);
+			if (ethAddress) this._client.wallet.transfer(ethAddress as EthAddress, 1_000_000n * BigInt(fileContent.byteLength));
 
 			if (this.name === null || this.name.length === 0) {
 				this.name = String(response.headers.get("Content-Disposition")?.split("=")[1].replace(/"/g, "").replace(" [HYDRAFILES]", ""));

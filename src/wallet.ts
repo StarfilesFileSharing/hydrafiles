@@ -1,4 +1,4 @@
-import { createPublicClient, createWalletClient, http, parseEther, publicActions } from "npm:viem";
+import { createPublicClient, createWalletClient, http, publicActions } from "npm:viem";
 import { privateKeyToAccount } from "npm:viem/accounts";
 import { sepolia } from "npm:viem/chains";
 import type Hydrafiles from "./hydrafiles.ts";
@@ -45,15 +45,24 @@ class Wallet {
 		return parseFloat(balanceWei.toString()) / 1e18;
 	}
 
-	public async transfer(to: EthAddress, amount: number): Promise<void> {
+	public async transfer(to: EthAddress, amount: bigint): Promise<boolean> {
+		const currentBalance = await this.balance();
+		const amountInEth = parseFloat(amount.toString()) / 1e18;
+
+		if (currentBalance < amountInEth) {
+			console.log(`Insufficient balance. Current balance: ${currentBalance}, Transfer amount: ${amountInEth}`);
+			return false;
+		}
+
 		console.log(`Transferring ${amount} to ${to}`);
 		const hash = await this.client.sendTransaction({
 			account: this.account,
 			chain: sepolia,
 			to,
-			value: parseEther(String(amount)),
+			value: amount,
 		});
 		console.log("Transaction Hash:", hash);
+		return true;
 	}
 
 	public address(): EthAddress {
