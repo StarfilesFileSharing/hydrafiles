@@ -10,6 +10,7 @@ import RPCClient from "./rpc/client.ts";
 import FileSystem from "./filesystem/filesystem.ts";
 import Events from "./events.ts";
 import Wallet from "./wallet.ts";
+import { processingRequests } from "./rpc/routes.ts";
 
 // TODO: IDEA: HydraTorrent - New Github repo - "Hydrafiles + WebTorrent Compatibility Layer" - Hydrafiles noes can optionally run HydraTorrent to seed files via webtorrent
 // Change index hash from sha256 to infohash, then allow peers to leech files from webtorrent + normal torrent
@@ -35,6 +36,7 @@ class Hydrafiles {
 	wallet!: Wallet;
 	files!: Files;
 	webtorrent?: WebTorrent;
+	handleCustomRequest?: (req: Request) => Promise<string>;
 
 	constructor(customConfig: Partial<Config> = {}) {
 		this.config = getConfig(customConfig);
@@ -100,7 +102,7 @@ class Hydrafiles {
 			(await this.fs.readDir("files/")).length,
 			`(${Math.round((100 * await this.utils.calculateUsedStorage()) / 1024 / 1024 / 1024) / 100}GB)`,
 			"\n| Processing Files:",
-			this.rpcServer.processingRequests.size,
+			processingRequests.size,
 			"\n| Known HTTP Peers:",
 			(this.rpcClient.http.getPeers()).length,
 			// '\n| Seeding Torrent Files:',
