@@ -104,10 +104,11 @@ package-lock.json
 blocks/*
 build/
 
-*.key
+/*.key
 *.db
 *.db-journal
 
 __sysdb__.sqlite
 public/docs/
 typedoc-theme/
+/certs/ca/

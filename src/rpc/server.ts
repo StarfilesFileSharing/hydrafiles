@@ -18,25 +18,53 @@ class RPCServer {
 	constructor(client: Hydrafiles) {
 		this._client = client;
 
+		const onListen = ({ hostname, port }: { hostname: string; port: number }): void => {
+			this.onListen(hostname, port);
+		};
+
 		if (typeof window !== "undefined") return;
-		let port = client.config.port;
+		let httpPort = client.config.httpPort;
+		let httpsPort = client.config.httpsPort;
 		while (true) {
 			try {
 				Deno.serve({
-					port,
+					port: httpPort,
 					hostname: client.config.hostname,
-					onListen: ({ hostname, port }): void => {
-						this.onListen(hostname, port);
-					},
+					onListen,
 					handler: async (req: Request): Promise<Response> => await this.handleRequest(req),
 				});
-				return;
+				break;
 			} catch (e) {
 				const err = e as Error;
 				if (err.name !== "AddrInUse") throw err;
-				port++;
+				httpPort++;
 			}
 		}
+		(async () => {
+			while (true) {
+				try {
+					const certFile = await client.fs.readFile(client.config.sslCertPath);
+					if (!certFile) throw new Error("SSL Error: Invalid cert");
+					const cert = new TextDecoder().decode(certFile);
+					const keyFile = await client.fs.readFile(client.config.sslKeyPath);
+					if (!keyFile) throw new Error("SSL Error: Invalid key");
+					const key = new TextDecoder().decode(keyFile);
+					Deno.serve({
+						port: httpsPort,
+						cert,
+						key,
+						hostname: client.config.hostname,
+						onListen,
+						handler: async (req: Request): Promise<Response> => await this.handleRequest(req),
+					});
+					break;
+				} catch (e) {
+					const err = e as Error;
+					if (err.name !== "AddrInUse") throw err;
+					httpsPort++;
+				}
+			}
+		})();
 	}
 
 	private onListen = async (hostname: string, port: number): Promise<void> => {
