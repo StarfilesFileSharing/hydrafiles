@@ -2,6 +2,17 @@ import type { RTCDataChannel, RTCIceCandidate, RTCPeerConnection, RTCSessionDesc
 import type RPCClient from "../client.ts";
 import { encodeBase32 } from "jsr:@std/encoding@^1.0.5/base32";
 
+export type SignallingAnnounce = { announce: true; from: string };
+export type SignallingOffer = { offer: RTCSessionDescription; from: string; to: string };
+export type SignallingAnswer = { answer: RTCSessionDescription; from: string; to: string };
+export type SignallingIceCandidate = { iceCandidate: RTCIceCandidate; from: string; to: string };
+export type WSRequest = { request: { method: string; url: string; headers: Record<string, string>; body: ReadableStream<Uint8Array> | null }; id: number; from: string };
+export type WSResponse = { response: { body: string; status: number; statusText: string }; id: number; from: string };
+export type WSMessage = SignallingAnnounce | SignallingOffer | SignallingAnswer | SignallingIceCandidate | WSRequest | WSResponse;
+
+type PeerConnection = { conn: RTCPeerConnection; channel: RTCDataChannel; startTime: number };
+type PeerConnections = { [id: string]: { offered?: PeerConnection; answered?: PeerConnection } };
+
 function extractIPAddress(sdp: string): string {
 	const ipv4Regex = /c=IN IP4 (\d{1,3}(?:\.\d{1,3}){3})/g;
 	const ipv6Regex = /c=IN IP6 ([0-9a-fA-F:]+)/g;
@@ -16,17 +27,6 @@ function extractIPAddress(sdp: string): string {
 
 	return ipAddresses.filter((ip) => ip !== "0.0.0.0")[0] ?? ipAddresses[0];
 }
-
-export type SignallingAnnounce = { announce: true; from: string };
-export type SignallingOffer = { offer: RTCSessionDescription; from: string; to: string };
-export type SignallingAnswer = { answer: RTCSessionDescription; from: string; to: string };
-export type SignallingIceCandidate = { iceCandidate: RTCIceCandidate; from: string; to: string };
-export type SignallingMessage = SignallingAnnounce | SignallingOffer | SignallingAnswer | SignallingIceCandidate;
-
-type PeerConnection = { conn: RTCPeerConnection; channel: RTCDataChannel; startTime: number };
-type PeerConnections = { [id: string]: { offered?: PeerConnection; answered?: PeerConnection } };
-
-const receivedPackets: Record<string, string[]> = {};
 
 function arrayBufferToUnicodeString(buffer: ArrayBuffer): string {
 	const uint16Array = new Uint16Array(buffer);
