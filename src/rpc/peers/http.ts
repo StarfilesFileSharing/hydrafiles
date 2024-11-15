@@ -231,7 +231,11 @@ class PeerDB {
 		} else {
 			// @ts-expect-error:
 			const { _db, ...clonedPeer } = newPeer;
-			if (this.db.type === "INDEXEDDB") this.objectStore().put(clonedPeer).onerror = console.error;
+			if (this.db.type === "INDEXEDDB") {
+				this.objectStore().put(clonedPeer).onerror = (e) => {
+					console.error(e, "Failed to save peer", clonedPeer);
+				};
+			}
 			console.log(
 				`  ${host}  Peer UPDATEd - Updated Columns: ${updatedColumn.join(", ")}` + (this._rpcClient._client.config.logLevel === "verbose" ? ` - Params: ${params.join(", ")}` : ""),
 				this._rpcClient._client.config.logLevel === "verbose" ? console.log(`  ${host}  Updated Values:`, beforeAndAfter) : "",
@@ -339,7 +343,10 @@ class HTTPPeer implements PeerAttributes {
 	 * @default
 	 */
 	static async init(values: Partial<PeerAttributes>, db: PeerDB, client: Hydrafiles): Promise<HTTPPeer> {
-		if (values.host === undefined) throw new Error("Hash is required");
+		if (values.host === undefined) throw new Error("Host is required");
+		const result = new URL(values.host);
+		if (!result.protocol || !result.host || result.protocol === "hydra") throw new Error("Invalid URL");
+
 		const peerAttributes: PeerAttributes = {
 			host: values.host,
 			hits: values.hits ?? 0,
@@ -368,7 +375,7 @@ class HTTPPeer implements PeerAttributes {
 			const startTime = Date.now();
 
 			const hash = file.hash;
-			console.log(`  ${hash}  Downloading from ${this.host}`);
+			console.log(`File: ${hash}  Downloading from ${this.host}`);
 			let response;
 			try {
 				response = await Utils.promiseWithTimeout(fetch(`${this.host}/download/${hash}`), this._client.config.timeout);
@@ -377,15 +384,15 @@ class HTTPPeer implements PeerAttributes {
 				if (this._client.config.logLevel === "verbose" && err.message !== "Promise timed out") console.error(e);
 				return false;
 			}
-			const peerContent = new Uint8Array(await response.arrayBuffer());
-			console.log(`  ${hash}  Validating hash`);
-			const verifiedHash = await Utils.hashUint8Array(peerContent);
-			console.log(`  ${hash}  Done Validating hash`);
+			const fileContent = new Uint8Array(await response.arrayBuffer());
+			console.log(`File: ${hash}  Validating hash`);
+			const verifiedHash = await Utils.hashUint8Array(fileContent);
+			console.log(`File: ${hash}  Done Validating hash`);
 			if (hash !== verifiedHash) return false;
-			console.log(`  ${hash}  Valid hash`);
+			console.log(`File: ${hash}  Valid hash`);
 
 			const ethAddress = response.headers.get("Ethereum-Address");
-			if (ethAddress) this._client.wallet.transfer(ethAddress as EthAddress, 0.00001);
+			if (ethAddress) this._client.wallet.transfer(ethAddress as EthAddress, 1_000_000n * BigInt(fileContent.byteLength));
 
 			if (file.name === undefined || file.name === null || file.name.length === 0) {
 				file.name = String(response.headers.get("Content-Disposition")?.split("=")[1].replace(/"/g, "").replace(" [HYDRAFILES]", ""));
@@ -393,13 +400,13 @@ class HTTPPeer implements PeerAttributes {
 			}
 
 			this.duration = Utils.createNonNegativeNumber(this.duration + Date.now() - startTime);
-			this.bytes = Utils.createNonNegativeNumber(this.bytes + peerContent.byteLength);
+			this.bytes = Utils.createNonNegativeNumber(this.bytes + fileContent.byteLength);
 			this.hits++;
 			this.save();
 
-			await file.cacheFile(peerContent);
+			await file.cacheFile(fileContent);
 			return {
-				file: peerContent,
+				file: fileContent,
 				signal: Utils.interfere(Number(response.headers.get("Signal-Strength"))),
 			};
 		} catch (e) {
@@ -438,7 +445,9 @@ export default class HTTPPeers {
 		const db = await PeerDB.init(rpcClient);
 		const httpPeers = new HTTPPeers(rpcClient, db);
 
-		(await Promise.all((await db.select()).map((peer) => HTTPPeer.init(peer, db, rpcClient._client)))).forEach((peer) => httpPeers.peers.set(peer.host, peer));
+		(await Promise.all((await db.select()).map((peer) => HTTPPeer.init(peer, db, rpcClient._client).catch((_) => false)))).forEach((peer) => {
+			if (typeof peer !== "boolean") httpPeers.peers.set(peer.host, peer);
+		});
 
 		for (let i = 0; i < rpcClient._client.config.bootstrapPeers.length; i++) {
 			await httpPeers.add(rpcClient._client.config.bootstrapPeers[i]);
@@ -516,7 +525,7 @@ export default class HTTPPeers {
 				if (response instanceof Response) {
 					const remotePeers = (await response.json()) as HTTPPeer[];
 					for (const remotePeer of remotePeers) {
-						if (Utils.isPrivateIP(remotePeer.host)) continue;
+						if (Utils.isPrivateIP(remotePeer.host) || remotePeer.host.startsWith("hydra://")) continue;
 						this.add(remotePeer.host).catch((e) => {
 							if (this._rpcClient._client.config.logLevel === "verbose") console.error(e);
 						});

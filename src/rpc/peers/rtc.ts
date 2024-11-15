@@ -2,6 +2,17 @@ import type { RTCDataChannel, RTCIceCandidate, RTCPeerConnection, RTCSessionDesc
 import type RPCClient from "../client.ts";
 import { encodeBase32 } from "jsr:@std/encoding@^1.0.5/base32";
 
+export type SignallingAnnounce = { announce: true; from: string };
+export type SignallingOffer = { offer: RTCSessionDescription; from: string; to: string };
+export type SignallingAnswer = { answer: RTCSessionDescription; from: string; to: string };
+export type SignallingIceCandidate = { iceCandidate: RTCIceCandidate; from: string; to: string };
+export type WSRequest = { request: { method: string; url: string; headers: Record<string, string>; body: ReadableStream<Uint8Array> | null }; id: number; from: string };
+export type WSResponse = { response: { body: string; status: number; statusText: string; headers: Record<string, string> }; id: number; from: string };
+export type WSMessage = SignallingAnnounce | SignallingOffer | SignallingAnswer | SignallingIceCandidate | WSRequest | WSResponse;
+
+type PeerConnection = { conn: RTCPeerConnection; channel: RTCDataChannel; startTime: number };
+type PeerConnections = { [id: string]: { offered?: PeerConnection; answered?: PeerConnection } };
+
 function extractIPAddress(sdp: string): string {
 	const ipv4Regex = /c=IN IP4 (\d{1,3}(?:\.\d{1,3}){3})/g;
 	const ipv6Regex = /c=IN IP6 ([0-9a-fA-F:]+)/g;
@@ -17,17 +28,6 @@ function extractIPAddress(sdp: string): string {
 	return ipAddresses.filter((ip) => ip !== "0.0.0.0")[0] ?? ipAddresses[0];
 }
 
-export type SignallingAnnounce = { announce: true; from: string };
-export type SignallingOffer = { offer: RTCSessionDescription; from: string; to: string };
-export type SignallingAnswer = { answer: RTCSessionDescription; from: string; to: string };
-export type SignallingIceCandidate = { iceCandidate: RTCIceCandidate; from: string; to: string };
-export type SignallingMessage = SignallingAnnounce | SignallingOffer | SignallingAnswer | SignallingIceCandidate;
-
-type PeerConnection = { conn: RTCPeerConnection; channel: RTCDataChannel; startTime: number };
-type PeerConnections = { [id: string]: { offered?: PeerConnection; answered?: PeerConnection } };
-
-const receivedPackets: Record<string, string[]> = {};
-
 function arrayBufferToUnicodeString(buffer: ArrayBuffer): string {
 	const uint16Array = new Uint16Array(buffer);
 	const chunkSize = 10000;
@@ -41,6 +41,7 @@ function arrayBufferToUnicodeString(buffer: ArrayBuffer): string {
 	return result;
 }
 
+const receivedPackets: Record<string, string[]> = {};
 const peerId = encodeBase32(String(Math.random())).replaceAll("=", "");
 
 class RTCPeers {
@@ -48,7 +49,7 @@ class RTCPeers {
 	peerId = peerId;
 	websockets: WebSocket[];
 	peerConnections: PeerConnections = {};
-	messageQueue: SignallingMessage[] = [];
+	messageQueue: WSMessage[] = [];
 	seenMessages: Set<string> = new Set();
 
 	constructor(rpcClient: RPCClient) {
@@ -68,19 +69,20 @@ class RTCPeers {
 		for (let i = 0; i < this.websockets.length; i++) {
 			this.websockets[i].onopen = () => {
 				console.log(`WebRTC: (1/12): Announcing to ${this.websockets[i].url}`);
-				const message: SignallingMessage = { announce: true, from: this.peerId };
+				const message: WSMessage = { announce: true, from: this.peerId };
 				this.wsMessage(message);
 				setInterval(() => this.wsMessage(message), rpcClient._client.config.announceSpeed);
 			};
 
 			this.websockets[i].onmessage = async (event) => {
-				const message = JSON.parse(event.data) as SignallingMessage;
+				const message = JSON.parse(event.data) as WSMessage;
 				if (message === null || message.from === peerId || this.seenMessages.has(event.data) || ("to" in message && message.to !== this.peerId)) return;
 				this.seenMessages.add(event.data);
 				if ("announce" in message) await this.handleAnnounce(message.from);
 				else if ("offer" in message) await this.handleOffer(message.from, message.offer);
 				else if ("answer" in message) await this.handleAnswer(message.from, message.answer);
 				else if ("iceCandidate" in message) this.handleIceCandidate(message.from, message.iceCandidate);
+				else if ("request" in message) this.handleWsRequest(this.websockets[i], message);
 				else console.warn("WebRTC: (13/12): Unknown message type received", message);
 			};
 		}
@@ -191,7 +193,7 @@ class RTCPeers {
 		}
 	}
 
-	wsMessage(message: SignallingMessage): void {
+	wsMessage(message: WSMessage): void {
 		this.messageQueue.push(message);
 		for (let i = 0; i < this.websockets.length; i++) {
 			if (this.websockets[i].readyState === 1) this.websockets[i].send(JSON.stringify(message));
@@ -265,7 +267,8 @@ class RTCPeers {
 		await this.peerConnections[from].offered.conn.setRemoteDescription(answer);
 	}
 
-	handleIceCandidate(from: string, iceCandidate: RTCIceCandidate): void {
+	handleIceCandidate(from: string, receivedIceCandidate: RTCIceCandidate): void {
+		const iceCandidate = receivedIceCandidate;
 		this._rpcClient._client.events.log(this._rpcClient._client.events.rtcEvents.RTCIce);
 		if (!this.peerConnections[from]) {
 			console.warn(`WebRTC: (13/12):  ${from}  Rejecting Ice candidates received - No open handshake`);
@@ -276,6 +279,14 @@ class RTCPeers {
 			if (this.peerConnections[from].answered) this.peerConnections[from].answered.conn.addIceCandidate(iceCandidate).catch(console.error);
 			if (this.peerConnections[from].offered && this.peerConnections[from].offered.conn.remoteDescription) this.peerConnections[from].offered.conn.addIceCandidate(iceCandidate).catch(console.error);
 		}
+	}
+
+	async handleWsRequest(ws: WebSocket, message: WSRequest): Promise<void> {
+		const response = await this._rpcClient._client.rpcServer.handleRequest(new Request(message.request.url, { body: message.request.body, headers: message.request.headers, method: message.request.method }));
+		const headersObj: Record<string, string> = {};
+		response.headers.forEach((value, key) => headersObj[key] = value);
+		const responseMessage: WSResponse = { id: message.id, from: this.peerId, response: { body: await response.text(), headers: headersObj, status: response.status, statusText: response.statusText } };
+		ws.send(JSON.stringify(responseMessage));
 	}
 
 	public fetch(input: RequestInfo, init?: RequestInit): Promise<Response>[] {

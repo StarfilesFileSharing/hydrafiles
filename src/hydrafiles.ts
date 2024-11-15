@@ -1,5 +1,5 @@
 import { encode as base32Encode } from "https://deno.land/std@0.194.0/encoding/base32.ts";
-// import WebTorrent from "npm:webtorrent";
+import type WebTorrent from "https://cdn.jsdelivr.net/npm/webtorrent@latest/webtorrent.min.js";
 import getConfig, { type Config } from "./config.ts";
 import Files, { FileAttributes } from "./file.ts";
 import Utils from "./utils.ts";
@@ -10,6 +10,7 @@ import RPCClient from "./rpc/client.ts";
 import FileSystem from "./filesystem/filesystem.ts";
 import Events from "./events.ts";
 import Wallet from "./wallet.ts";
+import { processingRequests } from "./rpc/routes.ts";
 
 // TODO: IDEA: HydraTorrent - New Github repo - "Hydrafiles + WebTorrent Compatibility Layer" - Hydrafiles noes can optionally run HydraTorrent to seed files via webtorrent
 // Change index hash from sha256 to infohash, then allow peers to leech files from webtorrent + normal torrent
@@ -34,7 +35,12 @@ class Hydrafiles {
 	rpcClient!: RPCClient;
 	wallet!: Wallet;
 	files!: Files;
-	// webtorrent: WebTorrent = new WebTorrent();
+	webtorrent?: WebTorrent;
+	handleCustomRequest = async (req: Request) => {
+		console.log(req);
+		await new Promise<void>((resolve) => resolve()); // We do this so the function is async, for devs using the lib
+		return new Response("Hello World!");
+	};
 
 	constructor(customConfig: Partial<Config> = {}) {
 		this.config = getConfig(customConfig);
@@ -48,7 +54,7 @@ class Hydrafiles {
 		}
 	}
 
-	public async start(onUpdateFileListProgress?: (progress: number, total: number) => void): Promise<void> {
+	public async start(opts: { onUpdateFileListProgress?: (progress: number, total: number) => void; webtorrent?: WebTorrent } = {}): Promise<void> {
 		console.log("Startup: Populating KeyPair");
 		this.keyPair = await this.utils.getKeyPair();
 		console.log("Startup: Populating FileDB");
@@ -58,7 +64,10 @@ class Hydrafiles {
 		this.rpcServer = new RPCServer(this);
 		console.log("Startup: Populating Wallet");
 		this.wallet = await Wallet.init(this);
-		this.startBackgroundTasks(onUpdateFileListProgress);
+		console.log("Startup: Starting WebTorrent");
+		this.webtorrent = opts.webtorrent;
+
+		this.startBackgroundTasks(opts.onUpdateFileListProgress);
 	}
 
 	startBackgroundTasks(onUpdateFileListProgress?: (progress: number, total: number) => void): void {
@@ -74,7 +83,7 @@ class Hydrafiles {
 		if (this.config.backfill) this.files.backfillFiles();
 	}
 
-	async getHostname(): Promise<string> {
+	public async getHostname(): Promise<string> {
 		const pubKey = await Utils.exportPublicKey(this.keyPair.publicKey);
 		const xEncoded = base32Encode(new TextEncoder().encode(pubKey.x)).toLowerCase().replace(/=+$/, "");
 		const yEncoded = base32Encode(new TextEncoder().encode(pubKey.y)).toLowerCase().replace(/=+$/, "");
@@ -88,26 +97,28 @@ class Hydrafiles {
 			"========\n===============================================",
 			"\n| Uptime:",
 			Utils.convertTime(+new Date() - this.startTime),
-			"\n| Hostname:",
-			`${await this.getHostname()}`,
+			"\n| Known HTTP Peers:",
+			this.rpcClient.http.getPeers().length,
+			"\n| Known RTC Peers:",
+			Object.keys(this.rpcClient.rtc.peerConnections).length,
 			"\n| Known (Network) Files:",
 			await this.files.db.count(),
 			`(${Math.round((100 * (await this.files.db.sum("size"))) / 1024 / 1024 / 1024) / 100}GB)`,
 			"\n| Stored Files:",
 			(await this.fs.readDir("files/")).length,
 			`(${Math.round((100 * await this.utils.calculateUsedStorage()) / 1024 / 1024 / 1024) / 100}GB)`,
-			"\n| Processing Files:",
-			this.rpcServer.processingRequests.size,
-			"\n| Known HTTP Peers:",
-			(this.rpcClient.http.getPeers()).length,
-			// '\n| Seeding Torrent Files:',
-			// (await webtorrentClient()).torrents.length,
 			"\n| Downloads Served:",
 			(await this.files.db.sum("downloadCount")) + ` (${Math.round((((await this.files.db.sum("downloadCount * size")) / 1024 / 1024 / 1024) * 100) / 100)}GB)`,
-			"\n| Balance:",
-			await this.wallet.balance(),
+			"\n| Hostname:",
+			`${await this.getHostname()}`,
 			"\n| Address:",
 			this.wallet.address(),
+			"\n| Balance:",
+			await this.wallet.balance(),
+			"\n| Processing Files:",
+			processingRequests.size,
+			// '\n| Seeding Torrent Files:',
+			// (await webtorrentClient()).torrents.length,
 			"\n===============================================\n",
 		);
 	}

@@ -10,7 +10,25 @@ export interface Config {
 	 * HTTP listen port.
 	 * @default 80
 	 */
-	port: number;
+	httpPort: number;
+
+	/**
+	 * HTTPS listen port.
+	 * @default 443
+	 */
+	httpsPort: number;
+
+	/**
+	 * SSL Certificate Path.
+	 * @default "./certs/ca/localhost/localhost.crt"
+	 */
+	sslCertPath: string;
+
+	/**
+	 * SSL Key Path.
+	 * @default "./certs/ca/localhost/localhost.key"
+	 */
+	sslKeyPath: string;
 
 	/**
 	 * HTTP listen hostname.
@@ -153,33 +171,44 @@ export interface Config {
 	 * @default false
 	 */
 	dontUseFileSystemAPI: boolean;
+
+	/**
+	 * SHA256 string to derive private key from.
+	 * @default ""
+	 */
+	deriveKey: string;
 }
 
+// DO NOT CHANGE DEFAULT CONFIG - Check documentation on how to set custom config.
 const defaultConfig: Config = {
-	"hostname": "0.0.0.0",
-	"port": 80,
-	"publicHostname": "http://127.0.0.1:80",
-	"maxCache": -1,
-	"permaFiles": ["04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f"],
-	"preferNode": "HIGHEST_HITRATE",
-	"bootstrapPeers": ["https://hydrafiles.com", "https://hydra.starfiles.co", "https://api2.starfiles.co", "https://api2.starfiles.bz", "https://hydra.sts.st"],
-	"burnRate": 0.1,
-	"s3AccessKeyId": "",
-	"s3SecretAccessKey": "",
-	"s3Endpoint": "",
-	"cacheS3": true,
-	"memoryThreshold": 0,
-	"memoryThresholdReachedWait": 100,
-	"timeout": 60000,
-	"uploadSecret": "",
-	"logLevel": "normal",
-	"summarySpeed": 300000,
-	"backfill": true,
-	"comparePeersSpeed": 3600000,
-	"compareFilesSpeed": 300000,
-	"announceSpeed": 30000,
-	"reverseProxy": "",
-	"dontUseFileSystemAPI": false,
+	hostname: "0.0.0.0",
+	httpPort: 80,
+	httpsPort: 443,
+	sslCertPath: "./certs/ca/localhost/localhost.crt",
+	sslKeyPath: "./certs/ca/localhost/localhost.key",
+	publicHostname: "http://127.0.0.1:80",
+	maxCache: -1,
+	permaFiles: ["04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f"],
+	preferNode: "HIGHEST_HITRATE",
+	bootstrapPeers: ["https://hydrafiles.com", "https://hydra.starfiles.co", "https://api2.starfiles.co", "https://api2.starfiles.bz", "https://hydra.sts.st"],
+	burnRate: 0.1,
+	s3AccessKeyId: "",
+	s3SecretAccessKey: "",
+	s3Endpoint: "",
+	cacheS3: true,
+	memoryThreshold: 0,
+	memoryThresholdReachedWait: 100,
+	timeout: 60000,
+	uploadSecret: "",
+	logLevel: "normal",
+	summarySpeed: 300000,
+	backfill: true,
+	comparePeersSpeed: 3600000,
+	compareFilesSpeed: 300000,
+	announceSpeed: 30000,
+	reverseProxy: "",
+	dontUseFileSystemAPI: false,
+	deriveKey: "",
 };
 
 /** @internal */

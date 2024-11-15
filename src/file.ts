@@ -8,6 +8,8 @@ import { delay } from "https://deno.land/std@0.170.0/async/delay.ts";
 
 type DatabaseWrapper = { type: "UNDEFINED"; db: undefined } | { type: "SQLITE"; db: Database } | { type: "INDEXEDDB"; db: IDBDatabase };
 
+const seeding: string[] = [];
+
 export interface FileAttributes {
 	hash: Sha256;
 	infohash: string | null;
@@ -102,7 +104,7 @@ function createIDBDatabase(): Promise<IDBDatabase> {
 	return dbPromise;
 }
 
-class FileDB {
+export class FileDB {
 	private _client: Hydrafiles;
 	db: DatabaseWrapper = { type: "UNDEFINED", db: undefined };
 
@@ -216,7 +218,7 @@ class FileDB {
 	insert(values: Partial<FileAttributes>): void {
 		if (typeof this.db === "undefined") return;
 		const file = fileAttributesDefaults(values);
-		console.log(`  ${file.hash}  File INSERTed`, values);
+		console.log(`File: ${file.hash}  File INSERTed`, values);
 		if (this.db.type === "SQLITE") {
 			const query = `INSERT INTO file (hash, infohash, downloadCount, id, name, found, size)VALUES (?, ?, ?, ?, ?, ?, ?)`;
 
@@ -255,7 +257,7 @@ class FileDB {
 		// Get the current file attributes before updating
 		const currentFile = (await this.select({ key: "hash", value: hash }))[0] ?? fileAttributesDefaults({ hash });
 		if (!currentFile) {
-			console.error(`  ${hash}  Mot found when updating`);
+			console.error(`File: ${hash}  Mot found when updating`);
 			return;
 		}
 
@@ -284,14 +286,14 @@ class FileDB {
 			const query = `UPDATE file SET ${updatedColumn.map((column) => `${column} = ?`).join(", ")} WHERE hash = ?`;
 			this.db.db.prepare(query).values(params);
 			console.log(
-				`  ${hash}  File UPDATEd - Updated Columns: ${updatedColumn.join(", ")}` + (this._client.config.logLevel === "verbose" ? ` - Params: ${params.join(", ")}  - Query: ${query}` : ""),
-				this._client.config.logLevel === "verbose" ? console.log(`  ${hash}  Updated Values:`, beforeAndAfter) : "",
+				`File: ${hash}  File UPDATEd - Updated Columns: ${updatedColumn.join(", ")}` + (this._client.config.logLevel === "verbose" ? ` - Params: ${params.join(", ")}  - Query: ${query}` : ""),
+				this._client.config.logLevel === "verbose" ? console.log(`File: ${hash}  Updated Values:`, beforeAndAfter) : "",
 			);
 		} else {
 			if (this.db.type === "INDEXEDDB") this.objectStore().put(newFile).onerror = console.error;
 			console.log(
-				`  ${hash}  File UPDATEd - Updated Columns: ${updatedColumn.join(", ")}` + (this._client.config.logLevel === "verbose" ? ` - Params: ${params.join(", ")}` : ""),
-				this._client.config.logLevel === "verbose" ? console.log(`  ${hash}  Updated Values:`, beforeAndAfter) : "",
+				`File: ${hash}  File UPDATEd - Updated Columns: ${updatedColumn.join(", ")}` + (this._client.config.logLevel === "verbose" ? ` - Params: ${params.join(", ")}` : ""),
+				this._client.config.logLevel === "verbose" ? console.log(`File: ${hash}  Updated Values:`, beforeAndAfter) : "",
 			);
 		}
 	}
@@ -302,7 +304,7 @@ class FileDB {
 		if (this.db.type === "SQLITE") {
 			this.db.db.exec(query, hash.toString());
 		} else if (this.db.type === "INDEXEDDB") this.objectStore().delete(hash.toString()).onerror = console.error;
-		console.log(`  ${hash}  File DELETEd`);
+		console.log(`File: ${hash}  File DELETEd`);
 	}
 
 	increment<T>(hash: Sha256, column: keyof FileAttributes): void {
@@ -315,7 +317,7 @@ class FileDB {
 				const file = (target as IDBRequest).result;
 				if (file && this.db.type === "INDEXEDDB") {
 					file[column] = (file[column] || 0) + 1;
-					this.objectStore().put(file).onsuccess = () => console.log(`  ${hash}  Incremented ${column}`);
+					this.objectStore().put(file).onsuccess = () => console.log(`File: ${hash}  Incremented ${column}`);
 				}
 			};
 		}
@@ -385,7 +387,7 @@ export class File implements FileAttributes {
 		this.hash = hash;
 
 		if (vote) {
-			console.log(`  ${this.hash}  Voting for file`);
+			console.log(`File: ${this.hash}  Voting for file`);
 			this.checkVoteNonce();
 		}
 	}
@@ -456,7 +458,7 @@ export class File implements FileAttributes {
 
 		const hash = this.hash;
 
-		console.log(`  ${hash}  Getting file metadata`);
+		console.log(`File: ${hash}  Getting file metadata`);
 
 		const id = this.id;
 		if (id !== undefined && id !== null && id.length > 0) {
@@ -528,7 +530,7 @@ export class File implements FileAttributes {
 
 	async fetchFromCache(): Promise<{ file: Uint8Array; signal: number } | false> {
 		const hash = this.hash;
-		console.log(`  ${hash}  Checking Cache`);
+		console.log(`File: ${hash}  Checking Cache`);
 		const filePath = join(FILESPATH, hash.toString());
 		this.seed();
 		if (!await this._client.fs.exists(filePath)) return false;
@@ -546,7 +548,7 @@ export class File implements FileAttributes {
 	}
 
 	async fetchFromS3(): Promise<{ file: Uint8Array; signal: number } | false> {
-		console.log(`  ${this.hash}  Checking S3`);
+		console.log(`File: ${this.hash}  Checking S3`);
 		if (this._client.s3 === undefined) return false;
 		try {
 			const data = (await this._client.s3.getObject(`${this.hash}.stuf`)).body;
@@ -600,20 +602,20 @@ export class File implements FileAttributes {
 		// );
 
 		const hash = this.hash;
-		console.log(`  ${hash}  Getting file`);
+		console.log(`File: ${hash}  Getting file`);
 		if (!this.found && new Date(this.updatedAt) > new Date(new Date().getTime() - 5 * 60 * 1000)) {
-			console.log(`  ${hash}  404 cached`);
+			console.log(`File: ${hash}  404 cached`);
 			return false;
 		}
 		if (opts.logDownloads === undefined || opts.logDownloads) this.increment("downloadCount");
 
 		// console.log(` ${this.hash}  Checking memory usage`);
 		// if (this.size !== 0 && !Utils.hasSufficientMemory(this.size)) {
-		// 	console.log(`  ${hash}  Reached memory limit, waiting`, this.size);
+		// 	console.log(`File: ${hash}  Reached memory limit, waiting`, this.size);
 		// 	await Utils.promiseWithTimeout(
 		// 		new Promise(() => {
 		// 			const intervalId = setInterval(() => {
-		// 				if (this._client.config.logLevel === "verbose") console.log(`  ${hash}  Reached memory limit, waiting`, this.size);
+		// 				if (this._client.config.logLevel === "verbose") console.log(`File: ${hash}  Reached memory limit, waiting`, this.size);
 		// 				if (this.size === 0 || Utils.hasSufficientMemory(this.size)) clearInterval(intervalId);
 		// 			}, this._client.config.memoryThresholdReachedWait);
 		// 		}),
@@ -622,10 +624,10 @@ export class File implements FileAttributes {
 		// }
 
 		let file = await this.fetchFromCache();
-		if (file !== false) console.log(`  ${hash}  Serving ${this.size !== undefined ? Math.round(this.size / 1024 / 1024) : 0}MB from cache`);
+		if (file !== false) console.log(`File: ${hash}  Serving ${this.size !== undefined ? Math.round(this.size / 1024 / 1024) : 0}MB from cache`);
 		else {
 			if (this._client.config.s3Endpoint.length > 0) file = await this.fetchFromS3();
-			if (file !== false) console.log(`  ${hash}  Serving ${this.size !== undefined ? Math.round(this.size / 1024 / 1024) : 0}MB from S3`);
+			if (file !== false) console.log(`File: ${hash}  Serving ${this.size !== undefined ? Math.round(this.size / 1024 / 1024) : 0}MB from S3`);
 			else {
 				file = await this.download();
 				if (file === false) {
@@ -646,23 +648,24 @@ export class File implements FileAttributes {
 		this._client.files.db.update(this.hash, this);
 	}
 
-	seed(): void {
+	async seed(): Promise<void> {
 		// TODO: webtorrent.add() all known files
-		// if (seeding.includes(this.hash)) return;
-		// seeding.push(this.hash);
-		// const filePath = join(FILESPATH, this.hash);
-		// if (!existsSync(filePath)) return;
-		// this._client.webtorrent.seed(filePath, {
-		//   createdBy: "Hydrafiles/0.1",
-		//   name: (this.name ?? this.hash).replace(/(\.\w+)$/, " [HYDRAFILES]$1"),
-		//   destroyStoreOnDestroy: true,
-		//   addUID: true,
-		//   comment: "Anonymously seeded with Hydrafiles",
-		// }, async (torrent: { infoHash: string }) => {
-		//   console.log(`  ${this.hash}  Seeding with infohash ${torrent.infoHash}`);
-		//   this.infohash = torrent.infoHash;
-		//   await this.save();
-		// });
+		if (!this._client.webtorrent) return;
+		if (seeding.includes(this.hash)) return;
+		seeding.push(this.hash);
+		const filePath = join(FILESPATH, this.hash);
+		if (!this._client.fs.exists(filePath)) return;
+		this._client.webtorrent.seed(typeof window === "undefined" ? filePath : await this._client.fs.readFile(filePath), {
+			createdBy: "Hydrafiles/0.1",
+			name: (this.name ?? this.hash).replace(/(\.\w+)$/, " [HYDRAFILES]$1"),
+			destroyStoreOnDestroy: true,
+			addUID: true,
+			comment: "Anonymously seeded with Hydrafiles",
+		}, (torrent: { infoHash: string }) => {
+			console.log(`File: ${this.hash}  Seeding with infohash ${torrent.infoHash}`);
+			this.infohash = torrent.infoHash;
+			this.save();
+		});
 	}
 
 	increment(column: keyof FileAttributes): void {
@@ -676,7 +679,7 @@ export class File implements FileAttributes {
 		const decimalValue = BigInt("0x" + voteHash).toString(10);
 		const difficulty = Number(decimalValue) / Number(BigInt("0x" + "f".repeat(64)));
 		if (difficulty > this.voteDifficulty) {
-			console.log(`  ${this.hash}  ${nonce ? "Received" : "Mined"} Difficulty ${difficulty} - Prev: ${this.voteDifficulty}`);
+			console.log(`File: ${this.hash}  ${nonce ? "Received" : "Mined"} Difficulty ${difficulty} - Prev: ${this.voteDifficulty}`);
 			this.voteNonce = voteNonce;
 			this.voteHash = voteHash;
 			this.voteDifficulty = difficulty;
@@ -710,19 +713,19 @@ export class File implements FileAttributes {
 			if (fileContent) return fileContent;
 		}
 
-		console.log(`  ${this.hash}  Downloading from WebRTC`);
+		console.log(`File: ${this.hash}  Downloading from WebRTC`);
 		const responses = this._client.rpcClient.rtc.fetch(`http://localhost/download/${this.hash}`);
 		for (let i = 0; i < responses.length; i++) {
 			const response = await responses[i];
-			const peerContent = new Uint8Array(await response.arrayBuffer());
-			console.log(`  ${this.hash}  Validating hash`);
-			const verifiedHash = await Utils.hashUint8Array(peerContent);
-			console.log(`  ${this.hash}  Done Validating hash`);
+			const fileContent = new Uint8Array(await response.arrayBuffer());
+			console.log(`File: ${this.hash}  Validating hash`);
+			const verifiedHash = await Utils.hashUint8Array(fileContent);
+			console.log(`File: ${this.hash}  Done Validating hash`);
 			if (this.hash !== verifiedHash) return false;
-			console.log(`  ${this.hash}  Valid hash`);
+			console.log(`File: ${this.hash}  Valid hash`);
 
 			const ethAddress = response.headers.get("Ethereum-Address");
-			if (ethAddress) this._client.wallet.transfer(ethAddress as EthAddress, 0.00001);
+			if (ethAddress) this._client.wallet.transfer(ethAddress as EthAddress, 1_000_000n * BigInt(fileContent.byteLength));
 
 			if (this.name === null || this.name.length === 0) {
 				this.name = String(response.headers.get("Content-Disposition")?.split("=")[1].replace(/"/g, "").replace(" [HYDRAFILES]", ""));
@@ -764,6 +767,12 @@ class Files {
 		return file;
 	}
 
+	public getFiles(): File[] {
+		return Array.from(this.files.values())
+			.filter((_, index, self) => index === self.findIndex((f) => f.hash === _.hash))
+			.sort((a, b) => (b.voteHash ?? "").localeCompare(a.voteHash ?? ""));
+	}
+
 	backfillFiles = (): void => {
 		setTimeout(async () => {
 			while (true) {
@@ -777,7 +786,7 @@ class Files {
 				const file = this.files.get(randomKey);
 				if (!file) continue;
 				if (file) {
-					console.log(`  ${file.hash}  Backfilling file`);
+					console.log(`File: ${file.hash}  Backfilling file`);
 					await file.getFile({ logDownloads: false });
 				}
 			}
@@ -826,7 +835,7 @@ class Files {
 					// @ts-expect-error:
 					if (newFile[key] !== undefined && newFile[key] !== null && newFile[key] !== 0 && (currentFile[key] === null || currentFile[key] === 0)) currentFile[key] = newFile[key];
 					if (newFile.voteNonce !== 0 && newFile.voteDifficulty > currentFile.voteDifficulty && newFile["voteNonce"] > 0) {
-						console.log(`  ${newFile.hash}  Checking vote nonce ${newFile["voteNonce"]}`);
+						console.log(`File: ${newFile.hash}  Checking vote nonce ${newFile["voteNonce"]}`);
 						currentFile.checkVoteNonce(newFile["voteNonce"]);
 					}
 				}

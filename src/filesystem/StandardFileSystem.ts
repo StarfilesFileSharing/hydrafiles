@@ -23,8 +23,8 @@ export default class StandardFileSystem {
 		return entries;
 	};
 
-	readFile = async (path: string): Promise<Uint8Array> => {
-		if (!await this.exists(path)) throw new Error(`${path} File doesn't exist`);
+	readFile = async (path: string): Promise<Uint8Array | false> => {
+		if (!await this.exists(path)) return false;
 		return await Deno.readFile(path);
 	};
 
@@ -33,6 +33,7 @@ export default class StandardFileSystem {
 	};
 
 	getFileSize = async (path: string): Promise<number> => {
+		if (!await this.exists(path)) return 0;
 		const fileInfo = await Deno.stat(path);
 		return fileInfo.size;
 	};

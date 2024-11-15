@@ -1,13 +1,13 @@
 // import { crypto } from "jsr:@std/crypto";
 import { encodeHex } from "jsr:@std/encoding/hex";
 import { join } from "https://deno.land/std@0.224.0/path/mod.ts";
-import { decodeBase32 } from "jsr:@std/encoding@^1.0.5/base32";
 import type { Config } from "./config.ts";
 import FS from "./filesystem/filesystem.ts";
 
 export type Base64 = string & { readonly brand: unique symbol };
 export type NonNegativeNumber = number & { readonly brand: unique symbol };
 export type Sha256 = string & { readonly brand: unique symbol };
+export type PubKey = { x: string; y: string };
 
 class Utils {
 	private _config: Config;
@@ -117,8 +117,8 @@ class Utils {
 
 			const filePath = join(filesPath, file);
 
-			this._fs.remove(filePath).catch(console.error);
 			const fileSize = await this._fs.getFileSize(filePath);
+			this._fs.remove(filePath).catch(console.error);
 			if (typeof fileSize === "number") remainingSpace += fileSize;
 
 			if (requiredSpace <= remainingSpace && await this.calculateUsedStorage() * (1 - this._config.burnRate) <= remainingSpace) {
@@ -208,7 +208,7 @@ class Utils {
 		);
 	}
 
-	static async exportPublicKey(key: CryptoKey): Promise<{ x: string; y: string }> {
+	static async exportPublicKey(key: CryptoKey): Promise<PubKey> {
 		const jwk = await crypto.subtle.exportKey("jwk", key);
 		return { x: jwk.x as string, y: jwk.y as string }; // Return both x and y
 	}
@@ -224,7 +224,7 @@ class Utils {
 			["sign"],
 		);
 	}
-	static buildJWT(pubKey: { x: string; y: string }): { kty: string; crv: string; x: string; y: string; ext: boolean } {
+	static buildJWT(pubKey: PubKey): { kty: string; crv: string; x: string; y: string; ext: boolean } {
 		return {
 			kty: "EC",
 			crv: "P-256",
@@ -246,20 +246,13 @@ class Utils {
 		);
 		return this.bufferToBase64(signature);
 	}
-	static async verifySignature(message: string, signature: Base64, pubKey: { x: string; y: string } | { xBase32: string; yBase32: string }): Promise<boolean> {
+	static async verifySignature(message: string, signature: Base64, pubKey: PubKey): Promise<boolean> {
 		const encoder = new TextEncoder();
 		const data = encoder.encode(message);
 
-		const decodedPubKey = "xBase32" in pubKey
-			? {
-				x: new TextDecoder().decode(decodeBase32(pubKey.xBase32)),
-				y: new TextDecoder().decode(decodeBase32(pubKey.yBase32)),
-			}
-			: pubKey;
-
 		const importedPublicKey = await crypto.subtle.importKey(
 			"jwk",
-			this.buildJWT(decodedPubKey),
+			this.buildJWT(pubKey),
 			{ name: "ECDSA", namedCurve: "P-256" },
 			true,
 			["verify"],
