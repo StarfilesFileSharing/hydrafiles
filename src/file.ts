@@ -767,6 +767,12 @@ class Files {
 		return file;
 	}
 
+	public getFiles(): File[] {
+		return Array.from(this.files.values())
+			.filter((_, index, self) => index === self.findIndex((f) => f.hash === _.hash))
+			.sort((a, b) => (b.voteHash ?? "").localeCompare(a.voteHash ?? ""));
+	}
+
 	backfillFiles = (): void => {
 		setTimeout(async () => {
 			while (true) {
