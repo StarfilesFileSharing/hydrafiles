@@ -12,10 +12,17 @@ function ensureMultipleOfEight(str: string): string {
 	return remainder !== 0 ? str.padEnd(Math.ceil(str.length / 8) * 8, "=") : str;
 }
 
+interface CachedHostname {
+	body: string;
+	headers: Headers;
+	timestamp: number;
+}
+
 export const router = new Map<string, (req: Request, headers: Headers, client: Hydrafiles) => Promise<Response> | Response>();
 export const sockets: { id: string; socket: WebSocket }[] = [];
 export const processingRequests = new Map<string, Promise<Response>>();
-const cachedHostnames: { [key: string]: { body: string; headers: Headers } } = {};
+const cachedHostnames: Record<string, CachedHostname> = {};
+
 export const pendingRequests = new Map<number, (response: Response | false) => void>();
 
 router.set("WS", (req) => {
@@ -303,10 +310,11 @@ router.set("/file", (req, headers, client) => {
 	return new Response(JSON.stringify(file.toFileAttributes()), { headers });
 });
 
-router.set("/endpoint", async (req, headers, client) => {
+router.set("/endpoint", async (req, headers, client): Promise<Response> => {
 	const url = new URL(req.url);
 	const hostname = url.pathname.split("/")[2];
 	const pubKey = await Utils.exportPublicKey(client.keyPair.publicKey);
+	const now = Date.now();
 
 	if (hostname === `${base32Encode(new TextEncoder().encode(pubKey.x)).toLowerCase().replace(/=+$/, "")}.${base32Encode(new TextEncoder().encode(pubKey.y)).toLowerCase().replace(/=+$/, "")}`) {
 		const body = await (client.config.reverseProxy ? await fetch(client.config.reverseProxy) : await client.handleCustomRequest(new Request(`hydra://${hostname}/`))).text();
@@ -319,7 +327,13 @@ router.set("/endpoint", async (req, headers, client) => {
 			if (client.config.logLevel === "verbose") console.log(`  ${hostname}  Waiting for existing request with same hostname`);
 			await processingRequests.get(hostname);
 		}
-		// if (hostname in cachedHostnames) return new Response(cachedHostnames[hostname].body, { headers: cachedHostnames[hostname].headers });
+		if (hostname in cachedHostnames) {
+			const cachedEntry = cachedHostnames[hostname];
+			if (now - cachedEntry.timestamp > 60000) {
+				delete cachedHostnames[hostname];
+			}
+			return new Response(cachedHostnames[hostname].body, { headers: cachedHostnames[hostname].headers });
+		}
 
 		console.log(`Endpoint: ${hostname}  Fetching endpoint response from peers`);
 		const responses = client.rpcClient.fetch(`http://localhost/endpoint/${hostname}`);
@@ -366,7 +380,7 @@ router.set("/endpoint", async (req, headers, client) => {
 			processingRequests.delete(hostname);
 		}
 		const res = { body: await response.text(), headers: response.headers };
-		cachedHostnames[hostname] = res;
+		cachedHostnames[hostname] = { ...res, timestamp: Date.now() };
 		return new Response(res.body, { headers: res.headers });
 	}
 });
