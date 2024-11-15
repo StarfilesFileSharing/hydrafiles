@@ -1,370 +1,214 @@
 <!DOCTYPE html>
 <html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>Dashboard - Hydrafiles</title>
+		<link rel="stylesheet" href="./style.css" />
+		<script src="https://cdn.tailwindcss.com"></script>
+	</head>
 
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Dashboard - Hydrafiles</title>
-  <style>
-    * {
-      word-wrap: break-word 
-    }
+	<body>
+		<header>
+			<a href="/" style="color: unset"><h1 class="text-2xl">Hydrafiles</h1></a>
+			<p>The (P2P) web privacy layer.</p>
+			<p>Donate Monero:<br />83BGShZv9hU9P9SRLjhRGJYQ4WatMNazKVFG6eKyHc6HguBzu1vH54R7mQJaZzeXhx4jDxnkNJMizLXrFFN4ARffEwFj82y</p>
+		</header>
 
-    body {
-      font-family: Arial, sans-serif;
-      margin: 0;
-      padding: 0;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      background-color: #f4f4f4;
-    }
+		<div id="startHydrafiles" class="relative py-3 sm:max-w-xl sm:mx-auto my-12">
+			<div class="absolute inset-0 bg-gradient-to-r from-cyan-400 to-sky-500 shadow-lg transform -skew-y-6 sm:skew-y-0 sm:-rotate-6 sm:rounded-3xl"></div>
+			<div class="relative px-4 py-10 bg-white shadow-lg sm:rounded-3xl sm:p-20">
+				<div class="max-w-md mx-auto">
+					<h1 class="text-2xl font-semibold">Login or Signup</h1>
+					<div class="divide-y divide-gray-200">
+						<div class="py-8 text-base leading-6 space-y-4 text-gray-700 sm:text-lg sm:leading-7">
+							<div class="relative">
+								<input id="email" name="email" type="text" class="peer placeholder-transparent h-10 w-full border-b-2 border-gray-300 text-gray-900 focus:outline-none focus:borer-rose-600" placeholder="Email address">
+								<label for="email" class="absolute left-0 -top-3.5 text-gray-600 text-sm peer-placeholder-shown:text-base peer-placeholder-shown:text-gray-440 peer-placeholder-shown:top-2 transition-all peer-focus:-top-3.5 peer-focus:text-gray-600 peer-focus:text-sm">Email Address</label>
+							</div>
+							<div class="relative">
+								<input id="password" name="password" type="password" class="peer placeholder-transparent h-10 w-full border-b-2 border-gray-300 text-gray-900 focus:outline-none focus:borer-rose-600" placeholder="Password">
+								<label for="password" class="absolute left-0 -top-3.5 text-gray-600 text-sm peer-placeholder-shown:text-base peer-placeholder-shown:text-gray-440 peer-placeholder-shown:top-2 transition-all peer-focus:-top-3.5 peer-focus:text-gray-600 peer-focus:text-sm">Password</label>
+							</div>
+							<div class="relative flex items-center">
+									<input id="rememberMe" type="checkbox" class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded" />
+									<label for="rememberMe" class="ml-2 block text-sm text-gray-900">Remember me</label>
+							</div>
+							<button id="startHydrafilesButton" type="submit" class="w-full flex items-center bg-cyan-500 text-white border border-gray-300 rounded-lg shadow-md px-6 py-2 text-sm font-medium text-gray-800 hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 justify-center">Start Hydrafiles</button>
+							<p class="text-sm">Your credentials won't be saved or sent anywhere, they will be used locally to derive your private key. A lost password can't be recovered.</p>
+							<p class="text-sm">You can create multiple accounts under the same email by using different passwords. Each unique email:password combination is treated as an individual account. There is no such thing as a "wrong password".</p>
+							<p class="text-sm">Ensure the email you enter is unique, and use best practices for your password like any other site.</p>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
 
-    header {
-      background-color: #333;
-      color: #fff;
-      width: 100%;
-      padding: 1em 0;
-      text-align: center;
-    }
+		<div id="main" class="hidden flex h-screen w-screen">
+			<aside id="default-sidebar" aria-label="Sidebar" class="w-64 transition-transform -translate-x-full sm:translate-x-0">
+					<div class="h-full px-3 py-4 overflow-y-auto bg-gray-50 dark:bg-gray-800">
+						<ul class="space-y-2 font-medium">
+							<li>
+								<a href="#" class="flex items-center p-2 text-gray-900 rounded-lg dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 group">
+									<svg class="w-5 h-5 text-gray-500 transition duration-75 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-white" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 22 21"><path d="M16.975 11H10V4.025a1 1 0 0 0-1.066-.998 8.5 8.5 0 1 0 9.039 9.039.999.999 0 0 0-1-1.066h.002Z"></path><path d="M12.5 0c-.157 0-.311.01-.565.027A1 1 0 0 0 11 1.02V10h8.975a1 1 0 0 0 1-.935c.013-.188.028-.374.028-.565A8.51 8.51 0 0 0 12.5 0Z"></path></svg>
+									<span class="ms-3">Dashboard</span>
+								</a>
+							</li>
+							<li>
+								<a href="#" class="flex items-center p-2 text-gray-900 rounded-lg dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 group">
+									<svg class="flex-shrink-0 w-5 h-5 text-gray-500 transition duration-75 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-white" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 20 20"><path d="m17.418 3.623-.018-.008a6.713 6.713 0 0 0-2.4-.569V2h1a1 1 0 1 0 0-2h-2a1 1 0 0 0-1 1v2H9.89A6.977 6.977 0 0 1 12 8v5h-2V8A5 5 0 1 0 0 8v6a1 1 0 0 0 1 1h8v4a1 1 0 0 0 1 1h2a1 1 0 0 0 1-1v-4h6a1 1 0 0 0 1-1V8a5 5 0 0 0-2.582-4.377ZM6 12H4a1 1 0 0 1 0-2h2a1 1 0 0 1 0 2Z"></path></svg>
+									<span class="flex-1 ms-3 whitespace-nowrap">Statistics</span>
+								</a>
+							</li>
+							<li>
+								<a href="#" class="flex items-center p-2 text-gray-900 rounded-lg dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 group">
+									<svg class="flex-shrink-0 w-5 h-5 text-gray-500 transition duration-75 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-white" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 20 18"><path d="M14 2a3.963 3.963 0 0 0-1.4.267 6.439 6.439 0 0 1-1.331 6.638A4 4 0 1 0 14 2Zm1 9h-1.264A6.957 6.957 0 0 1 15 15v2a2.97 2.97 0 0 1-.184 1H19a1 1 0 0 0 1-1v-1a5.006 5.006 0 0 0-5-5ZM6.5 9a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9ZM8 10H5a5.006 5.006 0 0 0-5 5v2a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1v-2a5.006 5.006 0 0 0-5-5Z"></path></svg>
+									<span class="flex-1 ms-3 whitespace-nowrap">Peers</span>
+								</a>
+							</li>
+							<li>
+								<a href="#" class="flex items-center p-2 text-gray-900 rounded-lg dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 group">
+									<svg class="flex-shrink-0 w-5 h-5 text-gray-500 transition duration-75 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-white" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 18 20"><path d="M17 5.923A1 1 0 0 0 16 5h-3V4a4 4 0 1 0-8 0v1H2a1 1 0 0 0-1 .923L.086 17.846A2 2 0 0 0 2.08 20h13.84a2 2 0 0 0 1.994-2.153L17 5.923ZM7 9a1 1 0 0 1-2 0V7h2v2Zm0-5a2 2 0 1 1 4 0v1H7V4Zm6 5a1 1 0 1 1-2 0V7h2v2Z"></path></svg>
+									<span class="flex-1 ms-3 whitespace-nowrap">Files</span>
+								</a>
+							</li>
+							<li>
+								<a href="#" class="flex items-center p-2 text-gray-900 rounded-lg dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 group">
+									<svg class="flex-shrink-0 w-5 h-5 text-gray-500 transition duration-75 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-white" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 18 20"><path d="M17 5.923A1 1 0 0 0 16 5h-3V4a4 4 0 1 0-8 0v1H2a1 1 0 0 0-1 .923L.086 17.846A2 2 0 0 0 2.08 20h13.84a2 2 0 0 0 1.994-2.153L17 5.923ZM7 9a1 1 0 0 1-2 0V7h2v2Zm0-5a2 2 0 1 1 4 0v1H7V4Zm6 5a1 1 0 1 1-2 0V7h2v2Z"></path></svg>
+									<span class="flex-1 ms-3 whitespace-nowrap">Serve API</span>
+								</a>
+							</li>
+					</ul>
+				</div>
+			</aside>
+			<div class="p-4 w-[100%]">
+				<div id="dashboard">
+					<section>
+						<p>This dashboard is 100% decentralised. It does not rely on any centralised server to function.</p>
+					</section>
+				</div>
 
-    section {
-      width: 80%;
-      margin: 2em 0;
-      padding: 1em;
-      background-color: #fff;
-      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-    }
+				<section class="hidden" id="statistics">
+					<h2 class="text-xl font-bold">Statistics</h2>
+					<div id="syncFilesProgress"></div>
+					<div id="charts"></div>
+				</section>
 
-    h1 {
-      margin: 0;
-    }
+					<section class="hidden" id="config">
+						<h2 class="text-xl font-bold">Config</h2>
+						<div id="config"></div>
+						<button id="saveConfig">Save Config</button>
+					</section>
 
-    table {
-      border-collapse: collapse;
-      width: 100%;
-    }
+					<div class="hidden" id="peers">
+						<div class="grid grid-cols-1 gap-2 w-fit rounded-xl bg-blue-500 text-white p-2 shadow-blue-200 dark:shadow-blue-900 shadow-lg">
+							<div class="flex gap-4">
+								<div class="flex-1 flex flex-col gap-1 p-2">
+									<span id="uptime" class="text-xl tracking-tight leading-none">0 Seconds</span><span class="text-xs font-bold text-blue-100">Uptime</span>
+								</div>
+								<div class="flex-1 flex flex-col gap-1 p-2">
+									<span id="httpPeersCount" class="text-xl tracking-tight leading-none">0</span><span class="text-xs font-bold text-blue-100">HTTP Peers</span>
+								</div>
+								<div class="flex-1 flex flex-col gap-1 p-2">
+									<span id="rtcPeers" class="text-xl tracking-tight leading-none">0</span><span class="text-xs font-bold text-blue-100">RTC Peers</span>
+								</div>
+								<div class="flex-1 flex flex-col gap-1 p-2">
+									<span id="balance" class="text-xl tracking-tight leading-none">0</span><span class="text-xs font-bold text-blue-100">Balance</span>
+								</div>
+							</div>
+							<div class="bg-blue-700 p-2 rounded-lg">
+								<div class="flex flex-col gap-1 p-2">
+									<span id="address" class="text-l tracking-tight leading-none">0x</span>
+									<span class="text-xs font-bold text-blue-100">Address</span>
+								</div>
+							</div>
+						</div>
+						<section>
+							<h2 class="text-xl font-bold">Peers</h2>
+							<h3 class="text-l font-bold">HTTP Peers</h3>
+							<p>Here is a list of peers you know exist and are communicating with.</p>
+							<ul id="httpPeers"></ul>
+							<h2 class="text-l mt-2 font-bold">WebRTC Peers</h3>
+							<table id="peerTable">
+								<thead>
+									<tr>
+										<th>ID</th>
+										<th>Type</th>
+										<th>Signaling State</th>
+										<th>ICE Gathering State</th>
+										<th>ICE Connection State</th>
+										<th>Connection State</th>
+										<th>Channel State</th>
+										<th>SCTP State</th>
+									</tr>
+								</thead>
+								<tbody></tbody>
+							</table>
+						</section>
+					</div>
 
-    th,
-    td {
-      padding: 0.5em;
-      border: 1px solid #ccc;
-      text-align: left;
-    }
+					<div class="hidden" id="files">
+						<div class="grid grid-cols-1 gap-2 w-fit rounded-xl bg-blue-500 text-white p-2 shadow-blue-200 dark:shadow-blue-900 shadow-lg">
+							<div class="flex gap-4">
+								<div class="flex-1 flex flex-col gap-1 p-2">
+									<span id="knownFiles" class="text-xl tracking-tight leading-none">0 Seconds</span><span class="text-xs font-bold text-blue-100">Known Files</span>
+								</div>
+								<div class="flex-1 flex flex-col gap-1 p-2">
+									<span id="storedFiles" class="text-xl tracking-tight leading-none">0</span><span class="text-xs font-bold text-blue-100">Stored Files</span>
+								</div>
+								<div class="flex-1 flex flex-col gap-1 p-2">
+									<span id="downloadsServed" class="text-xl tracking-tight leading-none">0</span><span class="text-xs font-bold text-blue-100">Downloads Served</span>
+								</div>
+								<div class="flex-1 flex flex-col gap-1 p-2">
+									<span id="processingFiles" class="text-xl tracking-tight leading-none">0</span><span class="text-xs font-bold text-blue-100">Processing Files</span>
+								</div>
+							</div>
+							<div class="bg-blue-700 p-2 rounded-lg">
+								<div class="flex flex-col gap-1 p-2">
+									<span class="text-l tracking-tight leading-none" id="hostname"></span>
+									<span class="text-xs font-bold text-blue-100">Hostname</span>
+								</div>
+							</div>
+						</div>
+						<section>
+							<h2 class="text-xl font-bold">Files</h2>
+							<button id="toggleColumnsButton">Toggle Advanced Columns</button>
+							<table id="files">
+								<thead>
+									<tr id="table-header"></tr>
+								</thead>
+								<tbody id="files"><tr><td>Loading...</td></tr></tbody>
+							</table>
+						</section>
+					</div>
 
-    .file-actions button {
-      margin-right: 5px;
-    }
+					<div class="hidden" id="serveAPI">
+						<section>
+							<h2 class="text-xl font-bold">Serve API</h2>
+							<p class="text-sm text-gray-600 mt-1">Your API is accessible at: <code id="apiEndpoint" class="bg-gray-100 px-2 py-1 rounded"></code></p>
+							<textarea id="customHandler" class="w-full h-full mt-2 p-4 font-mono text-sm border rounded focus:outline-none focus:border-blue-500" style="height: 50vh">
+async (req) => {
+	// Custom request handling logic
+	// Access request properties like:
+	// - req.url
+	// - req.method 
+	// - req.headers
+	// - await req.text()
+	// - await req.json()
+	
+	return new Response("Hello World!");
+}
+							</textarea>
 
-    #dashboard {
-      display: none;
-    }
-  </style>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-</head>
+							<div id="testResults" class="hidden bg-green-50 text-green-800 p-4 rounded-lg">
+								Handler updated successfully!
+							</div>
 
-<body>
-  <header>
-    <a href="/" style="color: unset"><h1>Hydrafiles</h1></a>
-    <p>The (P2P) web privacy layer.</p>
-    <p>Donate Monero:<br>83BGShZv9hU9P9SRLjhRGJYQ4WatMNazKVFG6eKyHc6HguBzu1vH54R7mQJaZzeXhx4jDxnkNJMizLXrFFN4ARffEwFj82y</p>
-  </header>
-
-  <section id="startHydrafiles">
-    <h2>Dashboard</h2>
-    <p>Click the button below to start the Hydrafiles web node.</p>
-    <button id="startHydrafilesButton">Start Hydrafiles</button>
-    <p>This dashboard is 100% decentralised. It does not rely on any centralised server to function.</p>
-  </section>
-
-  <section>
-    <div id="compareFilesProgress"></div>
-    <div id="charts"></div>
-  </section>
-
-  <section id="dashboard" style="overflow:scroll">
-    <h2>Dashboard</h2>
-    <p>This dashboard is 100% decentralised, your browser is directly connected to the Hydrafiles network.</p>
-    <h3>HTTP Peers</h3>
-    <p>Here is a list of peers you know exist and are communicating with.</p>
-    <ul id="peers"></ul>
-    <h3>WebRTC Peers</h3>
-    <table id="peerTable">
-        <thead>
-            <tr>
-                <th>ID</th>
-                <th>Type</th>
-                <th>Signaling State</th>
-                <th>ICE Gathering State</th>
-                <th>ICE Connection State</th>
-                <th>Connection State</th>
-                <th>Channel State</th>
-                <th>SCTP State</th>
-            </tr>
-        </thead>
-        <tbody></tbody>
-    </table>
-    <h3>Files</h3>
-    <p>Here you can see all the files that have been indexed by your node.</p>
-    <button id="toggleColumnsButton">Toggle Advanced Columns</button>
-    <table id="files">
-      <thead>
-        <tr id="table-header"></tr>
-      </thead>
-      <tbody id="files"><tr><td>Loading...</td></tr></tbody>
-    </table>
-  </section>
-
-  <script type="module">
-    import Hydrafiles from './hydrafiles-web.esm.js';
-    import WebTorrent from 'https://esm.sh/webtorrent';
-
-    let files;
-    let hideAdvancedColumns = true;
-    const advancedColumns = ['hash', 'infohash', 'id', 'found', 'voteHash', 'voteNonce', 'downloadCount'];
-
-    const onUpdateFileListProgress = (progress, total) => {
-      const compareFilesProgress = document.getElementById('compareFilesProgress');
-      compareFilesProgress.innerHTML = `Syncing files: ${progress}/${total} (${((progress / total) * 100).toFixed(2)}%)<br>Your node is syncing the list of files with other peers.`;
-    }
-
-    document.getElementById('startHydrafilesButton').addEventListener('click', () => {
-      document.getElementById('startHydrafiles').style.display = 'none';
-      document.getElementById('dashboard').style.display = 'block';
-      const webtorrent = new WebTorrent()
-      window.hydrafiles = new Hydrafiles({ logLevel: 'verbose' });
-      window.hydrafiles.start({ onUpdateFileListProgress, webtorrent }).then(() => {
-        console.log('Hydrafiles web node is running', hydrafiles);
-        setInterval(fetchAndPopulateFiles, 5000);
-        setInterval(fetchAndPopulatePeers, 200);
-        setInterval(fetchAndPopulateCharts, 10000);
-        fetchAndPopulateFiles();
-        fetchAndPopulatePeers();
-        fetchAndPopulateCharts();
-      }).catch(err => {
-        console.error('Error starting Hydrafiles web node', err);
-      });
-    });
-
-    document.getElementById('toggleColumnsButton').addEventListener('click', () => {
-      hideAdvancedColumns = !hideAdvancedColumns;
-      console.log('Hide Advanced Columns:', hideAdvancedColumns);
-      populateTable();
-    });
-
-    function getBackgroundColor(state) {
-        switch (state) {
-            case "connected":
-            case "complete":
-            case "open":
-                return "lightgreen";
-            case "gathering":
-            case "connecting":
-            case "checking":
-            case "have-local-offer":
-            case "have-remote-offer":
-                return "#FFD580";
-            case "new":
-            case "stable":
-                return "lightblue";
-            case "disconnected":
-            case "closed":
-            case "failed":
-                return "lightcoral";
-            default:
-                return "white";
-        }
-    }
-
-    async function fetchAndPopulatePeers() {
-      const peers = window.hydrafiles.rpcClient.http.getPeers();
-      const peersEl = document.getElementById('peers');
-      peersEl.innerHTML = '';
-      peers.forEach(node => {
-        const li = document.createElement('li');
-        li.textContent = node.host;
-        peersEl.appendChild(li);
-      });
-
-      const rtcPeers = Object.entries(window.hydrafiles.rpcClient.rtc.peerConnections);
-      const tbody = document.getElementById("peerTable").querySelector("tbody");
-
-      tbody.innerHTML = "";
-      for (let i = 0; i < rtcPeers.length; i++) {
-          const [id, peer] = rtcPeers[i];
-          const peerConns = Object.entries(peer);
-          for (let j = 0; j < peerConns.length; j++) {
-              const [type, peerConn] = peerConns[j];
-              const conn = peerConn.conn;
-              const row = document.createElement("tr");
-
-              const idCell = document.createElement("td");
-              idCell.textContent = id;
-
-              const typeCell = document.createElement("td");
-              typeCell.textContent = type;
-
-              const signalingStateCell = document.createElement("td");
-              signalingStateCell.textContent = conn.signalingState;
-              signalingStateCell.style.backgroundColor = getBackgroundColor(conn.signalingState);
-
-              const iceGatheringStateCell = document.createElement("td");
-              iceGatheringStateCell.textContent = conn.iceGatheringState;
-              iceGatheringStateCell.style.backgroundColor = getBackgroundColor(conn.iceGatheringState);
-
-              const iceConnectionStateCell = document.createElement("td");
-              iceConnectionStateCell.textContent = conn.iceConnectionState;
-              iceConnectionStateCell.style.backgroundColor = getBackgroundColor(conn.iceConnectionState);
-
-              const connectionStateCell = document.createElement("td");
-              connectionStateCell.textContent = conn.connectionState;
-              connectionStateCell.style.backgroundColor = getBackgroundColor(conn.connectionState);
-
-              const channelStateCell = document.createElement("td");
-              channelStateCell.textContent = peerConn.channel.readyState;
-              channelStateCell.style.backgroundColor = getBackgroundColor(peerConn.channel.readyState);
-
-              const sctpStateCell = document.createElement("td");
-              sctpStateCell.textContent = conn.sctp ? conn.sctp.state : "N/A";
-              sctpStateCell.style.backgroundColor = getBackgroundColor(conn.sctp ? conn.sctp.state : "N/A");
-
-              row.appendChild(idCell);
-              row.appendChild(typeCell);
-              row.appendChild(signalingStateCell);
-              row.appendChild(iceGatheringStateCell);
-              row.appendChild(iceConnectionStateCell);
-              row.appendChild(connectionStateCell);
-              row.appendChild(channelStateCell);
-              row.appendChild(sctpStateCell);
-
-              tbody.appendChild(row);
-          }
-      }
-    }
-    async function fetchAndPopulateFiles() {
-      files = await window.hydrafiles.search(undefined, { key: "voteHash", order: "DESC" });
-      populateTable();
-    }
-
-    function populateTable() {
-      const tableHeader = document.getElementById('table-header');
-      const tableBody = document.querySelector('#files  tbody');
-      tableBody.innerHTML = '';
-      if (files.length === 0) return;
-      const fileKeys = Object.keys(files[0]);
-      tableHeader.innerHTML = '';
-      fileKeys.forEach(key => {
-        if (!(hideAdvancedColumns && advancedColumns.includes(key))) {
-          const th = document.createElement('th');
-          th.textContent = key;
-          tableHeader.appendChild(th);
-        }
-      });
-
-      const actionsHeader = document.createElement('th');
-      actionsHeader.textContent = 'Actions';
-      tableHeader.appendChild(actionsHeader);
-
-      files.forEach(file => {
-        const row = document.createElement('tr');
-
-        fileKeys.forEach(key => {
-          if (!(hideAdvancedColumns && advancedColumns.includes(key))) {
-            const cell = document.createElement('td');
-            let value = file[key];
-
-            if (key === 'size') value = `${(file[key] / (1024 * 1024)).toFixed(2)} MB`;
-
-            if (key === 'updatedAt') value = new Date(file[key]).toLocaleDateString();
-
-            cell.textContent = value;
-            row.appendChild(cell);
-          }
-        });
-
-        const actionsCell = document.createElement('td');
-        actionsCell.className = 'file-actions';
-        const button = document.createElement('button');
-        button.textContent = 'Download';
-        button.addEventListener('click', async () => {
-          console.log('Downloading file:', file);
-          const fileContent = (await (await window.hydrafiles.initFile({ hash: file.hash }, true)).getFile({ logDownloads: true })).file;
-          console.log('file:', fileContent);
-          const url = URL.createObjectURL(new Blob([fileContent], { type: 'application/octet-stream' }));
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = file.name;
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-          URL.revokeObjectURL(url);
-        });
-        actionsCell.appendChild(button);
-        row.appendChild(actionsCell);
-
-        tableBody.appendChild(row);
-      });
-    }
-
-    let chartInstances = [];
-
-    function fetchAndPopulateCharts() {
-      const tables = window.hydrafiles.events.logs;
-      for (const table in tables) {
-        const data = tables[table];
-        populateChart(table, data);
-      }
-    }
-
-    function getRandomColor(opacity = 1) {
-      const r = Math.floor(Math.random() * 255);
-      const g = Math.floor(Math.random() * 255);
-      const b = Math.floor(Math.random() * 255);
-      return `rgba(${r}, ${g}, ${b}, ${opacity})`;
-    }
-
-    function populateChart(name, data) {
-      const events = Object.keys(data);
-      const times = Object.keys(data[events[0]]);
-
-      const datasets = events.map(label => ({
-        label: label,
-        data: times.map(time => data[label][time] ?? 0),
-        backgroundColor: getRandomColor(),
-        fill: true
-      }));
-
-      if (chartInstances[name]) {
-        chartInstances[name].data.labels = times;
-        chartInstances[name].data.datasets.forEach((dataset, index) => {
-          dataset.labels = times;
-          dataset.data = datasets[index].data;
-        });
-        chartInstances[name].update();
-      } else {
-        const canvas = document.createElement('canvas');
-        canvas.id = name;
-        document.getElementById('charts').appendChild(canvas);
-        const lineChartCtx = document.getElementById(name).getContext('2d');
-        chartInstances[name] = new Chart(lineChartCtx, {
-          type: 'line',
-          data: { times, datasets },
-          options: {
-            responsive: true,
-            plugins: {
-              legend: { position: 'top' }
-            },
-            scales: {
-              y: {
-                stacked: true,
-                beginAtZero: true
-              }
-            }
-          }
-        });
-      }
-    }
-  </script>
-</body>
-
+							<button id="updateHandler" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50">Update Handler</button>
+						</section>
+					</div>
+			</div>
+		</div>
+		<script src="./dashboard.js" type="module"></script>
+	</body>
 </html>

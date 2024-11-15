@@ -13,6 +13,18 @@ console.log(
 		minify: true,
 		treeShaking: true,
 	}),
+	await esbuild.build({
+		plugins: [...denoPlugins()],
+		entryPoints: ["./web/dashboard.ts"],
+		outfile: "./build/dashboard.js",
+		bundle: true,
+		format: "esm",
+		platform: "browser",
+		sourcemap: true,
+		minify: true,
+		treeShaking: true,
+		external: ["https://esm.sh/webtorrent@2.5.1"],
+	}),
 );
 
 esbuild.stop();
