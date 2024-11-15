@@ -90,7 +90,7 @@ class RPCServer {
 		const headers = new Headers();
 		headers.set("Access-Control-Allow-Origin", "*");
 
-		if (url.pathname === "/" || url.pathname === "/docs") {
+		if ((url.pathname === "/" || url.pathname === "/docs") && req.headers.get("upgrade") !== "websocket") {
 			headers.set("Location", "/docs/");
 			return new Response("", { headers, status: 301 });
 		}
