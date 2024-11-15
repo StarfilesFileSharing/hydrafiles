@@ -231,7 +231,11 @@ class PeerDB {
 		} else {
 			// @ts-expect-error:
 			const { _db, ...clonedPeer } = newPeer;
-			if (this.db.type === "INDEXEDDB") this.objectStore().put(clonedPeer).onerror = console.error;
+			if (this.db.type === "INDEXEDDB") {
+				this.objectStore().put(clonedPeer).onerror = (e) => {
+					console.error(e, "Failed to save peer", clonedPeer);
+				};
+			}
 			console.log(
 				`  ${host}  Peer UPDATEd - Updated Columns: ${updatedColumn.join(", ")}` + (this._rpcClient._client.config.logLevel === "verbose" ? ` - Params: ${params.join(", ")}` : ""),
 				this._rpcClient._client.config.logLevel === "verbose" ? console.log(`  ${host}  Updated Values:`, beforeAndAfter) : "",
@@ -339,7 +343,7 @@ class HTTPPeer implements PeerAttributes {
 	 * @default
 	 */
 	static async init(values: Partial<PeerAttributes>, db: PeerDB, client: Hydrafiles): Promise<HTTPPeer> {
-		if (values.host === undefined) throw new Error("Hash is required");
+		if (values.host === undefined) throw new Error("Host is required");
 		const peerAttributes: PeerAttributes = {
 			host: values.host,
 			hits: values.hits ?? 0,
@@ -368,7 +372,7 @@ class HTTPPeer implements PeerAttributes {
 			const startTime = Date.now();
 
 			const hash = file.hash;
-			console.log(`  ${hash}  Downloading from ${this.host}`);
+			console.log(`File: ${hash}  Downloading from ${this.host}`);
 			let response;
 			try {
 				response = await Utils.promiseWithTimeout(fetch(`${this.host}/download/${hash}`), this._client.config.timeout);
@@ -378,11 +382,11 @@ class HTTPPeer implements PeerAttributes {
 				return false;
 			}
 			const fileContent = new Uint8Array(await response.arrayBuffer());
-			console.log(`  ${hash}  Validating hash`);
+			console.log(`File: ${hash}  Validating hash`);
 			const verifiedHash = await Utils.hashUint8Array(fileContent);
-			console.log(`  ${hash}  Done Validating hash`);
+			console.log(`File: ${hash}  Done Validating hash`);
 			if (hash !== verifiedHash) return false;
-			console.log(`  ${hash}  Valid hash`);
+			console.log(`File: ${hash}  Valid hash`);
 
 			const ethAddress = response.headers.get("Ethereum-Address");
 			if (ethAddress) this._client.wallet.transfer(ethAddress as EthAddress, 1_000_000n * BigInt(fileContent.byteLength));
