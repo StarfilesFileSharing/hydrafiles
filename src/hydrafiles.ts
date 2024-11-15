@@ -36,7 +36,11 @@ class Hydrafiles {
 	wallet!: Wallet;
 	files!: Files;
 	webtorrent?: WebTorrent;
-	handleCustomRequest?: (req: Request) => Promise<string>;
+	handleCustomRequest = async (req: Request) => {
+		console.log(req);
+		await new Promise<void>((resolve) => resolve()); // We do this so the function is async, for devs using the lib
+		return new Response("Hello World!");
+	};
 
 	constructor(customConfig: Partial<Config> = {}) {
 		this.config = getConfig(customConfig);
@@ -79,7 +83,7 @@ class Hydrafiles {
 		if (this.config.backfill) this.files.backfillFiles();
 	}
 
-	async getHostname(): Promise<string> {
+	public async getHostname(): Promise<string> {
 		const pubKey = await Utils.exportPublicKey(this.keyPair.publicKey);
 		const xEncoded = base32Encode(new TextEncoder().encode(pubKey.x)).toLowerCase().replace(/=+$/, "");
 		const yEncoded = base32Encode(new TextEncoder().encode(pubKey.y)).toLowerCase().replace(/=+$/, "");
