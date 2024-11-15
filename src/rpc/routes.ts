@@ -5,11 +5,18 @@ import { File } from "../file.ts";
 import type { PeerAttributes } from "./peers/http.ts";
 import Utils, { type Base64 } from "../utils.ts";
 import type Hydrafiles from "../hydrafiles.ts";
+import { decodeBase32 } from "jsr:@std/encoding@^1.0.5/base32";
+
+function ensureMultipleOfEight(str: string): string {
+	const remainder = str.length % 8;
+	return remainder !== 0 ? str.padEnd(Math.ceil(str.length / 8) * 8, "=") : str;
+}
 
 export const router = new Map<string, (req: Request, headers: Headers, client: Hydrafiles) => Promise<Response> | Response>();
 export const sockets: { id: string; socket: WebSocket }[] = [];
 export const processingRequests = new Map<string, Promise<Response>>();
 const cachedHostnames: { [key: string]: { body: string; headers: Headers } } = {};
+export const pendingRequests = new Map<number, (response: Response | false) => void>();
 
 router.set("WS", (req) => {
 	const { socket, response } = Deno.upgradeWebSocket(req);
@@ -18,6 +25,14 @@ router.set("WS", (req) => {
 	socket.addEventListener("message", ({ data }) => {
 		const message = JSON.parse(data) as WSMessage | null;
 		if (message === null) return;
+		if ("response" in message) {
+			const resolve = pendingRequests.get(message.id);
+			if (resolve) {
+				const { status, statusText, headers, body } = message.response;
+				resolve(new Response(body, { status, statusText, headers: new Headers(headers) }));
+				pendingRequests.delete(message.id);
+			}
+		}
 		for (let i = 0; i < sockets.length; i++) {
 			if (sockets[i].socket !== socket && (!("to" in message) || message.to === sockets[i].id)) {
 				if (sockets[i].socket.readyState === 1) sockets[i].socket.send(data);
@@ -304,9 +319,9 @@ router.set("/endpoint", async (req, headers, client) => {
 			if (client.config.logLevel === "verbose") console.log(`  ${hostname}  Waiting for existing request with same hostname`);
 			await processingRequests.get(hostname);
 		}
-		if (hostname in cachedHostnames) return new Response(cachedHostnames[hostname].body, { headers: cachedHostnames[hostname].headers });
+		// if (hostname in cachedHostnames) return new Response(cachedHostnames[hostname].body, { headers: cachedHostnames[hostname].headers });
 
-		console.log(`  ${hostname}  Fetching endpoint response from peers`);
+		console.log(`Endpoint: ${hostname}  Fetching endpoint response from peers`);
 		const responses = client.rpcClient.fetch(`http://localhost/endpoint/${hostname}`);
 
 		const processingPromise = new Promise<Response>((resolve, reject) => {
@@ -318,8 +333,15 @@ router.set("/endpoint", async (req, headers, client) => {
 							const body = await response.text();
 							const signature = response.headers.get("hydra-signature");
 							if (signature !== null) {
-								const [xBase32, yBase32] = hostname.split(".");
-								if (await Utils.verifySignature(body, signature as Base64, { xBase32, yBase32 })) resolve(new Response(body, { headers: response.headers }));
+								const [xBase32, yBase32] = hostname.toUpperCase().split(".");
+								if (
+									await Utils.verifySignature(body, signature as Base64, {
+										y: new TextDecoder().decode(decodeBase32(ensureMultipleOfEight(yBase32))),
+										x: new TextDecoder().decode(decodeBase32(ensureMultipleOfEight(xBase32))),
+									})
+								) {
+									resolve(new Response(body, { headers: response.headers }));
+								}
 							}
 						}
 					} catch (e) {
