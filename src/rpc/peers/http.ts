@@ -344,6 +344,9 @@ class HTTPPeer implements PeerAttributes {
 	 */
 	static async init(values: Partial<PeerAttributes>, db: PeerDB, client: Hydrafiles): Promise<HTTPPeer> {
 		if (values.host === undefined) throw new Error("Host is required");
+		const result = new URL(values.host);
+		if (!result.protocol || !result.host) throw new Error("Invalid URL");
+
 		const peerAttributes: PeerAttributes = {
 			host: values.host,
 			hits: values.hits ?? 0,
@@ -442,7 +445,9 @@ export default class HTTPPeers {
 		const db = await PeerDB.init(rpcClient);
 		const httpPeers = new HTTPPeers(rpcClient, db);
 
-		(await Promise.all((await db.select()).map((peer) => HTTPPeer.init(peer, db, rpcClient._client)))).forEach((peer) => httpPeers.peers.set(peer.host, peer));
+		(await Promise.all((await db.select()).map((peer) => HTTPPeer.init(peer, db, rpcClient._client).catch((_) => false)))).forEach((peer) => {
+			if (typeof peer !== "boolean") httpPeers.peers.set(peer.host, peer);
+		});
 
 		for (let i = 0; i < rpcClient._client.config.bootstrapPeers.length; i++) {
 			await httpPeers.add(rpcClient._client.config.bootstrapPeers[i]);
