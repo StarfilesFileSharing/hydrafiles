@@ -41,6 +41,7 @@ function arrayBufferToUnicodeString(buffer: ArrayBuffer): string {
 	return result;
 }
 
+const receivedPackets: Record<string, string[]> = {};
 const peerId = encodeBase32(String(Math.random())).replaceAll("=", "");
 
 class RTCPeers {
