@@ -345,7 +345,7 @@ class HTTPPeer implements PeerAttributes {
 	static async init(values: Partial<PeerAttributes>, db: PeerDB, client: Hydrafiles): Promise<HTTPPeer> {
 		if (values.host === undefined) throw new Error("Host is required");
 		const result = new URL(values.host);
-		if (!result.protocol || !result.host) throw new Error("Invalid URL");
+		if (!result.protocol || !result.host || result.protocol === "hydra") throw new Error("Invalid URL");
 
 		const peerAttributes: PeerAttributes = {
 			host: values.host,
