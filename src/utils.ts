@@ -119,8 +119,8 @@ class Utils {
 
 			const filePath = join(filesPath, file);
 
-			this._fs.remove(filePath).catch(console.error);
 			const fileSize = await this._fs.getFileSize(filePath);
+			this._fs.remove(filePath).catch(console.error);
 			if (typeof fileSize === "number") remainingSpace += fileSize;
 
 			if (requiredSpace <= remainingSpace && await this.calculateUsedStorage() * (1 - this._config.burnRate) <= remainingSpace) {
@@ -226,7 +226,7 @@ class Utils {
 			["sign"],
 		);
 	}
-	static buildJWT(pubKey:  PubKey): { kty: string; crv: string; x: string; y: string; ext: boolean } {
+	static buildJWT(pubKey: PubKey): { kty: string; crv: string; x: string; y: string; ext: boolean } {
 		return {
 			kty: "EC",
 			crv: "P-256",
@@ -248,7 +248,7 @@ class Utils {
 		);
 		return this.bufferToBase64(signature);
 	}
-	static async verifySignature(message: string, signature: Base64, pubKey:  PubKey | { xBase32: string; yBase32: string }): Promise<boolean> {
+	static async verifySignature(message: string, signature: Base64, pubKey: PubKey | { xBase32: string; yBase32: string }): Promise<boolean> {
 		const encoder = new TextEncoder();
 		const data = encoder.encode(message);
 
