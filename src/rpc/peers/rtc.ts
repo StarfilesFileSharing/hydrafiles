@@ -83,7 +83,7 @@ class RTCPeers {
 				else if ("answer" in message) await this.handleAnswer(message.from, message.answer);
 				else if ("iceCandidate" in message) this.handleIceCandidate(message.from, message.iceCandidate);
 				else if ("request" in message) this.handleWsRequest(this.websockets[i], message);
-				else console.warn("WebRTC: (13/12): Unknown message type received", message);
+				else if (!("response" in message)) console.warn("WebRTC: (13/12): Unknown message type received", message);
 			};
 		}
 	}
