@@ -7,7 +7,7 @@ export type SignallingOffer = { offer: RTCSessionDescription; from: string; to: 
 export type SignallingAnswer = { answer: RTCSessionDescription; from: string; to: string };
 export type SignallingIceCandidate = { iceCandidate: RTCIceCandidate; from: string; to: string };
 export type WSRequest = { request: { method: string; url: string; headers: Record<string, string>; body: ReadableStream<Uint8Array> | null }; id: number; from: string };
-export type WSResponse = { response: { body: string; status: number; statusText: string }; id: number; from: string };
+export type WSResponse = { response: { body: string; status: number; statusText: string; headers: Record<string, string> }; id: number; from: string };
 export type WSMessage = SignallingAnnounce | SignallingOffer | SignallingAnswer | SignallingIceCandidate | WSRequest | WSResponse;
 
 type PeerConnection = { conn: RTCPeerConnection; channel: RTCDataChannel; startTime: number };
@@ -283,7 +283,9 @@ class RTCPeers {
 
 	async handleWsRequest(ws: WebSocket, message: WSRequest): Promise<void> {
 		const response = await this._rpcClient._client.rpcServer.handleRequest(new Request(message.request.url, { body: message.request.body, headers: message.request.headers, method: message.request.method }));
-		const responseMessage: WSResponse = { id: message.id, from: this.peerId, response: { body: await response.text(), status: response.status, statusText: response.statusText } };
+		const headersObj: Record<string, string> = {};
+		response.headers.forEach((value, key) => headersObj[key] = value);
+		const responseMessage: WSResponse = { id: message.id, from: this.peerId, response: { body: await response.text(), headers: headersObj, status: response.status, statusText: response.statusText } };
 		ws.send(JSON.stringify(responseMessage));
 	}
 
