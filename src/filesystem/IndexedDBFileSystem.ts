@@ -63,19 +63,13 @@ export default class IndexedDBFileSystem {
 		});
 	}
 
-	async readFile(path: string): Promise<Uint8Array> {
+	async readFile(path: string): Promise<Uint8Array | false> {
 		const db = await this.dbPromise;
 		return new Promise((resolve, reject) => {
 			const transaction = db.transaction(this.storeName, "readonly");
 			const store = transaction.objectStore(this.storeName);
 			const request = store.get(path);
-			request.onsuccess = () => {
-				if (request.result) {
-					resolve(new Uint8Array(request.result.data));
-				} else {
-					reject(new Error(`${path} doesn't exist`));
-				}
-			};
+			request.onsuccess = () => resolve(request.result ? new Uint8Array(request.result.data) : false);
 			request.onerror = () => reject(new Error(`Error reading ${path}`));
 		});
 	}

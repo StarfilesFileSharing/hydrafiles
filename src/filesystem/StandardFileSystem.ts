@@ -33,6 +33,7 @@ export default class StandardFileSystem {
 	};
 
 	getFileSize = async (path: string): Promise<number> => {
+		if (!await this.exists(path)) return 0;
 		const fileInfo = await Deno.stat(path);
 		return fileInfo.size;
 	};
