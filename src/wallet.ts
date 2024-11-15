@@ -2,6 +2,7 @@ import { createPublicClient, createWalletClient, http, publicActions } from "npm
 import { privateKeyToAccount } from "npm:viem/accounts";
 import { sepolia } from "npm:viem/chains";
 import type Hydrafiles from "./hydrafiles.ts";
+import { randomIntegerBetween, randomSeeded } from "jsr:@std/random";
 
 export type EthAddress = `0x${string}`;
 
@@ -23,18 +24,31 @@ class Wallet {
 	public static async init(client: Hydrafiles): Promise<Wallet> {
 		const keyFilePath = "eth.key";
 
-		if (!await client.fs.exists(keyFilePath)) await client.fs.writeFile(keyFilePath, new TextEncoder().encode(Wallet.generateEthPrivateKey()));
+		if (!await client.fs.exists(keyFilePath)) await client.fs.writeFile(keyFilePath, new TextEncoder().encode(Wallet.generateEthPrivateKey(client)));
 
 		const fileContent = await client.fs.readFile(keyFilePath);
-		const key = fileContent !== false ? new TextDecoder().decode(fileContent) as EthAddress : Wallet.generateEthPrivateKey();
+		const key = fileContent !== false ? new TextDecoder().decode(fileContent) as EthAddress : Wallet.generateEthPrivateKey(client);
 
 		return new Wallet(client, key);
 	}
 
-	public static generateEthPrivateKey(): EthAddress {
+	public static generateEthPrivateKey(client: Hydrafiles): EthAddress {
+		if (client.config.deriveKey.length) {
+			const prng = randomSeeded(BigInt("0x" + client.config.deriveKey));
+
+			let result = "";
+			for (let i = 0; i < 8; i++) {
+				const chunk = randomIntegerBetween(i === 0 ? 0x10000000 : 0, 0xFFFFFFFF, { prng })
+					.toString(16)
+					.padStart(8, "0");
+
+				result += chunk;
+			}
+			return "0x" + result as EthAddress;
+		}
+
 		const privateKey = new Uint8Array(32);
 		crypto.getRandomValues(privateKey);
-
 		return ("0x" + Array.from(privateKey)
 			.map((byte) => byte.toString(16).padStart(2, "0"))
 			.join("")) as EthAddress;

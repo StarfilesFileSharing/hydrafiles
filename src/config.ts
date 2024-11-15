@@ -171,6 +171,12 @@ export interface Config {
 	 * @default false
 	 */
 	dontUseFileSystemAPI: boolean;
+
+	/**
+	 * SHA256 string to derive private key from.
+	 * @default ""
+	 */
+	deriveKey: string;
 }
 
 // DO NOT CHANGE DEFAULT CONFIG - Check documentation on how to set custom config.
@@ -202,6 +208,7 @@ const defaultConfig: Config = {
 	announceSpeed: 30000,
 	reverseProxy: "",
 	dontUseFileSystemAPI: false,
+	deriveKey: "",
 };
 
 /** @internal */
