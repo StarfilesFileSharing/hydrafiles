@@ -1,6 +1,7 @@
 import type Hydrafiles from "../hydrafiles.ts";
 import Utils from "../utils.ts";
 import { router } from "./routes.ts";
+import { serveFile } from "https://deno.land/std@0.115.0/http/file_server.ts";
 
 class RPCServer {
 	private _client: Hydrafiles;
@@ -95,9 +96,15 @@ class RPCServer {
 		}
 
 		try {
-			const routeHandler = req.headers.get("upgrade") === "websocket" ? router.get(`/${url.pathname.split("/")[1]}`) : router.get(`WS`);
-			if (routeHandler) return await routeHandler(req, headers, this._client);
-			return new Response("404 Page Not Found\n", { status: 404 });
+			try {
+				const url = new URL(req.url);
+				const filePath = `./public${url.pathname.endsWith("/") ? `${url.pathname}index.html` : url.pathname}`;
+				return await serveFile(req, filePath);
+			} catch (_) {
+				const routeHandler = req.headers.get("upgrade") === "websocket" ? router.get(`WS`) : router.get(`/${url.pathname.split("/")[1]}`);
+				if (routeHandler) return await routeHandler(req, headers, this._client);
+				return new Response("404 Page Not Found\n", { status: 404 });
+			}
 		} catch (e) {
 			console.error("Internal Server Error", e);
 			return new Response("Internal Server Error", { status: 500 });
