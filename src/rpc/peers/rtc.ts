@@ -48,7 +48,7 @@ class RTCPeers {
 	peerId = peerId;
 	websockets: WebSocket[];
 	peerConnections: PeerConnections = {};
-	messageQueue: SignallingMessage[] = [];
+	messageQueue: WSMessage[] = [];
 	seenMessages: Set<string> = new Set();
 
 	constructor(rpcClient: RPCClient) {
@@ -68,19 +68,20 @@ class RTCPeers {
 		for (let i = 0; i < this.websockets.length; i++) {
 			this.websockets[i].onopen = () => {
 				console.log(`WebRTC: (1/12): Announcing to ${this.websockets[i].url}`);
-				const message: SignallingMessage = { announce: true, from: this.peerId };
+				const message: WSMessage = { announce: true, from: this.peerId };
 				this.wsMessage(message);
 				setInterval(() => this.wsMessage(message), rpcClient._client.config.announceSpeed);
 			};
 
 			this.websockets[i].onmessage = async (event) => {
-				const message = JSON.parse(event.data) as SignallingMessage;
+				const message = JSON.parse(event.data) as WSMessage;
 				if (message === null || message.from === peerId || this.seenMessages.has(event.data) || ("to" in message && message.to !== this.peerId)) return;
 				this.seenMessages.add(event.data);
 				if ("announce" in message) await this.handleAnnounce(message.from);
 				else if ("offer" in message) await this.handleOffer(message.from, message.offer);
 				else if ("answer" in message) await this.handleAnswer(message.from, message.answer);
 				else if ("iceCandidate" in message) this.handleIceCandidate(message.from, message.iceCandidate);
+				else if ("request" in message) this.handleWsRequest(this.websockets[i], message);
 				else console.warn("WebRTC: (13/12): Unknown message type received", message);
 			};
 		}
@@ -191,7 +192,7 @@ class RTCPeers {
 		}
 	}
 
-	wsMessage(message: SignallingMessage): void {
+	wsMessage(message: WSMessage): void {
 		this.messageQueue.push(message);
 		for (let i = 0; i < this.websockets.length; i++) {
 			if (this.websockets[i].readyState === 1) this.websockets[i].send(JSON.stringify(message));
@@ -265,7 +266,8 @@ class RTCPeers {
 		await this.peerConnections[from].offered.conn.setRemoteDescription(answer);
 	}
 
-	handleIceCandidate(from: string, iceCandidate: RTCIceCandidate): void {
+	handleIceCandidate(from: string, receivedIceCandidate: RTCIceCandidate): void {
+		const iceCandidate = receivedIceCandidate;
 		this._rpcClient._client.events.log(this._rpcClient._client.events.rtcEvents.RTCIce);
 		if (!this.peerConnections[from]) {
 			console.warn(`WebRTC: (13/12):  ${from}  Rejecting Ice candidates received - No open handshake`);
@@ -276,6 +278,12 @@ class RTCPeers {
 			if (this.peerConnections[from].answered) this.peerConnections[from].answered.conn.addIceCandidate(iceCandidate).catch(console.error);
 			if (this.peerConnections[from].offered && this.peerConnections[from].offered.conn.remoteDescription) this.peerConnections[from].offered.conn.addIceCandidate(iceCandidate).catch(console.error);
 		}
+	}
+
+	async handleWsRequest(ws: WebSocket, message: WSRequest): Promise<void> {
+		const response = await this._rpcClient._client.rpcServer.handleRequest(new Request(message.request.url, { body: message.request.body, headers: message.request.headers, method: message.request.method }));
+		const responseMessage: WSResponse = { id: message.id, from: this.peerId, response: { body: await response.text(), status: response.status, statusText: response.statusText } };
+		ws.send(JSON.stringify(responseMessage));
 	}
 
 	public fetch(input: RequestInfo, init?: RequestInit): Promise<Response>[] {
