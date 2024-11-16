@@ -3,6 +3,7 @@ import { encodeHex } from "jsr:@std/encoding/hex";
 import { join } from "https://deno.land/std@0.224.0/path/mod.ts";
 import type { Config } from "./config.ts";
 import FS from "./filesystem/filesystem.ts";
+import { ErrorNotFound, ErrorNotInitialised, ErrorTimeout, ErrorUnreachableCodeReached } from "./errors.ts";
 
 export type Base64 = string & { readonly brand: unique symbol };
 export type NonNegativeNumber = number & { readonly brand: unique symbol };
@@ -23,7 +24,12 @@ class Utils {
 	static isIp = (host: string): boolean => /^https?:\/\/(?:\d+\.){3}\d+(?::\d+)?$/.test(host);
 	static isPrivateIP = (ip: string): boolean => /^https?:\/\/(?:10\.|(?:172\.(?:1[6-9]|2\d|3[0-1]))\.|192\.168\.|169\.254\.|127\.|224\.0\.0\.|255\.255\.255\.255|localhost)/.test(ip);
 	static interfere = (signalStrength: number): number => signalStrength >= 95 ? this.getRandomNumber(90, 100) : Math.ceil(signalStrength * (1 - (this.getRandomNumber(0, 10) / 100)));
-	remainingStorage = async (): Promise<number> => this._config.maxCache - await this.calculateUsedStorage();
+
+	remainingStorage = async (): Promise<NonNegativeNumber | ErrorNotInitialised> => {
+		const usedStorage = await this.calculateUsedStorage();
+		if (usedStorage instanceof Error) return usedStorage;
+		return this._config.maxCache = usedStorage as NonNegativeNumber;
+	};
 	static createNonNegativeNumber = (n: number): NonNegativeNumber => (Number.isInteger(n) && n >= 0 ? n : 0) as NonNegativeNumber;
 
 	hasSufficientMemory = async (fileSize: number): Promise<boolean> => {
@@ -31,12 +37,12 @@ class Utils {
 		const os = await import("https://deno.land/std@0.170.0/node/os.ts");
 		return os.freemem() > (fileSize + this._config.memoryThreshold);
 	};
-	static promiseWithTimeout = async <T>(promise: Promise<T>, timeoutDuration: number): Promise<T> =>
+	static promiseWithTimeout = async <T>(promise: Promise<T>, timeoutDuration: number): Promise<T | ErrorTimeout> =>
 		await Promise.race([
 			promise,
 			new Promise<never>((_resolve, reject) =>
 				setTimeout(
-					() => reject(new Error("Promise timed out")),
+					() => reject(new ErrorTimeout()),
 					timeoutDuration,
 				)
 			),
@@ -89,13 +95,13 @@ class Utils {
 		};
 	};
 
-	calculateUsedStorage = async (): Promise<number> => {
-		if (typeof window !== "undefined") return 0;
+	calculateUsedStorage = async (): Promise<number | ErrorNotInitialised> => {
 		const filesPath = "files/";
 		let usedStorage = 0;
 
 		if (await this._fs.exists(filesPath)) {
 			const files = await this._fs.readDir(filesPath);
+			if (files instanceof ErrorNotInitialised) return files;
 			for (const file of files) {
 				const fileSize = await this._fs.getFileSize(join(filesPath, file));
 				usedStorage += typeof fileSize === "number" ? fileSize : 0;
@@ -105,12 +111,13 @@ class Utils {
 		return usedStorage;
 	};
 
-	purgeCache = async (requiredSpace: number, remainingSpace: number): Promise<void> => {
-		if (typeof window !== "undefined") return;
+	purgeCache = async (requiredSpace: number, remainingSpace: number): Promise<true | ErrorNotInitialised> => {
 		console.warn("WARNING: Your node has reached max storage, some files are getting purged. To prevent this, increase your limit at config.json or add more storage to your machine.");
 
 		const filesPath = "files/";
 		const files = await this._fs.readDir(filesPath);
+
+		if (files instanceof ErrorNotInitialised) return files;
 
 		for (const file of files) {
 			if (this._config.permaFiles.includes(file)) continue;
@@ -121,10 +128,11 @@ class Utils {
 			this._fs.remove(filePath).catch(console.error);
 			if (typeof fileSize === "number") remainingSpace += fileSize;
 
-			if (requiredSpace <= remainingSpace && await this.calculateUsedStorage() * (1 - this._config.burnRate) <= remainingSpace) {
-				break;
-			}
+			const usedStorage = await this.calculateUsedStorage();
+			if (requiredSpace <= remainingSpace && (usedStorage instanceof Error ? 0 : usedStorage) * (1 - this._config.burnRate) <= remainingSpace) break;
 		}
+
+		return true;
 	};
 
 	static convertTime = (duration: number): string => {
@@ -172,9 +180,9 @@ class Utils {
 	async getKeyPair(): Promise<CryptoKeyPair> {
 		if (await this._fs.exists("private.key")) {
 			const privKey = await this._fs.readFile("private.key");
-			if (!privKey) throw new Error("Failed to read private key");
+			if (privKey instanceof ErrorUnreachableCodeReached || privKey instanceof ErrorNotFound || privKey instanceof ErrorNotInitialised) throw new Error("Failed to read private key");
 			const pubKey = await this._fs.readFile("public.key");
-			if (!pubKey) throw new Error("Failed to read public key");
+			if (pubKey instanceof ErrorUnreachableCodeReached || pubKey instanceof ErrorNotFound || pubKey instanceof ErrorNotInitialised) throw new Error("Failed to read public key");
 			const privateKey = await Utils.importPrivateKey(privKey);
 			const publicKey = await Utils.importPublicKey(pubKey);
 

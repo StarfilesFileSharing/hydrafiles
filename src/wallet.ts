@@ -3,6 +3,7 @@ import { privateKeyToAccount } from "npm:viem/accounts";
 import { sepolia } from "npm:viem/chains";
 import type Hydrafiles from "./hydrafiles.ts";
 import { randomIntegerBetween, randomSeeded } from "jsr:@std/random";
+import { ErrorInsufficientBalance } from "./errors.ts";
 
 export type EthAddress = `0x${string}`;
 
@@ -27,7 +28,7 @@ class Wallet {
 		if (!await client.fs.exists(keyFilePath)) await client.fs.writeFile(keyFilePath, new TextEncoder().encode(Wallet.generateEthPrivateKey(client)));
 
 		const fileContent = await client.fs.readFile(keyFilePath);
-		const key = fileContent !== false ? new TextDecoder().decode(fileContent) as EthAddress : Wallet.generateEthPrivateKey(client);
+		const key = !(fileContent instanceof Error) ? new TextDecoder().decode(fileContent) as EthAddress : Wallet.generateEthPrivateKey(client);
 
 		return new Wallet(client, key);
 	}
@@ -59,13 +60,13 @@ class Wallet {
 		return parseFloat(balanceWei.toString()) / 1e18;
 	}
 
-	public async transfer(to: EthAddress, amount: bigint): Promise<boolean> {
+	public async transfer(to: EthAddress, amount: bigint): Promise<true | ErrorInsufficientBalance> {
 		const currentBalance = await this.balance();
 		const amountInEth = parseFloat(amount.toString()) / 1e18;
 
 		if (currentBalance < amountInEth) {
 			console.log(`Insufficient balance. Current balance: ${currentBalance}, Transfer amount: ${amountInEth}`);
-			return false;
+			return new ErrorInsufficientBalance();
 		}
 
 		console.log(`Transferring ${amount} to ${to}`);

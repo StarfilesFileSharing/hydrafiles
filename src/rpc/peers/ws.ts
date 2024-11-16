@@ -1,3 +1,4 @@
+import { ErrorTimeout } from "../../errors.ts";
 import type Hydrafiles from "../../hydrafiles.ts";
 import Utils from "../../utils.ts";
 import { pendingRequests, sockets } from "../routes.ts";
@@ -10,7 +11,7 @@ export default class WSPeers {
 		this._client = client;
 	}
 
-	public fetch(input: RequestInfo, init?: RequestInit): Promise<Response | false>[] {
+	public fetch(input: RequestInfo, init?: RequestInit): Promise<Response | ErrorTimeout>[] {
 		const req = typeof input === "string" ? new Request(input, init) : input;
 
 		if (!sockets.length) return [];
@@ -23,7 +24,7 @@ export default class WSPeers {
 
 		const responses = sockets.map(async (socket) => {
 			return await Utils.promiseWithTimeout(
-				new Promise<Response | false>((resolve) => {
+				new Promise<Response>((resolve) => {
 					pendingRequests.set(requestId, resolve);
 					if (socket.socket.readyState === 1) socket.socket.send(JSON.stringify(request));
 				}),

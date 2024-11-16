@@ -1,3 +1,5 @@
+import { ErrorNotFound, ErrorUnreachableCodeReached } from "../errors.ts";
+
 interface FileHandle extends FileSystemFileHandle {
 	remove(): Promise<void>; // Returns a Promise that resolves when the file is removed.
 }
@@ -15,7 +17,7 @@ declare global {
 	}
 }
 
-async function getFileHandle(directoryHandle: DirectoryHandle, path: string, touch = false): Promise<FileHandle> {
+async function getFileHandle(directoryHandle: DirectoryHandle, path: string, touch = false): Promise<FileHandle | ErrorUnreachableCodeReached> {
 	const parts = path.split("/");
 	let currentHandle = directoryHandle;
 
@@ -26,7 +28,7 @@ async function getFileHandle(directoryHandle: DirectoryHandle, path: string, tou
 		else currentHandle = await currentHandle.getDirectoryHandle(part, { create: true });
 	}
 
-	throw new Error("Unreachable code reached");
+	return new ErrorUnreachableCodeReached();
 }
 
 export default class DirectoryHandleFileSystem {
@@ -37,14 +39,14 @@ export default class DirectoryHandleFileSystem {
 		return handle;
 	};
 
-	exists = async (path: string): Promise<boolean> => {
+	exists = async (path: string): Promise<boolean | ErrorNotFound> => {
 		try {
 			await getFileHandle(await this.directoryHandle(), path);
 			return true;
 		} catch (e) {
 			const error = e as Error;
 			if (error.name === "TypeMismatchError") return true;
-			else if (error.name === "NotFoundError") return false;
+			else if (error.name === "NotFoundError") return new ErrorNotFound();
 			throw error;
 		}
 	};
@@ -63,28 +65,34 @@ export default class DirectoryHandleFileSystem {
 		return entries;
 	};
 
-	readFile = async (path: string): Promise<Uint8Array> => {
-		if (!await this.exists(path)) throw new Error(`${path} File doesn't exist`);
+	readFile = async (path: string): Promise<Uint8Array | ErrorNotFound | ErrorUnreachableCodeReached> => {
+		if (!await this.exists(path)) return new ErrorNotFound();
 		const fileHandle = await getFileHandle(await this.directoryHandle(), path);
+		if (fileHandle instanceof ErrorUnreachableCodeReached) return fileHandle;
 		const file = await fileHandle.getFile();
 		return new Uint8Array(await file.arrayBuffer());
 	};
 
-	writeFile = async (path: string, data: Uint8Array): Promise<void> => {
+	writeFile = async (path: string, data: Uint8Array): Promise<boolean | ErrorUnreachableCodeReached> => {
 		const fileHandle = await getFileHandle(await this.directoryHandle(), path, true);
+		if (fileHandle instanceof ErrorUnreachableCodeReached) return fileHandle;
 		const writable = await fileHandle.createWritable();
 		await writable.write(data);
 		await writable.close();
+		return true;
 	};
 
-	getFileSize = async (path: string): Promise<number> => {
+	getFileSize = async (path: string): Promise<number | ErrorUnreachableCodeReached> => {
 		const fileHandle = await getFileHandle(await this.directoryHandle(), path);
+		if (fileHandle instanceof ErrorUnreachableCodeReached) return fileHandle;
 		const file = await fileHandle.getFile();
 		return file.size;
 	};
 
-	remove = async (path: string) => {
+	remove = async (path: string): Promise<true | ErrorUnreachableCodeReached> => {
 		const fileHandle = await getFileHandle(await this.directoryHandle(), path);
+		if (fileHandle instanceof ErrorUnreachableCodeReached) return fileHandle;
 		await fileHandle.remove();
+		return true;
 	};
 }
