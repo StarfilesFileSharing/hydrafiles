@@ -38,19 +38,11 @@ class Utils {
 		return os.freemem() > (fileSize + this._config.memoryThreshold);
 	};
 
-	static async promiseWithTimeout<T>(promise: Promise<T>, timeoutDuration: number): Promise<T | ErrorTimeout> {
-		try {
-			return await Promise.race<T | ErrorTimeout>([
-				promise,
-				new Promise((_, reject) => {
-					setTimeout(() => reject(new ErrorTimeout()), timeoutDuration);
-				}),
-			]);
-		} catch (error) {
-			if (error instanceof ErrorTimeout) return error;
-			else throw error;
-		}
-	}
+	static promiseWithTimeout = <T>(promise: Promise<T>, timeoutMs: number): Promise<T | ErrorTimeout> => {
+		const timeoutPromise = new Promise<ErrorTimeout>((resolve) => setTimeout(() => resolve(new ErrorTimeout()), timeoutMs));
+
+		return Promise.race([promise, timeoutPromise]);
+	};
 
 	static estimateHops = (signalStrength: number): { hop: number | null; certainty: number } => {
 		const hopData = [
