@@ -5,6 +5,8 @@ import type { indexedDB } from "https://deno.land/x/indexeddb@v1.1.0/ponyfill.ts
 import { File } from "../../file.ts";
 import type RPCClient from "../client.ts";
 import type { EthAddress } from "../../wallet.ts";
+import { ErrorChecksumMismatch, ErrorDownloadFailed, ErrorMissingRequiredProperty, ErrorNotInitialised, ErrorRequestFailed, ErrorTimeout, ErrorWrongDatabaseType } from "../../errors.ts";
+import { ErrorNotFound } from "../../errors.ts";
 
 type DatabaseWrapper = { type: "UNDEFINED"; db: undefined } | { type: "SQLITE"; db: Database } | { type: "INDEXEDDB"; db: IDBDatabase };
 
@@ -93,8 +95,8 @@ class PeerDB {
 		return peerDB;
 	}
 
-	objectStore(): IDBObjectStore {
-		if (this.db.type !== "INDEXEDDB") throw new Error("Wrong DB type when calling objectStore");
+	objectStore(): IDBObjectStore | ErrorWrongDatabaseType {
+		if (this.db.type !== "INDEXEDDB") return new ErrorWrongDatabaseType();
 		return this.db.db.transaction("peer", "readwrite").objectStore("peer");
 	}
 
@@ -117,7 +119,9 @@ class PeerDB {
 		} else if (this.db.type === "INDEXEDDB") {
 			return new Promise((resolve, reject) => {
 				if (this.db.type !== "INDEXEDDB") return;
-				const request = where ? this.objectStore().index(where.key).openCursor(where.value) : this.objectStore().openCursor();
+				const objectStore = this.objectStore();
+				if (objectStore instanceof ErrorWrongDatabaseType) return new ErrorWrongDatabaseType();
+				const request = where ? objectStore.index(where.key).openCursor(where.value) : objectStore.openCursor();
 				const results: PeerAttributes[] = [];
 
 				// @ts-expect-error:
@@ -153,8 +157,8 @@ class PeerDB {
 		} else return new Promise((resolve) => resolve([]));
 	}
 
-	insert(values: Partial<PeerAttributes>): void {
-		if (typeof this.db === "undefined") return;
+	insert(values: Partial<PeerAttributes>): true | ErrorNotInitialised | ErrorWrongDatabaseType {
+		if (typeof this.db === "undefined") return new ErrorNotInitialised();
 		const peer: PeerAttributes = {
 			host: values.host,
 			hits: values.hits ?? 0,
@@ -176,29 +180,22 @@ class PeerDB {
 				peer.updatedAt,
 			);
 		} else if (this.db.type === "INDEXEDDB") {
-			const request = this.objectStore().add(peer);
+			const objectStore = this.objectStore();
+			if (objectStore instanceof ErrorWrongDatabaseType) return objectStore;
+			const request = objectStore.add(peer);
 
-			request.onsuccess = function (event): void {
-				// @ts-expect-error:
-				console.log(`  ${peer.hash}  Peer added successfully:`, event.target.result);
-			};
-
-			request.onerror = function (event): void {
-				// @ts-expect-error:
-				console.error("Error adding peer:", event.target.error);
-			};
-
-			this.objectStore().add(peer);
+			// @ts-expect-error:
+			request.onsuccess = (event): void => console.log(`  ${peer.hash}  Peer added successfully:`, event.target.result);
+			// @ts-expect-error:
+			request.onerror = (event): void => console.error("Error adding peer:", event.target.error);
 		}
+		return true;
 	}
 
-	async update(host: string, newPeer: PeerAttributes | HTTPPeer): Promise<void> {
+	async update(host: string, newPeer: PeerAttributes | HTTPPeer): Promise<true | ErrorWrongDatabaseType> {
 		// Get the current peer attributes before updating
 		const currentPeer = (await this.select({ key: "host", value: host }))[0] ?? { host };
-		if (!currentPeer) {
-			console.error(`  ${host}  Not found when updating`);
-			return;
-		}
+		if (!currentPeer) return new ErrorNotFound(host);
 
 		newPeer.updatedAt = new Date().toISOString();
 
@@ -218,7 +215,10 @@ class PeerDB {
 			}
 		}
 
-		if (updatedColumn.length <= 1) return;
+		if (updatedColumn.length <= 1) {
+			console.warn("Unnecessary update call");
+			return true;
+		}
 
 		if (this.db.type === "SQLITE") {
 			params.push(host);
@@ -232,7 +232,9 @@ class PeerDB {
 			// @ts-expect-error:
 			const { _db, ...clonedPeer } = newPeer;
 			if (this.db.type === "INDEXEDDB") {
-				this.objectStore().put(clonedPeer).onerror = (e) => {
+				const objectStore = this.objectStore();
+				if (objectStore instanceof ErrorWrongDatabaseType) return new ErrorWrongDatabaseType();
+				objectStore.put(clonedPeer).onerror = (e) => {
 					console.error(e, "Failed to save peer", clonedPeer);
 				};
 			}
@@ -241,31 +243,43 @@ class PeerDB {
 				this._rpcClient._client.config.logLevel === "verbose" ? console.log(`  ${host}  Updated Values:`, beforeAndAfter) : "",
 			);
 		}
+
+		return true;
 	}
 
-	delete(host: string): void {
+	delete(host: string): true | ErrorWrongDatabaseType {
 		const query = `DELETE FROM peer WHERE host = ?`;
 
 		if (this.db.type === "SQLITE") {
 			this.db.db.exec(query, host);
-		} else if (this.db.type === "INDEXEDDB") this.objectStore().delete(host).onerror = console.error;
+		} else if (this.db.type === "INDEXEDDB") {
+			const objectStore = this.objectStore();
+			if (objectStore instanceof ErrorWrongDatabaseType) return new ErrorWrongDatabaseType();
+			objectStore.delete(host).onerror = console.error;
+		}
 		console.log(`  ${host}  Peer DELETEd`);
+		return true;
 	}
 
-	increment<T>(host: string, column: keyof PeerAttributes): void {
+	increment<T>(host: string, column: keyof PeerAttributes): true | ErrorWrongDatabaseType {
 		if (this.db.type === "SQLITE") this.db.db.prepare(`UPDATE peer set ${column} = ${column}+1 WHERE host = ?`).values(host);
 		else if (this.db.type === "INDEXEDDB") {
-			const request = this.objectStore().get(host);
+			const objectStore = this.objectStore();
+			if (objectStore instanceof ErrorWrongDatabaseType) return new ErrorWrongDatabaseType();
+			const request = objectStore.get(host);
 			request.onsuccess = (event) => {
 				const target = event.target;
 				if (!target) return;
 				const peer = (target as IDBRequest).result;
 				if (peer && this.db.type === "INDEXEDDB") {
 					peer[column] = (peer[column] || 0) + 1;
-					this.objectStore().put(peer).onsuccess = () => console.log(`  ${host}  Incremented ${column}`);
+					const objectStore = this.objectStore();
+					if (objectStore instanceof ErrorWrongDatabaseType) return objectStore;
+					objectStore.put(peer).onsuccess = () => console.log(`  ${host}  Incremented ${column}`);
 				}
 			};
 		}
+		return true;
 	}
 
 	count(): Promise<number> {
@@ -276,7 +290,9 @@ class PeerDB {
 			}
 
 			if (this.db.type === "UNDEFINED") return resolve(0);
-			const request = this.objectStore().count();
+			const objectStore = this.objectStore();
+			if (objectStore instanceof ErrorWrongDatabaseType) return objectStore;
+			const request = objectStore.count();
 			request.onsuccess = () => resolve(request.result);
 			request.onerror = (event) => reject((event.target as IDBRequest).error);
 		});
@@ -290,7 +306,9 @@ class PeerDB {
 			} else {
 				if (this.db.type === "UNDEFINED") return resolve(0);
 				let sum = 0;
-				const request = this.objectStore().openCursor();
+				const objectStore = this.objectStore();
+				if (objectStore instanceof ErrorWrongDatabaseType) return objectStore;
+				const request = objectStore.openCursor();
 
 				request.onsuccess = (event) => {
 					const target = event.target;
@@ -327,7 +345,6 @@ class HTTPPeer implements PeerAttributes {
 		this._client = client;
 		this._db = db;
 
-		if (values.host === undefined || values.host === null) throw new Error("Created peer without host");
 		this.host = values.host;
 
 		this.hits = values.hits;
@@ -342,8 +359,8 @@ class HTTPPeer implements PeerAttributes {
 	 * @returns {HTTPPeer} A new instance of HTTPPeer.
 	 * @default
 	 */
-	static async init(values: Partial<PeerAttributes>, db: PeerDB, client: Hydrafiles): Promise<HTTPPeer> {
-		if (values.host === undefined) throw new Error("Host is required");
+	static async init(values: Partial<PeerAttributes>, db: PeerDB, client: Hydrafiles): Promise<HTTPPeer | ErrorMissingRequiredProperty> {
+		if (values.host === undefined) return new ErrorMissingRequiredProperty();
 		const result = new URL(values.host);
 		if (!result.protocol || !result.host || result.protocol === "hydra") throw new Error("Invalid URL");
 
@@ -370,7 +387,7 @@ class HTTPPeer implements PeerAttributes {
 		if (this._db) this._db.update(this.host, this);
 	}
 
-	async downloadFile(file: File): Promise<{ file: Uint8Array; signal: number } | false> {
+	async downloadFile(file: File): Promise<{ file: Uint8Array; signal: number } | ErrorTimeout | ErrorDownloadFailed> {
 		try {
 			const startTime = Date.now();
 
@@ -380,15 +397,15 @@ class HTTPPeer implements PeerAttributes {
 			try {
 				response = await Utils.promiseWithTimeout(fetch(`${this.host}/download/${hash}`), this._client.config.timeout);
 			} catch (e) {
-				const err = e as Error;
-				if (this._client.config.logLevel === "verbose" && err.message !== "Promise timed out") console.error(e);
-				return false;
+				if (this._client.config.logLevel === "verbose") console.error(e);
+				return new ErrorRequestFailed();
 			}
+			if (response instanceof ErrorTimeout) return new ErrorTimeout();
 			const fileContent = new Uint8Array(await response.arrayBuffer());
 			console.log(`File: ${hash}  Validating hash`);
 			const verifiedHash = await Utils.hashUint8Array(fileContent);
 			console.log(`File: ${hash}  Done Validating hash`);
-			if (hash !== verifiedHash) return false;
+			if (hash !== verifiedHash) return new ErrorChecksumMismatch();
 			console.log(`File: ${hash}  Valid hash`);
 
 			const ethAddress = response.headers.get("Ethereum-Address");
@@ -414,14 +431,14 @@ class HTTPPeer implements PeerAttributes {
 			this.rejects++;
 
 			this.save();
-			return false;
+			return new ErrorDownloadFailed();
 		}
 	}
 
 	async validate(): Promise<boolean> {
 		const file = await File.init({ hash: Utils.sha256("04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f") }, this._client);
 		if (!file) throw new Error("Failed to build file");
-		return await this.downloadFile(file) !== false;
+		return "file" in await this.downloadFile(file);
 	}
 }
 
@@ -445,8 +462,8 @@ export default class HTTPPeers {
 		const db = await PeerDB.init(rpcClient);
 		const httpPeers = new HTTPPeers(rpcClient, db);
 
-		(await Promise.all((await db.select()).map((peer) => HTTPPeer.init(peer, db, rpcClient._client).catch((_) => false)))).forEach((peer) => {
-			if (typeof peer !== "boolean") httpPeers.peers.set(peer.host, peer);
+		(await Promise.all((await db.select()).map((peer) => HTTPPeer.init(peer, db, rpcClient._client)))).forEach((peer) => {
+			if (!(peer instanceof ErrorMissingRequiredProperty)) httpPeers.peers.set(peer.host, peer);
 		});
 
 		for (let i = 0; i < rpcClient._client.config.bootstrapPeers.length; i++) {
@@ -455,9 +472,11 @@ export default class HTTPPeers {
 		return httpPeers;
 	}
 
-	async add(host: string): Promise<void> {
+	async add(host: string): Promise<true | ErrorMissingRequiredProperty> {
 		const peer = await HTTPPeer.init({ host }, this.db, this._rpcClient._client);
+		if (peer instanceof ErrorMissingRequiredProperty) return peer;
 		if (host !== this._rpcClient._client.config.publicHostname) this.peers.set(peer.host, peer);
+		return true;
 	}
 
 	public getPeers = (applicablePeers = false): HTTPPeer[] => {
@@ -495,7 +514,7 @@ export default class HTTPPeers {
 		return results;
 	}
 
-	public fetch(input: RequestInfo, init?: RequestInit): Promise<Response | false>[] {
+	public fetch(input: RequestInfo, init?: RequestInit): Promise<Response | ErrorRequestFailed>[] {
 		const req = typeof input === "string" ? new Request(input, init) : input;
 		const peers = this.getPeers(true);
 		const fetchPromises = peers.map(async (peer) => {
@@ -507,7 +526,7 @@ export default class HTTPPeers {
 				return await Utils.promiseWithTimeout(fetch(url.toString(), init), this._rpcClient._client.config.timeout);
 			} catch (e) {
 				if (this._rpcClient._client.config.logLevel === "verbose") console.error(e);
-				return false;
+				return new ErrorRequestFailed();
 			}
 		});
 
@@ -537,9 +556,9 @@ export default class HTTPPeers {
 		}
 	}
 
-	public getSelf(): HTTPPeer {
+	public getSelf(): HTTPPeer | ErrorNotFound {
 		const peer = this.peers.get(this._rpcClient._client.config.publicHostname);
-		if (!peer) throw new Error("Could not find self");
+		if (!peer) return new ErrorNotFound();
 		return peer;
 	}
 }

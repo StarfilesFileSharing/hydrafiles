@@ -1,10 +1,12 @@
+import { ErrorNotFound } from "../errors.ts";
+
 export default class StandardFileSystem {
-	exists = async (path: string): Promise<boolean> => {
+	exists = async (path: string): Promise<true | ErrorNotFound> => {
 		try {
 			await Deno.stat(path);
 			return true;
 		} catch (e) {
-			if (e instanceof Deno.errors.NotFound) return false;
+			if (e instanceof Deno.errors.NotFound) return new ErrorNotFound();
 			console.error((e as Error).message);
 			throw e;
 		}
@@ -23,8 +25,8 @@ export default class StandardFileSystem {
 		return entries;
 	};
 
-	readFile = async (path: string): Promise<Uint8Array | false> => {
-		if (!await this.exists(path)) return false;
+	readFile = async (path: string): Promise<Uint8Array | ErrorNotFound> => {
+		if (!await this.exists(path)) return new ErrorNotFound();
 		return await Deno.readFile(path);
 	};
 

@@ -6,6 +6,7 @@ import type { PeerAttributes } from "./peers/http.ts";
 import Utils, { type Base64 } from "../utils.ts";
 import type Hydrafiles from "../hydrafiles.ts";
 import { decodeBase32 } from "jsr:@std/encoding@^1.0.5/base32";
+import { ErrorNotFound, ErrorRequestFailed } from "../errors.ts";
 
 function ensureMultipleOfEight(str: string): string {
 	const remainder = str.length % 8;
@@ -20,10 +21,10 @@ interface CachedHostname {
 
 export const router = new Map<string, (req: Request, headers: Headers, client: Hydrafiles) => Promise<Response> | Response>();
 export const sockets: { id: string; socket: WebSocket }[] = [];
-export const processingRequests = new Map<string, Promise<Response>>();
+export const processingRequests = new Map<string, Promise<Response | ErrorNotFound>>();
 const cachedHostnames: Record<string, CachedHostname> = {};
 
-export const pendingRequests = new Map<number, (response: Response | false) => void>();
+export const pendingRequests = new Map<number, (response: Response) => void>();
 
 router.set("WS", (req) => {
 	const { socket, response } = Deno.upgradeWebSocket(req);
@@ -138,19 +139,9 @@ router.set("/download", async (req, headers, client) => {
 		}
 
 		await file.getMetadata();
-		let fileContent: { file: Uint8Array; signal: number } | false;
-		try {
-			fileContent = await file.getFile({ logDownloads: true });
-		} catch (e) {
-			const err = e as { message: string };
-			if (err.message === "Promise timed out") {
-				fileContent = false;
-			} else {
-				throw e;
-			}
-		}
+		const fileContent: { file: Uint8Array; signal: number } | Error = await file.getFile({ logDownloads: true });
 
-		if (fileContent === false) {
+		if (fileContent instanceof Error) {
 			file.found = false;
 			file.save();
 			return new Response("404 File Not Found\n", {
@@ -185,7 +176,7 @@ router.set("/download", async (req, headers, client) => {
 	return response;
 });
 
-router.set("/infohash", async (req, headers, client) => {
+router.set("/infohash", async (req, headers, client): Promise<Response> => {
 	const url = new URL(req.url);
 	const infohash = url.pathname.split("/")[2];
 
@@ -194,23 +185,13 @@ router.set("/infohash", async (req, headers, client) => {
 		await processingRequests.get(infohash);
 	}
 	const processingPromise = (async () => {
-		const file = client.files.files.get(infohash);
-		if (!file) throw new Error("Failed to find file");
+		const file = client.files.filesInfohash.get(infohash);
+		if (!file) return new ErrorNotFound();
 
 		await file.getMetadata();
-		let fileContent: { file: Uint8Array; signal: number } | false;
-		try {
-			fileContent = await file.getFile({ logDownloads: true });
-		} catch (e) {
-			const err = e as { message: string };
-			if (err.message === "Promise timed out") {
-				fileContent = false;
-			} else {
-				throw e;
-			}
-		}
+		const fileContent: { file: Uint8Array; signal: number } | Error = await file.getFile({ logDownloads: true });
 
-		if (fileContent === false) {
+		if (fileContent instanceof Error) {
 			file.found = false;
 			file.save();
 			return new Response("404 File Not Found\n", {
@@ -232,12 +213,15 @@ router.set("/infohash", async (req, headers, client) => {
 
 	processingRequests.set(infohash, processingPromise);
 
-	let response: Response;
+	let response: Response | ErrorNotFound;
 	try {
 		response = await processingPromise;
 	} finally {
 		processingRequests.delete(infohash);
 	}
+
+	if (response instanceof ErrorNotFound) return new Response("Error Not Found", { status: 404 });
+
 	return response;
 });
 
@@ -275,7 +259,7 @@ router.set("/upload", async (req, _, client) => {
 });
 
 router.set("/files", (_, headers, client) => {
-	const rows = Array.from(client.files.files.values()).map((row) => {
+	const rows = Array.from(client.files.getFiles()).map((row) => {
 		const { downloadCount, found, ...rest } = row;
 		const _ = { downloadCount, found };
 		const filteredRest = Object.keys(rest)
@@ -297,7 +281,7 @@ router.set("/file", (req, headers, client) => {
 	const id = url.pathname.split("/")[2];
 	let file: File | undefined;
 	try {
-		file = client.files.files.get(id);
+		file = client.files.filesId.get(id);
 	} catch (e) {
 		const err = e as Error;
 		if (err.message === "File not found") return new Response("File not found", { headers, status: 404 });
@@ -338,11 +322,12 @@ router.set("/endpoint", async (req, headers, client): Promise<Response> => {
 		console.log(`Endpoint: ${hostname}  Fetching endpoint response from peers`);
 		const responses = client.rpcClient.fetch(`http://localhost/endpoint/${hostname}`);
 
-		const processingPromise = new Promise<Response>((resolve, reject) => {
+		const processingPromise = new Promise<Response | ErrorRequestFailed>((resolve, reject) => {
 			(async () => {
 				await Promise.all(responses.map(async (res) => {
 					try {
 						const response = await res;
+						if (response instanceof ErrorRequestFailed) return response;
 						if (response) {
 							const body = await response.text();
 							const signature = response.headers.get("hydra-signature");
@@ -360,7 +345,7 @@ router.set("/endpoint", async (req, headers, client): Promise<Response> => {
 						}
 					} catch (e) {
 						const err = e as Error;
-						if (err.message !== "Hostname not found" && err.message !== "Promise timed out") console.error(e);
+						if (err.message !== "Hostname not found") console.error(e);
 					}
 				}));
 				reject(new Error("Hostname not found"));
@@ -369,7 +354,7 @@ router.set("/endpoint", async (req, headers, client): Promise<Response> => {
 
 		processingRequests.set(hostname, processingPromise);
 
-		let response: Response | undefined;
+		let response: Response | ErrorRequestFailed | undefined;
 		try {
 			response = await processingPromise;
 		} catch (e) {
@@ -379,6 +364,9 @@ router.set("/endpoint", async (req, headers, client): Promise<Response> => {
 		} finally {
 			processingRequests.delete(hostname);
 		}
+
+		if (response instanceof ErrorRequestFailed) throw response;
+
 		const res = { body: await response.text(), headers: response.headers };
 		cachedHostnames[hostname] = { ...res, timestamp: Date.now() };
 		return new Response(res.body, { headers: res.headers });

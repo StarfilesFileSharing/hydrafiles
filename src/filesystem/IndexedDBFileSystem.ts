@@ -1,4 +1,5 @@
 import type { indexedDB } from "https://deno.land/x/indexeddb@v1.1.0/ponyfill.ts";
+import { ErrorFailedToReadFile } from "../errors.ts";
 
 export default class IndexedDBFileSystem {
 	dbName = "FileSystemDB";
@@ -63,13 +64,13 @@ export default class IndexedDBFileSystem {
 		});
 	}
 
-	async readFile(path: string): Promise<Uint8Array | false> {
+	async readFile(path: string): Promise<Uint8Array | ErrorFailedToReadFile> {
 		const db = await this.dbPromise;
 		return new Promise((resolve, reject) => {
 			const transaction = db.transaction(this.storeName, "readonly");
 			const store = transaction.objectStore(this.storeName);
 			const request = store.get(path);
-			request.onsuccess = () => resolve(request.result ? new Uint8Array(request.result.data) : false);
+			request.onsuccess = () => resolve(request.result ? new Uint8Array(request.result.data) : new ErrorFailedToReadFile());
 			request.onerror = () => reject(new Error(`Error reading ${path}`));
 		});
 	}

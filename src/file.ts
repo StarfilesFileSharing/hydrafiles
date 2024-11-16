@@ -5,6 +5,7 @@ import { join } from "https://deno.land/std@0.224.0/path/mod.ts";
 import type { Database } from "jsr:@db/sqlite";
 import type { EthAddress } from "./wallet.ts";
 import { delay } from "https://deno.land/std@0.170.0/async/delay.ts";
+import { ErrorChecksumMismatch, ErrorMissingRequiredProperty, ErrorNotFound, ErrorNotInitialised, ErrorRequestFailed, ErrorUnreachableCodeReached } from "./errors.ts";
 
 type DatabaseWrapper = { type: "UNDEFINED"; db: undefined } | { type: "SQLITE"; db: Database } | { type: "INDEXEDDB"; db: IDBDatabase };
 
@@ -45,9 +46,9 @@ function addColumnIfNotExists(db: Database, tableName: string, columnName: strin
 	}
 }
 
-function fileAttributesDefaults(values?: Partial<FileAttributes>): FileAttributes {
+function fileAttributesDefaults(values?: Partial<FileAttributes>): FileAttributes | ErrorMissingRequiredProperty {
 	if (!values) values = { hash: "" as unknown as Sha256 };
-	if (values.hash === undefined) throw new Error("Hash is required");
+	if (values.hash === undefined) return new ErrorMissingRequiredProperty();
 
 	return {
 		hash: values.hash,
@@ -215,9 +216,10 @@ export class FileDB {
 		} else return new Promise((resolve) => resolve([]));
 	}
 
-	insert(values: Partial<FileAttributes>): void {
-		if (typeof this.db === "undefined") return;
+	insert(values: Partial<FileAttributes>): true | ErrorMissingRequiredProperty {
+		if (typeof this.db === "undefined") return new ErrorNotInitialised();
 		const file = fileAttributesDefaults(values);
+		if (file instanceof ErrorMissingRequiredProperty) return new ErrorMissingRequiredProperty();
 		console.log(`File: ${file.hash}  File INSERTed`, values);
 		if (this.db.type === "SQLITE") {
 			const query = `INSERT INTO file (hash, infohash, downloadCount, id, name, found, size)VALUES (?, ?, ?, ?, ?, ?, ?)`;
@@ -247,24 +249,28 @@ export class FileDB {
 
 			this.objectStore().add(file);
 		}
+
+		return true;
 	}
 
-	async update(hash: Sha256, updates: Partial<FileAttributes>): Promise<void> {
+	async update(hash: Sha256, updates: Partial<FileAttributes>): Promise<true | ErrorNotFound | ErrorMissingRequiredProperty> {
 		updates.updatedAt = new Date().toISOString();
 		updates.hash = hash;
 		const newFile = fileAttributesDefaults(updates);
+		if (newFile instanceof ErrorMissingRequiredProperty) return new ErrorMissingRequiredProperty();
 
 		// Get the current file attributes before updating
 		const currentFile = (await this.select({ key: "hash", value: hash }))[0] ?? fileAttributesDefaults({ hash });
 		if (!currentFile) {
 			console.error(`File: ${hash}  Mot found when updating`);
-			return;
+			return new ErrorNotFound();
 		}
 
 		const updatedColumn: string[] = [];
 		const params: (string | number | boolean)[] = [];
 		const keys = Object.keys(newFile);
 		const defaultValues = fileAttributesDefaults();
+		if (defaultValues instanceof ErrorMissingRequiredProperty) return new ErrorMissingRequiredProperty();
 
 		type BeforeAfter = Record<string, { before: FileAttributes[keyof FileAttributes]; after: FileAttributes[keyof FileAttributes] }>;
 		const beforeAndAfter: BeforeAfter = {};
@@ -279,7 +285,10 @@ export class FileDB {
 			}
 		}
 
-		if (updatedColumn.length <= 1) return;
+		if (updatedColumn.length <= 1) {
+			console.warn("Unnecessary DB update");
+			return true;
+		}
 
 		if (this.db.type === "SQLITE") {
 			params.push(hash.toString());
@@ -296,6 +305,7 @@ export class FileDB {
 				this._client.config.logLevel === "verbose" ? console.log(`File: ${hash}  Updated Values:`, beforeAndAfter) : "",
 			);
 		}
+		return true;
 	}
 
 	delete(hash: Sha256): void {
@@ -407,7 +417,7 @@ export class File implements FileAttributes {
 			const responses = client.rpcClient.fetch(`http://localhost/file/${values.id}`);
 			for (let i = 0; i < responses.length; i++) {
 				const response = await responses[i];
-				if (!response) continue;
+				if (response instanceof ErrorRequestFailed) continue;
 				try {
 					const body = await response.json() as { result: Metadata } | FileAttributes;
 					const hash = "result" in body ? body.result.hash.sha256 : body.hash;
@@ -453,7 +463,7 @@ export class File implements FileAttributes {
 		};
 	}
 
-	public async getMetadata(): Promise<this | false> {
+	public async getMetadata(): Promise<this | ErrorNotFound> {
 		if (this.size > 0 && this.name !== undefined && this.name !== null && this.name.length > 0) return this;
 
 		const hash = this.hash;
@@ -467,7 +477,7 @@ export class File implements FileAttributes {
 			for (let i = 0; i < responses.length; i++) {
 				try {
 					const response = await responses[i];
-					if (!response) continue;
+					if (response instanceof ErrorRequestFailed) continue;
 					const body = await response.json();
 					const metadata = body.result as Metadata ?? body as FileAttributes;
 					this.name = metadata.name;
@@ -484,7 +494,7 @@ export class File implements FileAttributes {
 		const filePath = join(FILESPATH, hash.toString());
 		if (await this._client.fs.exists(filePath)) {
 			const fileSize = await this._client.fs.getFileSize(filePath);
-			if (fileSize !== false) {
+			if (!(fileSize instanceof Error)) {
 				this.size = Utils.createNonNegativeNumber(fileSize);
 				this.save();
 			}
@@ -504,13 +514,13 @@ export class File implements FileAttributes {
 			}
 		}
 
-		return false;
+		return new ErrorNotFound();
 	}
 
-	async cacheFile(file: Uint8Array): Promise<void> {
+	async cacheFile(file: Uint8Array): Promise<true | ErrorNotInitialised | ErrorNotFound | ErrorUnreachableCodeReached> {
 		const hash = this.hash;
 		const filePath = join(FILESPATH, hash.toString());
-		if (await this._client.fs.exists(filePath)) return;
+		if (await this._client.fs.exists(filePath)) return true;
 
 		let size = this.size;
 		if (size === 0) {
@@ -523,23 +533,24 @@ export class File implements FileAttributes {
 
 		this._client.fs.writeFile(filePath, file);
 		const fileContent = await this._client.fs.readFile(filePath);
-		if (!fileContent) return;
+		if (fileContent instanceof Error) return fileContent;
 		const savedHash = await Utils.hashUint8Array(fileContent);
 		if (savedHash !== hash) await this._client.fs.remove(filePath); // In case of broken file
+		return true;
 	}
 
-	async fetchFromCache(): Promise<{ file: Uint8Array; signal: number } | false> {
+	async fetchFromCache(): Promise<{ file: Uint8Array; signal: number } | ErrorNotFound | ErrorNotInitialised | ErrorChecksumMismatch> {
 		const hash = this.hash;
 		console.log(`File: ${hash}  Checking Cache`);
 		const filePath = join(FILESPATH, hash.toString());
 		this.seed();
-		if (!await this._client.fs.exists(filePath)) return false;
+		if (!await this._client.fs.exists(filePath)) return new ErrorNotFound();
 		const fileContents = await this._client.fs.readFile(filePath);
-		if (!fileContents) return false;
+		if (fileContents instanceof Error) return fileContents;
 		const savedHash = await Utils.hashUint8Array(fileContents);
 		if (savedHash !== this.hash) {
 			await this._client.fs.remove(filePath).catch(console.error);
-			return false;
+			return new ErrorChecksumMismatch();
 		}
 		return {
 			file: fileContents,
@@ -547,49 +558,43 @@ export class File implements FileAttributes {
 		};
 	}
 
-	async fetchFromS3(): Promise<{ file: Uint8Array; signal: number } | false> {
+	async fetchFromS3(): Promise<{ file: Uint8Array; signal: number } | ErrorNotInitialised | ErrorNotFound | ErrorChecksumMismatch> {
 		console.log(`File: ${this.hash}  Checking S3`);
-		if (this._client.s3 === undefined) return false;
-		try {
-			const data = (await this._client.s3.getObject(`${this.hash}.stuf`)).body;
-			if (data === null) return false;
+		if (this._client.s3 === undefined) return new ErrorNotInitialised();
+		const data = (await this._client.s3.getObject(`${this.hash}.stuf`)).body;
+		if (data === null) return new ErrorNotFound();
 
-			const chunks: Uint8Array[] = [];
-			const reader = data.getReader();
-			while (true) {
-				const { done, value } = await reader.read();
-				if (done) break;
-				chunks.push(value);
-			}
-
-			const length = chunks.reduce((acc, chunk) => acc + chunk.length, 0);
-			const file = new Uint8Array(length);
-			let offset = 0;
-			for (const chunk of chunks) {
-				file.set(chunk, offset);
-				offset += chunk.length;
-			}
-
-			if (this._client.config.cacheS3) await this.cacheFile(file);
-
-			const hash = await Utils.hashUint8Array(file);
-			if (hash.toString() !== this.hash.toString()) return false;
-			return {
-				file,
-				signal: Utils.interfere(100),
-			};
-		} catch (e) {
-			const err = e as { message: string };
-			if (err.message !== "The specified key does not exist.") console.error(err);
-			return false;
+		const chunks: Uint8Array[] = [];
+		const reader = data.getReader();
+		while (true) {
+			const { done, value } = await reader.read();
+			if (done) break;
+			chunks.push(value);
 		}
+
+		const length = chunks.reduce((acc, chunk) => acc + chunk.length, 0);
+		const file = new Uint8Array(length);
+		let offset = 0;
+		for (const chunk of chunks) {
+			file.set(chunk, offset);
+			offset += chunk.length;
+		}
+
+		if (this._client.config.cacheS3) await this.cacheFile(file);
+
+		const hash = await Utils.hashUint8Array(file);
+		if (hash.toString() !== this.hash.toString()) return new ErrorChecksumMismatch();
+		return {
+			file,
+			signal: Utils.interfere(100),
+		};
 	}
 
 	// TODO: fetchFromTorrent
 	// TODO: Connect to other hydrafiles nodes as webseed
 	// TODO: Check other nodes file lists to find other claimed infohashes for the file, leech off all of them and copy the metadata from the healthiest torrent
 
-	async getFile(opts: { logDownloads: boolean }): Promise<{ file: Uint8Array; signal: number } | false> {
+	async getFile(opts: { logDownloads: boolean }): Promise<{ file: Uint8Array; signal: number } | ErrorNotFound | ErrorNotInitialised | ErrorChecksumMismatch> {
 		// const peer = await Utils.exportPublicKey((await this._client.keyPair).publicKey); // TODO: Replace this with actual peer
 		// const receipt = await this._client.blockchain.mempoolBlock.signReceipt(
 		//   peer,
@@ -605,7 +610,7 @@ export class File implements FileAttributes {
 		console.log(`File: ${hash}  Getting file`);
 		if (!this.found && new Date(this.updatedAt) > new Date(new Date().getTime() - 5 * 60 * 1000)) {
 			console.log(`File: ${hash}  404 cached`);
-			return false;
+			return new ErrorNotFound();
 		}
 		if (opts.logDownloads === undefined || opts.logDownloads) this.increment("downloadCount");
 
@@ -623,14 +628,14 @@ export class File implements FileAttributes {
 		// 	);
 		// }
 
-		let file = await this.fetchFromCache();
-		if (file !== false) console.log(`File: ${hash}  Serving ${this.size !== undefined ? Math.round(this.size / 1024 / 1024) : 0}MB from cache`);
+		let file: { file: Uint8Array; signal: number } | ErrorNotFound | ErrorNotInitialised | ErrorChecksumMismatch = await this.fetchFromCache();
+		if (!(file instanceof Error)) console.log(`File: ${hash}  Serving ${this.size !== undefined ? Math.round(this.size / 1024 / 1024) : 0}MB from cache`);
 		else {
 			if (this._client.config.s3Endpoint.length > 0) file = await this.fetchFromS3();
-			if (file !== false) console.log(`File: ${hash}  Serving ${this.size !== undefined ? Math.round(this.size / 1024 / 1024) : 0}MB from S3`);
+			if (!(file instanceof Error)) console.log(`File: ${hash}  Serving ${this.size !== undefined ? Math.round(this.size / 1024 / 1024) : 0}MB from S3`);
 			else {
 				file = await this.download();
-				if (file === false) {
+				if (file instanceof Error) {
 					this.found = false;
 					this._client.events.log(this._client.events.fileEvents.FileNotFound);
 					this.save();
@@ -639,7 +644,7 @@ export class File implements FileAttributes {
 		}
 
 		this._client.events.log(this._client.events.fileEvents.FileServed);
-		if (file !== false) this.seed();
+		if (!(file instanceof Error)) this.seed();
 
 		return file;
 	}
@@ -687,7 +692,7 @@ export class File implements FileAttributes {
 		}
 	}
 
-	async download(): Promise<{ file: Uint8Array; signal: number } | false> {
+	async download(): Promise<{ file: Uint8Array; signal: number } | ErrorChecksumMismatch> {
 		let size = this.size;
 		if (size === 0) {
 			this.getMetadata();
@@ -704,13 +709,13 @@ export class File implements FileAttributes {
 
 		const peers = this._client.rpcClient.http.getPeers(true);
 		for (const peer of peers) {
-			let fileContent: { file: Uint8Array; signal: number } | false = false;
+			let fileContent: { file: Uint8Array; signal: number } | Error | undefined;
 			try {
 				fileContent = await peer.downloadFile(this);
 			} catch (e) {
 				console.error(e);
 			}
-			if (fileContent) return fileContent;
+			if (fileContent && !(fileContent instanceof Error)) return fileContent;
 		}
 
 		console.log(`File: ${this.hash}  Downloading from WebRTC`);
@@ -721,7 +726,7 @@ export class File implements FileAttributes {
 			console.log(`File: ${this.hash}  Validating hash`);
 			const verifiedHash = await Utils.hashUint8Array(fileContent);
 			console.log(`File: ${this.hash}  Done Validating hash`);
-			if (this.hash !== verifiedHash) return false;
+			if (this.hash !== verifiedHash) return new ErrorChecksumMismatch();
 			console.log(`File: ${this.hash}  Valid hash`);
 
 			const ethAddress = response.headers.get("Ethereum-Address");
@@ -733,14 +738,16 @@ export class File implements FileAttributes {
 			}
 		}
 
-		return false;
+		return new ErrorNotFound();
 	}
 }
 
 class Files {
 	private _client: Hydrafiles;
 	public db: FileDB;
-	public files = new Map<string, File>(); // TODO: add inserts
+	public filesHash = new Map<string, File>(); // TODO: add inserts
+	public filesInfohash = new Map<string, File>(); // TODO: add inserts
+	public filesId = new Map<string, File>(); // TODO: add inserts
 
 	private constructor(client: Hydrafiles, db: FileDB) {
 		this._client = client;
@@ -761,15 +768,14 @@ class Files {
 	public async add(values: Partial<FileAttributes>): Promise<File> {
 		if (!values.hash) throw new Error("Hash not defined");
 		const file = await File.init(values, this._client, false);
-		this.files.set(values.hash, file);
-		if (values.infohash) this.files.set(values.infohash, file);
-		if (values.name) this.files.set(values.name, file);
+		this.filesHash.set(values.hash, file);
+		if (values.infohash) this.filesInfohash.set(values.infohash, file);
+		if (values.id) this.filesId.set(values.id, file);
 		return file;
 	}
 
 	public getFiles(): File[] {
-		return Array.from(this.files.values())
-			.filter((_, index, self) => index === self.findIndex((f) => f.hash === _.hash))
+		return Array.from(this.filesHash.values())
 			.sort((a, b) => (b.voteHash ?? "").localeCompare(a.voteHash ?? ""));
 	}
 
@@ -777,13 +783,13 @@ class Files {
 		setTimeout(async () => {
 			while (true) {
 				console.log("Backfilling file");
-				const keys = Array.from(this.files.keys());
+				const keys = Array.from(this.filesHash.keys());
 				if (keys.length === 0) {
 					await delay(500);
 					continue;
 				}
 				const randomKey = keys[Math.floor(Math.random() * keys.length)];
-				const file = this.files.get(randomKey);
+				const file = this.filesHash.get(randomKey);
 				if (!file) continue;
 				if (file) {
 					console.log(`File: ${file.hash}  Backfilling file`);
@@ -799,7 +805,7 @@ class Files {
 		let files: FileAttributes[] = [];
 		const responses = await Promise.all(this._client.rpcClient.fetch("http://localhost/files"));
 		for (let i = 0; i < responses.length; i++) {
-			if (responses[i] !== false) {
+			if (!(responses[i] instanceof ErrorRequestFailed)) {
 				try {
 					files = files.concat((await (responses[i] as Response).json()) as FileAttributes[]);
 				} catch (e) {

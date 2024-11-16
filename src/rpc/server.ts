@@ -1,3 +1,4 @@
+import { ErrorDownloadFailed, ErrorNotFound } from "../errors.ts";
 import type Hydrafiles from "../hydrafiles.ts";
 import Utils from "../utils.ts";
 import { router } from "./routes.ts";
@@ -35,10 +36,16 @@ class RPCServer {
 			while (true) {
 				try {
 					const certFile = await client.fs.readFile(client.config.sslCertPath);
-					if (!certFile) throw new Error("SSL Error: Invalid cert");
+					if (certFile instanceof Error) {
+						console.error(certFile);
+						break;
+					}
 					const cert = new TextDecoder().decode(certFile);
 					const keyFile = await client.fs.readFile(client.config.sslKeyPath);
-					if (!keyFile) throw new Error("SSL Error: Invalid key");
+					if (keyFile instanceof Error) {
+						console.error(keyFile);
+						break;
+					}
 					const key = new TextDecoder().decode(keyFile);
 					Deno.serve({
 						port: httpsPort,
@@ -61,7 +68,7 @@ class RPCServer {
 	private onListen = async (hostname: string, port: number): Promise<void> => {
 		console.log(`Server started at ${hostname}:${port}`);
 		console.log("Testing network connection");
-		const file = this._client.files.files.get("04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f");
+		const file = this._client.files.filesHash.get("04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f");
 		if (!file) return;
 		if (!(await file.download())) console.error("Download test failed, cannot connect to network");
 		else {
@@ -71,13 +78,17 @@ class RPCServer {
 				console.log(`Testing downloads ${this._client.config.publicHostname}/download/04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f`);
 				if (!file) console.error("Failed to build file");
 				else {
-					const response = await this._client.rpcClient.http.getSelf().downloadFile(file); // TODO: HTTPPeers.getSelf()
-					if (response === false) console.error("Test: Failed to download file from self");
+					const self = this._client.rpcClient.http.getSelf();
+					if (self instanceof ErrorNotFound) console.error("Failed to find self in peers");
 					else {
-						console.log("Announcing HTTP server to nodes");
-						this._client.rpcClient.fetch(`http://localhost/announce?host=${this._client.config.publicHostname}`);
+						const response = await self.downloadFile(file);
+						if (response instanceof ErrorDownloadFailed) console.error("Test: Failed to download file from self");
+						else {
+							console.log("Announcing HTTP server to nodes");
+							this._client.rpcClient.fetch(`http://localhost/announce?host=${this._client.config.publicHostname}`);
+						}
+						await this._client.rpcClient.http.add(this._client.config.publicHostname);
 					}
-					await this._client.rpcClient.http.add(this._client.config.publicHostname);
 				}
 			}
 		}
