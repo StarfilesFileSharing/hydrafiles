@@ -140,7 +140,7 @@ class RTCPeers {
 		};
 		conn.addEventListener("iceconnectionstatechange", () => {
 			if (conn.iceConnectionState === "disconnected" || conn.iceConnectionState === "closed" || conn.iceConnectionState === "failed") {
-				console.warn(`WebRTC: (13/12):  ${from}  Connection closed. Cleaning up peer connection.`);
+				console.warn(`WebRTC: (13/12): ${from}  Connection closed. Cleaning up peer connection.`);
 				this.cleanupPeerConnection(conn);
 			}
 		});
@@ -166,7 +166,7 @@ class RTCPeers {
 
 		setTimeout(() => {
 			if (conn.signalingState === "have-local-offer") {
-				console.warn(`WebRTC: (13/12):  ${from}  Connection timed out. Cleaning up peer connection.`);
+				console.warn(`WebRTC: (13/12): ${from}  Connection timed out. Cleaning up peer connection.`);
 				this.cleanupPeerConnection(conn);
 			}
 		}, this._rpcClient._client.config.timeout);
@@ -181,11 +181,11 @@ class RTCPeers {
 		if (remotePeerId) {
 			const peerConns = this.peerConnections[remotePeerId];
 			if (peerConns.offered?.conn === conn) {
-				console.warn(`WebRTC: (13/12):  ${remotePeerId}  Offered connecton is ${conn.iceConnectionState}`);
+				console.warn(`WebRTC: (13/12): ${remotePeerId}  Offered connecton is ${conn.iceConnectionState}`);
 				peerConns.offered.conn.close();
 				delete peerConns.offered;
 			} else if (peerConns.answered?.conn === conn) {
-				console.warn(`WebRTC: (13/12):  ${remotePeerId}  Answered connecton is ${conn.iceConnectionState}`);
+				console.warn(`WebRTC: (13/12): ${remotePeerId}  Answered connecton is ${conn.iceConnectionState}`);
 				peerConns.answered.conn.close();
 				delete peerConns.answered;
 			}
@@ -209,7 +209,7 @@ class RTCPeers {
 		this._rpcClient._client.events.log(this._rpcClient._client.events.rtcEvents.RTCAnnounce);
 		console.log(`WebRTC: (2/12):  ${from}  Received announce`);
 		if (this.peerConnections[from] && this.peerConnections[from].offered) {
-			console.warn(`WebRTC: (13/12):  ${from} Already offered to peer`);
+			console.warn(`WebRTC: (13/12): ${from} Already offered to peer`);
 			return;
 		}
 		if (!this.peerConnections[from]) this.peerConnections[from] = {};
@@ -232,12 +232,12 @@ class RTCPeers {
 
 		this.peerConnections[from].answered = await this.createPeerConnection(from);
 		if (this.peerConnections[from].answered.conn.signalingState !== "stable" && this.peerConnections[from].answered.conn.signalingState !== "have-remote-offer") {
-			console.warn(`WebRTC: (13/12):  ${from}  Peer connection in unexpected state 1: ${this.peerConnections[from].answered.conn.signalingState}`);
+			console.warn(`WebRTC: (13/12): ${from}  Peer connection in unexpected state 1: ${this.peerConnections[from].answered.conn.signalingState}`);
 			return;
 		}
 		await this.peerConnections[from].answered.conn.setRemoteDescription(offer);
 		if (this.peerConnections[from].answered.conn.signalingState !== "have-remote-offer") {
-			console.warn(`WebRTC: (13/12):  ${from}  Peer connection in unexpected state 2: ${this.peerConnections[from].answered.conn.signalingState}`);
+			console.warn(`WebRTC: (13/12): ${from}  Peer connection in unexpected state 2: ${this.peerConnections[from].answered.conn.signalingState}`);
 			return;
 		}
 		try {
@@ -256,11 +256,11 @@ class RTCPeers {
 		this._rpcClient._client.events.log(this._rpcClient._client.events.rtcEvents.RTCAnswer);
 		if (!this.peerConnections[from] || !this.peerConnections[from].offered) {
 			console.log(this.peerConnections[from].offered);
-			console.warn(`WebRTC: (13/12):  ${from}  Rejecting answer - No open handshake`);
+			console.warn(`WebRTC: (13/12): ${from}  Rejecting answer - No open handshake`);
 			return;
 		}
 		if (this.peerConnections[from].offered.conn.signalingState !== "have-local-offer") {
-			console.warn(`WebRTC: (13/12):  ${from}  Rejecting answer - Bad signalling state: ${this.peerConnections[from].offered?.conn.signalingState}`);
+			console.warn(`WebRTC: (13/12): ${from}  Rejecting answer - Bad signalling state: ${this.peerConnections[from].offered?.conn.signalingState}`);
 			return;
 		}
 		console.log(`WebRTC: (7/12):  ${from}  Received answer`, extractIPAddress(answer.sdp));
@@ -271,7 +271,7 @@ class RTCPeers {
 		const iceCandidate = receivedIceCandidate;
 		this._rpcClient._client.events.log(this._rpcClient._client.events.rtcEvents.RTCIce);
 		if (!this.peerConnections[from]) {
-			console.warn(`WebRTC: (13/12):  ${from}  Rejecting Ice candidates received - No open handshake`);
+			console.warn(`WebRTC: (13/12): ${from}  Rejecting Ice candidates received - No open handshake`);
 			return;
 		}
 		if (this._rpcClient._client.config.logLevel === "verbose") console.log(`WebRTC: (8/12):  ${from}  Received ICE candidate`);

@@ -167,7 +167,7 @@ class PeerDB {
 			duration: values.duration ?? 0,
 			updatedAt: values.updatedAt ?? new Date().toISOString(),
 		} as PeerAttributes;
-		console.log(`  ${peer.host}  Peer INSERTed`, values);
+		console.log(`Peer: ${peer.host}  Peer INSERTed`, values);
 		if (this.db.type === "SQLITE") {
 			const query = `INSERT INTO peer (host, hits, rejects, bytes, duration, updatedAt) VALUES (?, ?, ?, ?, ?, ?)`;
 
@@ -185,7 +185,7 @@ class PeerDB {
 			const request = objectStore.add(peer);
 
 			// @ts-expect-error:
-			request.onsuccess = (event): void => console.log(`  ${peer.hash}  Peer added successfully:`, event.target.result);
+			request.onsuccess = (event): void => console.log(`Peer: ${peer.hash}  Peer added successfully:`, event.target.result);
 			// @ts-expect-error:
 			request.onerror = (event): void => console.error("Error adding peer:", event.target.error);
 		}
@@ -225,8 +225,8 @@ class PeerDB {
 			const query = `UPDATE peer SET ${updatedColumn.map((column) => `${column} = ?`).join(", ")} WHERE host = ?`;
 			this.db.db.prepare(query).values(params);
 			console.log(
-				`  ${host}  Peer UPDATEd - Updated Columns: ${updatedColumn.join(", ")}` + (this._rpcClient._client.config.logLevel === "verbose" ? ` - Params: ${params.join(", ")}  - Query: ${query}` : ""),
-				this._rpcClient._client.config.logLevel === "verbose" ? console.log(`  ${host}  Updated Values:`, beforeAndAfter) : "",
+				`Peer: ${host}  Peer UPDATEd - Updated Columns: ${updatedColumn.join(", ")}` + (this._rpcClient._client.config.logLevel === "verbose" ? ` - Params: ${params.join(", ")}  - Query: ${query}` : ""),
+				this._rpcClient._client.config.logLevel === "verbose" ? console.log(`Peer: ${host}  Updated Values:`, beforeAndAfter) : "",
 			);
 		} else {
 			// @ts-expect-error:
@@ -239,8 +239,8 @@ class PeerDB {
 				};
 			}
 			console.log(
-				`  ${host}  Peer UPDATEd - Updated Columns: ${updatedColumn.join(", ")}` + (this._rpcClient._client.config.logLevel === "verbose" ? ` - Params: ${params.join(", ")}` : ""),
-				this._rpcClient._client.config.logLevel === "verbose" ? console.log(`  ${host}  Updated Values:`, beforeAndAfter) : "",
+				`Peer: ${host}  Peer UPDATEd - Updated Columns: ${updatedColumn.join(", ")}` + (this._rpcClient._client.config.logLevel === "verbose" ? ` - Params: ${params.join(", ")}` : ""),
+				this._rpcClient._client.config.logLevel === "verbose" ? console.log(`Peer: ${host}  Updated Values:`, beforeAndAfter) : "",
 			);
 		}
 
@@ -257,7 +257,7 @@ class PeerDB {
 			if (objectStore instanceof ErrorWrongDatabaseType) return new ErrorWrongDatabaseType();
 			objectStore.delete(host).onerror = console.error;
 		}
-		console.log(`  ${host}  Peer DELETEd`);
+		console.log(`Peer: ${host}  Peer DELETEd`);
 		return true;
 	}
 
@@ -275,7 +275,7 @@ class PeerDB {
 					peer[column] = (peer[column] || 0) + 1;
 					const objectStore = this.objectStore();
 					if (objectStore instanceof ErrorWrongDatabaseType) return objectStore;
-					objectStore.put(peer).onsuccess = () => console.log(`  ${host}  Incremented ${column}`);
+					objectStore.put(peer).onsuccess = () => console.log(`Peer: ${host}  Incremented ${column}`);
 				}
 			};
 		}
