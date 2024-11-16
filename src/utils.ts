@@ -37,16 +37,20 @@ class Utils {
 		const os = await import("https://deno.land/std@0.170.0/node/os.ts");
 		return os.freemem() > (fileSize + this._config.memoryThreshold);
 	};
-	static promiseWithTimeout = async <T>(promise: Promise<T>, timeoutDuration: number): Promise<T | ErrorTimeout> =>
-		await Promise.race([
-			promise,
-			new Promise<never>((_resolve, reject) =>
-				setTimeout(
-					() => reject(new ErrorTimeout()),
-					timeoutDuration,
-				)
-			),
-		]);
+
+	static async promiseWithTimeout<T>(promise: Promise<T>, timeoutDuration: number): Promise<T | ErrorTimeout> {
+		try {
+			return await Promise.race<T | ErrorTimeout>([
+				promise,
+				new Promise((_, reject) => {
+					setTimeout(() => reject(new ErrorTimeout()), timeoutDuration);
+				}),
+			]);
+		} catch (error) {
+			if (error instanceof ErrorTimeout) return error;
+			else throw error;
+		}
+	}
 
 	static estimateHops = (signalStrength: number): { hop: number | null; certainty: number } => {
 		const hopData = [
