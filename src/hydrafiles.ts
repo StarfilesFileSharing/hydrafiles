@@ -91,6 +91,8 @@ class Hydrafiles {
 	}
 
 	async logState(): Promise<void> {
+		const files = await this.fs.readDir("files/");
+		const usedStorage = await this.utils.calculateUsedStorage();
 		console.log(
 			"\n===============================================\n========",
 			new Date().toUTCString(),
@@ -105,8 +107,8 @@ class Hydrafiles {
 			await this.files.db.count(),
 			`(${Math.round((100 * (await this.files.db.sum("size"))) / 1024 / 1024 / 1024) / 100}GB)`,
 			"\n| Stored Files:",
-			(await this.fs.readDir("files/")).length,
-			`(${Math.round((100 * await this.utils.calculateUsedStorage()) / 1024 / 1024 / 1024) / 100}GB)`,
+			files instanceof Error ? files.toString() : files.length,
+			`(${Math.round((100 * (usedStorage instanceof Error ? 0 : usedStorage)) / 1024 / 1024 / 1024) / 100}GB)`,
 			"\n| Downloads Served:",
 			(await this.files.db.sum("downloadCount")) + ` (${Math.round((((await this.files.db.sum("downloadCount * size")) / 1024 / 1024 / 1024) * 100) / 100)}GB)`,
 			"\n| Hostname:",

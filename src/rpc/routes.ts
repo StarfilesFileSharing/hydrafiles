@@ -61,25 +61,41 @@ router.set("/status", (_, headers) => {
 router.set("/hydrafiles-web.esm.js", async (_, headers, client) => {
 	headers.set("Content-Type", "application/javascript");
 	headers.set("Cache-Control", "public, max-age=300");
-	return new Response(await client.fs.readFile("build/hydrafiles-web.esm.js") || "", { headers });
+	const fileContent = await client.fs.readFile("build/hydrafiles-web.esm.js");
+	if (fileContent instanceof Error) {
+		return new Response("File gone", { status: 403 });
+	}
+	return new Response(fileContent, { headers });
 });
 
 router.set("/dashboard.js", async (_, headers, client) => {
 	headers.set("Content-Type", "application/javascript");
 	headers.set("Cache-Control", "public, max-age=300");
-	return new Response(await client.fs.readFile("build/dashboard.js") || "", { headers });
+	const fileContent = await client.fs.readFile("build/dashboard.js");
+	if (fileContent instanceof Error) {
+		return new Response("File not found", { status: 404 });
+	}
+	return new Response(fileContent, { headers });
 });
 
 router.set("/hydrafiles-web.esm.js.map", async (_, headers, client) => {
 	headers.set("Content-Type", "application/json");
 	headers.set("Cache-Control", "public, max-age=300");
-	return new Response(await client.fs.readFile("build/hydrafiles-web.esm.js.map") || "", { headers });
+	const fileContent = await client.fs.readFile("build/hydrafiles-web.esm.js.map");
+	if (fileContent instanceof Error) {
+		return new Response("File not found", { status: 404 });
+	}
+	return new Response(fileContent, { headers });
 });
 
 router.set("/dashboard.js.map", async (_, headers, client) => {
 	headers.set("Content-Type", "application/json");
 	headers.set("Cache-Control", "public, max-age=300");
-	return new Response(await client.fs.readFile("build/dashboard.js.map") || "", { headers });
+	const fileContent = await client.fs.readFile("build/dashboard.js.map");
+	if (fileContent instanceof Error) {
+		return new Response("File not found", { status: 404 });
+	}
+	return new Response(fileContent, { headers });
 });
 
 router.set("/peers", (_, headers, client) => {

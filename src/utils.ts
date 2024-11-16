@@ -24,7 +24,12 @@ class Utils {
 	static isIp = (host: string): boolean => /^https?:\/\/(?:\d+\.){3}\d+(?::\d+)?$/.test(host);
 	static isPrivateIP = (ip: string): boolean => /^https?:\/\/(?:10\.|(?:172\.(?:1[6-9]|2\d|3[0-1]))\.|192\.168\.|169\.254\.|127\.|224\.0\.0\.|255\.255\.255\.255|localhost)/.test(ip);
 	static interfere = (signalStrength: number): number => signalStrength >= 95 ? this.getRandomNumber(90, 100) : Math.ceil(signalStrength * (1 - (this.getRandomNumber(0, 10) / 100)));
-	remainingStorage = async (): Promise<number> => this._config.maxCache - await this.calculateUsedStorage();
+
+	remainingStorage = async (): Promise<NonNegativeNumber | ErrorNotInitialised> => {
+		const usedStorage = await this.calculateUsedStorage();
+		if (usedStorage instanceof Error) return usedStorage;
+		return this._config.maxCache = usedStorage as NonNegativeNumber;
+	};
 	static createNonNegativeNumber = (n: number): NonNegativeNumber => (Number.isInteger(n) && n >= 0 ? n : 0) as NonNegativeNumber;
 
 	hasSufficientMemory = async (fileSize: number): Promise<boolean> => {
@@ -123,9 +128,8 @@ class Utils {
 			this._fs.remove(filePath).catch(console.error);
 			if (typeof fileSize === "number") remainingSpace += fileSize;
 
-			if (requiredSpace <= remainingSpace && (await this.calculateUsedStorage() || 0) * (1 - this._config.burnRate) <= remainingSpace) {
-				break;
-			}
+			const usedStorage = await this.calculateUsedStorage();
+			if (requiredSpace <= remainingSpace && (usedStorage instanceof Error ? 0 : usedStorage) * (1 - this._config.burnRate) <= remainingSpace) break;
 		}
 
 		return true;

@@ -529,6 +529,7 @@ export class File implements FileAttributes {
 			this.save();
 		}
 		const remainingSpace = await this._client.utils.remainingStorage();
+		if (remainingSpace instanceof ErrorNotInitialised) return remainingSpace;
 		if (this._client.config.maxCache !== -1 && size > remainingSpace) this._client.utils.purgeCache(size, remainingSpace);
 
 		this._client.fs.writeFile(filePath, file);

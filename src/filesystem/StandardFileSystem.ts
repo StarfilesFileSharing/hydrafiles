@@ -26,7 +26,7 @@ export default class StandardFileSystem {
 	};
 
 	readFile = async (path: string): Promise<Uint8Array | ErrorNotFound> => {
-		if (!await this.exists(path)) return new ErrorNotFound();
+		if (await this.exists(path) instanceof ErrorNotFound) return new ErrorNotFound();
 		return await Deno.readFile(path);
 	};
 
