@@ -125,7 +125,8 @@ class Utils {
 			if (typeof fileSize === "number") remainingSpace += fileSize;
 
 			const usedStorage = await this.calculateUsedStorage();
-			if (requiredSpace <= remainingSpace && (usedStorage instanceof Error ? 0 : usedStorage) * (1 - this._config.burnRate) <= remainingSpace) break;
+			if (usedStorage instanceof ErrorNotInitialised) return usedStorage;
+			if (requiredSpace <= remainingSpace && usedStorage * (1 - this._config.burnRate) <= remainingSpace) break;
 		}
 
 		return true;
