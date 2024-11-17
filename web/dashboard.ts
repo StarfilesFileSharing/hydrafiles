@@ -5,6 +5,7 @@ import WebTorrent from "https://esm.sh/webtorrent@2.5.1";
 import { Chart } from "https://esm.sh/chart.js@4.4.6/auto";
 import { processingRequests } from "../src/rpc/routes.ts";
 import { ErrorNotInitialised } from "../src/errors.ts";
+import type { FileEventLog, RTCEventLog } from "../src/events.ts";
 
 declare global {
 	interface Window {
@@ -62,7 +63,7 @@ document.getElementById("startHydrafilesButton")!.addEventListener("click", asyn
 
 	await window.hydrafiles.start({ onUpdateFileListProgress, webtorrent });
 	console.log("Hydrafiles web node is running", window.hydrafiles);
-	setInterval(tickHandler, 60 * 1000);
+	setInterval(tickHandler, 30 * 1000);
 	tickHandler();
 });
 
@@ -134,11 +135,7 @@ const tickHandler = async () => {
 			} catch (e) {
 				console.error(e);
 			}
-			try {
-				fetchAndPopulateCharts();
-			} catch (e) {
-				console.error(e);
-			}
+			fetchAndPopulateCharts();
 		} catch (e) {
 			console.error(e);
 		}
@@ -357,16 +354,18 @@ function fetchAndPopulateCharts() {
 	}
 }
 
-function populateChart(name: string, data: any) {
+function populateChart(name: string, data: FileEventLog | RTCEventLog) {
 	const events = Object.keys(data);
-	const times = Object.keys(data[events[0]]);
-
 	const datasets = events.map((label) => ({
 		label,
-		data: times.map((time) => data[label][time] ?? 0),
+		data: data[label as keyof typeof data],
 		backgroundColor: getRandomColor(),
 		fill: true,
 	}));
+	console.log(datasets);
+
+	const maxLength = Math.max(...events.map((event) => (data[event as keyof typeof data] as number[]).length));
+	const labels = Array.from({ length: maxLength }, (_, i) => i.toString());
 
 	if (!chartInstances[name]) {
 		const canvas = document.createElement("canvas");
@@ -375,7 +374,7 @@ function populateChart(name: string, data: any) {
 		const lineChartCtx = (document.getElementById(name) as HTMLCanvasElement).getContext("2d")!;
 		chartInstances[name] = new Chart(lineChartCtx, {
 			type: "line",
-			data: { labels: times, datasets },
+			data: { labels, datasets },
 			options: {
 				responsive: true,
 				plugins: { legend: { position: "top" } },
@@ -384,12 +383,13 @@ function populateChart(name: string, data: any) {
 				},
 			},
 		});
+	} else {
+		chartInstances[name].data.labels = labels;
+		chartInstances[name].data.datasets.forEach((dataset, index) => {
+			dataset.data = datasets[index].data;
+		});
+		chartInstances[name].update();
 	}
-	chartInstances[name].data.labels = times;
-	chartInstances[name].data.datasets.forEach((dataset, index) => {
-		dataset.data = datasets[index].data;
-	});
-	chartInstances[name].update();
 }
 
 function getRandomColor(opacity = 1): string {
