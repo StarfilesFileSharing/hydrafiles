@@ -412,7 +412,7 @@ export class File implements FileAttributes {
 			const responses = client.rpcClient.fetch(`http://localhost/file/${values.id}`);
 			for (let i = 0; i < responses.length; i++) {
 				const response = await responses[i];
-				if (response instanceof ErrorRequestFailed) continue;
+				if (response instanceof Error) continue;
 				try {
 					const body = await response.json() as { result: Metadata } | FileAttributes;
 					const hash = "result" in body ? body.result.hash.sha256 : body.hash;
@@ -472,7 +472,7 @@ export class File implements FileAttributes {
 			for (let i = 0; i < responses.length; i++) {
 				try {
 					const response = await responses[i];
-					if (response instanceof ErrorRequestFailed) continue;
+					if (response instanceof Error) continue;
 					const body = await response.json();
 					const metadata = body.result as Metadata ?? body as FileAttributes;
 					this.name = metadata.name;

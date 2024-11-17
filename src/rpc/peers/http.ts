@@ -514,7 +514,7 @@ export default class HTTPPeers {
 		return results;
 	}
 
-	public fetch(input: RequestInfo, init?: RequestInit): Promise<Response | ErrorRequestFailed>[] {
+	public fetch(input: RequestInfo, init?: RequestInit): Promise<Response | ErrorRequestFailed | ErrorTimeout>[] {
 		const req = typeof input === "string" ? new Request(input, init) : input;
 		const peers = this.getPeers(true);
 		const fetchPromises = peers.map(async (peer) => {
