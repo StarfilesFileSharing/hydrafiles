@@ -95,7 +95,7 @@ class RPCServer {
 	};
 
 	handleRequest = async (req: Request): Promise<Response> => {
-		console.log(`Received Request: ${req.url}`);
+		console.log(`Request:  ${req.url}`);
 		const url = new URL(req.url);
 
 		const headers = new Headers();

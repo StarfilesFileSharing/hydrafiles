@@ -1,4 +1,4 @@
-import { ErrorRequestFailed } from "../errors.ts";
+import { ErrorRequestFailed, ErrorTimeout } from "../errors.ts";
 import type Hydrafiles from "../hydrafiles.ts";
 import HTTPPeers from "./peers/http.ts";
 import RTCPeers from "./peers/rtc.ts";
@@ -21,7 +21,7 @@ export default class RPCClient {
 		return rpcClient;
 	}
 
-	public fetch(input: RequestInfo, init?: RequestInit): Promise<Response | ErrorRequestFailed>[] {
+	public fetch(input: RequestInfo, init?: RequestInit): Promise<Response | ErrorRequestFailed | ErrorTimeout>[] {
 		return [...this.http.fetch(input, init), ...this.rtc.fetch(input, init), ...this.ws.fetch(input, init)];
 	}
 }

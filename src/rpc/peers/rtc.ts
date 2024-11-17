@@ -69,7 +69,7 @@ class RTCPeers {
 
 		for (let i = 0; i < this.websockets.length; i++) {
 			this.websockets[i].onopen = () => {
-				console.log(`WebRTC: (1/12):  Announcing to ${this.websockets[i].url}`);
+				console.log(`WebRTC:   Announcing to ${this.websockets[i].url}`);
 				const message: WSMessage = { announce: true, from: this.peerId };
 				this.wsMessage(message);
 				setInterval(() => this.wsMessage(message), rpcClient._client.config.announceSpeed);
@@ -84,7 +84,7 @@ class RTCPeers {
 				else if ("answer" in message) await this.handleAnswer(message.from, message.answer);
 				else if ("iceCandidate" in message) this.handleIceCandidate(message.from, message.iceCandidate);
 				else if ("request" in message) this.handleWsRequest(this.websockets[i], message);
-				else if (!("response" in message)) console.warn("WebRTC: (13/12): Unknown message type received", message);
+				else if (!("response" in message)) console.warn("WebRTC:   Unknown message type received", message);
 			};
 		}
 	}
@@ -108,7 +108,7 @@ class RTCPeers {
 		const channel = conn.createDataChannel("chat", { negotiated: true, id: 0 });
 
 		channel.onmessage = async (e) => {
-			console.log(`WebRTC: (10/12): Received request`);
+			console.log(`WebRTC:   Received request`);
 			const { id, url, ...data } = JSON.parse(e.data as string);
 			const req = new Request(url, data);
 			const response = await this._rpcClient._client.rpcServer.handleRequest(req);
@@ -120,7 +120,7 @@ class RTCPeers {
 			const status = response.status;
 			const statusText = response.statusText;
 
-			console.log(`WebRTC: (11/12): Sending response`);
+			console.log(`WebRTC:   Sending response`);
 			const message = JSON.stringify({ body, status, statusText, headers, id });
 			channel.send(message);
 
@@ -141,14 +141,14 @@ class RTCPeers {
 		};
 		conn.addEventListener("iceconnectionstatechange", () => {
 			if (conn.iceConnectionState === "disconnected" || conn.iceConnectionState === "closed" || conn.iceConnectionState === "failed") {
-				console.warn(`WebRTC: (13/12): ${from}  Connection closed. Cleaning up peer connection.`);
+				console.warn(`WebRTC:   ${from}  Connection closed. Cleaning up peer connection.`);
 				this.cleanupPeerConnection(conn);
 			}
 		});
 
 		conn.onicecandidate = (event) => {
 			if (event.candidate) {
-				if (this._rpcClient._client.config.logLevel === "verbose") console.log(`WebRTC: (6/12):  ${from}  Sending ICE candidate`);
+				if (this._rpcClient._client.config.logLevel === "verbose") console.log(`WebRTC:   ${from}  Sending ICE candidate`);
 				this.wsMessage({ iceCandidate: event.candidate, to: from, from: this.peerId });
 			}
 		};
@@ -158,7 +158,7 @@ class RTCPeers {
 
 				const offer = await conn.createOffer();
 				await conn.setLocalDescription(offer);
-				console.log(`WebRTC: (3/12):  ${from}  Sending offer from`, extractIPAddress(offer.sdp));
+				console.log(`WebRTC:   ${from}  Sending offer from`, extractIPAddress(offer.sdp));
 				this.wsMessage({ offer, to: from, from: this.peerId });
 			} catch (e) {
 				console.error(e);
@@ -167,7 +167,8 @@ class RTCPeers {
 
 		setTimeout(() => {
 			if (conn.signalingState === "have-local-offer") {
-				console.warn(`WebRTC: (13/12): ${from}  Connection timed out. Cleaning up peer connection.`);
+				this._rpcClient._client.events.log(this._rpcClient._client.events.rtcEvents.RTCTimeout);
+				console.warn(`WebRTC:   ${from}  Connection timed out. Cleaning up peer connection.`);
 				this.cleanupPeerConnection(conn);
 			}
 		}, this._rpcClient._client.config.timeout);
@@ -206,9 +207,9 @@ class RTCPeers {
 
 	async handleAnnounce(from: EthAddress): Promise<void> {
 		this._rpcClient._client.events.log(this._rpcClient._client.events.rtcEvents.RTCAnnounce);
-		console.log(`WebRTC: (2/12):  ${from}  Received announce`);
+		console.log(`WebRTC:   ${from}  Received announce`);
 		if (this.peerConnections[from] && this.peerConnections[from].offered) {
-			console.warn(`WebRTC: (13/12): ${from} Already offered to peer`);
+			console.warn(`WebRTC:   ${from} Already offered to peer`);
 			return;
 		}
 		if (!this.peerConnections[from]) this.peerConnections[from] = {};
@@ -219,24 +220,24 @@ class RTCPeers {
 		this._rpcClient._client.events.log(this._rpcClient._client.events.rtcEvents.RTCOffer);
 		if (typeof this.peerConnections[from] === "undefined") this.peerConnections[from] = {};
 		if (this.peerConnections[from].answered && this.peerConnections[from].answered?.channel.readyState === "open") {
-			console.warn("WebRTC: (13/12): Rejecting offer - Already have open connection answered by you");
+			console.warn("WebRTC:   Rejecting offer - Already have open connection answered by you");
 			return;
 		}
 		if (this.peerConnections[from].offered && this.peerConnections[from].offered?.channel.readyState === "open") {
-			console.warn("WebRTC: (13/12): Rejecting offer - Already have open connection offered by you");
+			console.warn("WebRTC:   Rejecting offer - Already have open connection offered by you");
 			return;
 		}
 
-		console.log(`WebRTC: (4/12):  ${from}  Received offer from`, extractIPAddress(offer.sdp));
+		console.log(`WebRTC:   ${from}  Received offer from`, extractIPAddress(offer.sdp));
 
 		this.peerConnections[from].answered = await this.createPeerConnection(from);
 		if (this.peerConnections[from].answered.conn.signalingState !== "stable" && this.peerConnections[from].answered.conn.signalingState !== "have-remote-offer") {
-			console.warn(`WebRTC: (13/12): ${from}  Peer connection in unexpected state 1: ${this.peerConnections[from].answered.conn.signalingState}`);
+			console.warn(`WebRTC:   ${from}  Peer connection in unexpected state 1: ${this.peerConnections[from].answered.conn.signalingState}`);
 			return;
 		}
 		await this.peerConnections[from].answered.conn.setRemoteDescription(offer);
 		if (this.peerConnections[from].answered.conn.signalingState !== "have-remote-offer") {
-			console.warn(`WebRTC: (13/12): ${from}  Peer connection in unexpected state 2: ${this.peerConnections[from].answered.conn.signalingState}`);
+			console.warn(`WebRTC:   ${from}  Peer connection in unexpected state 2: ${this.peerConnections[from].answered.conn.signalingState}`);
 			return;
 		}
 		try {
@@ -244,7 +245,7 @@ class RTCPeers {
 			if (this.peerConnections[from].answered.conn.signalingState !== "have-remote-offer") return;
 			await this.peerConnections[from].answered.conn.setLocalDescription(answer);
 
-			console.log(`WebRTC: (5/12):  ${from}  Sending answer from`, extractIPAddress(answer.sdp));
+			console.log(`WebRTC:   ${from}  Sending answer from`, extractIPAddress(answer.sdp));
 			this.wsMessage({ answer, to: from, from: this.peerId });
 		} catch (e) {
 			console.error(e);
@@ -254,15 +255,14 @@ class RTCPeers {
 	async handleAnswer(from: EthAddress, answer: RTCSessionDescription): Promise<void> {
 		this._rpcClient._client.events.log(this._rpcClient._client.events.rtcEvents.RTCAnswer);
 		if (!this.peerConnections[from] || !this.peerConnections[from].offered) {
-			console.log(this.peerConnections[from].offered);
-			console.warn(`WebRTC: (13/12): ${from}  Rejecting answer - No open handshake`);
+			console.warn(`WebRTC:   ${from}  Rejecting answer - No open handshake`);
 			return;
 		}
 		if (this.peerConnections[from].offered.conn.signalingState !== "have-local-offer") {
-			console.warn(`WebRTC: (13/12): ${from}  Rejecting answer - Bad signalling state: ${this.peerConnections[from].offered?.conn.signalingState}`);
+			console.warn(`WebRTC:   ${from}  Rejecting answer - Bad signalling state: ${this.peerConnections[from].offered?.conn.signalingState}`);
 			return;
 		}
-		console.log(`WebRTC: (7/12):  ${from}  Received answer`, extractIPAddress(answer.sdp));
+		console.log(`WebRTC:   ${from}  Received answer`, extractIPAddress(answer.sdp));
 		await this.peerConnections[from].offered.conn.setRemoteDescription(answer);
 	}
 
@@ -270,10 +270,10 @@ class RTCPeers {
 		const iceCandidate = receivedIceCandidate;
 		this._rpcClient._client.events.log(this._rpcClient._client.events.rtcEvents.RTCIce);
 		if (!this.peerConnections[from]) {
-			console.warn(`WebRTC: (13/12): ${from}  Rejecting Ice candidates received - No open handshake`);
+			console.warn(`WebRTC:   ${from}  Rejecting Ice candidates received - No open handshake`);
 			return;
 		}
-		if (this._rpcClient._client.config.logLevel === "verbose") console.log(`WebRTC: (8/12):  ${from}  Received ICE candidate`);
+		if (this._rpcClient._client.config.logLevel === "verbose") console.log(`WebRTC:   ${from}  Received ICE candidate`);
 		if (typeof window !== "undefined") { // TODO: Figure out why this breaks on desktop
 			if (this.peerConnections[from].answered) this.peerConnections[from].answered.conn.addIceCandidate(iceCandidate).catch(console.error);
 			if (this.peerConnections[from].offered && this.peerConnections[from].offered.conn.remoteDescription) this.peerConnections[from].offered.conn.addIceCandidate(iceCandidate).catch(console.error);
@@ -285,7 +285,7 @@ class RTCPeers {
 		const headersObj: Record<string, string> = {};
 		response.headers.forEach((value, key) => headersObj[key] = value);
 		const responseMessage: WSResponse = { id: message.id, from: this.peerId, response: { body: await response.text(), headers: headersObj, status: response.status, statusText: response.statusText } };
-		ws.send(JSON.stringify(responseMessage));
+		if (ws.readyState === 1) ws.send(JSON.stringify(responseMessage));
 	}
 
 	public fetch(input: RequestInfo, init?: RequestInit): Promise<Response>[] {
@@ -309,7 +309,7 @@ class RTCPeers {
 
 			if (!connection) continue;
 
-			console.log(`WebRTC: (9/12):  ${connIDs[i]} Sending request`);
+			console.log(`WebRTC:   ${connIDs[i]} Sending request`);
 			connection.channel.send(JSON.stringify(request));
 
 			const responsePromise = new Promise<Response>((resolve, reject) => {
@@ -328,7 +328,7 @@ class RTCPeers {
 
 					try {
 						const { id, status, statusText, headers, body } = JSON.parse(e.data as string);
-						console.log(`WebRTC: (12/12): ${id}  Received response`);
+						console.log(`WebRTC:   ${id}  Received response`);
 						if (id !== requestId) return;
 						const response = new Response(body, {
 							status,

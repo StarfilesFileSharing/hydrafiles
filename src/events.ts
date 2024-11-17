@@ -8,6 +8,7 @@ export enum RTCEvent {
 	RTCOffer = "RTCOffer",
 	RTCAnswer = "RTCAnswer",
 	RTCIce = "RTCIce",
+	RTCTimeout = "RTCTimeout",
 	RTCClose = "RTCClose",
 }
 export type FileEventLog = Record<FileEvent, number[]>;

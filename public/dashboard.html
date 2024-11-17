@@ -36,7 +36,7 @@
 							</div>
 							<button id="startHydrafilesButton" type="submit" class="w-full flex items-center bg-cyan-500 text-white border border-gray-300 rounded-lg shadow-md px-6 py-2 text-sm font-medium text-gray-800 hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 justify-center">Start Hydrafiles</button>
 							<p class="text-sm">Your credentials won't be saved or sent anywhere, they will be used locally to derive your private key. A lost password can't be recovered.</p>
-							<p class="text-sm">You can create multiple accounts under the same email by using different passwords. Each unique email:password combination is treated as an individual account. There is no such thing as a "wrong password".</p>
+							<p class="text-sm text-red-500">You can create multiple accounts under the same email using different passwords. Each unique email:password combination is treated as an individual account. There is no such thing as a "wrong password".</p>
 							<p class="text-sm">Ensure the email you enter is unique, and use best practices for your password like any other site.</p>
 						</div>
 					</div>
@@ -199,7 +199,7 @@ async (req) => {
 	
 	return new Response("Hello World!");
 }
-							</textarea>
+</textarea>
 
 							<div id="testResults" class="hidden bg-green-50 text-green-800 p-4 rounded-lg">
 								Handler updated successfully!
