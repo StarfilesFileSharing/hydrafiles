@@ -39,26 +39,26 @@ export default class DirectoryHandleFileSystem {
 		return handle;
 	};
 
-	exists = async (path: string): Promise<boolean | ErrorNotFound> => {
+	exists = async (path: string): Promise<boolean> => {
 		try {
-			await getFileHandle(await this.directoryHandle(), path);
+			if (path.endsWith("/")) await (await this.directoryHandle()).getDirectoryHandle(path.replace(/\/+$/, ""), { create: false });
+			else await (await this.directoryHandle()).getFileHandle(path, { create: false });
 			return true;
 		} catch (e) {
 			const error = e as Error;
-			if (error.name === "TypeMismatchError") return true;
-			else if (error.name === "NotFoundError") return new ErrorNotFound();
+			if (error.name === "NotFoundError") return false;
 			throw error;
 		}
 	};
 
-	mkdir = async (path: string) => {
+	mkdir = async (path: `${string}/`) => {
 		if (await this.exists(path)) return;
-		await (await this.directoryHandle()).getDirectoryHandle(path, { create: true });
+		await (await this.directoryHandle()).getDirectoryHandle(path.replace(/\/+$/, ""), { create: true });
 	};
 
-	readDir = async (path: string): Promise<string[]> => {
+	readDir = async (path: `${string}/`): Promise<string[]> => {
 		const entries: string[] = [];
-		const dirHandle = await (await this.directoryHandle()).getDirectoryHandle(path, { create: false });
+		const dirHandle = await (await this.directoryHandle()).getDirectoryHandle(path.replace(/\/+$/, ""), { create: false });
 		for await (const entry of dirHandle.values()) {
 			entries.push(entry.name);
 		}

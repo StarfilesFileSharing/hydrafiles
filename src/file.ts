@@ -119,7 +119,7 @@ export class FileDB {
 	 * @default
 	 */
 	static async init(client: Hydrafiles): Promise<FileDB> {
-		await client.fs.mkdir("files");
+		await client.fs.mkdir("files/");
 
 		const fileDB = new FileDB(client);
 
@@ -835,18 +835,22 @@ class Files {
 				const currentFile = await this.add(fileObj);
 				if (!currentFile) continue;
 
+				let updated = false;
 				const keys = Object.keys(newFile) as unknown as (keyof File)[];
 				for (let i = 0; i < keys.length; i++) {
 					const key = keys[i] as keyof FileAttributes;
 					if (["downloadCount", "voteHash", "voteNonce", "voteDifficulty"].includes(key)) continue;
-					// @ts-expect-error:
-					if (newFile[key] !== undefined && newFile[key] !== null && newFile[key] !== 0 && (currentFile[key] === null || currentFile[key] === 0)) currentFile[key] = newFile[key];
+					if (newFile[key] !== undefined && newFile[key] !== null && newFile[key] !== 0 && (currentFile[key] === null || currentFile[key] === 0)) {
+						// @ts-expect-error:
+						currentFile[key] = newFile[key];
+						updated = true;
+					}
 					if (newFile.voteNonce !== 0 && newFile.voteDifficulty > currentFile.voteDifficulty && newFile["voteNonce"] > 0) {
 						console.log(`File: ${newFile.hash}  Checking vote nonce ${newFile["voteNonce"]}`);
 						currentFile.checkVoteNonce(newFile["voteNonce"]);
 					}
 				}
-				currentFile.save();
+				if (updated) currentFile.save();
 			} catch (e) {
 				console.error(e);
 			}

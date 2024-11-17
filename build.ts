@@ -12,6 +12,7 @@ console.log(
 		sourcemap: true,
 		minify: true,
 		treeShaking: true,
+		keepNames: true,
 	}),
 	await esbuild.build({
 		plugins: [...denoPlugins()],
@@ -24,6 +25,7 @@ console.log(
 		minify: true,
 		treeShaking: true,
 		external: ["https://esm.sh/webtorrent@2.5.1"],
+		keepNames: true,
 	}),
 );
 
