@@ -68,7 +68,7 @@ class RTCPeers {
 
 		for (let i = 0; i < this.websockets.length; i++) {
 			this.websockets[i].onopen = () => {
-				console.log(`WebRTC: (1/12): Announcing to ${this.websockets[i].url}`);
+				console.log(`WebRTC: (1/12):  Announcing to ${this.websockets[i].url}`);
 				const message: WSMessage = { announce: true, from: this.peerId };
 				this.wsMessage(message);
 				setInterval(() => this.wsMessage(message), rpcClient._client.config.announceSpeed);
@@ -147,7 +147,7 @@ class RTCPeers {
 
 		conn.onicecandidate = (event) => {
 			if (event.candidate) {
-				if (this._rpcClient._client.config.logLevel === "verbose") console.log(`WebRTC: (6/12): ${from}  Sending ICE candidate`);
+				if (this._rpcClient._client.config.logLevel === "verbose") console.log(`WebRTC: (6/12):  ${from}  Sending ICE candidate`);
 				this.wsMessage({ iceCandidate: event.candidate, to: from, from: this.peerId });
 			}
 		};
@@ -157,7 +157,7 @@ class RTCPeers {
 
 				const offer = await conn.createOffer();
 				await conn.setLocalDescription(offer);
-				console.log(`WebRTC: (3/12): ${from}  Sending offer from`, extractIPAddress(offer.sdp));
+				console.log(`WebRTC: (3/12):  ${from}  Sending offer from`, extractIPAddress(offer.sdp));
 				this.wsMessage({ offer, to: from, from: this.peerId });
 			} catch (e) {
 				console.error(e);
@@ -205,7 +205,7 @@ class RTCPeers {
 
 	async handleAnnounce(from: string): Promise<void> {
 		this._rpcClient._client.events.log(this._rpcClient._client.events.rtcEvents.RTCAnnounce);
-		console.log(`WebRTC: (2/12): ${from}  Received announce`);
+		console.log(`WebRTC: (2/12):  ${from}  Received announce`);
 		if (this.peerConnections[from] && this.peerConnections[from].offered) {
 			console.warn(`WebRTC: (13/12): ${from} Already offered to peer`);
 			return;
@@ -226,7 +226,7 @@ class RTCPeers {
 			return;
 		}
 
-		console.log(`WebRTC: (4/12): ${from}  Received offer from`, extractIPAddress(offer.sdp));
+		console.log(`WebRTC: (4/12):  ${from}  Received offer from`, extractIPAddress(offer.sdp));
 
 		this.peerConnections[from].answered = await this.createPeerConnection(from);
 		if (this.peerConnections[from].answered.conn.signalingState !== "stable" && this.peerConnections[from].answered.conn.signalingState !== "have-remote-offer") {
@@ -243,7 +243,7 @@ class RTCPeers {
 			if (this.peerConnections[from].answered.conn.signalingState !== "have-remote-offer") return;
 			await this.peerConnections[from].answered.conn.setLocalDescription(answer);
 
-			console.log(`WebRTC: (5/12): ${from}  Sending answer from`, extractIPAddress(answer.sdp));
+			console.log(`WebRTC: (5/12):  ${from}  Sending answer from`, extractIPAddress(answer.sdp));
 			this.wsMessage({ answer, to: from, from: this.peerId });
 		} catch (e) {
 			console.error(e);
@@ -261,7 +261,7 @@ class RTCPeers {
 			console.warn(`WebRTC: (13/12): ${from}  Rejecting answer - Bad signalling state: ${this.peerConnections[from].offered?.conn.signalingState}`);
 			return;
 		}
-		console.log(`WebRTC: (7/12): ${from}  Received answer`, extractIPAddress(answer.sdp));
+		console.log(`WebRTC: (7/12):  ${from}  Received answer`, extractIPAddress(answer.sdp));
 		await this.peerConnections[from].offered.conn.setRemoteDescription(answer);
 	}
 
@@ -272,7 +272,7 @@ class RTCPeers {
 			console.warn(`WebRTC: (13/12): ${from}  Rejecting Ice candidates received - No open handshake`);
 			return;
 		}
-		if (this._rpcClient._client.config.logLevel === "verbose") console.log(`WebRTC: (8/12): ${from}  Received ICE candidate`);
+		if (this._rpcClient._client.config.logLevel === "verbose") console.log(`WebRTC: (8/12):  ${from}  Received ICE candidate`);
 		if (typeof window !== "undefined") { // TODO: Figure out why this breaks on desktop
 			if (this.peerConnections[from].answered) this.peerConnections[from].answered.conn.addIceCandidate(iceCandidate).catch(console.error);
 			if (this.peerConnections[from].offered && this.peerConnections[from].offered.conn.remoteDescription) this.peerConnections[from].offered.conn.addIceCandidate(iceCandidate).catch(console.error);
@@ -308,7 +308,7 @@ class RTCPeers {
 
 			if (!connection) continue;
 
-			console.log(`WebRTC: (9/12): ${connIDs[i]} Sending request`);
+			console.log(`WebRTC: (9/12):  ${connIDs[i]} Sending request`);
 			connection.channel.send(JSON.stringify(request));
 
 			const responsePromise = new Promise<Response>((resolve, reject) => {
