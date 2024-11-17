@@ -2,7 +2,7 @@ import Hydrafiles from "../src/hydrafiles.ts";
 import { File, type FileAttributes } from "../src/file.ts";
 import { Config } from "../src/config.ts";
 import WebTorrent from "https://esm.sh/webtorrent@2.5.1";
-import { Chart } from "https://esm.sh/chart.js@4.4.6";
+import { Chart } from "https://esm.sh/chart.js@4.4.6/auto";
 import { processingRequests } from "../src/rpc/routes.ts";
 import { ErrorNotInitialised } from "../src/errors.ts";
 
@@ -368,13 +368,7 @@ function populateChart(name: string, data: any) {
 		fill: true,
 	}));
 
-	if (chartInstances[name]) {
-		chartInstances[name].data.labels = times;
-		chartInstances[name].data.datasets.forEach((dataset, index) => {
-			dataset.data = datasets[index].data;
-		});
-		chartInstances[name].update();
-	} else {
+	if (!chartInstances[name]) {
 		const canvas = document.createElement("canvas");
 		canvas.id = name;
 		document.getElementById("charts")!.appendChild(canvas);
@@ -391,6 +385,11 @@ function populateChart(name: string, data: any) {
 			},
 		});
 	}
+	chartInstances[name].data.labels = times;
+	chartInstances[name].data.datasets.forEach((dataset, index) => {
+		dataset.data = datasets[index].data;
+	});
+	chartInstances[name].update();
 }
 
 function getRandomColor(opacity = 1): string {
@@ -428,4 +427,27 @@ document.addEventListener("DOMContentLoaded", async () => {
 			results.textContent = `Error updating handler: ${(err as Error).message}`;
 		}
 	});
+
+	const pages = ["dashboard", "statistics", "peers", "files", "serveAPI"];
+	const sidebarLinks = document.querySelectorAll("#default-sidebar a");
+
+	const selectPage = (pageId: string) => {
+		pages.forEach((id) => (document.getElementById(id) as HTMLElement).classList.add("hidden"));
+		(document.getElementById(pageId) as HTMLElement).classList.remove("hidden");
+
+		sidebarLinks.forEach((link) => link.classList.remove("bg-gray-100", "dark:bg-gray-700"));
+		const activeLink = Array.from(sidebarLinks).find((link) => link.getAttribute("data-section") === pageId);
+		if (activeLink) activeLink.classList.add("bg-gray-100", "dark:bg-gray-700");
+	};
+
+	for (let i = 0; i < sidebarLinks.length; i++) {
+		const link = sidebarLinks[i];
+		link.setAttribute("data-section", pages[i]);
+		link.addEventListener("click", (e) => {
+			e.preventDefault();
+			selectPage(link.getAttribute("data-section") as string);
+		});
+	}
+
+	selectPage("dashboard");
 });
