@@ -55,7 +55,7 @@ class RTCPeers {
 		this._rpcClient = rpcClient;
 		this.websockets = [new WebSocket("wss://rooms.deno.dev/")];
 
-		this.peerId = rpcClient._client.wallet.address();
+		this.peerId = rpcClient._client.rtcWallet.account.address;
 
 		const peers = rpcClient.http.getPeers(true);
 		for (let i = 0; i < peers.length; i++) {

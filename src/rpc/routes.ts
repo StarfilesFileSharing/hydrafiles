@@ -159,7 +159,7 @@ router.set("/download", async (req, headers, client) => {
 		headers.set("Cache-Control", "public, max-age=31536000");
 		headers.set("Content-Length", fileContent.file.byteLength.toString());
 		headers.set("Signal-Strength", String(fileContent.signal));
-		const address = client.wallet.address();
+		const address = client.filesWallet.address();
 		if (address) headers.set("Ethereum-Address", address);
 		console.log(`File:     ${hash}  Signal Strength:`, fileContent.signal, Utils.estimateHops(fileContent.signal));
 
@@ -305,11 +305,9 @@ router.set("/endpoint", async (req, headers, client): Promise<Response> => {
 	const hostname = url.pathname.split("/")[2] as EthAddress;
 	const now = Date.now();
 
-	if (hostname === client.wallet.address()) {
+	if (hostname === client.apiWallet.address()) {
 		const body = await (client.config.reverseProxy ? await fetch(client.config.reverseProxy) : await client.handleCustomRequest(new Request(`hydra://${hostname}/`))).text();
-		const signature = await client.wallet.signMessage(body);
-
-		headers.set("hydra-signature", signature);
+		headers.set("hydra-signature", await client.apiWallet.signMessage(body));
 		return new Response(body, { headers });
 	} else {
 		if (processingRequests.has(hostname)) {
@@ -335,7 +333,7 @@ router.set("/endpoint", async (req, headers, client): Promise<Response> => {
 						if (response instanceof Error) return response;
 						const body = await response.text();
 						const signature = response.headers.get("hydra-signature") as EthAddress | null;
-						if (signature !== null && await client.wallet.verifyMessage(body, signature, hostname)) resolve(new Response(body, { headers: response.headers }));
+						if (signature !== null && await client.apiWallet.verifyMessage(body, signature, hostname)) resolve(new Response(body, { headers: response.headers }));
 					} catch (e) {
 						const err = e as Error;
 						if (err.message !== "Hostname not found") console.error(e);

@@ -88,7 +88,7 @@ const tickHandler = async () => {
 				console.error(e);
 			}
 			try {
-				(document.getElementById("apiEndpoint") as HTMLElement).textContent = `https://hydrafiles.com/endpoint/${await window.hydrafiles.wallet.address()}`;
+				(document.getElementById("apiEndpoint") as HTMLElement).textContent = `https://hydrafiles.com/endpoint/${window.hydrafiles.apiWallet.address()}`;
 			} catch (e) {
 				console.error(e);
 			}
@@ -111,7 +111,12 @@ const tickHandler = async () => {
 				console.error(e);
 			}
 			try {
-				(document.getElementById("address") as HTMLElement).innerHTML = window.hydrafiles.wallet.address();
+				(document.getElementById("filesWallet") as HTMLElement).innerHTML = window.hydrafiles.filesWallet.address();
+			} catch (e) {
+				console.error(e);
+			}
+			try {
+				(document.getElementById("rtcWallet") as HTMLElement).innerHTML = window.hydrafiles.rtcWallet.address();
 			} catch (e) {
 				console.error(e);
 			}
@@ -121,7 +126,7 @@ const tickHandler = async () => {
 				console.error(e);
 			}
 			try {
-				(document.getElementById("balance") as HTMLElement).innerHTML = String(await window.hydrafiles.wallet.balance());
+				(document.getElementById("balance") as HTMLElement).innerHTML = String(await window.hydrafiles.filesWallet.balance());
 			} catch (e) {
 				console.error(e);
 			}

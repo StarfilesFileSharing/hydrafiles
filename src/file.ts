@@ -729,7 +729,7 @@ export class File implements FileAttributes {
 			console.log(`File:     ${this.hash}  Valid hash`);
 
 			const ethAddress = response.headers.get("Ethereum-Address");
-			if (ethAddress) this._client.wallet.transfer(ethAddress as EthAddress, 1_000_000n * BigInt(fileContent.byteLength));
+			if (ethAddress) this._client.filesWallet.transfer(ethAddress as EthAddress, 1_000_000n * BigInt(fileContent.byteLength));
 
 			if (this.name === null || this.name.length === 0) {
 				this.name = String(response.headers.get("Content-Disposition")?.split("=")[1].replace(/"/g, "").replace(" [HYDRAFILES]", ""));
