@@ -392,7 +392,7 @@ class HTTPPeer implements PeerAttributes {
 			const startTime = Date.now();
 
 			const hash = file.hash;
-			console.log(`File: ${hash}  Downloading from ${this.host}`);
+			console.log(`File:    ${hash}  Downloading from ${this.host}`);
 			let response;
 			try {
 				response = await Utils.promiseWithTimeout(fetch(`${this.host}/download/${hash}`), this._client.config.timeout);
@@ -402,11 +402,11 @@ class HTTPPeer implements PeerAttributes {
 			}
 			if (response instanceof ErrorTimeout) return new ErrorTimeout();
 			const fileContent = new Uint8Array(await response.arrayBuffer());
-			console.log(`File: ${hash}  Validating hash`);
+			console.log(`File:    ${hash}  Validating hash`);
 			const verifiedHash = await Utils.hashUint8Array(fileContent);
-			console.log(`File: ${hash}  Done Validating hash`);
+			console.log(`File:    ${hash}  Done Validating hash`);
 			if (hash !== verifiedHash) return new ErrorChecksumMismatch();
-			console.log(`File: ${hash}  Valid hash`);
+			console.log(`File:    ${hash}  Valid hash`);
 
 			const ethAddress = response.headers.get("Ethereum-Address");
 			if (ethAddress) this._client.wallet.transfer(ethAddress as EthAddress, 1_000_000n * BigInt(fileContent.byteLength));
