@@ -285,7 +285,7 @@ class RTCPeers {
 		const headersObj: Record<string, string> = {};
 		response.headers.forEach((value, key) => headersObj[key] = value);
 		const responseMessage: WSResponse = { id: message.id, from: this.peerId, response: { body: await response.text(), headers: headersObj, status: response.status, statusText: response.statusText } };
-		ws.send(JSON.stringify(responseMessage));
+		if (ws.readyState === 1) ws.send(JSON.stringify(responseMessage));
 	}
 
 	public fetch(input: RequestInfo, init?: RequestInit): Promise<Response>[] {
