@@ -12,9 +12,9 @@ class Wallet {
 	account: ReturnType<typeof privateKeyToAccount>;
 	client: ReturnType<typeof createWalletClient> & ReturnType<typeof createPublicClient>;
 
-	private constructor(client: Hydrafiles, privateKey: EthAddress) {
+	public constructor(client: Hydrafiles, seed = 0) {
 		this._client = client;
-		this.account = privateKeyToAccount(privateKey);
+		this.account = privateKeyToAccount(this.generateEthPrivateKey(client, seed));
 		this.client = createWalletClient({
 			account: this.account,
 			chain: sepolia,
@@ -22,20 +22,9 @@ class Wallet {
 		}).extend(publicActions);
 	}
 
-	public static async init(client: Hydrafiles): Promise<Wallet> {
-		const keyFilePath = "eth.key";
-
-		if (!await client.fs.exists(keyFilePath)) await client.fs.writeFile(keyFilePath, new TextEncoder().encode(Wallet.generateEthPrivateKey(client)));
-
-		const fileContent = await client.fs.readFile(keyFilePath);
-		const key = !(fileContent instanceof Error) ? new TextDecoder().decode(fileContent) as EthAddress : Wallet.generateEthPrivateKey(client);
-
-		return new Wallet(client, key);
-	}
-
-	public static generateEthPrivateKey(client: Hydrafiles): EthAddress {
+	public generateEthPrivateKey(client: Hydrafiles, seed = 0): EthAddress {
 		if (client.config.deriveKey.length) {
-			const prng = randomSeeded(BigInt("0x" + client.config.deriveKey));
+			const prng = randomSeeded(BigInt("0x" + client.config.deriveKey + String(seed)));
 
 			let result = "";
 			for (let i = 0; i < 8; i++) {

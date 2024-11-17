@@ -31,8 +31,10 @@ class Hydrafiles {
 	s3: S3Client | undefined;
 	rpcServer!: RPCServer;
 	rpcClient!: RPCClient;
-	wallet!: Wallet;
 	files!: Files;
+	filesWallet!: Wallet;
+	rtcWallet!: Wallet;
+	apiWallet!: Wallet;
 	webtorrent?: WebTorrent;
 	handleCustomRequest = async (req: Request) => {
 		console.log(req);
@@ -45,6 +47,9 @@ class Hydrafiles {
 		this.fs = new FileSystem(this);
 		this.utils = new Utils(this.config, this.fs);
 		this.events = new Events();
+		this.filesWallet = new Wallet(this);
+		this.rtcWallet = new Wallet(this, 1);
+		this.apiWallet = new Wallet(this, 2);
 
 		if (this.config.s3Endpoint.length) {
 			console.log("Startup: Populating S3");
@@ -55,8 +60,6 @@ class Hydrafiles {
 	public async start(opts: { onUpdateFileListProgress?: (progress: number, total: number) => void; webtorrent?: WebTorrent } = {}): Promise<void> {
 		console.log("Startup: Populating FileDB");
 		this.files = await Files.init(this);
-		console.log("Startup: Populating Wallet");
-		this.wallet = await Wallet.init(this);
 		console.log("Startup: Populating RPC Client & Server");
 		this.rpcClient = await RPCClient.init(this);
 		this.rpcServer = new RPCServer(this);
@@ -100,10 +103,12 @@ class Hydrafiles {
 			`(${Math.round((100 * (usedStorage instanceof Error ? 0 : usedStorage)) / 1024 / 1024 / 1024) / 100}GB)`,
 			"\n| Downloads Served:",
 			(await this.files.db.sum("downloadCount")) + ` (${Math.round((((await this.files.db.sum("downloadCount * size")) / 1024 / 1024 / 1024) * 100) / 100)}GB)`,
-			"\n| Address:",
-			this.wallet.address(),
-			"\n| Balance:",
-			await this.wallet.balance(),
+			"\n| Files Wallet:",
+			`${this.filesWallet.address()} ${await this.filesWallet.balance()}`,
+			"\n| API Wallet:",
+			`${this.apiWallet.address()}`, // ${await this.apiWallet.balance()}`,
+			"\n| RTC Wallet:",
+			`${this.apiWallet.address()}`, // ${await this.apiWallet.balance()}`,
 			"\n| Processing Files:",
 			processingRequests.size,
 			// '\n| Seeding Torrent Files:',
