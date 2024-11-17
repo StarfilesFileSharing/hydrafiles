@@ -2,7 +2,7 @@ import { join } from "https://deno.land/std@0.224.0/path/mod.ts";
 import { WSMessage } from "./peers/rtc.ts";
 import { File } from "../file.ts";
 import type { PeerAttributes } from "./peers/http.ts";
-import Utils from "../utils.ts";
+import Utils, { type Sha256 } from "../utils.ts";
 import type Hydrafiles from "../hydrafiles.ts";
 import { ErrorNotFound, ErrorRequestFailed } from "../errors.ts";
 import { EthAddress } from "../wallet.ts";
@@ -129,7 +129,11 @@ router.set("/download", async (req, headers, client) => {
 		await processingRequests.get(hash);
 	}
 	const processingPromise = (async () => {
-		const file = await File.init({ hash, infohash }, client, true);
+		const fileParams: { hash: Sha256; infohash?: string } = { hash };
+		if (infohash) {
+			fileParams.infohash = infohash;
+		}
+		const file = await File.init(fileParams, client, true);
 		if (!file) throw new Error("Failed to build file");
 
 		if (fileId.length !== 0) {
