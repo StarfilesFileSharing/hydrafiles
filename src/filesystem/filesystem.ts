@@ -12,8 +12,8 @@ export default class FileSystem {
 		if (this.fs instanceof IndexedDBFileSystem) this.fs.dbPromise = this.fs.initDB();
 	}
 	exists = async (path: string) => this.fs ? await this.fs.exists(path) : new ErrorNotInitialised();
-	mkdir = async (path: string) => this.fs ? await this.fs.mkdir(path) : new ErrorNotInitialised();
-	readDir = async (path: string) => this.fs ? await this.fs.readDir(path) : new ErrorNotInitialised();
+	mkdir = async (path: `${string}/`) => this.fs ? await this.fs.mkdir(path) : new ErrorNotInitialised();
+	readDir = async (path: `${string}/`) => this.fs ? await this.fs.readDir(path) : new ErrorNotInitialised();
 	readFile = async (path: string) => this.fs ? await this.fs.readFile(path) : new ErrorNotInitialised();
 	writeFile = async (path: string, data: Uint8Array) => this.fs ? await this.fs.writeFile(path, data) : new ErrorNotInitialised();
 	getFileSize = async (path: string) => this.fs ? await this.fs.getFileSize(path) : new ErrorNotInitialised();
