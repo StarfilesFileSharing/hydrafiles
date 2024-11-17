@@ -2,7 +2,6 @@ export enum FileEvent {
 	FileServed = "FileServed",
 	FileNotFound = "FileNotFound",
 }
-
 export enum RTCEvent {
 	RTCAnnounce = "RTCAnnounce",
 	RTCOpen = "RTCOpen",
@@ -11,29 +10,16 @@ export enum RTCEvent {
 	RTCIce = "RTCIce",
 	RTCClose = "RTCClose",
 }
-
-export interface EventsLogs {
-	file: Record<FileEvent, Record<number, number>>;
-	rtc: Record<RTCEvent, Record<number, number>>;
-}
+export type FileEventLog = Record<FileEvent, number[]>;
+export type RTCEventLog = Record<RTCEvent, number[]>;
 
 class Events {
 	interval = 10000;
 	lastInterval = 0;
 	startTime: number;
-	logs: EventsLogs = {
-		file: {
-			[FileEvent.FileServed]: {},
-			[FileEvent.FileNotFound]: {},
-		},
-		rtc: {
-			[RTCEvent.RTCAnnounce]: {},
-			[RTCEvent.RTCOpen]: {},
-			[RTCEvent.RTCOffer]: {},
-			[RTCEvent.RTCAnswer]: {},
-			[RTCEvent.RTCIce]: {},
-			[RTCEvent.RTCClose]: {},
-		},
+	logs = {
+		file: {} as FileEventLog,
+		rtc: {} as RTCEventLog,
 	};
 	fileEvents = FileEvent;
 	rtcEvents = RTCEvent;
@@ -43,23 +29,33 @@ class Events {
 	}
 
 	public log = (event: FileEvent | RTCEvent) => {
+		const eventType = event.constructor.name;
+
 		const interval = Math.floor((+new Date() - this.startTime) / this.interval);
 
-		for (let i = this.lastInterval + 1; i < interval; i++) {
-			Object.values(FileEvent).forEach((fileEvent) => {
-				if (!this.logs["file"][fileEvent][i]) this.logs["file"][fileEvent][i] = 0;
-			});
-			Object.values(RTCEvent).forEach((rtcEvent) => {
-				if (!this.logs["rtc"][rtcEvent][i]) this.logs["rtc"][rtcEvent][i] = 0;
+		for (let i = 0; i < interval; i++) {
+			(Object.keys(this.logs) as Array<keyof typeof this.logs>).forEach((key) => {
+				(Object.keys(this.logs[key]) as Array<FileEvent | RTCEvent>).forEach((event) => {
+					if (typeof (this.logs[key] as Record<FileEvent | RTCEvent, number[]>)[event][i] === "undefined") {
+						(this.logs[key] as Record<FileEvent | RTCEvent, number[]>)[event][i] = 0;
+					}
+				});
 			});
 		}
 
-		if (Object.values(FileEvent).includes(event as FileEvent)) {
-			if (!this.logs["file"][event as FileEvent][interval]) this.logs["file"][event as FileEvent][interval] = 0;
-			this.logs["file"][event as FileEvent][interval]++;
-		} else if (Object.values(RTCEvent).includes(event as RTCEvent)) {
-			if (!this.logs["rtc"][event as RTCEvent][interval]) this.logs["rtc"][event as RTCEvent][interval] = 0;
-			this.logs["rtc"][event as RTCEvent][interval]++;
+		if (eventType in FileEvent) {
+			const fileEvent = event as FileEvent;
+			if (!(fileEvent in this.logs.file)) this.logs.file[fileEvent] = [];
+			for (let i = this.logs.file[fileEvent].length; i < interval; i++) {
+				this.logs.file[fileEvent][i] = 0;
+			}
+			if (!this.logs.file[fileEvent][interval]) this.logs.file[fileEvent][interval] = 0;
+			this.logs.file[fileEvent][interval]++;
+		} else if (event in RTCEvent) {
+			const rtcEvent = event as RTCEvent;
+			if (!(rtcEvent in this.logs.rtc)) this.logs.rtc[rtcEvent] = [];
+			if (!this.logs.rtc[rtcEvent][interval]) this.logs.rtc[rtcEvent][interval] = 0;
+			this.logs.rtc[rtcEvent][interval]++;
 		}
 
 		this.lastInterval = interval;
