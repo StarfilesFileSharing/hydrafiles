@@ -42,7 +42,7 @@ function arrayBufferToUnicodeString(buffer: ArrayBuffer): string {
 }
 
 const receivedPackets: Record<string, string[]> = {};
-const peerId = encodeBase32(String(Math.random())).replaceAll("=", "");
+const peerId = encodeBase32(String(Math.random()).replace("0.", "")).replaceAll("=", "");
 
 class RTCPeers {
 	private _rpcClient: RPCClient;
