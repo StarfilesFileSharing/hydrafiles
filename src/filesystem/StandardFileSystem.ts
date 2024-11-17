@@ -12,12 +12,12 @@ export default class StandardFileSystem {
 		}
 	};
 
-	mkdir = async (path: string) => {
+	mkdir = async (path: `${string}/`) => {
 		if (await this.exists(path)) return;
 		await Deno.mkdir(path);
 	};
 
-	readDir = async (path: string): Promise<string[]> => {
+	readDir = async (path: `${string}/`): Promise<string[]> => {
 		const entries: string[] = [];
 		for await (const entry of Deno.readDir(path)) {
 			entries.push(entry.name);
@@ -35,9 +35,12 @@ export default class StandardFileSystem {
 	};
 
 	getFileSize = async (path: string): Promise<number> => {
-		if (!await this.exists(path)) return 0;
-		const fileInfo = await Deno.stat(path);
-		return fileInfo.size;
+		try {
+			const fileInfo = await Deno.stat(path);
+			return fileInfo.size;
+		} catch (e) {
+			throw e;
+		}
 	};
 
 	remove = async (path: string) => {

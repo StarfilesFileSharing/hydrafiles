@@ -119,7 +119,7 @@ export class FileDB {
 	 * @default
 	 */
 	static async init(client: Hydrafiles): Promise<FileDB> {
-		await client.fs.mkdir("files");
+		await client.fs.mkdir("files/");
 
 		const fileDB = new FileDB(client);
 

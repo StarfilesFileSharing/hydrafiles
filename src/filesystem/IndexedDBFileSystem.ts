@@ -40,7 +40,7 @@ export default class IndexedDBFileSystem {
 
 	async mkdir(_path: string): Promise<void> {}
 
-	async readDir(path: string): Promise<string[]> {
+	async readDir(path: `${string}/`): Promise<string[]> {
 		const db = await this.dbPromise;
 		const files: string[] = [];
 
