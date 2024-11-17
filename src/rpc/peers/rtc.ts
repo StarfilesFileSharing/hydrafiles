@@ -1,13 +1,13 @@
 import type { RTCDataChannel, RTCIceCandidate, RTCPeerConnection, RTCSessionDescription } from "npm:werift";
 import type RPCClient from "../client.ts";
-import { encodeBase32 } from "jsr:@std/encoding@^1.0.5/base32";
+import type { EthAddress } from "../../wallet.ts";
 
-export type SignallingAnnounce = { announce: true; from: string };
-export type SignallingOffer = { offer: RTCSessionDescription; from: string; to: string };
-export type SignallingAnswer = { answer: RTCSessionDescription; from: string; to: string };
-export type SignallingIceCandidate = { iceCandidate: RTCIceCandidate; from: string; to: string };
-export type WSRequest = { request: { method: string; url: string; headers: Record<string, string>; body: ReadableStream<Uint8Array> | null }; id: number; from: string };
-export type WSResponse = { response: { body: string; status: number; statusText: string; headers: Record<string, string> }; id: number; from: string };
+export type SignallingAnnounce = { announce: true; from: EthAddress };
+export type SignallingOffer = { offer: RTCSessionDescription; from: EthAddress; to: EthAddress };
+export type SignallingAnswer = { answer: RTCSessionDescription; from: EthAddress; to: EthAddress };
+export type SignallingIceCandidate = { iceCandidate: RTCIceCandidate; from: EthAddress; to: EthAddress };
+export type WSRequest = { request: { method: string; url: string; headers: Record<string, string>; body: ReadableStream<Uint8Array> | null }; id: number; from: EthAddress };
+export type WSResponse = { response: { body: string; status: number; statusText: string; headers: Record<string, string> }; id: number; from: EthAddress };
 export type WSMessage = SignallingAnnounce | SignallingOffer | SignallingAnswer | SignallingIceCandidate | WSRequest | WSResponse;
 
 type PeerConnection = { conn: RTCPeerConnection; channel: RTCDataChannel; startTime: number };
@@ -42,11 +42,10 @@ function arrayBufferToUnicodeString(buffer: ArrayBuffer): string {
 }
 
 const receivedPackets: Record<string, string[]> = {};
-const peerId = encodeBase32(String(Math.random()).replace("0.", "")).replaceAll("=", "");
 
 class RTCPeers {
 	private _rpcClient: RPCClient;
-	peerId = peerId;
+	peerId: EthAddress;
 	websockets: WebSocket[];
 	peerConnections: PeerConnections = {};
 	messageQueue: WSMessage[] = [];
@@ -55,6 +54,8 @@ class RTCPeers {
 	constructor(rpcClient: RPCClient) {
 		this._rpcClient = rpcClient;
 		this.websockets = [new WebSocket("wss://rooms.deno.dev/")];
+
+		this.peerId = rpcClient._client.wallet.address();
 
 		const peers = rpcClient.http.getPeers(true);
 		for (let i = 0; i < peers.length; i++) {
@@ -76,7 +77,7 @@ class RTCPeers {
 
 			this.websockets[i].onmessage = async (event) => {
 				const message = JSON.parse(event.data) as WSMessage;
-				if (message === null || message.from === peerId || this.seenMessages.has(event.data) || ("to" in message && message.to !== this.peerId)) return;
+				if (message === null || message.from === this.peerId || this.seenMessages.has(event.data) || ("to" in message && message.to !== this.peerId)) return;
 				this.seenMessages.add(event.data);
 				if ("announce" in message) await this.handleAnnounce(message.from);
 				else if ("offer" in message) await this.handleOffer(message.from, message.offer);
@@ -88,7 +89,7 @@ class RTCPeers {
 		}
 	}
 
-	async createPeerConnection(from: string): Promise<PeerConnection> {
+	async createPeerConnection(from: EthAddress): Promise<PeerConnection> {
 		this._rpcClient._client.events.log(this._rpcClient._client.events.rtcEvents.RTCOpen);
 		const config = {
 			iceServers: [
@@ -203,7 +204,7 @@ class RTCPeers {
 		}
 	}
 
-	async handleAnnounce(from: string): Promise<void> {
+	async handleAnnounce(from: EthAddress): Promise<void> {
 		this._rpcClient._client.events.log(this._rpcClient._client.events.rtcEvents.RTCAnnounce);
 		console.log(`WebRTC: (2/12):  ${from}  Received announce`);
 		if (this.peerConnections[from] && this.peerConnections[from].offered) {
@@ -214,7 +215,7 @@ class RTCPeers {
 		this.peerConnections[from].offered = await this.createPeerConnection(from);
 	}
 
-	async handleOffer(from: string, offer: RTCSessionDescription): Promise<void> {
+	async handleOffer(from: EthAddress, offer: RTCSessionDescription): Promise<void> {
 		this._rpcClient._client.events.log(this._rpcClient._client.events.rtcEvents.RTCOffer);
 		if (typeof this.peerConnections[from] === "undefined") this.peerConnections[from] = {};
 		if (this.peerConnections[from].answered && this.peerConnections[from].answered?.channel.readyState === "open") {
@@ -250,7 +251,7 @@ class RTCPeers {
 		}
 	}
 
-	async handleAnswer(from: string, answer: RTCSessionDescription): Promise<void> {
+	async handleAnswer(from: EthAddress, answer: RTCSessionDescription): Promise<void> {
 		this._rpcClient._client.events.log(this._rpcClient._client.events.rtcEvents.RTCAnswer);
 		if (!this.peerConnections[from] || !this.peerConnections[from].offered) {
 			console.log(this.peerConnections[from].offered);
@@ -265,7 +266,7 @@ class RTCPeers {
 		await this.peerConnections[from].offered.conn.setRemoteDescription(answer);
 	}
 
-	handleIceCandidate(from: string, receivedIceCandidate: RTCIceCandidate): void {
+	handleIceCandidate(from: EthAddress, receivedIceCandidate: RTCIceCandidate): void {
 		const iceCandidate = receivedIceCandidate;
 		this._rpcClient._client.events.log(this._rpcClient._client.events.rtcEvents.RTCIce);
 		if (!this.peerConnections[from]) {

@@ -59,11 +59,11 @@ class Hydrafiles {
 		this.keyPair = await this.utils.getKeyPair();
 		console.log("Startup: Populating FileDB");
 		this.files = await Files.init(this);
+		console.log("Startup: Populating Wallet");
+		this.wallet = await Wallet.init(this);
 		console.log("Startup: Populating RPC Client & Server");
 		this.rpcClient = await RPCClient.init(this);
 		this.rpcServer = new RPCServer(this);
-		console.log("Startup: Populating Wallet");
-		this.wallet = await Wallet.init(this);
 		console.log("Startup: Starting WebTorrent");
 		this.webtorrent = opts.webtorrent;
 
