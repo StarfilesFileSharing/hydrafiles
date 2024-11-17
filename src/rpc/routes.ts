@@ -163,7 +163,7 @@ router.set("/download", async (req, headers, client) => {
 		headers.set("Signal-Strength", String(fileContent.signal));
 		const address = client.wallet.address();
 		if (address) headers.set("Ethereum-Address", address);
-		console.log(`File:    ${hash}  Signal Strength:`, fileContent.signal, Utils.estimateHops(fileContent.signal));
+		console.log(`File:     ${hash}  Signal Strength:`, fileContent.signal, Utils.estimateHops(fileContent.signal));
 
 		headers.set("Content-Length", String(file.size));
 		if (file.name !== undefined && file.name !== null) {
@@ -211,7 +211,7 @@ router.set("/infohash", async (req, headers, client): Promise<Response> => {
 		headers.set("Cache-Control", "public, max-age=31536000");
 
 		headers.set("Signal-Strength", String(fileContent.signal));
-		console.log(`File:    ${file.hash}  Signal Strength:`, fileContent.signal, Utils.estimateHops(fileContent.signal));
+		console.log(`File:     ${file.hash}  Signal Strength:`, fileContent.signal, Utils.estimateHops(fileContent.signal));
 
 		headers.set("Content-Length", String(file.size));
 		if (file.name !== null) headers.set("Content-Disposition", `attachment; filename="${encodeURIComponent(file.name).replace(/%20/g, " ").replace(/(\.\w+)$/, " [HYDRAFILES]$1")}"`);
