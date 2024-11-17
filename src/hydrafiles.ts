@@ -1,4 +1,3 @@
-import { encode as base32Encode } from "https://deno.land/std@0.194.0/encoding/base32.ts";
 import type WebTorrent from "https://cdn.jsdelivr.net/npm/webtorrent@latest/webtorrent.min.js";
 import getConfig, { type Config } from "./config.ts";
 import Files, { FileAttributes } from "./file.ts";
@@ -30,7 +29,6 @@ class Hydrafiles {
 	config: Config;
 	events: Events;
 	s3: S3Client | undefined;
-	keyPair!: CryptoKeyPair;
 	rpcServer!: RPCServer;
 	rpcClient!: RPCClient;
 	wallet!: Wallet;
@@ -55,8 +53,6 @@ class Hydrafiles {
 	}
 
 	public async start(opts: { onUpdateFileListProgress?: (progress: number, total: number) => void; webtorrent?: WebTorrent } = {}): Promise<void> {
-		console.log("Startup: Populating KeyPair");
-		this.keyPair = await this.utils.getKeyPair();
 		console.log("Startup: Populating FileDB");
 		this.files = await Files.init(this);
 		console.log("Startup: Populating Wallet");
@@ -83,13 +79,6 @@ class Hydrafiles {
 		if (this.config.backfill) this.files.backfillFiles();
 	}
 
-	public async getHostname(): Promise<string> {
-		const pubKey = await Utils.exportPublicKey(this.keyPair.publicKey);
-		const xEncoded = base32Encode(new TextEncoder().encode(pubKey.x)).toLowerCase().replace(/=+$/, "");
-		const yEncoded = base32Encode(new TextEncoder().encode(pubKey.y)).toLowerCase().replace(/=+$/, "");
-		return `${xEncoded}.${yEncoded}`;
-	}
-
 	async logState(): Promise<void> {
 		const files = await this.fs.readDir("files/");
 		const usedStorage = await this.utils.calculateUsedStorage();
@@ -111,8 +100,6 @@ class Hydrafiles {
 			`(${Math.round((100 * (usedStorage instanceof Error ? 0 : usedStorage)) / 1024 / 1024 / 1024) / 100}GB)`,
 			"\n| Downloads Served:",
 			(await this.files.db.sum("downloadCount")) + ` (${Math.round((((await this.files.db.sum("downloadCount * size")) / 1024 / 1024 / 1024) * 100) / 100)}GB)`,
-			"\n| Hostname:",
-			`${await this.getHostname()}`,
 			"\n| Address:",
 			this.wallet.address(),
 			"\n| Balance:",

@@ -87,6 +87,26 @@ class Wallet {
 	public address(): EthAddress {
 		return this.account.address;
 	}
+
+	public async signMessage(message: string): Promise<EthAddress> {
+		try {
+			const signature = await this.client.signMessage({ account: this.account, message });
+			return signature;
+		} catch (e) {
+			if (this._client.config.logLevel === "verbose") console.error(e);
+			throw new Error("Failed to sign message");
+		}
+	}
+
+	public async verifyMessage(message: string, signature: EthAddress, address: EthAddress): Promise<boolean> {
+		try {
+			const recoveredAddress = await this.client.verifyMessage({ address, message, signature });
+			return recoveredAddress;
+		} catch (e) {
+			if (this._client.config.logLevel === "verbose") console.error(e);
+			return false;
+		}
+	}
 }
 
 export default Wallet;

@@ -1,17 +1,11 @@
-import { encode as base32Encode } from "https://deno.land/std@0.194.0/encoding/base32.ts";
 import { join } from "https://deno.land/std@0.224.0/path/mod.ts";
 import { WSMessage } from "./peers/rtc.ts";
 import { File } from "../file.ts";
 import type { PeerAttributes } from "./peers/http.ts";
-import Utils, { type Base64 } from "../utils.ts";
+import Utils from "../utils.ts";
 import type Hydrafiles from "../hydrafiles.ts";
-import { decodeBase32 } from "jsr:@std/encoding@^1.0.5/base32";
 import { ErrorNotFound, ErrorRequestFailed } from "../errors.ts";
-
-function ensureMultipleOfEight(str: string): string {
-	const remainder = str.length % 8;
-	return remainder !== 0 ? str.padEnd(Math.ceil(str.length / 8) * 8, "=") : str;
-}
+import { EthAddress } from "../wallet.ts";
 
 interface CachedHostname {
 	body: string;
@@ -304,13 +298,12 @@ router.set("/file", (req, headers, client) => {
 
 router.set("/endpoint", async (req, headers, client): Promise<Response> => {
 	const url = new URL(req.url);
-	const hostname = url.pathname.split("/")[2];
-	const pubKey = await Utils.exportPublicKey(client.keyPair.publicKey);
+	const hostname = url.pathname.split("/")[2] as EthAddress;
 	const now = Date.now();
 
-	if (hostname === `${base32Encode(new TextEncoder().encode(pubKey.x)).toLowerCase().replace(/=+$/, "")}.${base32Encode(new TextEncoder().encode(pubKey.y)).toLowerCase().replace(/=+$/, "")}`) {
+	if (hostname === client.wallet.address()) {
 		const body = await (client.config.reverseProxy ? await fetch(client.config.reverseProxy) : await client.handleCustomRequest(new Request(`hydra://${hostname}/`))).text();
-		const signature = await Utils.signMessage(client.keyPair.privateKey, body);
+		const signature = await client.wallet.signMessage(body);
 
 		headers.set("hydra-signature", signature);
 		return new Response(body, { headers });
@@ -335,22 +328,10 @@ router.set("/endpoint", async (req, headers, client): Promise<Response> => {
 				await Promise.all(responses.map(async (res) => {
 					try {
 						const response = await res;
-						if (response instanceof ErrorRequestFailed) return response;
-						if (response) {
-							const body = await response.text();
-							const signature = response.headers.get("hydra-signature");
-							if (signature !== null) {
-								const [xBase32, yBase32] = hostname.toUpperCase().split(".");
-								if (
-									await Utils.verifySignature(body, signature as Base64, {
-										y: new TextDecoder().decode(decodeBase32(ensureMultipleOfEight(yBase32))),
-										x: new TextDecoder().decode(decodeBase32(ensureMultipleOfEight(xBase32))),
-									})
-								) {
-									resolve(new Response(body, { headers: response.headers }));
-								}
-							}
-						}
+						if (response instanceof Error) return response;
+						const body = await response.text();
+						const signature = response.headers.get("hydra-signature") as EthAddress | null;
+						if (signature !== null && await client.wallet.verifyMessage(body, signature, hostname)) resolve(new Response(body, { headers: response.headers }));
 					} catch (e) {
 						const err = e as Error;
 						if (err.message !== "Hostname not found") console.error(e);

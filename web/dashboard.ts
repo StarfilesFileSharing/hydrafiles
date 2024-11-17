@@ -88,12 +88,7 @@ const tickHandler = async () => {
 				console.error(e);
 			}
 			try {
-				(document.getElementById("hostname") as HTMLElement).innerHTML = `${await window.hydrafiles.getHostname()}.hydra`;
-			} catch (e) {
-				console.error(e);
-			}
-			try {
-				(document.getElementById("apiEndpoint") as HTMLElement).textContent = `https://hydrafiles.com/endpoint/${await window.hydrafiles.getHostname()}`;
+				(document.getElementById("apiEndpoint") as HTMLElement).textContent = `https://hydrafiles.com/endpoint/${await window.hydrafiles.wallet.address()}`;
 			} catch (e) {
 				console.error(e);
 			}
@@ -362,7 +357,6 @@ function populateChart(name: string, data: FileEventLog | RTCEventLog) {
 		backgroundColor: getRandomColor(),
 		fill: true,
 	}));
-	console.log(datasets);
 
 	const maxLength = Math.max(...events.map((event) => (data[event as keyof typeof data] as number[]).length));
 	const labels = Array.from({ length: maxLength }, (_, i) => i.toString());
