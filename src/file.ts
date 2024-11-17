@@ -557,15 +557,18 @@ export class File implements FileAttributes {
 	async fetchFromS3(): Promise<{ file: Uint8Array; signal: number } | ErrorNotInitialised | ErrorNotFound | ErrorChecksumMismatch> {
 		console.log(`File:     ${this.hash}  Checking S3`);
 		if (this._client.s3 === undefined) return new ErrorNotInitialised();
-		const data = (await this._client.s3.getObject(`${this.hash}.stuf`)).body;
-		if (data === null) return new ErrorNotFound();
-
 		const chunks: Uint8Array[] = [];
-		const reader = data.getReader();
-		while (true) {
-			const { done, value } = await reader.read();
-			if (done) break;
-			chunks.push(value);
+		try {
+			const data = (await this._client.s3.getObject(`${this.hash}.stuf`)).body;
+			if (data === null) return new ErrorNotFound();
+			const reader = data.getReader();
+			while (true) {
+				const { done, value } = await reader.read();
+				if (done) break;
+				chunks.push(value);
+			}
+		} catch (e) {
+			if (typeof e === "object" && e !== null && "code" in e && e.code === "NoSuchKey") return new ErrorNotFound();
 		}
 
 		const length = chunks.reduce((acc, chunk) => acc + chunk.length, 0);
