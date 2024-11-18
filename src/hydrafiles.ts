@@ -43,13 +43,19 @@ class Hydrafiles {
 	};
 
 	constructor(customConfig: Partial<Config> = {}) {
+		Wallet._client = this;
+		APIs._client = this;
+		Files._client = this;
+		RPCClient._client = this;
+		RPCServer._client = this;
+
 		this.config = getConfig(customConfig);
 		this.fs = new FileSystem(this);
 		this.utils = new Utils(this.config, this.fs);
 		this.events = new Events();
-		this.filesWallet = new Wallet(this);
-		this.rtcWallet = new Wallet(this, 1);
-		this.apiWallet = new Wallet(this, 2);
+		this.filesWallet = new Wallet();
+		this.rtcWallet = new Wallet(1);
+		this.apiWallet = new Wallet(2);
 
 		if (this.config.s3Endpoint.length) {
 			console.log("Startup: Populating S3");
@@ -108,9 +114,9 @@ class Hydrafiles {
 			"\n| API Wallet:",
 			`${this.apiWallet.address()}`, // ${await this.apiWallet.balance()}`,
 			"\n| RTC Wallet:",
-			`${this.apiWallet.address()}`, // ${await this.apiWallet.balance()}`,
+			`${this.rtcWallet.address()}`, // ${await this.rtcWallet.balance()}`,
 			"\n| Processing Files:",
-			processingRequests.size,
+			processingDownloads.size,
 			// '\n| Seeding Torrent Files:',
 			// (await webtorrentClient()).torrents.length,
 			"\n===============================================\n",
@@ -123,3 +129,31 @@ class Hydrafiles {
 }
 
 export default Hydrafiles;
+
+// // Re-export the main class as default
+// export { default } from "./hydrafiles.ts";
+
+// // Export types
+// export type { FileAttributes } from "./types";
+// export type { HydrafilesConfig } from "./config";
+// export type { RpcClient } from "./rpc";
+// export type { FilesDB } from "./db";
+
+// // Export utilities and constants
+// export { Utils } from "./utils";
+// export { processingRequests } from "./processing";
+
+export * from "./wallet.ts";
+export * from "./utils.ts";
+export * from "./file.ts";
+export * from "./events.ts";
+export * from "./errors.ts";
+export * from "./config.ts";
+export * from "./api.ts";
+export * from "./rpc/server.ts";
+export * from "./rpc/routes.ts";
+export * from "./rpc/client.ts";
+export * from "./rpc/peers/http.ts";
+export * from "./rpc/peers/rtc.ts";
+export * from "./rpc/peers/ws.ts";
+export * from "./filesystem/filesystem.ts";

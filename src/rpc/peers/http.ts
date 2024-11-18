@@ -1,9 +1,8 @@
-import type Hydrafiles from "../../hydrafiles.ts";
 import Utils, { type NonNegativeNumber } from "../../utils.ts";
 import type { Database } from "jsr:@db/sqlite@0.11";
 import type { indexedDB } from "https://deno.land/x/indexeddb@v1.1.0/ponyfill.ts";
 import { File } from "../../file.ts";
-import type RPCClient from "../client.ts";
+import RPCClient from "../client.ts";
 import type { EthAddress } from "../../wallet.ts";
 import { ErrorChecksumMismatch, ErrorDownloadFailed, ErrorMissingRequiredProperty, ErrorNotInitialised, ErrorRequestFailed, ErrorTimeout, ErrorWrongDatabaseType } from "../../errors.ts";
 import { ErrorNotFound } from "../../errors.ts";
@@ -59,20 +58,17 @@ function createIDBDatabase(): Promise<IDBDatabase> {
  * @group Database
  */
 class PeerDB {
-	private _rpcClient: RPCClient;
 	db: DatabaseWrapper = { type: "UNDEFINED", db: undefined };
 
-	private constructor(rpcClient: RPCClient) {
-		this._rpcClient = rpcClient;
-	}
+	private constructor() {}
 
 	/**
 	 * Initializes an instance of PeerDB.
 	 * @returns {PeerDB} A new instance of PeerDB.
 	 * @default
 	 */
-	static async init(rpcClient: RPCClient): Promise<PeerDB> {
-		const peerDB = new PeerDB(rpcClient);
+	static async init(): Promise<PeerDB> {
+		const peerDB = new PeerDB();
 
 		if (typeof window === "undefined") {
 			const database = (await import("jsr:@db/sqlite@0.11")).Database;
@@ -225,8 +221,8 @@ class PeerDB {
 			const query = `UPDATE peer SET ${updatedColumn.map((column) => `${column} = ?`).join(", ")} WHERE host = ?`;
 			this.db.db.prepare(query).values(params);
 			console.log(
-				`Peer:     ${host}  Peer UPDATEd - Updated Columns: ${updatedColumn.join(", ")}` + (this._rpcClient._client.config.logLevel === "verbose" ? ` - Params: ${params.join(", ")}  - Query: ${query}` : ""),
-				this._rpcClient._client.config.logLevel === "verbose" ? console.log(`Peer:     ${host}  Updated Values:`, beforeAndAfter) : "",
+				`Peer:     ${host}  Peer UPDATEd - Updated Columns: ${updatedColumn.join(", ")}` + (RPCClient._client.config.logLevel === "verbose" ? ` - Params: ${params.join(", ")}  - Query: ${query}` : ""),
+				RPCClient._client.config.logLevel === "verbose" ? console.log(`Peer:     ${host}  Updated Values:`, beforeAndAfter) : "",
 			);
 		} else {
 			// @ts-expect-error:
@@ -239,8 +235,8 @@ class PeerDB {
 				};
 			}
 			console.log(
-				`Peer:     ${host}  Peer UPDATEd - Updated Columns: ${updatedColumn.join(", ")}` + (this._rpcClient._client.config.logLevel === "verbose" ? ` - Params: ${params.join(", ")}` : ""),
-				this._rpcClient._client.config.logLevel === "verbose" ? console.log(`Peer:     ${host}  Updated Values:`, beforeAndAfter) : "",
+				`Peer:     ${host}  Peer UPDATEd - Updated Columns: ${updatedColumn.join(", ")}` + (RPCClient._client.config.logLevel === "verbose" ? ` - Params: ${params.join(", ")}` : ""),
+				RPCClient._client.config.logLevel === "verbose" ? console.log(`Peer:     ${host}  Updated Values:`, beforeAndAfter) : "",
 			);
 		}
 
@@ -339,10 +335,8 @@ class HTTPPeer implements PeerAttributes {
 	duration: NonNegativeNumber = 0 as NonNegativeNumber;
 	updatedAt: string = new Date().toISOString();
 	private _db: PeerDB;
-	private _client: Hydrafiles;
 
-	private constructor(values: PeerAttributes, db: PeerDB, client: Hydrafiles) {
-		this._client = client;
+	private constructor(values: PeerAttributes, db: PeerDB) {
 		this._db = db;
 
 		this.host = values.host;
@@ -359,7 +353,7 @@ class HTTPPeer implements PeerAttributes {
 	 * @returns {HTTPPeer} A new instance of HTTPPeer.
 	 * @default
 	 */
-	static async init(values: Partial<PeerAttributes>, db: PeerDB, client: Hydrafiles): Promise<HTTPPeer | ErrorMissingRequiredProperty> {
+	static async init(values: Partial<PeerAttributes>, db: PeerDB): Promise<HTTPPeer | ErrorMissingRequiredProperty> {
 		if (values.host === undefined) return new ErrorMissingRequiredProperty();
 		const result = new URL(values.host);
 		if (!result.protocol || !result.host || result.protocol === "hydra") throw new Error("Invalid URL");
@@ -379,7 +373,7 @@ class HTTPPeer implements PeerAttributes {
 			peer = (await db.select({ key: "host", value: values.host }))[0];
 		}
 
-		return new HTTPPeer(peer, db, client);
+		return new HTTPPeer(peer, db);
 	}
 
 	save(): void {
@@ -395,9 +389,9 @@ class HTTPPeer implements PeerAttributes {
 			console.log(`File:     ${hash}  Downloading from ${this.host}`);
 			let response;
 			try {
-				response = await Utils.promiseWithTimeout(fetch(`${this.host}/download/${hash}`), this._client.config.timeout);
+				response = await Utils.promiseWithTimeout(fetch(`${this.host}/download/${hash}`), RPCClient._client.config.timeout);
 			} catch (e) {
-				if (this._client.config.logLevel === "verbose") console.error(e);
+				if (RPCClient._client.config.logLevel === "verbose") console.error(e);
 				return new ErrorRequestFailed();
 			}
 			if (response instanceof ErrorTimeout) return new ErrorTimeout();
@@ -409,7 +403,7 @@ class HTTPPeer implements PeerAttributes {
 			console.log(`File:     ${hash}  Valid hash`);
 
 			const ethAddress = response.headers.get("Ethereum-Address");
-			if (ethAddress) this._client.filesWallet.transfer(ethAddress as EthAddress, 1_000_000n * BigInt(fileContent.byteLength));
+			if (ethAddress) RPCClient._client.filesWallet.transfer(ethAddress as EthAddress, 1_000_000n * BigInt(fileContent.byteLength));
 
 			if (file.name === undefined || file.name === null || file.name.length === 0) {
 				file.name = String(response.headers.get("Content-Disposition")?.split("=")[1].replace(/"/g, "").replace(" [HYDRAFILES]", ""));
@@ -436,7 +430,7 @@ class HTTPPeer implements PeerAttributes {
 	}
 
 	async validate(): Promise<boolean> {
-		const file = await File.init({ hash: Utils.sha256("04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f") }, this._client);
+		const file = await File.init({ hash: Utils.sha256("04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f") });
 		if (!file) throw new Error("Failed to build file");
 		return "file" in await this.downloadFile(file);
 	}
@@ -459,34 +453,34 @@ export default class HTTPPeers {
 	 * @default
 	 */
 	public static async init(rpcClient: RPCClient): Promise<HTTPPeers> {
-		const db = await PeerDB.init(rpcClient);
+		const db = await PeerDB.init();
 		const httpPeers = new HTTPPeers(rpcClient, db);
 
-		(await Promise.all((await db.select()).map((peer) => HTTPPeer.init(peer, db, rpcClient._client)))).forEach((peer) => {
+		(await Promise.all((await db.select()).map((peer) => HTTPPeer.init(peer, db)))).forEach((peer) => {
 			if (!(peer instanceof ErrorMissingRequiredProperty)) httpPeers.peers.set(peer.host, peer);
 		});
 
-		for (let i = 0; i < rpcClient._client.config.bootstrapPeers.length; i++) {
-			await httpPeers.add(rpcClient._client.config.bootstrapPeers[i]);
+		for (let i = 0; i < RPCClient._client.config.bootstrapPeers.length; i++) {
+			await httpPeers.add(RPCClient._client.config.bootstrapPeers[i]);
 		}
 		return httpPeers;
 	}
 
 	async add(host: string): Promise<true | ErrorMissingRequiredProperty> {
-		const peer = await HTTPPeer.init({ host }, this.db, this._rpcClient._client);
+		const peer = await HTTPPeer.init({ host }, this.db);
 		if (peer instanceof ErrorMissingRequiredProperty) return peer;
-		if (host !== this._rpcClient._client.config.publicHostname) this.peers.set(peer.host, peer);
+		if (host !== RPCClient._client.config.publicHostname) this.peers.set(peer.host, peer);
 		return true;
 	}
 
 	public getPeers = (applicablePeers = false): HTTPPeer[] => {
 		const peers = Array.from(this.peers).filter((peer) => !applicablePeers || typeof window === "undefined" || !peer[0].startsWith("http://"));
 
-		if (this._rpcClient._client.config.preferNode === "FASTEST") {
+		if (RPCClient._client.config.preferNode === "FASTEST") {
 			return peers.map(([_, peer]) => peer).sort((a, b) => a.bytes / a.duration - b.bytes / b.duration);
-		} else if (this._rpcClient._client.config.preferNode === "LEAST_USED") {
+		} else if (RPCClient._client.config.preferNode === "LEAST_USED") {
 			return peers.map(([_, peer]) => peer).sort((a, b) => a.hits - a.rejects - (b.hits - b.rejects));
-		} else if (this._rpcClient._client.config.preferNode === "HIGHEST_HITRATE") {
+		} else if (RPCClient._client.config.preferNode === "HIGHEST_HITRATE") {
 			return peers.sort((a, b) => a[1].hits - a[1].rejects - (b[1].hits - b[1].rejects)).map(([_, peer]) => peer);
 		} else {
 			return peers.map(([_, peer]) => peer);
@@ -500,7 +494,7 @@ export default class HTTPPeers {
 
 		for (let i = 0; i < peers.length; i++) {
 			const peer = peers[i];
-			if (peer.host === this._rpcClient._client.config.publicHostname) {
+			if (peer.host === RPCClient._client.config.publicHostname) {
 				results.push(peer);
 				continue;
 			}
@@ -523,9 +517,9 @@ export default class HTTPPeers {
 				const peerUrl = new URL(peer.host);
 				url.hostname = peerUrl.hostname;
 				url.protocol = peerUrl.protocol;
-				return await Utils.promiseWithTimeout(fetch(url.toString(), init), this._rpcClient._client.config.timeout);
+				return await Utils.promiseWithTimeout(fetch(url.toString(), init), RPCClient._client.config.timeout);
 			} catch (e) {
-				if (this._rpcClient._client.config.logLevel === "verbose") console.error(e);
+				if (RPCClient._client.config.logLevel === "verbose") console.error(e);
 				return new ErrorRequestFailed();
 			}
 		});
@@ -536,7 +530,7 @@ export default class HTTPPeers {
 	// TODO: Compare list between all peers and give score based on how similar they are. 100% = all exactly the same, 0% = no items in list were shared. The lower the score, the lower the propagation times, the lower the decentralisation
 	async updatePeers(): Promise<void> {
 		console.log(`Fetching peers`);
-		const responses = await Promise.all(this._rpcClient._client.rpcClient.fetch("http://localhost/peers"));
+		const responses = await Promise.all(RPCClient._client.rpcClient.fetch("http://localhost/peers"));
 		for (let i = 0; i < responses.length; i++) {
 			try {
 				if (!(responses[i] instanceof Response)) continue;
@@ -546,18 +540,18 @@ export default class HTTPPeers {
 					for (const remotePeer of remotePeers) {
 						if (Utils.isPrivateIP(remotePeer.host) || remotePeer.host.startsWith("hydra://")) continue;
 						this.add(remotePeer.host).catch((e) => {
-							if (this._rpcClient._client.config.logLevel === "verbose") console.error(e);
+							if (RPCClient._client.config.logLevel === "verbose") console.error(e);
 						});
 					}
 				}
 			} catch (e) {
-				if (this._rpcClient._client.config.logLevel === "verbose") console.error(e);
+				if (RPCClient._client.config.logLevel === "verbose") console.error(e);
 			}
 		}
 	}
 
 	public getSelf(): HTTPPeer | ErrorNotFound {
-		const peer = this.peers.get(this._rpcClient._client.config.publicHostname);
+		const peer = this.peers.get(RPCClient._client.config.publicHostname);
 		if (!peer) return new ErrorNotFound();
 		return peer;
 	}

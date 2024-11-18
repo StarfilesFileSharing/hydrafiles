@@ -106,22 +106,19 @@ function createIDBDatabase(): Promise<IDBDatabase> {
 }
 
 export class FileDB {
-	private _client: Hydrafiles;
 	db: DatabaseWrapper = { type: "UNDEFINED", db: undefined };
 
-	private constructor(client: Hydrafiles) {
-		this._client = client;
-	}
+	private constructor() {}
 
 	/**
 	 * Initializes an instance of FileDB.
 	 * @returns {FileDB} A new instance of FileDB.
 	 * @default
 	 */
-	static async init(client: Hydrafiles): Promise<FileDB> {
-		await client.fs.mkdir("files/");
+	static async init(): Promise<FileDB> {
+		await Files._client.fs.mkdir("files/");
 
-		const fileDB = new FileDB(client);
+		const fileDB = new FileDB();
 
 		if (typeof window === "undefined") {
 			const { Database } = await import("jsr:@db/sqlite");
@@ -290,14 +287,14 @@ export class FileDB {
 			const query = `UPDATE file SET ${updatedColumn.map((column) => `${column} = ?`).join(", ")} WHERE hash = ?`;
 			this.db.db.prepare(query).values(params);
 			console.log(
-				`File:     ${hash}  File UPDATEd - Updated Columns: ${updatedColumn.join(", ")}` + (this._client.config.logLevel === "verbose" ? ` - Params: ${params.join(", ")}  - Query: ${query}` : ""),
-				this._client.config.logLevel === "verbose" ? console.log(`File:     ${hash}  Updated Values:`, beforeAndAfter) : "",
+				`File:     ${hash}  File UPDATEd - Updated Columns: ${updatedColumn.join(", ")}` + (Files._client.config.logLevel === "verbose" ? ` - Params: ${params.join(", ")}  - Query: ${query}` : ""),
+				Files._client.config.logLevel === "verbose" ? console.log(`File:     ${hash}  Updated Values:`, beforeAndAfter) : "",
 			);
 		} else {
 			if (this.db.type === "INDEXEDDB") this.objectStore().put(newFile).onerror = console.error;
 			console.log(
-				`File:     ${hash}  File UPDATEd - Updated Columns: ${updatedColumn.join(", ")}` + (this._client.config.logLevel === "verbose" ? ` - Params: ${params.join(", ")}` : ""),
-				this._client.config.logLevel === "verbose" ? console.log(`File:     ${hash}  Updated Values:`, beforeAndAfter) : "",
+				`File:     ${hash}  File UPDATEd - Updated Columns: ${updatedColumn.join(", ")}` + (Files._client.config.logLevel === "verbose" ? ` - Params: ${params.join(", ")}` : ""),
+				Files._client.config.logLevel === "verbose" ? console.log(`File:     ${hash}  Updated Values:`, beforeAndAfter) : "",
 			);
 		}
 		return true;
@@ -385,10 +382,8 @@ export class File implements FileAttributes {
 	voteNonce = 0;
 	voteDifficulty = 0;
 	updatedAt: string = new Date().toISOString();
-	private _client: Hydrafiles;
 
-	private constructor(hash: Sha256, client: Hydrafiles, vote = false) {
-		this._client = client;
+	private constructor(hash: Sha256, vote = false) {
 		this.hash = hash;
 
 		if (vote) {
@@ -402,14 +397,14 @@ export class File implements FileAttributes {
 	 * @returns {File} A new instance of File.
 	 * @default
 	 */
-	static async init(values: Partial<FileAttributes>, client: Hydrafiles, vote = false): Promise<File> {
+	static async init(values: Partial<FileAttributes>, vote = false): Promise<File> {
 		if (!values.hash && values.id) {
-			const files = await client.files.db.select({ key: "id", value: values.id });
+			const files = await Files._client.files.db.select({ key: "id", value: values.id });
 			values.hash = files[0]?.hash;
 		}
 		if (!values.hash && values.id) {
 			console.log(`Fetching file metadata`); // TODO: Merge with getMetadata
-			const responses = client.rpcClient.fetch(`http://localhost/file/${values.id}`);
+			const responses = Files._client.rpcClient.fetch(`http://localhost/file/${values.id}`);
 			for (let i = 0; i < responses.length; i++) {
 				const response = await responses[i];
 				if (response instanceof Error) continue;
@@ -418,24 +413,24 @@ export class File implements FileAttributes {
 					const hash = "result" in body ? body.result.hash.sha256 : body.hash;
 					values.hash = Utils.sha256(hash);
 				} catch (e) {
-					if (client.config.logLevel === "verbose") console.error(e);
+					if (Files._client.config.logLevel === "verbose") console.error(e);
 				}
 			}
 			throw new Error("No hash found for the provided id");
 		}
 		if (values.infohash !== undefined && values.infohash !== null && Utils.isValidInfoHash(values.infohash)) {
-			const files = await client.files.db.select({ key: "infohash", value: values.infohash });
+			const files = await Files._client.files.db.select({ key: "infohash", value: values.infohash });
 			const fileHash = files[0]?.hash;
 			if (fileHash) values.hash = fileHash;
 		}
 		if (!values.hash) throw new Error("File not found");
 
-		let fileAttributes = (await client.files.db.select({ key: "hash", value: values.hash }))[0];
+		let fileAttributes = (await Files._client.files.db.select({ key: "hash", value: values.hash }))[0];
 		if (fileAttributes === undefined) {
-			client.files.db.insert(values);
-			fileAttributes = (await client.files.db.select({ key: "hash", value: values.hash }))[0] ?? { hash: values.hash };
+			Files._client.files.db.insert(values);
+			fileAttributes = (await Files._client.files.db.select({ key: "hash", value: values.hash }))[0] ?? { hash: values.hash };
 		}
-		const file = new File(values.hash, client, vote);
+		const file = new File(values.hash, vote);
 		Object.assign(file, fileAttributesDefaults(fileAttributes));
 		return file;
 	}
@@ -467,7 +462,7 @@ export class File implements FileAttributes {
 
 		const id = this.id;
 		if (id !== undefined && id !== null && id.length > 0) {
-			const responses = this._client.rpcClient.fetch(`http://localhost/file/${this.id}`);
+			const responses = Files._client.rpcClient.fetch(`http://localhost/file/${this.id}`);
 
 			for (let i = 0; i < responses.length; i++) {
 				try {
@@ -481,14 +476,14 @@ export class File implements FileAttributes {
 					this.save();
 					return this;
 				} catch (e) {
-					if (this._client.config.logLevel === "verbose") console.log(e);
+					if (Files._client.config.logLevel === "verbose") console.log(e);
 				}
 			}
 		}
 
 		const filePath = join(FILESPATH, hash.toString());
-		if (await this._client.fs.exists(filePath)) {
-			const fileSize = await this._client.fs.getFileSize(filePath);
+		if (await Files._client.fs.exists(filePath)) {
+			const fileSize = await Files._client.fs.getFileSize(filePath);
 			if (!(fileSize instanceof Error)) {
 				this.size = Utils.createNonNegativeNumber(fileSize);
 				this.save();
@@ -496,9 +491,9 @@ export class File implements FileAttributes {
 			return this;
 		}
 
-		if (this._client.s3 !== undefined) {
+		if (Files._client.s3 !== undefined) {
 			try {
-				const data = await this._client.s3.statObject(`${hash}.stuf`);
+				const data = await Files._client.s3.statObject(`${hash}.stuf`);
 				if (typeof data.size !== "undefined") {
 					this.size = Utils.createNonNegativeNumber(data.size);
 					this.save();
@@ -515,7 +510,7 @@ export class File implements FileAttributes {
 	async cacheFile(file: Uint8Array): Promise<true | ErrorNotInitialised | ErrorNotFound | ErrorUnreachableCodeReached> {
 		const hash = this.hash;
 		const filePath = join(FILESPATH, hash.toString());
-		if (await this._client.fs.exists(filePath)) return true;
+		if (await Files._client.fs.exists(filePath)) return true;
 
 		let size = this.size;
 		if (size === 0) {
@@ -523,15 +518,15 @@ export class File implements FileAttributes {
 			this.size = size;
 			this.save();
 		}
-		const remainingSpace = await this._client.utils.remainingStorage();
+		const remainingSpace = await Files._client.utils.remainingStorage();
 		if (remainingSpace instanceof ErrorNotInitialised) return remainingSpace;
-		if (this._client.config.maxCache !== -1 && size > remainingSpace) this._client.utils.purgeCache(size, remainingSpace);
+		if (Files._client.config.maxCache !== -1 && size > remainingSpace) Files._client.utils.purgeCache(size, remainingSpace);
 
-		this._client.fs.writeFile(filePath, file);
-		const fileContent = await this._client.fs.readFile(filePath);
+		Files._client.fs.writeFile(filePath, file);
+		const fileContent = await Files._client.fs.readFile(filePath);
 		if (fileContent instanceof Error) return fileContent;
 		const savedHash = await Utils.hashUint8Array(fileContent);
-		if (savedHash !== hash) await this._client.fs.remove(filePath); // In case of broken file
+		if (savedHash !== hash) await Files._client.fs.remove(filePath); // In case of broken file
 		return true;
 	}
 
@@ -540,12 +535,12 @@ export class File implements FileAttributes {
 		console.log(`File:     ${hash}  Checking Cache`);
 		const filePath = join(FILESPATH, hash.toString());
 		this.seed();
-		if (!await this._client.fs.exists(filePath)) return new ErrorNotFound();
-		const fileContents = await this._client.fs.readFile(filePath);
+		if (!await Files._client.fs.exists(filePath)) return new ErrorNotFound();
+		const fileContents = await Files._client.fs.readFile(filePath);
 		if (fileContents instanceof Error) return fileContents;
 		const savedHash = await Utils.hashUint8Array(fileContents);
 		if (savedHash !== this.hash) {
-			await this._client.fs.remove(filePath).catch(console.error);
+			await Files._client.fs.remove(filePath).catch(console.error);
 			return new ErrorChecksumMismatch();
 		}
 		return {
@@ -556,10 +551,10 @@ export class File implements FileAttributes {
 
 	async fetchFromS3(): Promise<{ file: Uint8Array; signal: number } | ErrorNotInitialised | ErrorNotFound | ErrorChecksumMismatch> {
 		console.log(`File:     ${this.hash}  Checking S3`);
-		if (this._client.s3 === undefined) return new ErrorNotInitialised();
+		if (Files._client.s3 === undefined) return new ErrorNotInitialised();
 		const chunks: Uint8Array[] = [];
 		try {
-			const data = (await this._client.s3.getObject(`${this.hash}.stuf`)).body;
+			const data = (await Files._client.s3.getObject(`${this.hash}.stuf`)).body;
 			if (data === null) return new ErrorNotFound();
 			const reader = data.getReader();
 			while (true) {
@@ -579,7 +574,7 @@ export class File implements FileAttributes {
 			offset += chunk.length;
 		}
 
-		if (this._client.config.cacheS3) await this.cacheFile(file);
+		if (Files._client.config.cacheS3) await this.cacheFile(file);
 
 		const hash = await Utils.hashUint8Array(file);
 		if (hash.toString() !== this.hash.toString()) return new ErrorChecksumMismatch();
@@ -594,15 +589,15 @@ export class File implements FileAttributes {
 	// TODO: Check other nodes file lists to find other claimed infohashes for the file, leech off all of them and copy the metadata from the healthiest torrent
 
 	async getFile(opts: { logDownloads: boolean }): Promise<{ file: Uint8Array; signal: number } | ErrorNotFound | ErrorNotInitialised | ErrorChecksumMismatch> {
-		// const peer = await Utils.exportPublicKey((await this._client.keyPair).publicKey); // TODO: Replace this with actual peer
-		// const receipt = await this._client.blockchain.mempoolBlock.signReceipt(
+		// const peer = await Utils.exportPublicKey((await Files._client.keyPair).publicKey); // TODO: Replace this with actual peer
+		// const receipt = await Files._client.blockchain.mempoolBlock.signReceipt(
 		//   peer,
-		//   await this._client.keyPair,
+		//   await Files._client.keyPair,
 		// );
-		// await this._client.blockchain.mempoolBlock.addReceipt(receipt);
+		// await Files._client.blockchain.mempoolBlock.addReceipt(receipt);
 		// console.log(
-		//   this._client.blockchain.blocks.length,
-		//   this._client.blockchain.mempoolBlock.receipts.length,
+		//   Files._client.blockchain.blocks.length,
+		//   Files._client.blockchain.mempoolBlock.receipts.length,
 		// );
 
 		const hash = this.hash;
@@ -619,47 +614,47 @@ export class File implements FileAttributes {
 		// 	await Utils.promiseWithTimeout(
 		// 		new Promise(() => {
 		// 			const intervalId = setInterval(() => {
-		// 				if (this._client.config.logLevel === "verbose") console.log(`File:     ${hash}  Reached memory limit, waiting`, this.size);
+		// 				if (Files._client.config.logLevel === "verbose") console.log(`File:     ${hash}  Reached memory limit, waiting`, this.size);
 		// 				if (this.size === 0 || Utils.hasSufficientMemory(this.size)) clearInterval(intervalId);
-		// 			}, this._client.config.memoryThresholdReachedWait);
+		// 			}, Files._client.config.memoryThresholdReachedWait);
 		// 		}),
-		// 		this._client.config.timeout / 2,
+		// 		Files._client.config.timeout / 2,
 		// 	);
 		// }
 
 		let file: { file: Uint8Array; signal: number } | ErrorNotFound | ErrorNotInitialised | ErrorChecksumMismatch = await this.fetchFromCache();
 		if (!(file instanceof Error)) console.log(`File:     ${hash}  Serving ${this.size !== undefined ? Math.round(this.size / 1024 / 1024) : 0}MB from cache`);
 		else {
-			if (this._client.config.s3Endpoint.length > 0) file = await this.fetchFromS3();
+			if (Files._client.config.s3Endpoint.length > 0) file = await this.fetchFromS3();
 			if (!(file instanceof Error)) console.log(`File:     ${hash}  Serving ${this.size !== undefined ? Math.round(this.size / 1024 / 1024) : 0}MB from S3`);
 			else {
 				file = await this.download();
 				if (file instanceof Error) {
 					this.found = false;
-					this._client.events.log(this._client.events.fileEvents.FileNotFound);
+					Files._client.events.log(Files._client.events.fileEvents.FileNotFound);
 					this.save();
 				}
 			}
 		}
 
-		this._client.events.log(this._client.events.fileEvents.FileServed);
+		Files._client.events.log(Files._client.events.fileEvents.FileServed);
 		if (!(file instanceof Error)) this.seed();
 
 		return file;
 	}
 
 	save(): void {
-		this._client.files.db.update(this.hash, this);
+		Files._client.files.db.update(this.hash, this);
 	}
 
 	async seed(): Promise<void> {
 		// TODO: webtorrent.add() all known files
-		if (!this._client.webtorrent) return;
+		if (!Files._client.webtorrent) return;
 		if (seeding.includes(this.hash)) return;
 		seeding.push(this.hash);
 		const filePath = join(FILESPATH, this.hash);
-		if (!this._client.fs.exists(filePath)) return;
-		this._client.webtorrent.seed(typeof window === "undefined" ? filePath : await this._client.fs.readFile(filePath), {
+		if (!Files._client.fs.exists(filePath)) return;
+		Files._client.webtorrent.seed(typeof window === "undefined" ? filePath : await Files._client.fs.readFile(filePath), {
 			createdBy: "Hydrafiles/0.1",
 			name: (this.name ?? this.hash).replace(/(\.\w+)$/, " [HYDRAFILES]$1"),
 			destroyStoreOnDestroy: true,
@@ -673,7 +668,7 @@ export class File implements FileAttributes {
 	}
 
 	increment(column: keyof FileAttributes): void {
-		this._client.files.db.increment(this.hash, column);
+		Files._client.files.db.increment(this.hash, column);
 		this[column]++;
 	}
 
@@ -697,16 +692,16 @@ export class File implements FileAttributes {
 			this.getMetadata();
 			size = this.size;
 		}
-		if (!this._client.utils.hasSufficientMemory(size)) {
+		if (!Files._client.utils.hasSufficientMemory(size)) {
 			console.log("Reached memory limit, waiting");
 			await new Promise(() => {
 				const intervalId = setInterval(async () => {
-					if (await this._client.utils.hasSufficientMemory(size)) clearInterval(intervalId);
-				}, this._client.config.memoryThresholdReachedWait);
+					if (await Files._client.utils.hasSufficientMemory(size)) clearInterval(intervalId);
+				}, Files._client.config.memoryThresholdReachedWait);
 			});
 		}
 
-		const peers = this._client.rpcClient.http.getPeers(true);
+		const peers = Files._client.rpcClient.http.getPeers(true);
 		for (const peer of peers) {
 			let fileContent: { file: Uint8Array; signal: number } | Error | undefined;
 			try {
@@ -718,7 +713,7 @@ export class File implements FileAttributes {
 		}
 
 		console.log(`File:     ${this.hash}  Downloading from WebRTC`);
-		const responses = this._client.rpcClient.rtc.fetch(`http://localhost/download/${this.hash}`);
+		const responses = Files._client.rpcClient.rtc.fetch(`http://localhost/download/${this.hash}`);
 		for (let i = 0; i < responses.length; i++) {
 			const response = await responses[i];
 			const fileContent = new Uint8Array(await response.arrayBuffer());
@@ -729,7 +724,7 @@ export class File implements FileAttributes {
 			console.log(`File:     ${this.hash}  Valid hash`);
 
 			const ethAddress = response.headers.get("Ethereum-Address");
-			if (ethAddress) this._client.filesWallet.transfer(ethAddress as EthAddress, 1_000_000n * BigInt(fileContent.byteLength));
+			if (ethAddress) Files._client.filesWallet.transfer(ethAddress as EthAddress, 1_000_000n * BigInt(fileContent.byteLength));
 
 			if (this.name === null || this.name.length === 0) {
 				this.name = String(response.headers.get("Content-Disposition")?.split("=")[1].replace(/"/g, "").replace(" [HYDRAFILES]", ""));
@@ -742,14 +737,13 @@ export class File implements FileAttributes {
 }
 
 class Files {
-	private _client: Hydrafiles;
+	static _client: Hydrafiles;
 	public db: FileDB;
 	public filesHash = new Map<string, File>(); // TODO: add inserts
 	public filesInfohash = new Map<string, File>(); // TODO: add inserts
 	public filesId = new Map<string, File>(); // TODO: add inserts
 
-	private constructor(client: Hydrafiles, db: FileDB) {
-		this._client = client;
+	private constructor(db: FileDB) {
 		this.db = db;
 
 		setTimeout(async () => {
@@ -757,16 +751,16 @@ class Files {
 			for (const file of files) {
 				this.add(file);
 			}
-		}, 1000); // Runs 1 sec late to ensure Files gets saves to this._client
+		}, 1000); // Runs 1 sec late to ensure Files gets saves to Files._client
 	}
 
-	static async init(client: Hydrafiles): Promise<Files> {
-		return new Files(client, await FileDB.init(client));
+	static async init(): Promise<Files> {
+		return new Files(await FileDB.init());
 	}
 
 	public async add(values: Partial<FileAttributes>): Promise<File> {
 		if (!values.hash) throw new Error("Hash not defined");
-		const file = await File.init(values, this._client, false);
+		const file = await File.init(values, false);
 		this.filesHash.set(values.hash, file);
 		if (values.infohash) this.filesInfohash.set(values.infohash, file);
 		if (values.id) this.filesId.set(values.id, file);
@@ -802,13 +796,13 @@ class Files {
 	async updateFileList(onProgress?: (progress: number, total: number) => void): Promise<void> {
 		console.log(`Comparing file list`);
 		let files: FileAttributes[] = [];
-		const responses = await Promise.all(this._client.rpcClient.fetch("http://localhost/files"));
+		const responses = await Promise.all(Files._client.rpcClient.fetch("http://localhost/files"));
 		for (let i = 0; i < responses.length; i++) {
 			if (!(responses[i] instanceof ErrorRequestFailed)) {
 				try {
 					files = files.concat((await (responses[i] as Response).json()) as FileAttributes[]);
 				} catch (e) {
-					if (this._client.config.logLevel === "verbose") console.log(e);
+					if (Files._client.config.logLevel === "verbose") console.log(e);
 				}
 			}
 		}
