@@ -160,13 +160,6 @@ export interface Config {
 	uploadSecret: string;
 
 	/**
-	 * URL for reverse proxy setup.
-	 * See https://github.com/StarfilesFileSharing/hydrafiles/wiki/Using-Hydrafiles-as-Reverse-Proxy-%E2%80%90-Anonymous-APIs
-	 * @default ""
-	 */
-	reverseProxy: string;
-
-	/**
 	 * Avoid filesystem API in browser to prevent user consent requirement.
 	 * @default false
 	 */
@@ -206,7 +199,6 @@ const defaultConfig: Config = {
 	comparePeersSpeed: 3600000,
 	compareFilesSpeed: 300000,
 	announceSpeed: 30000,
-	reverseProxy: "",
 	dontUseFileSystemAPI: false,
 	deriveKey: "",
 };

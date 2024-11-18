@@ -4,21 +4,13 @@ import { File } from "../file.ts";
 import type { PeerAttributes } from "./peers/http.ts";
 import Utils, { type Sha256 } from "../utils.ts";
 import type Hydrafiles from "../hydrafiles.ts";
-import { ErrorNotFound, ErrorRequestFailed } from "../errors.ts";
-import { EthAddress } from "../wallet.ts";
-
-interface CachedHostname {
-	body: string;
-	headers: Headers;
-	timestamp: number;
-}
+import { ErrorNotFound } from "../errors.ts";
 
 export const router = new Map<string, (req: Request, headers: Headers, client: Hydrafiles) => Promise<Response> | Response>();
 export const sockets: { id: string; socket: WebSocket }[] = [];
-export const processingRequests = new Map<string, Promise<Response | ErrorNotFound>>();
-const cachedHostnames: Record<string, CachedHostname> = {};
 
 export const pendingRequests = new Map<number, (response: Response) => void>();
+export const processingDownloads = new Map<string, Promise<Response | ErrorNotFound>>();
 
 router.set("WS", (req) => {
 	const { socket, response } = Deno.upgradeWebSocket(req);
@@ -124,16 +116,16 @@ router.set("/download", async (req, headers, client) => {
 	const fileId = url.pathname.split("/")[3] ?? "";
 	const infohash = Array.from(decodeURIComponent(url.searchParams.get("info_hash") ?? "")).map((char) => char.charCodeAt(0).toString(16).padStart(2, "0")).join("");
 
-	if (processingRequests.has(hash)) {
+	if (processingDownloads.has(hash)) {
 		if (client.config.logLevel === "verbose") console.log(`  ${hash}  Waiting for existing request with same hash`);
-		await processingRequests.get(hash);
+		await processingDownloads.get(hash);
 	}
 	const processingPromise = (async () => {
 		const fileParams: { hash: Sha256; infohash?: string } = { hash };
 		if (infohash) {
 			fileParams.infohash = infohash;
 		}
-		const file = await File.init(fileParams, client, true);
+		const file = await File.init(fileParams, true);
 		if (!file) throw new Error("Failed to build file");
 
 		if (fileId.length !== 0) {
@@ -171,13 +163,13 @@ router.set("/download", async (req, headers, client) => {
 		return new Response(fileContent.file, { headers });
 	})();
 
-	processingRequests.set(hash, processingPromise);
+	processingDownloads.set(hash, processingPromise);
 
 	let response: Response;
 	try {
 		response = await processingPromise;
 	} finally {
-		processingRequests.delete(hash);
+		processingDownloads.delete(hash);
 	}
 	return response;
 });
@@ -186,9 +178,9 @@ router.set("/infohash", async (req, headers, client): Promise<Response> => {
 	const url = new URL(req.url);
 	const infohash = url.pathname.split("/")[2];
 
-	if (processingRequests.has(infohash)) {
+	if (processingDownloads.has(infohash)) {
 		console.log(`  ${infohash}  Waiting for existing request with same infohash`);
-		await processingRequests.get(infohash);
+		await processingDownloads.get(infohash);
 	}
 	const processingPromise = (async () => {
 		const file = client.files.filesInfohash.get(infohash);
@@ -217,13 +209,13 @@ router.set("/infohash", async (req, headers, client): Promise<Response> => {
 		return new Response(fileContent.file, { headers });
 	})();
 
-	processingRequests.set(infohash, processingPromise);
+	processingDownloads.set(infohash, processingPromise);
 
 	let response: Response | ErrorNotFound;
 	try {
 		response = await processingPromise;
 	} finally {
-		processingRequests.delete(infohash);
+		processingDownloads.delete(infohash);
 	}
 
 	if (response instanceof ErrorNotFound) return new Response("Error Not Found", { status: 404 });
@@ -247,7 +239,7 @@ router.set("/upload", async (req, _, client) => {
 
 	const hash = Utils.sha256(formData.hash[0]);
 
-	const file = await File.init({ hash }, client, true);
+	const file = await File.init({ hash }, true);
 	if (!file) throw new Error("Failed to build file");
 	if ((file.name === null || file.name.length === 0) && formData.file.name !== null) {
 		file.name = formData.file.name;
@@ -302,64 +294,17 @@ router.set("/file", (req, headers, client) => {
 
 router.set("/endpoint", async (req, headers, client): Promise<Response> => {
 	const url = new URL(req.url);
-	const hostname = url.pathname.split("/")[2] as EthAddress;
-	const now = Date.now();
 
-	if (hostname === client.apiWallet.address()) {
-		const body = await (client.config.reverseProxy ? await fetch(client.config.reverseProxy) : await client.handleCustomRequest(new Request(`hydra://${hostname}/`))).text();
-		headers.set("hydra-signature", await client.apiWallet.signMessage(body));
-		return new Response(body, { headers });
-	} else {
-		if (processingRequests.has(hostname)) {
-			if (client.config.logLevel === "verbose") console.log(`  ${hostname}  Waiting for existing request with same hostname`);
-			await processingRequests.get(hostname);
-		}
-		if (hostname in cachedHostnames) {
-			const cachedEntry = cachedHostnames[hostname];
-			if (now - cachedEntry.timestamp > 60000) {
-				delete cachedHostnames[hostname];
-			}
-			return new Response(cachedHostnames[hostname].body, { headers: cachedHostnames[hostname].headers });
-		}
+	const segments = url.pathname.replace("/endpoint/", "").split("/");
 
-		console.log(`Endpoint: ${hostname}  Fetching endpoint response from peers`);
-		const responses = client.rpcClient.fetch(`http://localhost/endpoint/${hostname}`);
+	const newUrl = new URL(`${url.protocol}://${segments[0]}/${segments[1]}`);
+	newUrl.search = url.search;
 
-		const processingPromise = new Promise<Response | ErrorRequestFailed>((resolve, reject) => {
-			(async () => {
-				await Promise.all(responses.map(async (res) => {
-					try {
-						const response = await res;
-						if (response instanceof Error) return response;
-						const body = await response.text();
-						const signature = response.headers.get("hydra-signature") as EthAddress | null;
-						if (signature !== null && await client.apiWallet.verifyMessage(body, signature, hostname)) resolve(new Response(body, { headers: response.headers }));
-					} catch (e) {
-						const err = e as Error;
-						if (err.message !== "Hostname not found") console.error(e);
-					}
-				}));
-				reject(new Error("Hostname not found"));
-			})();
-		});
+	const newRequest = new Request(url.toString(), {
+		method: req.method,
+		headers: req.headers,
+		body: req.body,
+	});
 
-		processingRequests.set(hostname, processingPromise);
-
-		let response: Response | ErrorRequestFailed | undefined;
-		try {
-			response = await processingPromise;
-		} catch (e) {
-			const err = e as Error;
-			if (err.message === "Hostname not found") return new Response("Hostname not found", { headers, status: 404 });
-			else throw err;
-		} finally {
-			processingRequests.delete(hostname);
-		}
-
-		if (response instanceof ErrorRequestFailed) throw response;
-
-		const res = { body: await response.text(), headers: response.headers };
-		cachedHostnames[hostname] = { ...res, timestamp: Date.now() };
-		return new Response(res.body, { headers: res.headers });
-	}
+	return await client.apis.fetch(newRequest, headers);
 });

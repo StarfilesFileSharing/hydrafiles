@@ -1,9 +1,7 @@
 import Hydrafiles from "../src/hydrafiles.ts";
-import { File, type FileAttributes } from "../src/file.ts";
-import { Config } from "../src/config.ts";
+import { type FileAttributes } from "../src/file.ts";
 import WebTorrent from "https://esm.sh/webtorrent@2.5.1";
 import { Chart } from "https://esm.sh/chart.js@4.4.6/auto";
-import { processingRequests } from "../src/rpc/routes.ts";
 import { ErrorNotInitialised } from "../src/errors.ts";
 import type { FileEventLog, RTCEventLog } from "../src/events.ts";
 
@@ -117,11 +115,6 @@ const tickHandler = async () => {
 			}
 			try {
 				(document.getElementById("rtcWallet") as HTMLElement).innerHTML = window.hydrafiles.rtcWallet.address();
-			} catch (e) {
-				console.error(e);
-			}
-			try {
-				(document.getElementById("processingFiles") as HTMLElement).innerHTML = String(processingRequests.size);
 			} catch (e) {
 				console.error(e);
 			}

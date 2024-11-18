@@ -9,7 +9,8 @@ import RPCClient from "./rpc/client.ts";
 import FileSystem from "./filesystem/filesystem.ts";
 import Events from "./events.ts";
 import Wallet from "./wallet.ts";
-import { processingRequests } from "./rpc/routes.ts";
+import { processingDownloads } from "./rpc/routes.ts";
+import APIs from "./api.ts";
 
 // TODO: IDEA: HydraTorrent - New Github repo - "Hydrafiles + WebTorrent Compatibility Layer" - Hydrafiles noes can optionally run HydraTorrent to seed files via webtorrent
 // Change index hash from sha256 to infohash, then allow peers to leech files from webtorrent + normal torrent
@@ -35,12 +36,8 @@ class Hydrafiles {
 	filesWallet!: Wallet;
 	rtcWallet!: Wallet;
 	apiWallet!: Wallet;
+	apis!: APIs;
 	webtorrent?: WebTorrent;
-	handleCustomRequest = async (req: Request) => {
-		console.log(req);
-		await new Promise<void>((resolve) => resolve()); // We do this so the function is async, for devs using the lib
-		return new Response("Hello World!");
-	};
 
 	constructor(customConfig: Partial<Config> = {}) {
 		Wallet._client = this;
@@ -56,6 +53,11 @@ class Hydrafiles {
 		this.filesWallet = new Wallet();
 		this.rtcWallet = new Wallet(1);
 		this.apiWallet = new Wallet(2);
+		this.apis = new APIs();
+		this.apis.addHostname((req: Request) => {
+			console.log(req);
+			return new Response("Hello World!");
+		});
 
 		if (this.config.s3Endpoint.length) {
 			console.log("Startup: Populating S3");
@@ -65,10 +67,10 @@ class Hydrafiles {
 
 	public async start(opts: { onUpdateFileListProgress?: (progress: number, total: number) => void; webtorrent?: WebTorrent } = {}): Promise<void> {
 		console.log("Startup: Populating FileDB");
-		this.files = await Files.init(this);
+		this.files = await Files.init();
 		console.log("Startup: Populating RPC Client & Server");
-		this.rpcClient = await RPCClient.init(this);
-		this.rpcServer = new RPCServer(this);
+		this.rpcClient = await RPCClient.init();
+		this.rpcServer = new RPCServer();
 		console.log("Startup: Starting WebTorrent");
 		this.webtorrent = opts.webtorrent;
 
