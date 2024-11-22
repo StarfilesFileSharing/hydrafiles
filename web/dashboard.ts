@@ -3,7 +3,7 @@ import { type FileAttributes } from "../src/file.ts";
 import WebTorrent from "https://esm.sh/webtorrent@2.5.1";
 import { Chart } from "https://esm.sh/chart.js@4.4.6/auto";
 import { ErrorNotInitialised } from "../src/errors.ts";
-import { encodeBase32 } from "https://deno.land/std@0.224.0/encoding/base32.ts";
+import { decodeBase32, encodeBase32 } from "https://deno.land/std@0.224.0/encoding/base32.ts";
 
 declare global {
 	interface Window {
@@ -63,6 +63,19 @@ document.getElementById("startHydrafilesButton")!.addEventListener("click", asyn
 	console.log("Hydrafiles web node is running", window.hydrafiles);
 	setInterval(tickHandler, 30 * 1000);
 	tickHandler();
+
+	const messageBox = document.getElementById("messages") as HTMLElement;
+	document.getElementById("messengerAddress")!.innerText = new TextDecoder().decode(decodeBase32(window.hydrafiles.services.addHostname((req) => {
+		messageBox.innerHTML += `<div class="col-start-6 col-end-13 p-3 rounded-lg">
+			<div class="flex items-center justify-start">
+				<div class="flex items-center justify-center h-10 w-10 rounded-full bg-indigo-500 flex-shrink-0">A</div>
+				<div class="relative mr-3 text-sm bg-indigo-100 py-2 px-4 shadow rounded-xl">
+					<div>${new URL(req.url).searchParams.get("message")}</div>
+				</div>
+			</div>
+		</div>`;
+		return new Response("Received message");
+	})));
 
 	refreshHostnameUIs();
 });
@@ -436,7 +449,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 		setTimeout(() => results.classList.add("hidden"), 3000);
 	});
 
-	const pages = ["dashboard", "statistics", "peers", "files", "services"];
+	const pages = ["dashboard", "statistics", "peers", "files", "services", "chat"];
 	const sidebarLinks = document.querySelectorAll("#default-sidebar a");
 
 	const selectPage = (pageId: string) => {
@@ -456,6 +469,22 @@ document.addEventListener("DOMContentLoaded", async () => {
 			selectPage(link.getAttribute("data-section") as string);
 		});
 	}
+
+	document.getElementById("sendMessage")!.addEventListener("click", () => {
+		const message = (document.getElementById("message") as HTMLInputElement).value;
+		const messageBox = document.getElementById("messages") as HTMLElement;
+		messageBox.innerHTML += `<div class="col-start-6 col-end-13 p-3 rounded-lg">
+			<div class="flex items-center justify-start flex-row-reverse">
+				<div class="flex items-center justify-center h-10 w-10 rounded-full bg-indigo-500 flex-shrink-0">A</div>
+				<div class="relative mr-3 text-sm bg-indigo-100 py-2 px-4 shadow rounded-xl">
+					<div>${message}</div>
+				</div>
+			</div>
+		</div>`;
+		window.hydrafiles.rpcClient.fetch(
+			new Request(`https://localhost/endpoint/${encodeBase32(new TextEncoder().encode((document.getElementById("peerAddress") as HTMLInputElement).value)).toUpperCase()}?message=${encodeURIComponent(message)}`),
+		);
+	});
 
 	selectPage("dashboard");
 });
