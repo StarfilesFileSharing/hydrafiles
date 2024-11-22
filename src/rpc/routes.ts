@@ -294,11 +294,10 @@ router.set("/file", (req, headers, client) => {
 
 router.set("/endpoint", async (req, headers, client): Promise<Response> => {
 	const url = new URL(req.url);
-	const segments = url.pathname.replace("/endpoint/", "").split("/");
-	const newUrl = new URL(`${url.protocol}//${segments[0]}/${segments[1] ?? ""}`);
-	newUrl.search = url.search;
+	url.protocol = "https:";
+	url.hostname = "localhost";
 
-	const newRequest = new Request(newUrl.toString(), {
+	const newRequest = new Request(url.toString(), {
 		method: req.method,
 		headers: req.headers,
 		body: req.body,

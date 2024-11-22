@@ -29,15 +29,15 @@ export default class Services {
 	public addHostname(requestHandler: (req: Request) => Promise<Response> | Response, seed = 0): string {
 		const wallet = new Wallet(100 + seed);
 		const api = new Service(wallet, requestHandler);
-		const hostname = encodeBase32(new TextEncoder().encode(wallet.address())).toUpperCase()
+		const hostname = encodeBase32(new TextEncoder().encode(wallet.address())).toUpperCase();
 		this.ownedServices[hostname] = api;
-		return hostname
+		return hostname;
 	}
 
 	public async fetch(req: Request, headers: Headers): Promise<Response> { // TODO: Refactor this
 		const now = Date.now();
 		const url = new URL(req.url);
-		const hostname = url.hostname.toUpperCase();
+		const hostname = url.pathname.split("/")[2].toUpperCase();
 		console.log(`Hostname: ${hostname} Received Request`);
 
 		if (hostname in this.ownedServices) {
