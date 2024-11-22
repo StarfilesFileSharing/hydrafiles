@@ -155,6 +155,10 @@ export default class HTTPPeers {
 		for (let i = 0; i < RPCClient._client.config.bootstrapPeers.length; i++) {
 			await httpPeers.add(RPCClient._client.config.bootstrapPeers[i]);
 		}
+		for (let i = 0; i < RPCClient._client.config.customPeers.length; i++) {
+			await httpPeers.add(RPCClient._client.config.customPeers[i]);
+		}
+
 		return httpPeers;
 	}
 
