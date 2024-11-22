@@ -89,7 +89,10 @@ export default class Services {
 				if (err.message === "Hostname not found") {
 					console.log(`Hostname: ${hostname} Not found`);
 					return new Response("Hostname not found", { headers, status: 404 });
-				} else throw err;
+				} else {
+					console.log(err.message);
+					throw err;
+				}
 			} finally {
 				this.processingRequests.delete(hostname);
 			}

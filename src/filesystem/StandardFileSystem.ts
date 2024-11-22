@@ -39,6 +39,7 @@ export default class StandardFileSystem {
 			const fileInfo = await Deno.stat(path);
 			return fileInfo.size;
 		} catch (e) {
+			console.log((e as Error).message);
 			throw e;
 		}
 	};
