@@ -5,19 +5,18 @@ import RTCPeers from "./peers/rtc.ts";
 import WSPeers from "./peers/ws.ts";
 
 export default class RPCClient {
-	_client: Hydrafiles;
+	static _client: Hydrafiles;
 	http!: HTTPPeers;
 	rtc!: RTCPeers;
 	ws!: WSPeers;
 
-	private constructor(client: Hydrafiles) {
-		this._client = client;
-	}
-	static async init(client: Hydrafiles): Promise<RPCClient> {
-		const rpcClient = new RPCClient(client);
-		rpcClient.http = await HTTPPeers.init(rpcClient);
+	private constructor() {}
+
+	static async init(): Promise<RPCClient> {
+		const rpcClient = new RPCClient();
+		rpcClient.http = await HTTPPeers.init();
 		rpcClient.rtc = new RTCPeers(rpcClient);
-		rpcClient.ws = new WSPeers(client);
+		rpcClient.ws = new WSPeers(rpcClient);
 		return rpcClient;
 	}
 

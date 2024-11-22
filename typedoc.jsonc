@@ -21,6 +21,7 @@
 		"Source Code": "https://github.com/StarfilesFileSharing/Hydrafiles"
 	},
 	"sourceLinkExternal": true,
-	"sort": ["static-first", "required-first"]
+	"sort": ["static-first", "required-first"],
+	"excludeInternal": true
 	// "theme": "./typedoc-theme"
 }

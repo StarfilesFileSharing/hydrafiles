@@ -28,6 +28,8 @@ P.s. **Using web nodes**, you are able to **serve APIs** and static files over W
 
 TLDR: This scene ^
 
+Hydrafiles uses Spartacus Routing. Spartacus Routing routing involves a gossip network where all peers act as one, where no matter which peer you call, you will receive the same response.
+
 When someone requests a file or calls an endpoint, the request is sent to all peers. If a peer has the file or controls the requested endpoint, it will serve it. If not, it will forward the request to known peers and mirror the response. If
 no one has the file or controls the endpoint, the request will return a 404 once peers timeout. Because the request is forwarded by each peer and all peers mirror the response, it is impossible to tell which peers the request or response
 originated from.

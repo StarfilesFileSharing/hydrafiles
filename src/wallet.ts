@@ -8,13 +8,12 @@ import { ErrorInsufficientBalance } from "./errors.ts";
 export type EthAddress = `0x${string}`;
 
 class Wallet {
-	private _client: Hydrafiles;
+	static _client: Hydrafiles;
 	account: ReturnType<typeof privateKeyToAccount>;
 	client: ReturnType<typeof createWalletClient> & ReturnType<typeof createPublicClient>;
 
-	public constructor(client: Hydrafiles, seed = 0) {
-		this._client = client;
-		this.account = privateKeyToAccount(this.generateEthPrivateKey(client, seed));
+	public constructor(seed = 0) {
+		this.account = privateKeyToAccount(this.generateEthPrivateKey(seed));
 		this.client = createWalletClient({
 			account: this.account,
 			chain: sepolia,
@@ -22,9 +21,9 @@ class Wallet {
 		}).extend(publicActions);
 	}
 
-	public generateEthPrivateKey(client: Hydrafiles, seed = 0): EthAddress {
-		if (client.config.deriveKey.length) {
-			const prng = randomSeeded(BigInt("0x" + client.config.deriveKey + String(seed)));
+	public generateEthPrivateKey(seed = 0): EthAddress {
+		if (Wallet._client.config.deriveKey.length) {
+			const prng = randomSeeded(BigInt("0x" + Wallet._client.config.deriveKey + String(seed)));
 
 			let result = "";
 			for (let i = 0; i < 8; i++) {
@@ -68,7 +67,7 @@ class Wallet {
 			});
 			console.log("Transaction Hash:", hash);
 		} catch (e) {
-			if (this._client.config.logLevel === "verbose") console.error(e);
+			if (Wallet._client.config.logLevel === "verbose") console.error(e);
 		}
 		return true;
 	}
@@ -82,7 +81,7 @@ class Wallet {
 			const signature = await this.client.signMessage({ account: this.account, message });
 			return signature;
 		} catch (e) {
-			if (this._client.config.logLevel === "verbose") console.error(e);
+			if (Wallet._client.config.logLevel === "verbose") console.error(e);
 			throw new Error("Failed to sign message");
 		}
 	}
@@ -92,7 +91,7 @@ class Wallet {
 			const recoveredAddress = await this.client.verifyMessage({ address, message, signature });
 			return recoveredAddress;
 		} catch (e) {
-			if (this._client.config.logLevel === "verbose") console.error(e);
+			if (Wallet._client.config.logLevel === "verbose") console.error(e);
 			return false;
 		}
 	}

@@ -1,6 +1,6 @@
 import type WebTorrent from "https://cdn.jsdelivr.net/npm/webtorrent@latest/webtorrent.min.js";
 import getConfig, { type Config } from "./config.ts";
-import Files, { FileAttributes } from "./file.ts";
+import Files from "./file.ts";
 import Utils from "./utils.ts";
 // import Blockchain, { Block } from "./block.ts";
 import { S3Client } from "https://deno.land/x/s3_lite_client@0.7.0/mod.ts";
@@ -9,7 +9,9 @@ import RPCClient from "./rpc/client.ts";
 import FileSystem from "./filesystem/filesystem.ts";
 import Events from "./events.ts";
 import Wallet from "./wallet.ts";
-import { processingRequests } from "./rpc/routes.ts";
+import { processingDownloads } from "./rpc/routes.ts";
+import Services from "./services/services.ts";
+import NameService from "./services/NameService.ts";
 
 // TODO: IDEA: HydraTorrent - New Github repo - "Hydrafiles + WebTorrent Compatibility Layer" - Hydrafiles noes can optionally run HydraTorrent to seed files via webtorrent
 // Change index hash from sha256 to infohash, then allow peers to leech files from webtorrent + normal torrent
@@ -34,22 +36,28 @@ class Hydrafiles {
 	files!: Files;
 	filesWallet!: Wallet;
 	rtcWallet!: Wallet;
-	apiWallet!: Wallet;
+	services!: Services;
+	nameService!: NameService;
 	webtorrent?: WebTorrent;
-	handleCustomRequest = async (req: Request) => {
-		console.log(req);
-		await new Promise<void>((resolve) => resolve()); // We do this so the function is async, for devs using the lib
-		return new Response("Hello World!");
-	};
 
 	constructor(customConfig: Partial<Config> = {}) {
+		Wallet._client = this;
+		Services._client = this;
+		Files._client = this;
+		RPCClient._client = this;
+		RPCServer._client = this;
+
 		this.config = getConfig(customConfig);
 		this.fs = new FileSystem(this);
 		this.utils = new Utils(this.config, this.fs);
 		this.events = new Events();
-		this.filesWallet = new Wallet(this);
-		this.rtcWallet = new Wallet(this, 1);
-		this.apiWallet = new Wallet(this, 2);
+		this.filesWallet = new Wallet();
+		this.rtcWallet = new Wallet(1);
+		this.services = new Services();
+		this.services.addHostname((req: Request) => {
+			console.log(req);
+			return new Response("Hello World!");
+		});
 
 		if (this.config.s3Endpoint.length) {
 			console.log("Startup: Populating S3");
@@ -59,12 +67,14 @@ class Hydrafiles {
 
 	public async start(opts: { onUpdateFileListProgress?: (progress: number, total: number) => void; webtorrent?: WebTorrent } = {}): Promise<void> {
 		console.log("Startup: Populating FileDB");
-		this.files = await Files.init(this);
+		this.files = await Files.init();
 		console.log("Startup: Populating RPC Client & Server");
-		this.rpcClient = await RPCClient.init(this);
-		this.rpcServer = new RPCServer(this);
+		this.rpcClient = await RPCClient.init();
+		this.rpcServer = new RPCServer();
 		console.log("Startup: Starting WebTorrent");
 		this.webtorrent = opts.webtorrent;
+		NameService._client = this;
+		this.nameService = await NameService.init();
 
 		this.startBackgroundTasks(opts.onUpdateFileListProgress);
 	}
@@ -80,6 +90,9 @@ class Hydrafiles {
 			setInterval(() => this.files.updateFileList(onUpdateFileListProgress), this.config.compareFilesSpeed);
 		}
 		if (this.config.backfill) this.files.backfillFiles();
+
+		this.nameService.fetchBlocks();
+		setInterval(() => this.nameService.fetchBlocks(), 60000);
 	}
 
 	async logState(): Promise<void> {
@@ -105,21 +118,43 @@ class Hydrafiles {
 			(await this.files.db.sum("downloadCount")) + ` (${Math.round((((await this.files.db.sum("downloadCount * size")) / 1024 / 1024 / 1024) * 100) / 100)}GB)`,
 			"\n| Files Wallet:",
 			`${this.filesWallet.address()} ${await this.filesWallet.balance()}`,
-			"\n| API Wallet:",
-			`${this.apiWallet.address()}`, // ${await this.apiWallet.balance()}`,
 			"\n| RTC Wallet:",
-			`${this.apiWallet.address()}`, // ${await this.apiWallet.balance()}`,
+			`${this.rtcWallet.address()}`, // ${await this.rtcWallet.balance()}`,
 			"\n| Processing Files:",
-			processingRequests.size,
+			processingDownloads.size,
 			// '\n| Seeding Torrent Files:',
 			// (await webtorrentClient()).torrents.length,
 			"\n===============================================\n",
 		);
 	}
-
-	public search = async <T extends keyof FileAttributes>(where?: { key: T; value: NonNullable<FileAttributes[T]> }, orderBy?: "RANDOM" | { key: T; direction: "ASC" | "DESC" }): Promise<FileAttributes[]> => {
-		return await this.files.db.select(where, orderBy);
-	};
 }
 
 export default Hydrafiles;
+
+// // Re-export the main class as default
+// export { default } from "./hydrafiles.ts";
+
+// // Export types
+// export type { FileAttributes } from "./types";
+// export type { HydrafilesConfig } from "./config";
+// export type { RpcClient } from "./rpc";
+// export type { FilesDB } from "./db";
+
+// // Export utilities and constants
+// export { Utils } from "./utils";
+// export { processingRequests } from "./processing";
+
+export * from "./wallet.ts";
+export * from "./utils.ts";
+export * from "./file.ts";
+export * from "./events.ts";
+export * from "./errors.ts";
+export * from "./config.ts";
+export * from "./services/services.ts";
+export * from "./rpc/server.ts";
+export * from "./rpc/routes.ts";
+export * from "./rpc/client.ts";
+export * from "./rpc/peers/http.ts";
+export * from "./rpc/peers/rtc.ts";
+export * from "./rpc/peers/ws.ts";
+export * from "./filesystem/filesystem.ts";

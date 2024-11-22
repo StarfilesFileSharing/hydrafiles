@@ -112,6 +112,12 @@ export interface Config {
 	bootstrapPeers: string[];
 
 	/**
+	 * Root URLs of peers to bootstrap network connection.
+	 * @default []
+	 */
+	customPeers: string[];
+
+	/**
 	 * Node selection strategy when fetching data from the network.
 	 * @default "HIGHEST_HITRATE"
 	 */
@@ -160,13 +166,6 @@ export interface Config {
 	uploadSecret: string;
 
 	/**
-	 * URL for reverse proxy setup.
-	 * See https://github.com/StarfilesFileSharing/hydrafiles/wiki/Using-Hydrafiles-as-Reverse-Proxy-%E2%80%90-Anonymous-APIs
-	 * @default ""
-	 */
-	reverseProxy: string;
-
-	/**
 	 * Avoid filesystem API in browser to prevent user consent requirement.
 	 * @default false
 	 */
@@ -191,6 +190,7 @@ const defaultConfig: Config = {
 	permaFiles: ["04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f"],
 	preferNode: "HIGHEST_HITRATE",
 	bootstrapPeers: ["https://hydrafiles.com", "https://hydra.starfiles.co", "https://api2.starfiles.co", "https://api2.starfiles.bz", "https://hydra.sts.st"],
+	customPeers: [],
 	burnRate: 0.1,
 	s3AccessKeyId: "",
 	s3SecretAccessKey: "",
@@ -206,7 +206,6 @@ const defaultConfig: Config = {
 	comparePeersSpeed: 3600000,
 	compareFilesSpeed: 300000,
 	announceSpeed: 30000,
-	reverseProxy: "",
 	dontUseFileSystemAPI: false,
 	deriveKey: "",
 };
