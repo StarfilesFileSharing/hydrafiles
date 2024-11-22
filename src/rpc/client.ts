@@ -14,7 +14,7 @@ export default class RPCClient {
 
 	static async init(): Promise<RPCClient> {
 		const rpcClient = new RPCClient();
-		rpcClient.http = await HTTPPeers.init(rpcClient);
+		rpcClient.http = await HTTPPeers.init();
 		rpcClient.rtc = new RTCPeers(rpcClient);
 		rpcClient.ws = new WSPeers(rpcClient);
 		return rpcClient;

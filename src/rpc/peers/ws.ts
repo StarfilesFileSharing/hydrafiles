@@ -1,7 +1,7 @@
 import { ErrorTimeout } from "../../errors.ts";
 import Utils from "../../utils.ts";
 import RPCClient from "../client.ts";
-import { pendingRequests, sockets } from "../routes.ts";
+import { pendingWSRequests, sockets } from "../routes.ts";
 import type { WSMessage } from "./rtc.ts";
 
 export default class WSPeers {
@@ -25,7 +25,7 @@ export default class WSPeers {
 		const responses = sockets.map(async (socket) => {
 			return await Utils.promiseWithTimeout(
 				new Promise<Response>((resolve) => {
-					pendingRequests.set(requestId, resolve);
+					pendingWSRequests.set(requestId, resolve);
 					if (socket.socket.readyState === 1) socket.socket.send(JSON.stringify(request));
 				}),
 				RPCClient._client.config.timeout,
