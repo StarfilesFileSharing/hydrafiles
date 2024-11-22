@@ -1,13 +1,10 @@
 import type Hydrafiles from "./hydrafiles.ts";
 import Utils, { type NonNegativeNumber, type Sha256 } from "./utils.ts";
-import type { indexedDB } from "https://deno.land/x/indexeddb@v1.1.0/ponyfill.ts";
 import { join } from "https://deno.land/std@0.224.0/path/mod.ts";
-import type { Database } from "jsr:@db/sqlite";
 import type { EthAddress } from "./wallet.ts";
 import { delay } from "https://deno.land/std@0.170.0/async/delay.ts";
-import { ErrorChecksumMismatch, ErrorMissingRequiredProperty, ErrorNotFound, ErrorNotInitialised, ErrorRequestFailed, ErrorUnreachableCodeReached } from "./errors.ts";
-
-type DatabaseWrapper = { type: "UNDEFINED"; db: undefined } | { type: "SQLITE"; db: Database } | { type: "INDEXEDDB"; db: IDBDatabase };
+import { ErrorChecksumMismatch, ErrorNotFound, ErrorNotInitialised, ErrorRequestFailed, ErrorUnreachableCodeReached } from "./errors.ts";
+import Database, { type DatabaseModal } from "./database.ts";
 
 const seeding: string[] = [];
 
@@ -29,346 +26,30 @@ interface Metadata {
 	name: string;
 	size: NonNegativeNumber;
 	type: string;
-	hash: { sha256: string };
+	hash: { sha256: Sha256 };
 	id: string;
 	infohash: string;
 }
 
 const FILESPATH = "files/";
 
-function addColumnIfNotExists(db: Database, tableName: string, columnName: string, columnDefinition: string): void {
-	const result = db.prepare(`SELECT COUNT(*) as count FROM pragma_table_info(?) WHERE name = ?`).value<[number]>(tableName, columnName);
-	const columnExists = result && result[0] === 1;
-
-	if (!columnExists) {
-		if (db !== undefined) db.exec(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${columnDefinition}`);
-		console.log(`Column '${columnName}' added to table '${tableName}'.`);
-	}
-}
-
-function fileAttributesDefaults(values?: Partial<FileAttributes>): FileAttributes | ErrorMissingRequiredProperty {
-	if (!values) values = { hash: "" as unknown as Sha256 };
-	if (values.hash === undefined) return new ErrorMissingRequiredProperty();
-
-	return {
-		hash: values.hash,
-		infohash: values.infohash ?? null,
-		downloadCount: Utils.createNonNegativeNumber(values.downloadCount ?? 0),
-		id: values.id ?? null,
-		name: values.name ?? null,
-		found: values.found !== undefined ? values.found : true,
-		size: Utils.createNonNegativeNumber(values.size ?? 0),
-		voteHash: values.voteHash ?? null,
-		voteNonce: values.voteNonce ?? 0,
-		voteDifficulty: values.voteDifficulty ?? 0,
-		updatedAt: values.updatedAt ?? new Date().toISOString(),
-	};
-}
-
-function createIDBDatabase(): Promise<IDBDatabase> {
-	const dbPromise = new Promise<IDBDatabase>((resolve, reject) => {
-		console.log("Startup: FileDB: Opening IndexedDB Connection");
-		// @ts-expect-error:
-		const request = indexedDB.open("File", 1);
-		request.onupgradeneeded = (event): void => {
-			console.log("Startup: FileDB: On Upgrade Needed");
-			// @ts-expect-error:
-			if (!event.target.result.objectStoreNames.contains("file")) {
-				// @ts-expect-error:
-				const objectStore = event.target.result.createObjectStore("file", { keyPath: "hash" });
-				objectStore.createIndex("hash", "hash", { unique: true });
-				objectStore.createIndex("infohash", "infohash", { unique: false });
-				objectStore.createIndex("id", "id", { unique: false });
-				objectStore.createIndex("name", "name", { unique: false });
-				objectStore.createIndex("found", "found", { unique: false });
-				objectStore.createIndex("size", "size", { unique: false });
-				objectStore.createIndex("voteHash", "voteHash", { unique: false });
-				objectStore.createIndex("voteNonce", "voteNonce", { unique: false });
-				objectStore.createIndex("voteDifficulty", "voteDifficulty", { unique: false });
-				objectStore.createIndex("createdAt", "createdAt", { unique: false });
-				objectStore.createIndex("updatedAt", "updatedAt", { unique: false });
-			}
-		};
-		request.onsuccess = () => {
-			console.log("Startup: FileDB: On Success");
-			resolve(request.result as unknown as IDBDatabase);
-		};
-		request.onerror = () => {
-			console.error("Startup: FileDB error:", request.error);
-			reject(request.error);
-		};
-		request.onblocked = () => {
-			console.error("Startup: FileDB: Blocked. Close other tabs with this site open.");
-		};
-	});
-
-	return dbPromise;
-}
-
-export class FileDB {
-	db: DatabaseWrapper = { type: "UNDEFINED", db: undefined };
-
-	private constructor() {}
-
-	/**
-	 * Initializes an instance of FileDB.
-	 * @returns {FileDB} A new instance of FileDB.
-	 * @default
-	 */
-	static async init(): Promise<FileDB> {
-		await Files._client.fs.mkdir("files/");
-
-		const fileDB = new FileDB();
-
-		if (typeof window === "undefined") {
-			const { Database } = await import("jsr:@db/sqlite");
-			fileDB.db = { type: "SQLITE", db: new Database("filemanager.db") };
-			fileDB.db.db.exec(`
-				CREATE TABLE IF NOT EXISTS file (
-					hash TEXT PRIMARY KEY,
-					infohash TEXT,
-					downloadCount INTEGER DEFAULT 0,
-					id TEXT,
-					name TEXT,
-					found BOOLEAN DEFAULT 1,
-					size INTEGER DEFAULT 0,
-					voteHash STRING,
-					voteNonce INTEGER DEFAULT 0,
-					voteDifficulty REAL DEFAULT 0,
-					createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-					updatedAt DATETIME
-				)
-			`);
-			addColumnIfNotExists(fileDB.db.db, "file", "voteHash", "STRING");
-			addColumnIfNotExists(fileDB.db.db, "file", "voteNonce", "INTEGER");
-			addColumnIfNotExists(fileDB.db.db, "file", "voteDifficulty", "REAL DEFAULT 0");
-			addColumnIfNotExists(fileDB.db.db, "file", "updatedAt", "DATETIME");
-		} else {
-			const db = await createIDBDatabase();
-			fileDB.db = { type: "INDEXEDDB", db: db };
-		}
-		return fileDB;
-	}
-
-	objectStore(): IDBObjectStore {
-		if (this.db.type !== "INDEXEDDB") throw new Error("Wrong DB type when calling objectStore");
-		return this.db.db.transaction("file", "readwrite").objectStore("file");
-	}
-
-	select<T extends keyof FileAttributes>(where?: { key: T; value: NonNullable<FileAttributes[T]> } | undefined, orderBy?: { key: T; direction: "ASC" | "DESC" } | "RANDOM" | undefined): Promise<FileAttributes[]> {
-		if (this.db.type === "SQLITE") {
-			let query = "SELECT * FROM file";
-			const params: (string | number | boolean)[] = [];
-
-			if (where) {
-				query += ` WHERE ${where.key} = ?`;
-				params.push(where.value);
-			}
-
-			if (orderBy) {
-				if (orderBy === "RANDOM") query += ` ORDER BY RANDOM()`;
-				else query += ` ORDER BY ${orderBy.key} ${orderBy.direction}`;
-			}
-			const results = this.db.db.prepare(query).all(params) as unknown as FileAttributes[];
-			return new Promise((resolve) => resolve(results));
-		} else if (this.db.type === "INDEXEDDB") {
-			return new Promise((resolve, reject) => {
-				if (this.db.type !== "INDEXEDDB") return;
-				const request = where
-					// @ts-expect-error:
-					? this.objectStore().index(where.key).openCursor(where.value)
-					: this.objectStore().openCursor();
-				const results: FileAttributes[] = [];
-
-				// @ts-expect-error:
-				request.onsuccess = (event: { target: IDBRequest }) => {
-					const cursor: IDBCursorWithValue = event.target.result;
-					if (cursor) {
-						results.push(cursor.value);
-						cursor.continue();
-					} else {
-						if (orderBy) {
-							results.sort((a, b) => {
-								if (!orderBy) return 0;
-								if (orderBy === "RANDOM") return Math.random() - 0.5;
-								const aValue = a[orderBy.key];
-								const bValue = b[orderBy.key];
-
-								if (orderBy.direction === "ASC") {
-									return String(aValue ?? 0) > String(bValue ?? 0) ? 1 : -1;
-								} else {
-									return String(aValue ?? 0) < String(bValue ?? 0) ? 1 : -1;
-								}
-							});
-						}
-						resolve(results);
-					}
-				};
-
-				// @ts-expect-error:
-				request.onerror = (event: { target: IDBRequest }) => {
-					reject((event.target as IDBRequest).error);
-				};
-			});
-		} else return new Promise((resolve) => resolve([]));
-	}
-
-	insert(values: Partial<FileAttributes>): true | ErrorMissingRequiredProperty {
-		if (typeof this.db === "undefined") return new ErrorNotInitialised();
-		const file = fileAttributesDefaults(values);
-		if (file instanceof ErrorMissingRequiredProperty) return new ErrorMissingRequiredProperty();
-		console.log(`File:     ${file.hash}  File INSERTed`, values);
-		if (this.db.type === "SQLITE") {
-			const query = `INSERT INTO file (hash, infohash, downloadCount, id, name, found, size)VALUES (?, ?, ?, ?, ?, ?, ?)`;
-
-			this.db.db.exec(
-				query,
-				file.hash.toString(),
-				file.infohash,
-				file.downloadCount,
-				file.id,
-				file.name,
-				file.found ? 1 : 0,
-				file.size,
-			);
-		} else if (this.db.type === "INDEXEDDB") {
-			const request = this.objectStore().add(file);
-
-			request.onerror = (event) => {
-				// @ts-expect-error:
-				throw event.target.error;
-			};
-
-			this.objectStore().add(file);
-		}
-
-		return true;
-	}
-
-	async update(hash: Sha256, updates: Partial<FileAttributes>): Promise<true | ErrorNotFound | ErrorMissingRequiredProperty> {
-		updates.updatedAt = new Date().toISOString();
-		updates.hash = hash;
-		const newFile = fileAttributesDefaults(updates);
-		if (newFile instanceof ErrorMissingRequiredProperty) return new ErrorMissingRequiredProperty();
-
-		// Get the current file attributes before updating
-		const currentFile = (await this.select({ key: "hash", value: hash }))[0] ?? fileAttributesDefaults({ hash });
-		if (!currentFile) {
-			console.error(`File:     ${hash}  Mot found when updating`);
-			return new ErrorNotFound();
-		}
-
-		const updatedColumn: string[] = [];
-		const params: (string | number | boolean)[] = [];
-		const keys = Object.keys(newFile);
-		const defaultValues = fileAttributesDefaults();
-		if (defaultValues instanceof ErrorMissingRequiredProperty) return new ErrorMissingRequiredProperty();
-
-		type BeforeAfter = Record<string, { before: FileAttributes[keyof FileAttributes]; after: FileAttributes[keyof FileAttributes] }>;
-		const beforeAndAfter: BeforeAfter = {};
-
-		for (let i = 0; i < keys.length; i++) {
-			const key = keys[i] as keyof FileAttributes;
-			if (newFile[key] !== undefined && newFile[key] !== null && newFile[key] !== currentFile[key] && newFile[key] !== defaultValues[key]) {
-				if (key === "name" && newFile[key] === "File") continue;
-				updatedColumn.push(key);
-				params.push(newFile[key]);
-				beforeAndAfter[key] = { before: currentFile[key], after: newFile[key] };
-			}
-		}
-
-		if (updatedColumn.length <= 1) {
-			console.warn("Unnecessary DB update");
-			return true;
-		}
-
-		if (this.db.type === "SQLITE") {
-			params.push(hash.toString());
-			const query = `UPDATE file SET ${updatedColumn.map((column) => `${column} = ?`).join(", ")} WHERE hash = ?`;
-			this.db.db.prepare(query).values(params);
-			console.log(
-				`File:     ${hash}  File UPDATEd - Updated Columns: ${updatedColumn.join(", ")}` + (Files._client.config.logLevel === "verbose" ? ` - Params: ${params.join(", ")}  - Query: ${query}` : ""),
-				Files._client.config.logLevel === "verbose" ? console.log(`File:     ${hash}  Updated Values:`, beforeAndAfter) : "",
-			);
-		} else {
-			if (this.db.type === "INDEXEDDB") this.objectStore().put(newFile).onerror = console.error;
-			console.log(
-				`File:     ${hash}  File UPDATEd - Updated Columns: ${updatedColumn.join(", ")}` + (Files._client.config.logLevel === "verbose" ? ` - Params: ${params.join(", ")}` : ""),
-				Files._client.config.logLevel === "verbose" ? console.log(`File:     ${hash}  Updated Values:`, beforeAndAfter) : "",
-			);
-		}
-		return true;
-	}
-
-	delete(hash: Sha256): void {
-		const query = `DELETE FROM file WHERE hash = ?`;
-
-		if (this.db.type === "SQLITE") {
-			this.db.db.exec(query, hash.toString());
-		} else if (this.db.type === "INDEXEDDB") this.objectStore().delete(hash.toString()).onerror = console.error;
-		console.log(`File:     ${hash}  File DELETEd`);
-	}
-
-	increment<T>(hash: Sha256, column: keyof FileAttributes): void {
-		if (this.db.type === "SQLITE") this.db.db.prepare(`UPDATE file set ${column} = ${column}+1 WHERE hash = ?`).values(hash.toString());
-		else if (this.db.type === "INDEXEDDB") {
-			const request = this.objectStore().get(hash.toString());
-			request.onsuccess = (event) => {
-				const target = event.target;
-				if (!target) return;
-				const file = (target as IDBRequest).result;
-				if (file && this.db.type === "INDEXEDDB") {
-					file[column] = (file[column] || 0) + 1;
-					this.objectStore().put(file).onsuccess = () => console.log(`File:     ${hash}  Incremented ${column}`);
-				}
-			};
-		}
-	}
-
-	count(): Promise<number> {
-		return new Promise((resolve, reject) => {
-			if (this.db.type === "SQLITE") {
-				const result = this.db.db.prepare("SELECT COUNT(*) FROM file").value() as number[];
-				return resolve(result[0]);
-			}
-
-			if (this.db.type === "UNDEFINED") return resolve(0);
-			const request = this.objectStore().count();
-			request.onsuccess = () => resolve(request.result);
-			request.onerror = (event) => reject((event.target as IDBRequest).error);
-		});
-	}
-
-	sum(column: string, where = ""): Promise<number> {
-		return new Promise((resolve, reject) => {
-			if (this.db.type === "SQLITE") {
-				const result = this.db.db.prepare(`SELECT SUM(${column}) FROM file${where.length !== 0 ? ` WHERE ${where}` : ""}`).value() as number[];
-				return resolve(result === undefined ? 0 : result[0]);
-			} else {
-				if (this.db.type === "UNDEFINED") return resolve(0);
-				let sum = 0;
-				const request = this.objectStore().openCursor();
-
-				request.onsuccess = (event) => {
-					const target = event.target;
-					if (!target) {
-						reject(new Error("Event target is null"));
-						return;
-					}
-					const cursor = (target as IDBRequest).result;
-					if (cursor) {
-						sum += cursor.value[column] || 0;
-						cursor.continue();
-					} else {
-						resolve(sum);
-					}
-				};
-
-				request.onerror = (event) => reject((event.target as IDBRequest).error);
-			}
-		}) as Promise<number>;
-	}
-}
+const fileModel = {
+	tableName: "file",
+	columns: {
+		hash: { type: "TEXT" as const, primary: true },
+		infohash: { type: "TEXT" as const, isNullable: true },
+		downloadCount: { type: "INTEGER" as const, default: 0 },
+		id: { type: "TEXT" as const, isNullable: true },
+		name: { type: "TEXT" as const, isNullable: true },
+		found: { type: "BOOLEAN" as const, default: 1 },
+		size: { type: "INTEGER" as const, default: 0 },
+		voteHash: { type: "TEXT" as const, isNullable: true },
+		voteNonce: { type: "INTEGER" as const, default: 0 },
+		voteDifficulty: { type: "REAL" as const, default: 0 },
+		createdAt: { type: "DATETIME" as const, default: "CURRENT_TIMESTAMP" },
+		updatedAt: { type: "DATETIME" as const, default: "CURRENT_TIMESTAMP" },
+	},
+};
 
 export class File implements FileAttributes {
 	hash!: Sha256;
@@ -382,6 +63,7 @@ export class File implements FileAttributes {
 	voteNonce = 0;
 	voteDifficulty = 0;
 	updatedAt: string = new Date().toISOString();
+	createdAt: string = new Date().toISOString();
 
 	private constructor(hash: Sha256, vote = false) {
 		this.hash = hash;
@@ -397,12 +79,13 @@ export class File implements FileAttributes {
 	 * @returns {File} A new instance of File.
 	 * @default
 	 */
-	static async init(values: Partial<FileAttributes>, vote = false): Promise<File> {
-		if (!values.hash && values.id) {
+	static async init(values: Partial<DatabaseModal<typeof fileModel>>, vote = false): Promise<File> {
+		let hash: string | undefined = values.hash;
+		if (!hash && values.id) {
 			const files = await Files._client.files.db.select({ key: "id", value: values.id });
-			values.hash = files[0]?.hash;
+			hash = files[0].hash;
 		}
-		if (!values.hash && values.id) {
+		if (!hash && values.id) {
 			console.log(`Fetching file metadata`); // TODO: Merge with getMetadata
 			const responses = Files._client.rpcClient.fetch(`http://localhost/file/${values.id}`);
 			for (let i = 0; i < responses.length; i++) {
@@ -410,47 +93,26 @@ export class File implements FileAttributes {
 				if (response instanceof Error) continue;
 				try {
 					const body = await response.json() as { result: Metadata } | FileAttributes;
-					const hash = "result" in body ? body.result.hash.sha256 : body.hash;
-					values.hash = Utils.sha256(hash);
+					hash = "result" in body ? body.result.hash.sha256 : body.hash;
 				} catch (e) {
 					if (Files._client.config.logLevel === "verbose") console.error(e);
 				}
 			}
 			throw new Error("No hash found for the provided id");
 		}
-		if (values.infohash !== undefined && values.infohash !== null && Utils.isValidInfoHash(values.infohash)) {
-			const files = await Files._client.files.db.select({ key: "infohash", value: values.infohash });
-			const fileHash = files[0]?.hash;
-			if (fileHash) values.hash = fileHash;
+		if (!hash && values.infohash !== undefined && values.infohash !== null && Utils.isValidInfoHash(values.infohash)) {
+			hash = (await Files._client.files.db.select({ key: "infohash", value: values.infohash }))[0].hash;
 		}
-		if (!values.hash) throw new Error("File not found");
+		if (!hash) throw new Error("File not found");
 
-		let fileAttributes = (await Files._client.files.db.select({ key: "hash", value: values.hash }))[0];
-		if (fileAttributes === undefined) {
+		let fileModel = (await Files._client.files.db.select({ key: "hash", value: hash }))[0];
+		if (fileModel === undefined) {
 			Files._client.files.db.insert(values);
-			fileAttributes = (await Files._client.files.db.select({ key: "hash", value: values.hash }))[0] ?? { hash: values.hash };
+			fileModel = (await Files._client.files.db.select({ key: "hash", value: hash }))[0] ?? { hash: hash };
 		}
-		const file = new File(values.hash, vote);
-		Object.assign(file, fileAttributesDefaults(fileAttributes));
+		const file = new File(Utils.sha256(hash), vote);
+		Object.assign(file, fileModel);
 		return file;
-	}
-
-	toFileAttributes(): FileAttributes {
-		if (this.hash === undefined) throw new Error("Hash is required");
-
-		return {
-			hash: this.hash,
-			infohash: this.infohash ?? null,
-			downloadCount: Utils.createNonNegativeNumber(this.downloadCount ?? 0),
-			id: this.id ?? null,
-			name: this.name ?? null,
-			found: this.found !== undefined ? this.found : true,
-			size: Utils.createNonNegativeNumber(this.size ?? 0),
-			voteHash: this.voteHash ?? null,
-			voteNonce: this.voteNonce ?? 0,
-			voteDifficulty: this.voteDifficulty ?? 0,
-			updatedAt: this.updatedAt ?? new Date().toISOString(),
-		};
 	}
 
 	public async getMetadata(): Promise<this | ErrorNotFound> {
@@ -644,7 +306,14 @@ export class File implements FileAttributes {
 	}
 
 	save(): void {
-		Files._client.files.db.update(this.hash, this);
+		const file: DatabaseModal<typeof fileModel> = {
+			...this,
+			id: this.infohash ?? "",
+			infohash: this.infohash ?? "",
+			name: this.infohash ?? "",
+			voteHash: this.infohash ?? "",
+		};
+		Files._client.files.db.update(this.hash, file);
 	}
 
 	async seed(): Promise<void> {
@@ -738,12 +407,12 @@ export class File implements FileAttributes {
 
 class Files {
 	static _client: Hydrafiles;
-	public db: FileDB;
+	db!: Database<typeof fileModel>;
 	public filesHash = new Map<string, File>(); // TODO: add inserts
 	public filesInfohash = new Map<string, File>(); // TODO: add inserts
 	public filesId = new Map<string, File>(); // TODO: add inserts
 
-	private constructor(db: FileDB) {
+	private constructor(db: Database<typeof fileModel>) {
 		this.db = db;
 
 		setTimeout(async () => {
@@ -755,10 +424,12 @@ class Files {
 	}
 
 	static async init(): Promise<Files> {
-		return new Files(await FileDB.init());
+		return new Files(
+			await Database.init<typeof fileModel>(fileModel, Files._client),
+		);
 	}
 
-	public async add(values: Partial<FileAttributes>): Promise<File> {
+	public async add(values: Partial<DatabaseModal<typeof fileModel>>): Promise<File> {
 		if (!values.hash) throw new Error("Hash not defined");
 		const file = await File.init(values, false);
 		this.filesHash.set(values.hash, file);
@@ -822,9 +493,9 @@ class Files {
 			const newFile = files[i];
 			try {
 				if (typeof files[i].hash === "undefined") continue;
-				const fileObj: Partial<FileAttributes> = { hash: files[i].hash };
-				if (files[i].infohash) fileObj.infohash = files[i].infohash;
-				const currentFile = await this.add(fileObj);
+				const file = this.db.withDefaults({ hash: files[i].hash, infohash: files[i].infohash ?? undefined });
+				if (file instanceof Error) continue;
+				const currentFile = await this.add(file);
 				if (!currentFile) continue;
 
 				let updated = false;

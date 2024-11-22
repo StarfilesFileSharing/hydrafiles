@@ -1,13 +1,23 @@
 import Utils, { type NonNegativeNumber } from "../../utils.ts";
-import type { Database } from "jsr:@db/sqlite@0.11";
-import type { indexedDB } from "https://deno.land/x/indexeddb@v1.1.0/ponyfill.ts";
+import Database, { type DatabaseModal } from "../../database.ts";
 import { File } from "../../file.ts";
 import RPCClient from "../client.ts";
 import type { EthAddress } from "../../wallet.ts";
-import { ErrorChecksumMismatch, ErrorDownloadFailed, ErrorMissingRequiredProperty, ErrorNotInitialised, ErrorRequestFailed, ErrorTimeout, ErrorWrongDatabaseType } from "../../errors.ts";
+import { ErrorChecksumMismatch, ErrorDownloadFailed, ErrorMissingRequiredProperty, ErrorRequestFailed, ErrorTimeout } from "../../errors.ts";
 import { ErrorNotFound } from "../../errors.ts";
 
-type DatabaseWrapper = { type: "UNDEFINED"; db: undefined } | { type: "SQLITE"; db: Database } | { type: "INDEXEDDB"; db: IDBDatabase };
+const peerModel = {
+	tableName: "peer",
+	columns: {
+		host: { type: "TEXT" as const, primary: true },
+		hits: { type: "INTEGER" as const, default: 0 },
+		rejects: { type: "INTEGER" as const, default: 0 },
+		bytes: { type: "INTEGER" as const, default: 0 },
+		duration: { type: "INTEGER" as const, default: 0 },
+		createdAt: { type: "DATETIME" as const, default: "CURRENT_TIMESTAMP" },
+		updatedAt: { type: "DATETIME" as const, default: "CURRENT_TIMESTAMP" },
+	},
+};
 
 export interface PeerAttributes {
 	host: string;
@@ -18,315 +28,6 @@ export interface PeerAttributes {
 	updatedAt: string;
 }
 
-function createIDBDatabase(): Promise<IDBDatabase> {
-	const dbPromise = new Promise<IDBDatabase>((resolve, reject) => {
-		console.log("Startup: PeerDB: Opening IndexedDB Connection");
-		// @ts-expect-error:
-		const request = indexedDB.open("Peer", 1);
-		request.onupgradeneeded = (event): void => {
-			console.log("Startup: PeerDB: On Upgrade Needed");
-			// @ts-expect-error:
-			if (!event.target.result.objectStoreNames.contains("peer")) {
-				// @ts-expect-error:
-				const objectStore = event.target.result.createObjectStore("peer", { keyPath: "host" });
-				objectStore.createIndex("host", "host", { unique: true });
-				objectStore.createIndex("hits", "hits", { unique: false });
-				objectStore.createIndex("rejects", "rejects", { unique: false });
-				objectStore.createIndex("bytes", "bytes", { unique: false });
-				objectStore.createIndex("duration", "duration", { unique: false });
-				objectStore.createIndex("createdAt", "createdAt", { unique: false });
-				objectStore.createIndex("updatedAt", "updatedAt", { unique: false });
-			}
-		};
-		request.onsuccess = () => {
-			console.log("Startup: PeerDB: On Success");
-			resolve(request.result as unknown as IDBDatabase);
-		};
-		request.onerror = () => {
-			console.error("Startup: PeerDB error:", request.error);
-			reject(request.error);
-		};
-		request.onblocked = () => {
-			console.error("Startup: PeerDB: Blocked. Close other tabs with this site open.");
-		};
-	});
-
-	return dbPromise;
-}
-
-/**
- * @group Database
- */
-class PeerDB {
-	db: DatabaseWrapper = { type: "UNDEFINED", db: undefined };
-
-	private constructor() {}
-
-	/**
-	 * Initializes an instance of PeerDB.
-	 * @returns {PeerDB} A new instance of PeerDB.
-	 * @default
-	 */
-	static async init(): Promise<PeerDB> {
-		const peerDB = new PeerDB();
-
-		if (typeof window === "undefined") {
-			const database = (await import("jsr:@db/sqlite@0.11")).Database;
-			peerDB.db = { type: "SQLITE", db: new database("peer.db") };
-			peerDB.db.db.exec(`
-				CREATE TABLE IF NOT EXISTS peer (
-					host TEXT PRIMARY KEY,
-					hits NUMBER DEFAULT 0,
-					rejects NUMBER DEFAULT 0,
-					bytes NUMBER DEFAULT 0,
-					duration NUMBER DEFAULT 0,
-					createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-					updatedAt DATETIME
-				)
-			`);
-		} else {
-			const db = await createIDBDatabase();
-			peerDB.db = { type: "INDEXEDDB", db: db };
-		}
-		return peerDB;
-	}
-
-	objectStore(): IDBObjectStore | ErrorWrongDatabaseType {
-		if (this.db.type !== "INDEXEDDB") return new ErrorWrongDatabaseType();
-		return this.db.db.transaction("peer", "readwrite").objectStore("peer");
-	}
-
-	select<T extends keyof PeerAttributes>(where?: { key: T; value: NonNullable<PeerAttributes[T]> } | undefined, orderBy?: { key: T; direction: "ASC" | "DESC" } | "RANDOM" | undefined): Promise<PeerAttributes[]> {
-		if (this.db.type === "SQLITE") {
-			let query = "SELECT * FROM peer";
-			const params: (string | number | boolean)[] = [];
-
-			if (where) {
-				query += ` WHERE ${where.key} = ?`;
-				params.push(where.value);
-			}
-
-			if (orderBy) {
-				if (orderBy === "RANDOM") query += ` ORDER BY RANDOM()`;
-				else query += ` ORDER BY ${orderBy.key} ${orderBy.direction}`;
-			}
-			const results = this.db.db.prepare(query).all(params) as unknown as PeerAttributes[];
-			return new Promise((resolve) => resolve(results));
-		} else if (this.db.type === "INDEXEDDB") {
-			return new Promise((resolve, reject) => {
-				if (this.db.type !== "INDEXEDDB") return;
-				const objectStore = this.objectStore();
-				if (objectStore instanceof ErrorWrongDatabaseType) return new ErrorWrongDatabaseType();
-				const request = where ? objectStore.index(where.key).openCursor(where.value) : objectStore.openCursor();
-				const results: PeerAttributes[] = [];
-
-				// @ts-expect-error:
-				request.onsuccess = (event: { target: IDBRequest }) => {
-					const cursor: IDBCursorWithValue = event.target.result;
-					if (cursor) {
-						results.push(cursor.value);
-						cursor.continue();
-					} else {
-						if (orderBy) {
-							results.sort((a, b) => {
-								if (!orderBy) return 0;
-								if (orderBy === "RANDOM") return Math.random() - 0.5;
-								const aValue = a[orderBy.key];
-								const bValue = b[orderBy.key];
-
-								if (orderBy.direction === "ASC") {
-									return String(aValue ?? 0) > String(bValue ?? 0) ? 1 : -1;
-								} else {
-									return String(aValue ?? 0) < String(bValue ?? 0) ? 1 : -1;
-								}
-							});
-						}
-						resolve(results);
-					}
-				};
-
-				// @ts-expect-error:
-				request.onerror = (event: { target: IDBRequest }) => {
-					reject((event.target as IDBRequest).error);
-				};
-			});
-		} else return new Promise((resolve) => resolve([]));
-	}
-
-	insert(values: Partial<PeerAttributes>): true | ErrorNotInitialised | ErrorWrongDatabaseType {
-		if (typeof this.db === "undefined") return new ErrorNotInitialised();
-		const peer: PeerAttributes = {
-			host: values.host,
-			hits: values.hits ?? 0,
-			rejects: values.rejects ?? 0,
-			bytes: values.bytes ?? 0,
-			duration: values.duration ?? 0,
-			updatedAt: values.updatedAt ?? new Date().toISOString(),
-		} as PeerAttributes;
-		console.log(`Peer:     ${peer.host}  Peer INSERTed`, values);
-		if (this.db.type === "SQLITE") {
-			const query = `INSERT INTO peer (host, hits, rejects, bytes, duration, updatedAt) VALUES (?, ?, ?, ?, ?, ?)`;
-
-			this.db.db.prepare(query).run(
-				peer.host,
-				peer.hits,
-				peer.rejects,
-				peer.bytes,
-				peer.duration,
-				peer.updatedAt,
-			);
-		} else if (this.db.type === "INDEXEDDB") {
-			const objectStore = this.objectStore();
-			if (objectStore instanceof ErrorWrongDatabaseType) return objectStore;
-			const request = objectStore.add(peer);
-
-			// @ts-expect-error:
-			request.onsuccess = (event): void => console.log(`Peer:     ${peer.hash}  Peer added successfully:`, event.target.result);
-			// @ts-expect-error:
-			request.onerror = (event): void => console.error("Error adding peer:", event.target.error);
-		}
-		return true;
-	}
-
-	async update(host: string, newPeer: PeerAttributes | HTTPPeer): Promise<true | ErrorWrongDatabaseType> {
-		// Get the current peer attributes before updating
-		const currentPeer = (await this.select({ key: "host", value: host }))[0] ?? { host };
-		if (!currentPeer) return new ErrorNotFound(host);
-
-		newPeer.updatedAt = new Date().toISOString();
-
-		const updatedColumn: string[] = [];
-		const params: (string | number | boolean)[] = [];
-		const keys = Object.keys(newPeer);
-
-		type BeforeAfter = Record<string, { before: PeerAttributes[keyof PeerAttributes]; after: PeerAttributes[keyof PeerAttributes] }>;
-		const beforeAndAfter: BeforeAfter = {};
-
-		for (let i = 0; i < keys.length; i++) {
-			const key = keys[i] as keyof PeerAttributes;
-			if (newPeer[key] !== undefined && newPeer[key] !== null && newPeer[key] !== currentPeer[key] && typeof newPeer[key] !== "object") {
-				updatedColumn.push(key);
-				params.push(newPeer[key]);
-				beforeAndAfter[key] = { before: currentPeer[key], after: newPeer[key] };
-			}
-		}
-
-		if (updatedColumn.length <= 1) {
-			console.warn("Unnecessary update call");
-			return true;
-		}
-
-		if (this.db.type === "SQLITE") {
-			params.push(host);
-			const query = `UPDATE peer SET ${updatedColumn.map((column) => `${column} = ?`).join(", ")} WHERE host = ?`;
-			this.db.db.prepare(query).values(params);
-			console.log(
-				`Peer:     ${host}  Peer UPDATEd - Updated Columns: ${updatedColumn.join(", ")}` + (RPCClient._client.config.logLevel === "verbose" ? ` - Params: ${params.join(", ")}  - Query: ${query}` : ""),
-				RPCClient._client.config.logLevel === "verbose" ? console.log(`Peer:     ${host}  Updated Values:`, beforeAndAfter) : "",
-			);
-		} else {
-			// @ts-expect-error:
-			const { _db, ...clonedPeer } = newPeer;
-			if (this.db.type === "INDEXEDDB") {
-				const objectStore = this.objectStore();
-				if (objectStore instanceof ErrorWrongDatabaseType) return new ErrorWrongDatabaseType();
-				objectStore.put(clonedPeer).onerror = (e) => {
-					console.error(e, "Failed to save peer", clonedPeer);
-				};
-			}
-			console.log(
-				`Peer:     ${host}  Peer UPDATEd - Updated Columns: ${updatedColumn.join(", ")}` + (RPCClient._client.config.logLevel === "verbose" ? ` - Params: ${params.join(", ")}` : ""),
-				RPCClient._client.config.logLevel === "verbose" ? console.log(`Peer:     ${host}  Updated Values:`, beforeAndAfter) : "",
-			);
-		}
-
-		return true;
-	}
-
-	delete(host: string): true | ErrorWrongDatabaseType {
-		const query = `DELETE FROM peer WHERE host = ?`;
-
-		if (this.db.type === "SQLITE") {
-			this.db.db.exec(query, host);
-		} else if (this.db.type === "INDEXEDDB") {
-			const objectStore = this.objectStore();
-			if (objectStore instanceof ErrorWrongDatabaseType) return new ErrorWrongDatabaseType();
-			objectStore.delete(host).onerror = console.error;
-		}
-		console.log(`Peer:     ${host}  Peer DELETEd`);
-		return true;
-	}
-
-	increment<T>(host: string, column: keyof PeerAttributes): true | ErrorWrongDatabaseType {
-		if (this.db.type === "SQLITE") this.db.db.prepare(`UPDATE peer set ${column} = ${column}+1 WHERE host = ?`).values(host);
-		else if (this.db.type === "INDEXEDDB") {
-			const objectStore = this.objectStore();
-			if (objectStore instanceof ErrorWrongDatabaseType) return new ErrorWrongDatabaseType();
-			const request = objectStore.get(host);
-			request.onsuccess = (event) => {
-				const target = event.target;
-				if (!target) return;
-				const peer = (target as IDBRequest).result;
-				if (peer && this.db.type === "INDEXEDDB") {
-					peer[column] = (peer[column] || 0) + 1;
-					const objectStore = this.objectStore();
-					if (objectStore instanceof ErrorWrongDatabaseType) return objectStore;
-					objectStore.put(peer).onsuccess = () => console.log(`Peer:     ${host}  Incremented ${column}`);
-				}
-			};
-		}
-		return true;
-	}
-
-	count(): Promise<number> {
-		return new Promise((resolve, reject) => {
-			if (this.db.type === "SQLITE") {
-				const result = this.db.db.prepare("SELECT COUNT(*) FROM peer").value() as number[];
-				return resolve(result[0]);
-			}
-
-			if (this.db.type === "UNDEFINED") return resolve(0);
-			const objectStore = this.objectStore();
-			if (objectStore instanceof ErrorWrongDatabaseType) return objectStore;
-			const request = objectStore.count();
-			request.onsuccess = () => resolve(request.result);
-			request.onerror = (event) => reject((event.target as IDBRequest).error);
-		});
-	}
-
-	sum(column: string, where = ""): Promise<number> {
-		return new Promise((resolve, reject) => {
-			if (this.db.type === "SQLITE") {
-				const result = this.db.db.prepare(`SELECT SUM(${column}) FROM peer${where.length !== 0 ? ` WHERE ${where}` : ""}`).value() as number[];
-				return resolve(result === undefined ? 0 : result[0]);
-			} else {
-				if (this.db.type === "UNDEFINED") return resolve(0);
-				let sum = 0;
-				const objectStore = this.objectStore();
-				if (objectStore instanceof ErrorWrongDatabaseType) return objectStore;
-				const request = objectStore.openCursor();
-
-				request.onsuccess = (event) => {
-					const target = event.target;
-					if (!target) {
-						reject(new Error("Event target is null"));
-						return;
-					}
-					const cursor = (target as IDBRequest).result;
-					if (cursor) {
-						sum += cursor.value[column] || 0;
-						cursor.continue();
-					} else {
-						resolve(sum);
-					}
-				};
-
-				request.onerror = (event) => reject((event.target as IDBRequest).error);
-			}
-		}) as Promise<number>;
-	}
-}
-
 class HTTPPeer implements PeerAttributes {
 	host: string;
 	hits: NonNegativeNumber = 0 as NonNegativeNumber;
@@ -334,18 +35,18 @@ class HTTPPeer implements PeerAttributes {
 	bytes: NonNegativeNumber = 0 as NonNegativeNumber;
 	duration: NonNegativeNumber = 0 as NonNegativeNumber;
 	updatedAt: string = new Date().toISOString();
-	private _db: PeerDB;
+	createdAt: string = new Date().toISOString();
+	private _db: Database<typeof peerModel>;
 
-	private constructor(values: PeerAttributes, db: PeerDB) {
+	private constructor(values: DatabaseModal<typeof peerModel>, db: Database<typeof peerModel>) {
 		this._db = db;
 
 		this.host = values.host;
 
-		this.hits = values.hits;
-		this.rejects = values.rejects;
-		this.bytes = values.bytes;
-		this.duration = values.duration;
-		this.updatedAt = values.updatedAt;
+		this.hits = Utils.createNonNegativeNumber(values.hits);
+		this.rejects = Utils.createNonNegativeNumber(values.rejects);
+		this.bytes = Utils.createNonNegativeNumber(values.bytes);
+		this.duration = Utils.createNonNegativeNumber(values.duration);
 	}
 
 	/**
@@ -353,23 +54,14 @@ class HTTPPeer implements PeerAttributes {
 	 * @returns {HTTPPeer} A new instance of HTTPPeer.
 	 * @default
 	 */
-	static async init(values: Partial<PeerAttributes>, db: PeerDB): Promise<HTTPPeer | ErrorMissingRequiredProperty> {
+	static async init(values: Partial<DatabaseModal<typeof peerModel>>, db: Database<typeof peerModel>): Promise<HTTPPeer | ErrorMissingRequiredProperty> {
 		if (values.host === undefined) return new ErrorMissingRequiredProperty();
 		const result = new URL(values.host);
 		if (!result.protocol || !result.host || result.protocol === "hydra") throw new Error("Invalid URL");
 
-		const peerAttributes: PeerAttributes = {
-			host: values.host,
-			hits: values.hits ?? 0,
-			rejects: values.rejects ?? 0,
-			bytes: values.bytes ?? 0,
-			duration: values.duration ?? 0,
-			updatedAt: values.updatedAt ?? new Date().toISOString(),
-		} as PeerAttributes;
-
 		let peer = (await db.select({ key: "host", value: values.host }))[0];
 		if (peer === undefined) {
-			db.insert(peerAttributes);
+			db.insert({ host: values.host });
 			peer = (await db.select({ key: "host", value: values.host }))[0];
 		}
 
@@ -377,8 +69,10 @@ class HTTPPeer implements PeerAttributes {
 	}
 
 	save(): void {
-		this.updatedAt = new Date().toISOString();
-		if (this._db) this._db.update(this.host, this);
+		const peer: DatabaseModal<typeof peerModel> = {
+			...this,
+		};
+		this._db.update(this.host, peer);
 	}
 
 	async downloadFile(file: File): Promise<{ file: Uint8Array; signal: number } | ErrorTimeout | ErrorDownloadFailed> {
@@ -430,7 +124,7 @@ class HTTPPeer implements PeerAttributes {
 	}
 
 	async validate(): Promise<boolean> {
-		const file = await File.init({ hash: Utils.sha256("04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f") });
+		const file = await File.init({ hash: "04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f" });
 		if (!file) throw new Error("Failed to build file");
 		return "file" in await this.downloadFile(file);
 	}
@@ -438,12 +132,10 @@ class HTTPPeer implements PeerAttributes {
 
 // TODO: Log common user-agents and re-use them to help anonimise non Hydrafiles peers
 export default class HTTPPeers {
-	private _rpcClient: RPCClient;
-	public db: PeerDB;
+	public db: Database<typeof peerModel>;
 	public peers = new Map<string, HTTPPeer>();
 
-	private constructor(rpcClient: RPCClient, db: PeerDB) {
-		this._rpcClient = rpcClient;
+	private constructor(db: Database<typeof peerModel>) {
 		this.db = db;
 	}
 
@@ -452,9 +144,9 @@ export default class HTTPPeers {
 	 * @returns {HTTPPeers} A new instance of HTTPPeers.
 	 * @default
 	 */
-	public static async init(rpcClient: RPCClient): Promise<HTTPPeers> {
-		const db = await PeerDB.init();
-		const httpPeers = new HTTPPeers(rpcClient, db);
+	public static async init(): Promise<HTTPPeers> {
+		const db = await Database.init(peerModel, RPCClient._client);
+		const httpPeers = new HTTPPeers(db);
 
 		(await Promise.all((await db.select()).map((peer) => HTTPPeer.init(peer, db)))).forEach((peer) => {
 			if (!(peer instanceof ErrorMissingRequiredProperty)) httpPeers.peers.set(peer.host, peer);
@@ -476,15 +168,10 @@ export default class HTTPPeers {
 	public getPeers = (applicablePeers = false): HTTPPeer[] => {
 		const peers = Array.from(this.peers).filter((peer) => !applicablePeers || typeof window === "undefined" || !peer[0].startsWith("http://"));
 
-		if (RPCClient._client.config.preferNode === "FASTEST") {
-			return peers.map(([_, peer]) => peer).sort((a, b) => a.bytes / a.duration - b.bytes / b.duration);
-		} else if (RPCClient._client.config.preferNode === "LEAST_USED") {
-			return peers.map(([_, peer]) => peer).sort((a, b) => a.hits - a.rejects - (b.hits - b.rejects));
-		} else if (RPCClient._client.config.preferNode === "HIGHEST_HITRATE") {
-			return peers.sort((a, b) => a[1].hits - a[1].rejects - (b[1].hits - b[1].rejects)).map(([_, peer]) => peer);
-		} else {
-			return peers.map(([_, peer]) => peer);
-		}
+		if (RPCClient._client.config.preferNode === "FASTEST") return peers.map(([_, peer]) => peer).sort((a, b) => a.bytes / a.duration - b.bytes / b.duration);
+		else if (RPCClient._client.config.preferNode === "LEAST_USED") return peers.map(([_, peer]) => peer).sort((a, b) => a.hits - a.rejects - (b.hits - b.rejects));
+		else if (RPCClient._client.config.preferNode === "HIGHEST_HITRATE") return peers.sort((a, b) => a[1].hits - a[1].rejects - (b[1].hits - b[1].rejects)).map(([_, peer]) => peer);
+		else return peers.map(([_, peer]) => peer);
 	};
 
 	async getValidPeers(): Promise<PeerAttributes[]> {
