@@ -55,10 +55,10 @@ export default class Services {
 					delete this.cachedResponses[reqKey];
 				}
 				console.log(`Hostname: ${hostname} Serving response from cache`);
-				return new Response(this.cachedResponses[req.url].body, { headers: this.cachedResponses[req.url].headers });
+				return new Response(this.cachedResponses[reqKey].body, { headers: this.cachedResponses[reqKey].headers });
 			}
 
-			const responses = Services._client.rpcClient.fetch(`http://localhost/endpoint/${url.hostname}`);
+			const responses = Services._client.rpcClient.fetch(req.url);
 
 			const processingRequest = new Promise<Response | ErrorRequestFailed>((resolve, reject) => {
 				(async () => {
@@ -98,7 +98,7 @@ export default class Services {
 
 			console.log(`Hostname: ${hostname} Mirroring response`);
 			const res = { body: await response.text(), headers: response.headers };
-			this.cachedResponses[hostname] = { ...res, timestamp: Date.now() };
+			this.cachedResponses[reqKey] = { ...res, timestamp: Date.now() };
 			return new Response(res.body, { headers: res.headers });
 		}
 	}
