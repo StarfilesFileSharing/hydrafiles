@@ -1,5 +1,5 @@
 import type Hydrafiles from "./hydrafiles.ts";
-import Utils, { type NonNegativeNumber, type Sha256 } from "./utils.ts";
+import Utils, { type NonEmptyString, type NonNegativeNumber, type Sha256 } from "./utils.ts";
 import { join } from "https://deno.land/std@0.224.0/path/mod.ts";
 import type { EthAddress } from "./wallet.ts";
 import { delay } from "https://deno.land/std@0.170.0/async/delay.ts";
@@ -10,24 +10,25 @@ const seeding: string[] = [];
 
 export interface FileAttributes {
 	hash: Sha256;
-	infohash: string | null;
+	infohash?: NonEmptyString;
 	downloadCount: NonNegativeNumber;
-	id: string | null;
-	name: string | null;
+	id?: NonEmptyString;
+	name?: NonEmptyString;
 	found: boolean;
 	size: NonNegativeNumber;
-	voteHash: Sha256 | null;
+	voteHash?: NonEmptyString;
 	voteNonce: number;
 	voteDifficulty: number;
-	updatedAt: string;
+	updatedAt: NonEmptyString;
+	createdAt: NonEmptyString;
 }
 
 interface Metadata {
-	name: string;
+	name: NonEmptyString;
 	size: NonNegativeNumber;
 	type: string;
 	hash: { sha256: Sha256 };
-	id: string;
+	id: NonEmptyString;
 	infohash: string;
 }
 
@@ -53,17 +54,17 @@ const fileModel = {
 
 export class File implements FileAttributes {
 	hash!: Sha256;
-	infohash: string | null = null;
+	infohash?: NonEmptyString;
 	downloadCount = Utils.createNonNegativeNumber(0);
-	id: string | null = null;
-	name: string | null = null;
+	id?: NonEmptyString;
+	name?: NonEmptyString;
 	found = true;
 	size = Utils.createNonNegativeNumber(0);
-	voteHash: Sha256 | null = null;
+	voteHash?: Sha256;
 	voteNonce = 0;
 	voteDifficulty = 0;
-	updatedAt: string = new Date().toISOString();
-	createdAt: string = new Date().toISOString();
+	updatedAt: NonEmptyString = new Date().toISOString();
+	createdAt: NonEmptyString = new Date().toISOString();
 
 	private constructor(hash: Sha256, vote = false) {
 		this.hash = hash;
@@ -395,7 +396,7 @@ export class File implements FileAttributes {
 			const ethAddress = response.headers.get("Ethereum-Address");
 			if (ethAddress) Files._client.filesWallet.transfer(ethAddress as EthAddress, 1_000_000n * BigInt(fileContent.byteLength));
 
-			if (this.name === null || this.name.length === 0) {
+			if (!this.name) {
 				this.name = String(response.headers.get("Content-Disposition")?.split("=")[1].replace(/"/g, "").replace(" [HYDRAFILES]", ""));
 				this.save();
 			}
@@ -439,8 +440,9 @@ class Files {
 	}
 
 	public getFiles(): File[] {
-		return Array.from(this.filesHash.values())
-			.sort((a, b) => (b.voteHash ?? "").localeCompare(a.voteHash ?? ""));
+		const files = Array.from(this.filesHash.values())
+			.sort((a, b) => (b.voteDifficulty ?? 0) - (a.voteDifficulty ?? 0));
+		return files;
 	}
 
 	backfillFiles = (): void => {

@@ -9,6 +9,7 @@ export type Base64 = string & { readonly brand: unique symbol };
 export type NonNegativeNumber = number & { readonly brand: unique symbol };
 export type Sha256 = string & { readonly brand: unique symbol };
 export type PubKey = { x: string; y: string };
+export type NonEmptyString = string;
 
 class Utils {
 	private _config: Config;
@@ -42,6 +43,11 @@ class Utils {
 		const timeoutPromise = new Promise<ErrorTimeout>((resolve) => setTimeout(() => resolve(new ErrorTimeout()), timeoutMs));
 
 		return Promise.race([promise, timeoutPromise]);
+	};
+
+	static nonEmptyString = (str: string): NonEmptyString | undefined => {
+		if (str && str.length > 0) return str as NonEmptyString;
+		else return undefined;
 	};
 
 	static estimateHops = (signalStrength: number): { hop: number | null; certainty: number } => {

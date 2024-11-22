@@ -1,9 +1,8 @@
-import Hydrafiles from "../src/hydrafiles.ts";
+import Hydrafiles, { FileEvent, RTCEvent } from "../src/hydrafiles.ts";
 import { type FileAttributes } from "../src/file.ts";
 import WebTorrent from "https://esm.sh/webtorrent@2.5.1";
 import { Chart } from "https://esm.sh/chart.js@4.4.6/auto";
 import { ErrorNotInitialised } from "../src/errors.ts";
-import type { FileEventLog, RTCEventLog } from "../src/events.ts";
 import { encodeBase32 } from "https://deno.land/std@0.224.0/encoding/base32.ts";
 
 declare global {
@@ -367,7 +366,7 @@ function fetchAndPopulateCharts() {
 	}
 }
 
-function populateChart(name: string, data: FileEventLog | RTCEventLog) {
+function populateChart(name: string, data: Record<FileEvent, number[]> | Record<RTCEvent, number[]>) {
 	const events = Object.keys(data);
 	const datasets = events.map((label) => ({
 		label,

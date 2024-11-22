@@ -11,16 +11,25 @@ export enum RTCEvent {
 	RTCTimeout = "RTCTimeout",
 	RTCClose = "RTCClose",
 }
-export type FileEventLog = Record<FileEvent, number[]>;
-export type RTCEventLog = Record<RTCEvent, number[]>;
 
 class Events {
 	interval = 10000;
 	lastInterval = 0;
 	startTime: number;
 	logs = {
-		file: {} as FileEventLog,
-		rtc: {} as RTCEventLog,
+		file: {
+			FileServed: [],
+			FileNotFound: [],
+		} as Record<FileEvent, number[]>,
+		rtc: {
+			RTCAnnounce: [],
+			RTCOpen: [],
+			RTCOffer: [],
+			RTCAnswer: [],
+			RTCIce: [],
+			RTCTimeout: [],
+			RTCClose: [],
+		} as Record<RTCEvent, number[]>,
 	};
 	fileEvents = FileEvent;
 	rtcEvents = RTCEvent;

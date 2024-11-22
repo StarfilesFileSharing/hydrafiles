@@ -1,7 +1,7 @@
 import type { Database as SQLite } from "jsr:@db/sqlite";
 import type { indexedDB } from "https://deno.land/x/indexeddb@v1.1.0/ponyfill.ts";
 import { ErrorMissingRequiredProperty, ErrorNotFound, ErrorNotInitialised } from "./errors.ts";
-import Hydrafiles from "./hydrafiles.ts";
+import Hydrafiles, { type NonEmptyString } from "./hydrafiles.ts";
 
 export interface ModelType {
 	tableName: string;
@@ -19,8 +19,8 @@ export interface ModelType {
 type ColumnTypes = {
 	INTEGER: number;
 	REAL: number;
-	TEXT: string;
-	DATETIME: string;
+	TEXT: NonEmptyString;
+	DATETIME: NonEmptyString;
 	BOOLEAN: boolean;
 };
 
@@ -32,8 +32,8 @@ export type DatabaseModal<T extends ModelType> =
 			: never;
 	}
 	& {
-		createdAt?: string;
-		updatedAt?: string;
+		createdAt?: NonEmptyString;
+		updatedAt?: NonEmptyString;
 	};
 
 type DatabaseWrapperUndefined = { type: "UNDEFINED"; db: undefined };

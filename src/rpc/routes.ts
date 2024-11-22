@@ -204,7 +204,7 @@ router.set("/infohash", async (req, headers, client): Promise<Response> => {
 		console.log(`File:     ${file.hash}  Signal Strength:`, fileContent.signal, Utils.estimateHops(fileContent.signal));
 
 		headers.set("Content-Length", String(file.size));
-		if (file.name !== null) headers.set("Content-Disposition", `attachment; filename="${encodeURIComponent(file.name).replace(/%20/g, " ").replace(/(\.\w+)$/, " [HYDRAFILES]$1")}"`);
+		if (file.name) headers.set("Content-Disposition", `attachment; filename="${encodeURIComponent(file.name).replace(/%20/g, " ").replace(/(\.\w+)$/, " [HYDRAFILES]$1")}"`);
 
 		return new Response(fileContent.file, { headers });
 	})();
@@ -241,7 +241,7 @@ router.set("/upload", async (req, _, client) => {
 
 	const file = await File.init({ hash }, true);
 	if (!file) throw new Error("Failed to build file");
-	if ((file.name === null || file.name.length === 0) && formData.file.name !== null) {
+	if (!file.name && formData.file.name !== null) {
 		file.name = formData.file.name;
 		file.cacheFile(new Uint8Array(await formData.file.arrayBuffer()));
 		file.save();
