@@ -1,53 +1,37 @@
-import type Hydrafiles from "./hydrafiles.ts";
-import { ErrorNotFound, ErrorRequestFailed } from "./hydrafiles.ts";
-import type { EthAddress } from "./wallet.ts";
-import Wallet from "./wallet.ts";
+import type Hydrafiles from "../hydrafiles.ts";
+import { ErrorNotFound, ErrorRequestFailed } from "../hydrafiles.ts";
+import type { EthAddress } from "../wallet.ts";
+import Wallet from "../wallet.ts";
 import { decodeBase32, encodeBase32 } from "https://deno.land/std@0.224.0/encoding/base32.ts";
+import Service from "./service.ts";
 
-interface CachedResponse {
+export interface CachedResponse {
 	body: string;
 	headers: Headers;
 	timestamp: number;
 }
 
-interface ServiceMetadata {
+export interface ServiceMetadata {
 	name: string;
 	description: string;
 	categories: string[];
 	keywords: string[];
 }
 
-export class Service {
-	wallet: Wallet;
-	requestHandler: (req: Request) => Promise<Response> | Response;
-
-	public constructor(wallet: Wallet, requestHandler: (req: Request) => Promise<Response> | Response) {
-		this.wallet = wallet;
-		this.requestHandler = requestHandler;
-	}
-
-	public async fetch(req: Request, headers: Headers): Promise<Response> {
-		const body = await (await this.requestHandler(req)).text();
-		headers.set("hydra-signature", await this.wallet.signMessage(body));
-		return new Response(body, { headers });
-	}
-
-	announce(name: string): void {
-		Services._client.nameService.createBlock(this.wallet, name);
-	}
-}
-
 export default class Services {
+	/** @internal */
 	static _client: Hydrafiles;
 	public ownedServices: { [hostname: string]: Service } = {};
 	public knownServices: { [hostname: string]: ServiceMetadata } = {};
 	public processingRequests = new Map<string, Promise<Response | ErrorNotFound>>();
 	public cachedResponses: Record<string, CachedResponse> = {};
 
-	public addHostname(requestHandler: (req: Request) => Promise<Response> | Response, seed = 0): void {
+	public addHostname(requestHandler: (req: Request) => Promise<Response> | Response, seed = 0): string {
 		const wallet = new Wallet(100 + seed);
 		const api = new Service(wallet, requestHandler);
-		this.ownedServices[encodeBase32(new TextEncoder().encode(wallet.address())).toUpperCase()] = api;
+		const hostname = encodeBase32(new TextEncoder().encode(wallet.address())).toUpperCase()
+		this.ownedServices[hostname] = api;
+		return hostname
 	}
 
 	public async fetch(req: Request, headers: Headers): Promise<Response> { // TODO: Refactor this

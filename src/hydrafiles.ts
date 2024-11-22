@@ -10,8 +10,8 @@ import FileSystem from "./filesystem/filesystem.ts";
 import Events from "./events.ts";
 import Wallet from "./wallet.ts";
 import { processingDownloads } from "./rpc/routes.ts";
-import Services from "./service.ts";
-import NameService from "./NameService.ts";
+import Services from "./services/services.ts";
+import NameService from "./services/NameService.ts";
 
 // TODO: IDEA: HydraTorrent - New Github repo - "Hydrafiles + WebTorrent Compatibility Layer" - Hydrafiles noes can optionally run HydraTorrent to seed files via webtorrent
 // Change index hash from sha256 to infohash, then allow peers to leech files from webtorrent + normal torrent
@@ -150,7 +150,7 @@ export * from "./file.ts";
 export * from "./events.ts";
 export * from "./errors.ts";
 export * from "./config.ts";
-export * from "./service.ts";
+export * from "./services/services.ts";
 export * from "./rpc/server.ts";
 export * from "./rpc/routes.ts";
 export * from "./rpc/client.ts";

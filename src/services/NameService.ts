@@ -1,6 +1,6 @@
-import Wallet, { EthAddress } from "./wallet.ts";
-import Hydrafiles from "./hydrafiles.ts";
-import Database from "./database.ts";
+import Wallet, { EthAddress } from "../wallet.ts";
+import Hydrafiles from "../hydrafiles.ts";
+import Database from "../database.ts";
 
 const blockModel = {
 	tableName: "block",
