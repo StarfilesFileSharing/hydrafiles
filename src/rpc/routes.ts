@@ -9,7 +9,7 @@ import { ErrorNotFound } from "../errors.ts";
 export const router = new Map<string, (req: Request, headers: Headers, client: Hydrafiles) => Promise<Response> | Response>();
 export const sockets: { id: string; socket: WebSocket }[] = [];
 
-export const pendingRequests = new Map<number, (response: Response) => void>();
+export const pendingWSRequests = new Map<number, (response: Response) => void>();
 export const processingDownloads = new Map<string, Promise<Response | ErrorNotFound>>();
 
 router.set("WS", (req) => {
@@ -20,11 +20,11 @@ router.set("WS", (req) => {
 		const message = JSON.parse(data) as WSMessage | null;
 		if (message === null) return;
 		if ("response" in message) {
-			const resolve = pendingRequests.get(message.id);
+			const resolve = pendingWSRequests.get(message.id);
 			if (resolve) {
 				const { status, statusText, headers, body } = message.response;
 				resolve(new Response(body, { status, statusText, headers: new Headers(headers) }));
-				pendingRequests.delete(message.id);
+				pendingWSRequests.delete(message.id);
 			}
 		}
 		for (let i = 0; i < sockets.length; i++) {
@@ -289,22 +289,20 @@ router.set("/file", (req, headers, client) => {
 	headers.set("Content-Type", "application/json");
 	headers.set("Cache-Control", "public, max-age=10800");
 	if (!file) return new Response("File not found", { headers, status: 404 });
-	return new Response(JSON.stringify(file.toFileAttributes()), { headers });
+	return new Response(JSON.stringify(file), { headers });
 });
 
 router.set("/endpoint", async (req, headers, client): Promise<Response> => {
 	const url = new URL(req.url);
-
 	const segments = url.pathname.replace("/endpoint/", "").split("/");
-
-	const newUrl = new URL(`${url.protocol}://${segments[0]}/${segments[1]}`);
+	const newUrl = new URL(`${url.protocol}//${segments[0]}/${segments[1] ?? ""}`);
 	newUrl.search = url.search;
 
-	const newRequest = new Request(url.toString(), {
+	const newRequest = new Request(newUrl.toString(), {
 		method: req.method,
 		headers: req.headers,
 		body: req.body,
 	});
 
-	return await client.apis.fetch(newRequest, headers);
+	return await client.services.fetch(newRequest, headers);
 });

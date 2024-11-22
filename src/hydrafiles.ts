@@ -1,6 +1,6 @@
 import type WebTorrent from "https://cdn.jsdelivr.net/npm/webtorrent@latest/webtorrent.min.js";
 import getConfig, { type Config } from "./config.ts";
-import Files, { FileAttributes } from "./file.ts";
+import Files from "./file.ts";
 import Utils from "./utils.ts";
 // import Blockchain, { Block } from "./block.ts";
 import { S3Client } from "https://deno.land/x/s3_lite_client@0.7.0/mod.ts";
@@ -10,7 +10,7 @@ import FileSystem from "./filesystem/filesystem.ts";
 import Events from "./events.ts";
 import Wallet from "./wallet.ts";
 import { processingDownloads } from "./rpc/routes.ts";
-import APIs from "./api.ts";
+import Services from "./service.ts";
 
 // TODO: IDEA: HydraTorrent - New Github repo - "Hydrafiles + WebTorrent Compatibility Layer" - Hydrafiles noes can optionally run HydraTorrent to seed files via webtorrent
 // Change index hash from sha256 to infohash, then allow peers to leech files from webtorrent + normal torrent
@@ -35,13 +35,12 @@ class Hydrafiles {
 	files!: Files;
 	filesWallet!: Wallet;
 	rtcWallet!: Wallet;
-	apiWallet!: Wallet;
-	apis!: APIs;
+	services!: Services;
 	webtorrent?: WebTorrent;
 
 	constructor(customConfig: Partial<Config> = {}) {
 		Wallet._client = this;
-		APIs._client = this;
+		Services._client = this;
 		Files._client = this;
 		RPCClient._client = this;
 		RPCServer._client = this;
@@ -52,9 +51,8 @@ class Hydrafiles {
 		this.events = new Events();
 		this.filesWallet = new Wallet();
 		this.rtcWallet = new Wallet(1);
-		this.apiWallet = new Wallet(2);
-		this.apis = new APIs();
-		this.apis.addHostname((req: Request) => {
+		this.services = new Services();
+		this.services.addHostname((req: Request) => {
 			console.log(req);
 			return new Response("Hello World!");
 		});
@@ -113,8 +111,6 @@ class Hydrafiles {
 			(await this.files.db.sum("downloadCount")) + ` (${Math.round((((await this.files.db.sum("downloadCount * size")) / 1024 / 1024 / 1024) * 100) / 100)}GB)`,
 			"\n| Files Wallet:",
 			`${this.filesWallet.address()} ${await this.filesWallet.balance()}`,
-			"\n| API Wallet:",
-			`${this.apiWallet.address()}`, // ${await this.apiWallet.balance()}`,
 			"\n| RTC Wallet:",
 			`${this.rtcWallet.address()}`, // ${await this.rtcWallet.balance()}`,
 			"\n| Processing Files:",
@@ -124,10 +120,6 @@ class Hydrafiles {
 			"\n===============================================\n",
 		);
 	}
-
-	public search = async <T extends keyof FileAttributes>(where?: { key: T; value: NonNullable<FileAttributes[T]> }, orderBy?: "RANDOM" | { key: T; direction: "ASC" | "DESC" }): Promise<FileAttributes[]> => {
-		return await this.files.db.select(where, orderBy);
-	};
 }
 
 export default Hydrafiles;
@@ -151,7 +143,7 @@ export * from "./file.ts";
 export * from "./events.ts";
 export * from "./errors.ts";
 export * from "./config.ts";
-export * from "./api.ts";
+export * from "./service.ts";
 export * from "./rpc/server.ts";
 export * from "./rpc/routes.ts";
 export * from "./rpc/client.ts";
