@@ -306,3 +306,9 @@ router.set("/endpoint", async (req, headers, client): Promise<Response> => {
 
 	return await client.services.fetch(newRequest, headers);
 });
+
+router.set("/blocks", (_, headers, client) => {
+	headers.set("Content-Type", "application/json");
+	headers.set("Cache-Control", "public, max-age=10800");
+	return new Response(JSON.stringify(client.nameService.blocks), { headers });
+});

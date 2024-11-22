@@ -11,6 +11,7 @@ import Events from "./events.ts";
 import Wallet from "./wallet.ts";
 import { processingDownloads } from "./rpc/routes.ts";
 import Services from "./service.ts";
+import NameService from "./NameService.ts";
 
 // TODO: IDEA: HydraTorrent - New Github repo - "Hydrafiles + WebTorrent Compatibility Layer" - Hydrafiles noes can optionally run HydraTorrent to seed files via webtorrent
 // Change index hash from sha256 to infohash, then allow peers to leech files from webtorrent + normal torrent
@@ -36,6 +37,7 @@ class Hydrafiles {
 	filesWallet!: Wallet;
 	rtcWallet!: Wallet;
 	services!: Services;
+	nameService!: NameService;
 	webtorrent?: WebTorrent;
 
 	constructor(customConfig: Partial<Config> = {}) {
@@ -71,6 +73,8 @@ class Hydrafiles {
 		this.rpcServer = new RPCServer();
 		console.log("Startup: Starting WebTorrent");
 		this.webtorrent = opts.webtorrent;
+		NameService._client = this;
+		this.nameService = await NameService.init();
 
 		this.startBackgroundTasks(opts.onUpdateFileListProgress);
 	}
@@ -86,6 +90,9 @@ class Hydrafiles {
 			setInterval(() => this.files.updateFileList(onUpdateFileListProgress), this.config.compareFilesSpeed);
 		}
 		if (this.config.backfill) this.files.backfillFiles();
+
+		this.nameService.fetchBlocks();
+		setInterval(() => this.nameService.fetchBlocks(), 60000);
 	}
 
 	async logState(): Promise<void> {

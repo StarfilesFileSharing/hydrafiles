@@ -127,6 +127,23 @@ const tickHandler = async () => {
 				console.error(e);
 			}
 			fetchAndPopulateCharts();
+			try {
+				const blocks = window.hydrafiles.nameService.blocks;
+				const knownServices = document.getElementById("knownServices")!;
+				knownServices.innerHTML = "";
+				for (let i = 0; i < blocks.length; i++) {
+					const h3 = document.createElement("h3");
+					h3.innerText = `Block ${i}`;
+					h3.classList.add("text-lg", "font-bold");
+					knownServices.appendChild(h3);
+					const code = document.createElement("code");
+					code.classList.add("text-sm");
+					code.innerHTML = `Address: ${blocks[i].address}<br>Name: ${blocks[i].name}<br>Signature: ${blocks[i].signature}<br>Nonce: ${blocks[i].nonce}<br>Prev: ${blocks[i].prev}`;
+					knownServices.appendChild(code);
+				}
+			} catch (e) {
+				console.error(e);
+			}
 		} catch (e) {
 			console.error(e);
 		}
@@ -490,12 +507,21 @@ function createHostnameUI(hostname: string, initialHandler = ""): HostnameUI {
     return new Response("Hello World!");
 }`;
 
+	const nameInput = document.createElement("input");
+	nameInput.className = "w-full my-2 p-4 font-mono text-sm border rounded focus:outline-none focus:border-blue-500";
+	nameInput.placeholder = "Name";
+	nameInput.required = true;
+
 	const results = document.createElement("div");
 	results.className = "hidden my-4 p-4 rounded-lg";
 
 	const updateButton = document.createElement("button");
 	updateButton.className = "px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50";
 	updateButton.textContent = "Update Handler";
+
+	const announceBUtton = document.createElement("button");
+	announceBUtton.className = "px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50";
+	announceBUtton.textContent = "Announce";
 
 	updateButton.addEventListener("click", () => {
 		try {
@@ -510,10 +536,24 @@ function createHostnameUI(hostname: string, initialHandler = ""): HostnameUI {
 		}
 	});
 
+	announceBUtton.addEventListener("click", () => {
+		try {
+			window.hydrafiles.services.ownedServices[hostname].announce(nameInput.value);
+			results.textContent = "Announced domain!";
+			results.className = "my-4 p-4 rounded-lg bg-green-50 text-green-800";
+			setTimeout(() => results.className = "hidden", 3000);
+		} catch (err) {
+			results.textContent = `Error updating handler: ${(err as Error).message}`;
+			results.className = "my-4 p-4 rounded-lg bg-red-50 text-red-800";
+		}
+	});
+
 	container.appendChild(endpoint);
 	container.appendChild(textarea);
+	container.appendChild(nameInput);
 	container.appendChild(results);
 	container.appendChild(updateButton);
+	container.appendChild(announceBUtton);
 
 	return {
 		name: hostname,

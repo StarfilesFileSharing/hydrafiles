@@ -31,6 +31,10 @@ export class Service {
 		headers.set("hydra-signature", await this.wallet.signMessage(body));
 		return new Response(body, { headers });
 	}
+
+	announce(name: string): void {
+		Services._client.nameService.createBlock(this.wallet, name);
+	}
 }
 
 export default class Services {
