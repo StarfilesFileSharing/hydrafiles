@@ -418,26 +418,6 @@ document.addEventListener("DOMContentLoaded", async () => {
 		(document.getElementById("rememberMe") as HTMLInputElement).checked = true;
 	}
 
-	// (document.getElementById("createHandler") as HTMLElement).addEventListener("click", () => {
-	// 	try {
-	// 		const code = (document.getElementById("customHandler") as HTMLInputElement).value;
-	// 		window.hydrafiles.services.addHostname(new Function("req", `return (${code})(req)`) as (req: Request) => Promise<Response>, Object.keys(window.hydrafiles.services.ownedServices).length);
-
-	// 		const results = document.getElementById("testResults") as HTMLElement;
-	// 		results.classList.remove("hidden");
-	// 		results.classList.remove("bg-red-50", "text-red-800");
-	// 		results.classList.add("bg-green-50", "text-green-800");
-
-	// 		setTimeout(() => results.classList.add("hidden"), 3000);
-	// 	} catch (err) {
-	// 		const results = document.getElementById("testResults") as HTMLElement;
-	// 		results.classList.remove("hidden");
-	// 		results.classList.remove("bg-green-50", "text-green-800");
-	// 		results.classList.add("bg-red-50", "text-red-800");
-	// 		results.textContent = `Error updating handler: ${(err as Error).message}`;
-	// 	}
-	// });
-
 	document.getElementById("createHandler")!.addEventListener("click", () => {
 		const index = Object.keys(window.hydrafiles.services.ownedServices).length;
 		window.hydrafiles.services.addHostname(
