@@ -4,6 +4,7 @@ import WebTorrent from "https://esm.sh/webtorrent@2.5.1";
 import { Chart } from "https://esm.sh/chart.js@4.4.6/auto";
 import { ErrorNotInitialised } from "../src/errors.ts";
 import type { FileEventLog, RTCEventLog } from "../src/events.ts";
+import { encodeBase32 } from "https://deno.land/std@0.224.0/encoding/base32.ts";
 
 declare global {
 	interface Window {
@@ -63,6 +64,8 @@ document.getElementById("startHydrafilesButton")!.addEventListener("click", asyn
 	console.log("Hydrafiles web node is running", window.hydrafiles);
 	setInterval(tickHandler, 30 * 1000);
 	tickHandler();
+
+	refreshHostnameUIs();
 });
 
 const tickHandler = async () => {
@@ -82,11 +85,6 @@ const tickHandler = async () => {
 			}
 			try {
 				(document.getElementById("rtcPeers") as HTMLElement).innerHTML = String(Object.keys(window.hydrafiles.rpcClient.rtc.peerConnections).length);
-			} catch (e) {
-				console.error(e);
-			}
-			try {
-				(document.getElementById("apiEndpoint") as HTMLElement).textContent = `https://hydrafiles.com/endpoint/${window.hydrafiles.apiWallet.address()}`;
 			} catch (e) {
 				console.error(e);
 			}
@@ -132,6 +130,11 @@ const tickHandler = async () => {
 		} catch (e) {
 			console.error(e);
 		}
+	} catch (e) {
+		console.error(e);
+	}
+	try {
+		refreshHostnameUIs();
 	} catch (e) {
 		console.error(e);
 	}
@@ -399,28 +402,45 @@ document.addEventListener("DOMContentLoaded", async () => {
 		(document.getElementById("rememberMe") as HTMLInputElement).checked = true;
 	}
 
-	(document.getElementById("updateHandler") as HTMLElement).addEventListener("click", () => {
-		try {
-			const code = (document.getElementById("customHandler") as HTMLInputElement).value;
-			window.hydrafiles.handleCustomRequest = new Function("req", `return (${code})(req)`) as (req: Request) => Promise<Response>;
+	// (document.getElementById("createHandler") as HTMLElement).addEventListener("click", () => {
+	// 	try {
+	// 		const code = (document.getElementById("customHandler") as HTMLInputElement).value;
+	// 		window.hydrafiles.services.addHostname(new Function("req", `return (${code})(req)`) as (req: Request) => Promise<Response>, Object.keys(window.hydrafiles.services.ownedServices).length);
 
-			const results = document.getElementById("testResults") as HTMLElement;
-			results.classList.remove("hidden");
-			results.classList.remove("bg-red-50", "text-red-800");
-			results.classList.add("bg-green-50", "text-green-800");
-			results.textContent = "Handler updated successfully!";
+	// 		const results = document.getElementById("testResults") as HTMLElement;
+	// 		results.classList.remove("hidden");
+	// 		results.classList.remove("bg-red-50", "text-red-800");
+	// 		results.classList.add("bg-green-50", "text-green-800");
 
-			setTimeout(() => results.classList.add("hidden"), 3000);
-		} catch (err) {
-			const results = document.getElementById("testResults") as HTMLElement;
-			results.classList.remove("hidden");
-			results.classList.remove("bg-green-50", "text-green-800");
-			results.classList.add("bg-red-50", "text-red-800");
-			results.textContent = `Error updating handler: ${(err as Error).message}`;
-		}
+	// 		setTimeout(() => results.classList.add("hidden"), 3000);
+	// 	} catch (err) {
+	// 		const results = document.getElementById("testResults") as HTMLElement;
+	// 		results.classList.remove("hidden");
+	// 		results.classList.remove("bg-green-50", "text-green-800");
+	// 		results.classList.add("bg-red-50", "text-red-800");
+	// 		results.textContent = `Error updating handler: ${(err as Error).message}`;
+	// 	}
+	// });
+
+	document.getElementById("createHandler")!.addEventListener("click", () => {
+		const index = Object.keys(window.hydrafiles.services.ownedServices).length;
+		window.hydrafiles.services.addHostname(
+			new Function("req", `return (async (req) => new Response('Hello World!'))(req)`) as (req: Request) => Promise<Response>,
+			index,
+		);
+
+		refreshHostnameUIs();
+
+		const results = document.getElementById("testResults") as HTMLElement;
+		results.classList.remove("hidden");
+		results.classList.remove("bg-red-50", "text-red-800");
+		results.classList.add("bg-green-50", "text-green-800");
+		results.textContent = "Service Created Successfully!";
+
+		setTimeout(() => results.classList.add("hidden"), 3000);
 	});
 
-	const pages = ["dashboard", "statistics", "peers", "files", "serveAPI"];
+	const pages = ["dashboard", "statistics", "peers", "files", "services"];
 	const sidebarLinks = document.querySelectorAll("#default-sidebar a");
 
 	const selectPage = (pageId: string) => {
@@ -443,3 +463,81 @@ document.addEventListener("DOMContentLoaded", async () => {
 
 	selectPage("dashboard");
 });
+
+// Add this after other interface declarations
+interface HostnameUI {
+	name: string;
+	handler: string;
+	element: HTMLElement;
+}
+
+// Add this to store hostname UIs
+const hostnameUIs = new Map<string, HostnameUI>();
+
+// Add this function to create UI for a hostname
+function createHostnameUI(hostname: string, initialHandler = ""): HostnameUI {
+	const container = document.createElement("section");
+	container.className = "mb-8 p-4 border rounded-lg";
+
+	const endpoint = document.createElement("p");
+	endpoint.className = "text-sm text-gray-600 mt-1 mb-4";
+	endpoint.innerHTML = `Endpoint: <code class="bg-gray-100 px-2 py-1 rounded">https://${window.location.hostname}/endpoint/${hostname}</code>`;
+
+	const textarea = document.createElement("textarea");
+	textarea.className = "w-full h-48 mt-2 p-4 font-mono text-sm border rounded focus:outline-none focus:border-blue-500";
+	textarea.value = initialHandler || `async (req) => {
+    // Custom request handling logic
+    return new Response("Hello World!");
+}`;
+
+	const results = document.createElement("div");
+	results.className = "hidden my-4 p-4 rounded-lg";
+
+	const updateButton = document.createElement("button");
+	updateButton.className = "px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50";
+	updateButton.textContent = "Update Handler";
+
+	updateButton.addEventListener("click", () => {
+		try {
+			const code = textarea.value;
+			window.hydrafiles.services.ownedServices[hostname].requestHandler = new Function("req", `return (${code})(req)`) as (req: Request) => Promise<Response>;
+			results.textContent = "Handler updated successfully!";
+			results.className = "my-4 p-4 rounded-lg bg-green-50 text-green-800";
+			setTimeout(() => results.className = "hidden", 3000);
+		} catch (err) {
+			results.textContent = `Error updating handler: ${(err as Error).message}`;
+			results.className = "my-4 p-4 rounded-lg bg-red-50 text-red-800";
+		}
+	});
+
+	container.appendChild(endpoint);
+	container.appendChild(textarea);
+	container.appendChild(results);
+	container.appendChild(updateButton);
+
+	return {
+		name: hostname,
+		handler: textarea.value,
+		element: container,
+	};
+}
+
+// Update this function to refresh hostname UIs
+function refreshHostnameUIs() {
+	const services = window.hydrafiles.services.ownedServices;
+	const servicesContainer = document.getElementById("servicesList")!;
+
+	// Clear existing service sections except the header
+	const header = servicesContainer.querySelector("h2");
+	servicesContainer.innerHTML = "";
+	if (header) servicesContainer.appendChild(header);
+
+	// Create/update UI for each hostname
+	Object.keys(services).forEach((hostname) => {
+		if (!hostnameUIs.has(hostname)) {
+			const ui = createHostnameUI(hostname);
+			hostnameUIs.set(hostname, ui);
+		}
+		servicesContainer.appendChild(hostnameUIs.get(hostname)!.element);
+	});
+}
