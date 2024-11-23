@@ -288,6 +288,7 @@ router.set("/files", (_, client) => {
 router.set("/file", (req, client) => {
 	const url = new URL(req.url);
 	const id = url.pathname.split("/")[2];
+	if (!id) return new Response("No File ID Set", { status: 401 })
 	let file: File | undefined;
 	try {
 		file = client.files.filesId.get(id);

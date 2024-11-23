@@ -1,6 +1,6 @@
 {
 	"name": "@starfiles/hydrafiles",
-	"version": "0.10.2",
+	"version": "0.10.3",
 	"description": "The (P2P) web privacy layer.",
 	"main": "src/hydrafiles.ts",
 	"exports": {
