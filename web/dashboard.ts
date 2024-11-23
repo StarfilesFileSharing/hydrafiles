@@ -201,7 +201,17 @@ const tickHandler = async () => {
 					knownServices.appendChild(h3);
 					const code = document.createElement("code");
 					code.classList.add("text-sm");
-					code.innerHTML = `Address: ${blocks[i].address}<br>Name: ${blocks[i].name}<br>Signature: ${blocks[i].signature}<br>Nonce: ${blocks[i].nonce}<br>Prev: ${blocks[i].prev}`;
+					code.innerHTML = `Address or Script: ${blocks[i].content}<br>Name: ${blocks[i].name}<br>Signature or Hash: ${blocks[i].id}<br>Nonce: ${blocks[i].nonce}<br>Prev: ${blocks[i].prev}`;
+					if (!blocks[i].content.startsWith("0x")) {
+						const addService = document.createElement("button");
+						addService.innerText = "Add Service";
+						addService.classList.add("block", "px-4", "py-2", "bg-blue-600", "text-white", "rounded", "hover:bg-blue-700", "focus:outline-none", "focus:ring-2", "focus:ring-blue-500", "focus:ring-opacity-50");
+						addService.addEventListener(
+							"click",
+							() => window.hydrafiles.services.addHostname(new Function("req", `return (${blocks[i].content})(req)`) as (req: Request) => Promise<Response>, 100 + Object.keys(window.hydrafiles.services.ownedServices).length),
+						);
+						knownServices.appendChild(addService);
+					}
 					knownServices.appendChild(code);
 				}
 			} catch (e) {
@@ -601,10 +611,22 @@ function createHostnameUI(hostname: string, initialHandler = ""): HostnameUI {
 		}
 	});
 
-	announceBUtton.addEventListener("click", () => {
+	announceServiceButton.addEventListener("click", () => {
 		try {
-			window.hydrafiles.services.ownedServices[hostname].announce(nameInput.value);
-			results.textContent = "Announced domain!";
+			window.hydrafiles.services.ownedServices[encodeBase32(hostname)].announce(nameInput.value);
+			results.textContent = "Announced Service!";
+			results.className = "my-4 p-4 rounded-lg bg-green-50 text-green-800";
+			setTimeout(() => results.className = "hidden", 3000);
+		} catch (err) {
+			results.textContent = `Error updating handler: ${(err as Error).message}`;
+			results.className = "my-4 p-4 rounded-lg bg-red-50 text-red-800";
+		}
+	});
+
+	publishSourceButton.addEventListener("click", () => {
+		try {
+			window.hydrafiles.nameService.createBlock({ script: textarea.value }, nameInput.value);
+			results.textContent = "Published Source!";
 			results.className = "my-4 p-4 rounded-lg bg-green-50 text-green-800";
 			setTimeout(() => results.className = "hidden", 3000);
 		} catch (err) {
@@ -618,7 +640,8 @@ function createHostnameUI(hostname: string, initialHandler = ""): HostnameUI {
 	container.appendChild(nameInput);
 	container.appendChild(results);
 	container.appendChild(updateButton);
-	container.appendChild(announceBUtton);
+	container.appendChild(announceServiceButton);
+	container.appendChild(publishSourceButton);
 
 	return {
 		name: hostname,
