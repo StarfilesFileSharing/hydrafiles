@@ -1,4 +1,4 @@
-import { Sha256 } from "./../utils.ts";
+import { type NonEmptyString, Sha256 } from "./../utils.ts";
 import Wallet, { EthAddress } from "../wallet.ts";
 import Hydrafiles from "../hydrafiles.ts";
 import Database from "../database.ts";
@@ -31,6 +31,8 @@ export class Block implements BlockAttributes {
 	name: string;
 	content: EthAddress | string;
 	id: EthAddress | Sha256;
+	updatedAt: NonEmptyString = new Date().toISOString();
+	createdAt: NonEmptyString = new Date().toISOString();
 
 	constructor(content: EthAddress | string, id: EthAddress | Sha256, nonce: number, prev: EthAddress | Sha256, name: string) {
 		this.id = id;
