@@ -57,7 +57,7 @@ class Hydrafiles {
 		this.services.addHostname((req: Request) => {
 			console.log(req);
 			return new Response("Hello World!");
-		});
+		}, 0);
 
 		if (this.config.s3Endpoint.length) {
 			console.log("Startup: Populating S3");

@@ -17,6 +17,6 @@ export default class Service {
 	}
 
 	announce(name: string): void {
-		Services._client.nameService.createBlock(this.wallet, name);
+		Services._client.nameService.createBlock({ wallet: this.wallet }, name);
 	}
 }

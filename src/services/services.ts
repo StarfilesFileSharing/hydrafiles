@@ -26,10 +26,11 @@ export default class Services {
 	public processingRequests = new Map<string, Promise<Response | ErrorNotFound>>();
 	public cachedResponses: Record<string, CachedResponse> = {};
 
-	public addHostname(requestHandler: (req: Request) => Promise<Response> | Response, seed = 0): string {
-		const wallet = new Wallet(100 + seed);
+	public addHostname(requestHandler: (req: Request) => Promise<Response> | Response, seed: number): string {
+		const wallet = new Wallet(1000 + seed);
 		const api = new Service(wallet, requestHandler);
-		const hostname = encodeBase32(new TextEncoder().encode(wallet.address())).toUpperCase();
+		const hostname = encodeBase32(wallet.address()).toUpperCase();
+		console.log("Added hostname", hostname, api);
 		this.ownedServices[hostname] = api;
 		return hostname;
 	}
