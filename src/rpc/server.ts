@@ -93,9 +93,7 @@ class RPCServer {
 	};
 
 	handleRequest = async (req: Request): Promise<Response> => {
-		const headers: { [key: string]: string } = {
-			"Access-Control-Allow-Origin": "*",
-		};
+		const headers: { [key: string]: string } = { "Access-Control-Allow-Origin": "*" };
 		try {
 			console.log(`Request:  ${req.url}`);
 			const url = new URL(req.url);
@@ -113,7 +111,7 @@ class RPCServer {
 				const routeHandler = /* req.headers.get("upgrade") === "websocket" ? router.get("WS") : */ router.get(`/${url.pathname.split("/")[1]}`);
 				if (routeHandler) {
 					const response = await routeHandler(req, RPCServer._client);
-					response.headers = { ...response.headers, ...headers };
+					response.headers = { ...headers, ...response.headers };
 					return response.response();
 				}
 				return new Response("404 Page Not Found\n", { status: 404, headers });

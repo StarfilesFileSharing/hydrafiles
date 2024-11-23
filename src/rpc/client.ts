@@ -43,7 +43,6 @@ export default class RPCClient {
 			}
 			body = init.body?.toString();
 		}
-		console.log(headers);
 
 		return [...this.http.fetch(url, method, headers, body), ...this.rtc.fetch(url, method, headers, body), ...this.ws.fetch(url, method, headers, body)];
 	}
