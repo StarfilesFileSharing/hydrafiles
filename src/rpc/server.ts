@@ -97,26 +97,27 @@ class RPCServer {
 		const url = new URL(req.url);
 
 		const headers = new Headers();
-		headers.set("Access-Control-Allow-Origin", "*");
+		// headers.set("Access-Control-Allow-Origin", "*");
 
 		if ((url.pathname === "/" || url.pathname === "/docs") && req.headers.get("upgrade") !== "websocket") {
 			headers.set("Location", "/docs/");
-			return new Response("", { headers, status: 301 });
+			return new Response("", { headers: headers, status: 301 });
 		}
 
 		try {
 			try {
 				const url = new URL(req.url);
 				const filePath = `./public${url.pathname.endsWith("/") ? `${url.pathname}index.html` : url.pathname}`;
-				return await serveFile(req, filePath);
+				const fileResponse = await serveFile(req, filePath);
+				return fileResponse;
 			} catch (_) {
-				const routeHandler = req.headers.get("upgrade") === "websocket" ? router.get(`WS`) : router.get(`/${url.pathname.split("/")[1]}`);
-				if (routeHandler) return await routeHandler(req, headers, RPCServer._client);
-				return new Response("404 Page Not Found\n", { status: 404 });
+				const routeHandler = req.headers.get("upgrade") === "websocket" ? router.get("WS") : router.get(`/${url.pathname.split("/")[1]}`);
+				if (routeHandler) return await routeHandler(req, RPCServer._client);
+				return new Response("404 Page Not Found\n", { status: 404, headers });
 			}
 		} catch (e) {
-			console.error("Internal Server Error", e);
-			return new Response("Internal Server Error", { status: 500 });
+			console.error(req.url, "Internal Server Error", e);
+			return new Response("Internal Server Error", { status: 500, headers });
 		}
 	};
 }
