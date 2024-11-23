@@ -29,7 +29,7 @@ export class DecodedResponse {
 	}
 
 	response(): Response {
-		return new Response(this.body === null ? "" : this.body, { headers: this.headers, status: this.status });
+		return new Response(this.body === null || this.body.length === 0 ? undefined : this.body, { headers: this.headers, status: this.status });
 	}
 
 	text(): string {
