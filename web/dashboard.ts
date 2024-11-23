@@ -569,7 +569,7 @@ interface HostnameUI {
 const hostnameUIs = new Map<string, HostnameUI>();
 
 // Add this function to create UI for a hostname
-function createHostnameUI(hostname: string, initialHandler = ""): HostnameUI {
+async function createHostnameUI(hostname: EthAddress): Promise<HostnameUI> {
 	const container = document.createElement("section");
 	container.className = "mb-8 p-4 border rounded-lg";
 
@@ -579,10 +579,7 @@ function createHostnameUI(hostname: string, initialHandler = ""): HostnameUI {
 
 	const textarea = document.createElement("textarea");
 	textarea.className = "w-full h-48 mt-2 p-4 font-mono text-sm border rounded focus:outline-none focus:border-blue-500";
-	textarea.value = initialHandler || `async (req) => {
-    // Custom request handling logic
-    return new Response("Hello World!");
-}`;
+	textarea.value = formatTSCode(window.hydrafiles.services.ownedServices[encodeBase32(hostname)].requestHandler.toString());
 
 	const nameInput = document.createElement("input");
 	nameInput.className = "w-full my-2 p-4 font-mono text-sm border rounded focus:outline-none focus:border-blue-500";
