@@ -93,7 +93,10 @@ class RPCServer {
 	};
 
 	handleRequest = async (req: Request): Promise<Response> => {
-		const headers: { [key: string]: string } = { "Access-Control-Allow-Origin": "*" };
+		const headers: { [key: string]: string } = {
+			"Access-Control-Allow-Origin": "*",
+			"Access-Control-Allow-Headers": "hydra-signature, hydra-from",
+		};
 		try {
 			console.log(`Request:  ${req.url}`);
 			const url = new URL(req.url);
