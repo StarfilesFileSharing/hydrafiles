@@ -4,6 +4,9 @@ import WebTorrent from "https://esm.sh/webtorrent@2.5.1";
 import { Chart } from "https://esm.sh/chart.js@4.4.6/auto";
 import { ErrorNotInitialised } from "../src/errors.ts";
 import { decodeBase32, encodeBase32 } from "https://deno.land/std@0.224.0/encoding/base32.ts";
+import { DataSet } from "npm:vis-data/esnext";
+import { Network } from "npm:vis-network/esnext";
+import Utils from "../src/utils.ts";
 
 declare global {
 	interface Window {
@@ -64,13 +67,26 @@ document.getElementById("startHydrafilesButton")!.addEventListener("click", asyn
 	setInterval(tickHandler, 30 * 1000);
 	tickHandler();
 
+	const seenMessages = new Set<string>();
 	const messageBox = document.getElementById("messages") as HTMLElement;
 	document.getElementById("messengerAddress")!.innerText = new TextDecoder().decode(decodeBase32(window.hydrafiles.services.addHostname((req) => {
+		console.log(req);
+		const signature = req.headers.get("hydra-signature");
+		const from = req.headers.get("hydra-from");
+		if (signature === null || from === null) return new Response("Request not signed");
+		if (!window.hydrafiles.rtcWallet.verifyMessage(JSON.stringify({ method: req.method, url: req.url, headers: req.headers }), signature as `0x${string}`, from as `0x${string}`)) return new Response("Invalid signature");
+
+		const params = new URL(req.url).searchParams;
+		const message = params.get("message");
+		const nonce = params.get("nonce");
+		if (!message || !nonce) return new Response("Invalid message");
+		if (seenMessages.has(message + nonce)) return new Response("Received message");
+		seenMessages.add(message + nonce);
 		messageBox.innerHTML += `<div class="col-start-6 col-end-13 p-3 rounded-lg">
 			<div class="flex items-center justify-start">
-				<div class="flex items-center justify-center h-10 w-10 rounded-full bg-indigo-500 flex-shrink-0">A</div>
+				<div class="flex items-center justify-center h-10 w-10 rounded-full bg-indigo-500 flex-shrink-0">${from.slice(0, 4)}</div>
 				<div class="relative mr-3 text-sm bg-indigo-100 py-2 px-4 shadow rounded-xl">
-					<div>${new URL(req.url).searchParams.get("message")}</div>
+					<div>${message}</div>
 				</div>
 			</div>
 		</div>`;
@@ -96,7 +112,7 @@ const tickHandler = async () => {
 				console.error(e);
 			}
 			try {
-				(document.getElementById("rtcPeers") as HTMLElement).innerHTML = String(Object.keys(window.hydrafiles.rpcClient.rtc.peerConnections).length);
+				(document.getElementById("rtcPeers") as HTMLElement).innerHTML = String(Object.keys(window.hydrafiles.rpcClient.rtc.peers).length);
 			} catch (e) {
 				console.error(e);
 			}
@@ -139,6 +155,11 @@ const tickHandler = async () => {
 				console.error(e);
 			}
 			fetchAndPopulateCharts();
+			try {
+				populateNetworkGraph();
+			} catch (e) {
+				console.error(e);
+			}
 			try {
 				const blocks = window.hydrafiles.nameService.blocks;
 				const knownServices = document.getElementById("knownServices")!;
@@ -269,7 +290,7 @@ async function fetchAndPopulatePeers() {
 		peersEl.appendChild(li);
 	});
 
-	const rtcPeers = Object.entries(window.hydrafiles.rpcClient.rtc.peerConnections);
+	const rtcPeers = Object.entries(window.hydrafiles.rpcClient.rtc.peers);
 	const tbody = document.getElementById("peerTable")!.querySelector("tbody") as HTMLTableSectionElement;
 
 	tbody.innerHTML = "";
@@ -325,10 +346,12 @@ function populateTable() {
 	actionsHeader.textContent = "Actions";
 	tableHeader.appendChild(actionsHeader);
 
-	files.forEach((file) => {
+	for (let i = 0; i < files.length; i++) {
+		const file = files[i];
 		const row = document.createElement("tr");
 
-		fileKeys.forEach((key) => {
+		for (let j = 0; j < fileKeys.length; j++) {
+			const key = fileKeys[j];
 			if (!(hideAdvancedColumns && advancedColumns.includes(key))) {
 				const cell = document.createElement("td");
 				let value = file[key];
@@ -336,10 +359,10 @@ function populateTable() {
 				if (key === "size") value = `${(file[key] / (1024 * 1024)).toFixed(2)} MB`;
 				if (key === "updatedAt") value = new Date(file[key]).toLocaleDateString();
 
-				cell.textContent = String(value);
+				cell.textContent = String(`${key}: ${value}`);
 				row.appendChild(cell);
 			}
-		});
+		}
 
 		const actionsCell = document.createElement("td");
 		actionsCell.className = "file-actions";
@@ -366,7 +389,7 @@ function populateTable() {
 		row.appendChild(actionsCell);
 
 		tableBody.appendChild(row);
-	});
+	}
 }
 
 let chartInstances: { [key: string]: Chart } = {};
@@ -473,16 +496,20 @@ document.addEventListener("DOMContentLoaded", async () => {
 	document.getElementById("sendMessage")!.addEventListener("click", () => {
 		const message = (document.getElementById("message") as HTMLInputElement).value;
 		const messageBox = document.getElementById("messages") as HTMLElement;
+		const messengerAddress = document.getElementById("messengerAddress")!.innerText;
+		const wallet = window.hydrafiles.services.ownedServices[encodeBase32(new TextEncoder().encode(messengerAddress)).toUpperCase()].wallet;
+
 		messageBox.innerHTML += `<div class="col-start-6 col-end-13 p-3 rounded-lg">
 			<div class="flex items-center justify-start flex-row-reverse">
-				<div class="flex items-center justify-center h-10 w-10 rounded-full bg-indigo-500 flex-shrink-0">A</div>
+				<div class="flex items-center justify-center h-10 w-10 rounded-full bg-indigo-500 flex-shrink-0">${messengerAddress.slice(0, 4)}</div>
 				<div class="relative mr-3 text-sm bg-indigo-100 py-2 px-4 shadow rounded-xl">
 					<div>${message}</div>
 				</div>
 			</div>
 		</div>`;
 		window.hydrafiles.rpcClient.fetch(
-			new Request(`https://localhost/endpoint/${encodeBase32(new TextEncoder().encode((document.getElementById("peerAddress") as HTMLInputElement).value)).toUpperCase()}?message=${encodeURIComponent(message)}`),
+			new Request(`https://localhost/endpoint/${(document.getElementById("peerAddress") as HTMLInputElement).value}?message=${encodeURIComponent(message)}&nonce=${Math.random()}`),
+			{ wallet },
 		);
 	});
 
@@ -588,4 +615,62 @@ function refreshHostnameUIs() {
 		}
 		servicesContainer.appendChild(hostnameUIs.get(hostname)!.element);
 	});
+}
+
+const nodes = new DataSet<{ id: number; label: string }>([{ id: 0, label: "You" }]);
+const edges = new DataSet<{ id: string; from: number; to: number }>([]);
+const network = new Network(document.getElementById("peerNetwork")!, { nodes, edges }, {
+	nodes: {
+		shape: "dot",
+		scaling: {
+			customScalingFunction: function (min, max, total, value) {
+				console.log(min, max, total, value);
+				return (value ?? 0) / (total ?? 0);
+			},
+			min: 5,
+			max: 150,
+		},
+	},
+});
+
+async function populateNetworkGraph() {
+	const httpPeers = Array.from(window.hydrafiles.rpcClient.http.peers);
+	const rtcPeers = Object.keys(window.hydrafiles.rpcClient.rtc.peers);
+
+	const foundNodes = [
+		...httpPeers.map((peer, index) => ({ id: index + 1, label: peer[0] })),
+		...rtcPeers.map((peer, index) => ({ id: index + httpPeers.length + 1, label: peer })),
+	];
+	const foundEdges = [
+		...httpPeers.map((_, index) => ({ id: `0-${index + 1}`, from: 0, to: index + 1 })),
+		...rtcPeers.map((_, index) => ({ id: `0-${index + httpPeers.length + 1}`, from: 0, to: index + httpPeers.length + 1 })),
+	];
+
+	foundNodes.forEach((node) => {
+		if (!nodes.get(node.id)) nodes.add(node);
+	});
+	foundEdges.forEach((edge) => {
+		if (!edges.get(edge.id)) edges.add(edge);
+	});
+
+	const responses = await Promise.all(httpPeers.map((peer) => Utils.promiseWithTimeout(fetch(`${peer[0]}/peers`), 10000)));
+	for (const response of responses) {
+		if (response instanceof Error) continue;
+
+		const url = new URL(response.url);
+		const peer = `${url.protocol}//${url.hostname}`;
+
+		const body = await response.text();
+		try {
+			const peers = JSON.parse(body);
+
+			for (let i = 0; i < peers.length; i++) {
+				const fromNode = nodes.get().find((node) => node.label === peer);
+				const toNode = nodes.get().find((node) => node.label === peers[i].host);
+				if (fromNode && toNode && !edges.get(`${fromNode.id}-${toNode.id}`)) edges.add({ id: `${fromNode.id}-${toNode.id}`, from: fromNode.id, to: toNode.id });
+			}
+		} catch (_) {
+			continue;
+		}
+	}
 }

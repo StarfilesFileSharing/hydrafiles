@@ -10,25 +10,25 @@ const seeding: string[] = [];
 
 export interface FileAttributes {
 	hash: Sha256;
-	infohash?: NonEmptyString;
+	infohash: string;
 	downloadCount: NonNegativeNumber;
-	id?: NonEmptyString;
-	name?: NonEmptyString;
+	id: string;
+	name: string;
 	found: boolean;
 	size: NonNegativeNumber;
-	voteHash?: NonEmptyString;
+	voteHash: string;
 	voteNonce: number;
 	voteDifficulty: number;
-	updatedAt: NonEmptyString;
-	createdAt: NonEmptyString;
+	updatedAt: string;
+	createdAt: string;
 }
 
 interface Metadata {
-	name: NonEmptyString;
+	name: string;
 	size: NonNegativeNumber;
 	type: string;
 	hash: { sha256: Sha256 };
-	id: NonEmptyString;
+	id: string;
 	infohash: string;
 }
 
@@ -54,13 +54,13 @@ const fileModel = {
 
 export class File implements FileAttributes {
 	hash!: Sha256;
-	infohash?: NonEmptyString;
+	infohash = "";
 	downloadCount = Utils.createNonNegativeNumber(0);
-	id?: NonEmptyString;
-	name?: NonEmptyString;
+	id = "";
+	name = "";
 	found = true;
 	size = Utils.createNonNegativeNumber(0);
-	voteHash?: Sha256;
+	voteHash = "";
 	voteNonce = 0;
 	voteDifficulty = 0;
 	updatedAt: NonEmptyString = new Date().toISOString();
@@ -88,7 +88,7 @@ export class File implements FileAttributes {
 		}
 		if (!hash && values.id) {
 			console.log(`Fetching file metadata`); // TODO: Merge with getMetadata
-			const responses = Files._client.rpcClient.fetch(`http://localhost/file/${values.id}`);
+			const responses = await Files._client.rpcClient.fetch(`http://localhost/file/${values.id}`);
 			for (let i = 0; i < responses.length; i++) {
 				const response = await responses[i];
 				if (response instanceof Error) continue;
@@ -125,7 +125,7 @@ export class File implements FileAttributes {
 
 		const id = this.id;
 		if (id !== undefined && id !== null && id.length > 0) {
-			const responses = Files._client.rpcClient.fetch(`http://localhost/file/${this.id}`);
+			const responses = await Files._client.rpcClient.fetch(`http://localhost/file/${this.id}`);
 
 			for (let i = 0; i < responses.length; i++) {
 				try {
@@ -383,7 +383,7 @@ export class File implements FileAttributes {
 		}
 
 		console.log(`File:     ${this.hash}  Downloading from WebRTC`);
-		const responses = Files._client.rpcClient.rtc.fetch(`http://localhost/download/${this.hash}`);
+		const responses = Files._client.rpcClient.rtc.fetch(new URL(`http://localhost/download/${this.hash}`));
 		for (let i = 0; i < responses.length; i++) {
 			const response = await responses[i];
 			const fileContent = new Uint8Array(await response.arrayBuffer());
@@ -469,7 +469,7 @@ class Files {
 	async updateFileList(onProgress?: (progress: number, total: number) => void): Promise<void> {
 		console.log(`Comparing file list`);
 		let files: FileAttributes[] = [];
-		const responses = await Promise.all(Files._client.rpcClient.fetch("http://localhost/files"));
+		const responses = await Promise.all(await Files._client.rpcClient.fetch("http://localhost/files"));
 		for (let i = 0; i < responses.length; i++) {
 			if (!(responses[i] instanceof ErrorRequestFailed)) {
 				try {
