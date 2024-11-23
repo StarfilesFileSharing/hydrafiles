@@ -121,7 +121,7 @@ document.getElementById("startHydrafilesButton")!.addEventListener("click", asyn
 			</div>
 		</div>`;
 		return new Response("Received message");
-	})));
+	}, 200 + Object.keys(window.hydrafiles.services).length)));
 
 	refreshHostnameUIs();
 });
