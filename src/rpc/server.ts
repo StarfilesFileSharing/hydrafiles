@@ -111,9 +111,10 @@ class RPCServer {
 				const filePath = `./public${url.pathname.endsWith("/") ? `${url.pathname}index.html` : url.pathname}`;
 				return await serveFile(req, filePath);
 			} catch (_) {
-				const routeHandler = /* req.headers.get("upgrade") === "websocket" ? router.get("WS") : */ router.get(`/${url.pathname.split("/")[1]}`);
+				const routeHandler = req.headers.get("upgrade") === "websocket" ? router.get("WS") : router.get(`/${url.pathname.split("/")[1]}`);
 				if (routeHandler) {
 					const response = await routeHandler(req, RPCServer._client);
+					if (response instanceof Response) return response;
 					response.addHeaders(headers);
 					return response.response();
 				}
