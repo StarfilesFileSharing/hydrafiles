@@ -70,7 +70,7 @@ export default class Services {
 			return new Response(this.cachedResponses[reqKey].body, { headers: this.filterHydraHeaders(this.cachedResponses[reqKey].headers) });
 		}
 
-		const responses = await Services._client.rpcClient.fetch(req.url, { headers: req.headers });
+		const responses = await Services._client.rpcClient.fetch(req.url, { headers: this.filterHydraHeaders(req.headers) });
 
 		const processingRequest = new Promise<Response | ErrorRequestFailed>((resolve, reject) => {
 			(async () => {
