@@ -111,7 +111,7 @@ class RPCServer {
 				const routeHandler = /* req.headers.get("upgrade") === "websocket" ? router.get("WS") : */ router.get(`/${url.pathname.split("/")[1]}`);
 				if (routeHandler) {
 					const response = await routeHandler(req, RPCServer._client);
-					response.headers = { ...headers, ...response.headers };
+					response.addHeaders(headers);
 					return response.response();
 				}
 				return new Response("404 Page Not Found\n", { status: 404, headers });
