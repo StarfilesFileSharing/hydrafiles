@@ -1,3 +1,4 @@
+import { EthAddress } from "./../src/wallet.ts";
 import Hydrafiles, { FileEvent, RTCEvent } from "../src/hydrafiles.ts";
 import { type FileAttributes } from "../src/file.ts";
 import WebTorrent from "https://esm.sh/webtorrent@2.5.1";
@@ -7,6 +8,7 @@ import { decodeBase32, encodeBase32 } from "https://deno.land/std@0.224.0/encodi
 import { DataSet } from "npm:vis-data/esnext";
 import { Network } from "npm:vis-network/esnext";
 import Utils from "../src/utils.ts";
+import { Edge, Node } from "npm:vis-network/esnext";
 
 declare global {
 	interface Window {
@@ -593,14 +595,18 @@ async function createHostnameUI(hostname: EthAddress): Promise<HostnameUI> {
 	updateButton.className = "px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50";
 	updateButton.textContent = "Update Handler";
 
-	const announceBUtton = document.createElement("button");
-	announceBUtton.className = "px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50";
-	announceBUtton.textContent = "Announce";
+	const announceServiceButton = document.createElement("button");
+	announceServiceButton.className = "px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50";
+	announceServiceButton.textContent = "Announce Service";
+
+	const publishSourceButton = document.createElement("button");
+	publishSourceButton.className = "px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50";
+	publishSourceButton.textContent = "Publish Source";
 
 	updateButton.addEventListener("click", () => {
 		try {
 			const code = textarea.value;
-			window.hydrafiles.services.ownedServices[hostname].requestHandler = new Function("req", `return (${code})(req)`) as (req: Request) => Promise<Response>;
+			window.hydrafiles.services.ownedServices[encodeBase32(hostname)].requestHandler = new Function("req", `return (${code})(req)`) as (req: Request) => Promise<Response>;
 			results.textContent = "Handler updated successfully!";
 			results.className = "my-4 p-4 rounded-lg bg-green-50 text-green-800";
 			setTimeout(() => results.className = "hidden", 3000);
@@ -650,7 +656,7 @@ async function createHostnameUI(hostname: EthAddress): Promise<HostnameUI> {
 }
 
 // Update this function to refresh hostname UIs
-function refreshHostnameUIs() {
+async function refreshHostnameUIs() {
 	const services = window.hydrafiles.services.ownedServices;
 	const servicesContainer = document.getElementById("servicesList")!;
 
@@ -660,18 +666,18 @@ function refreshHostnameUIs() {
 	if (header) servicesContainer.appendChild(header);
 
 	// Create/update UI for each hostname
-	Object.keys(services).forEach((hostname) => {
+	Object.keys(services).forEach(async (hostname) => {
 		if (!hostnameUIs.has(hostname)) {
-			const ui = createHostnameUI(hostname);
+			const ui = await createHostnameUI(new TextDecoder().decode(decodeBase32(hostname)) as EthAddress);
 			hostnameUIs.set(hostname, ui);
 		}
 		servicesContainer.appendChild(hostnameUIs.get(hostname)!.element);
 	});
 }
 
-const nodes = new DataSet<{ id: number; label: string }>([{ id: 0, label: "You" }]);
-const edges = new DataSet<{ id: string; from: number; to: number }>([]);
-const network = new Network(document.getElementById("peerNetwork")!, { nodes, edges }, {
+const nodes = new DataSet<Node>([{ id: 0, label: "You" }]);
+const edges = new DataSet<Edge>([]);
+const network = new Network(document.getElementById("peerNetwork")!, { nodes: nodes as any, edges: edges as any }, {
 	nodes: {
 		shape: "dot",
 		scaling: {
