@@ -1,5 +1,6 @@
 <h1 align="center">Hydrafiles</h1>
 <p align="center">The (P2P) web privacy layer.</p>
+<a href="https://github.com/StarfilesFileSharing/hydrafiles/releases">Quick Install</a>
 <p align="center">
   <img src="./public/favicon.ico">
   <br><br>
