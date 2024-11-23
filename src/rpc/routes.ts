@@ -45,14 +45,14 @@ export class DecodedResponse {
 	}
 }
 
-export const router = new Map<string, (req: Request, client: Hydrafiles) => Promise<DecodedResponse> | DecodedResponse>();
+export const router = new Map<string, (req: Request, client: Hydrafiles) => Promise<DecodedResponse> | DecodedResponse | (Response & { ws: true })>();
 export const sockets: { id: string; socket: WebSocket }[] = [];
 
 export const pendingWSRequests = new Map<number, (response: DecodedResponse) => void>();
 export const processingDownloads = new Map<string, Promise<DecodedResponse | ErrorNotFound>>();
 
 router.set("WS", (req) => {
-	const { socket } = Deno.upgradeWebSocket(req);
+	const { socket, response } = Deno.upgradeWebSocket(req);
 	sockets.push({ socket, id: "" });
 
 	socket.addEventListener("message", ({ data }) => {
@@ -75,14 +75,8 @@ router.set("WS", (req) => {
 		}
 	});
 
-	return new DecodedResponse("", {
-		headers: {
-			"connection": "Upgrade",
-			"upgrade": "websocket",
-			"sec-websocket-accept": "<hashed-key>",
-		},
-		status: 101,
-	});
+	(response as Response & { ws: true }).ws = true;
+	return response as Response & { ws: true };
 });
 
 router.set("/status", () => {
