@@ -117,9 +117,8 @@ export default class BlockchainNameService {
 		for (let i = 0; i < responses.length; i++) {
 			const response = responses[i];
 			if (response instanceof Error) continue;
-			const data = await response.text();
 			try {
-				const blocks = JSON.parse(data) as BlockAttributes[];
+				const blocks = JSON.parse(response.text()) as BlockAttributes[];
 				for (let j = 0; j < blocks.length; j++) {
 					if (this.blocks[j].id === blocks[j].id) continue;
 					const block = new Block(blocks[j].content, blocks[j].id as EthAddress | Sha256, blocks[j].nonce, blocks[j].prev as EthAddress, blocks[j].name);

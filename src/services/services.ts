@@ -1,3 +1,4 @@
+import { DecodedResponse } from "./../rpc/routes.ts";
 import type Hydrafiles from "../hydrafiles.ts";
 import { ErrorNotFound, ErrorRequestFailed } from "../hydrafiles.ts";
 import type { EthAddress } from "../wallet.ts";
@@ -6,9 +7,11 @@ import { decodeBase32, encodeBase32 } from "https://deno.land/std@0.224.0/encodi
 import Service from "./service.ts";
 
 export interface CachedResponse {
-	body: string;
-	headers: Headers;
 	timestamp: number;
+	body: string | Uint8Array;
+	headers: { [key: string]: string };
+	status: number;
+	ok: boolean;
 }
 
 export interface ServiceMetadata {
@@ -23,17 +26,14 @@ export default class Services {
 	static _client: Hydrafiles;
 	public ownedServices: { [hostname: string]: Service } = {};
 	public knownServices: { [hostname: string]: ServiceMetadata } = {};
-	public processingRequests = new Map<string, Promise<Response | ErrorNotFound>>();
+	public processingRequests = new Map<string, Promise<DecodedResponse | ErrorNotFound>>();
 	public cachedResponses: Record<string, CachedResponse> = {};
 
-	private filterHydraHeaders(headers: Headers): Headers {
-		const filteredHeaders = new Headers();
-		headers.forEach((value, key) => {
-			if (key.toLowerCase().startsWith('hydra-')) {
-				filteredHeaders.set(key, value);
-			}
-		});
-		return filteredHeaders;
+	private filterHydraHeaders(headers: { [key: string]: string }): { [key: string]: string } {
+		for (const key in Object.keys(headers)) {
+			if (!key.toLowerCase().startsWith("hydra-")) delete headers[key];
+		}
+		return headers;
 	}
 
 	public addHostname(requestHandler: (req: Request) => Promise<Response> | Response, seed: number): string {
@@ -45,7 +45,7 @@ export default class Services {
 		return hostname;
 	}
 
-	public async fetch(req: Request): Promise<Response> { // TODO: Refactor this
+	public async fetch(req: Request): Promise<DecodedResponse> { // TODO: Refactor this
 		const now = Date.now();
 		const url = new URL(req.url);
 		const hostname = encodeBase32(url.pathname.split("/")[2]).toUpperCase();
@@ -53,7 +53,7 @@ export default class Services {
 
 		if (hostname in this.ownedServices) {
 			console.log(`Hostname: ${hostname} Serving response`);
-			return this.ownedServices[hostname].fetch(req, req.headers);
+			return this.ownedServices[hostname].fetch(req);
 		}
 
 		if (this.processingRequests.has(hostname)) {
@@ -67,41 +67,53 @@ export default class Services {
 				delete this.cachedResponses[reqKey];
 			}
 			console.log(`Hostname: ${hostname} Serving response from cache`);
-			return new Response(this.cachedResponses[reqKey].body, { headers: this.filterHydraHeaders(this.cachedResponses[reqKey].headers) });
+			return new DecodedResponse(this.cachedResponses[reqKey].body, { headers: this.filterHydraHeaders(this.cachedResponses[reqKey].headers) });
 		}
 
-		const responses = await Services._client.rpcClient.fetch(req.url, { headers: this.filterHydraHeaders(req.headers) });
+		const headersObj: { [key: string]: string } = {};
+		req.headers.forEach((value, key) => {
+			headersObj[key] = value;
+		});
+		const responses = await Services._client.rpcClient.fetch(req.url, { headers: this.filterHydraHeaders(headersObj) });
 
-		const processingRequest = new Promise<Response | ErrorRequestFailed>((resolve, reject) => {
+		const processingRequest = new Promise<DecodedResponse | ErrorRequestFailed>((resolve, reject) => {
 			(async () => {
 				await Promise.all(responses.map(async (res) => {
 					try {
 						const response = await res;
 						if (response instanceof Error) return response;
 						if (!response.ok) return;
-						const body = await response.text();
-						const signature = response.headers.get("hydra-signature") as EthAddress | null;
-						if (signature !== null && await Services._client.filesWallet.verifyMessage(body, signature, new TextDecoder().decode(decodeBase32(hostname)) as EthAddress)) 
-							resolve(new Response(body, { headers: this.filterHydraHeaders(response.headers) }));
+						const signature = response.headers["hydra-signature"] as EthAddress | null;
+						if (
+							signature !== null &&
+							await Services._client.filesWallet.verifyMessage(typeof response.body === "string" ? response.body : new TextDecoder().decode(response.body), signature, new TextDecoder().decode(decodeBase32(hostname)) as EthAddress)
+						) {
+							response.headers = this.filterHydraHeaders(response.headers);
+							resolve(response);
+						}
 					} catch (e) {
-						const err = e as Error;
-						if (err.message !== "Hostname not found") console.error(e);
+						if (e instanceof ErrorNotFound) console.error(e);
+						throw e;
 					}
 				}));
-				reject(new Error("Hostname not found"));
+				reject(new ErrorNotFound());
 			})();
 		});
 
 		this.processingRequests.set(hostname, processingRequest);
 
-		let response: Response | ErrorRequestFailed | undefined;
+		let response: DecodedResponse | ErrorRequestFailed | undefined;
 		try {
 			response = await processingRequest;
 		} catch (e) {
 			const err = e as Error;
 			if (err.message === "Hostname not found") {
 				console.log(`Hostname: ${hostname} Not found`);
-				return new Response("Hostname not found", { headers: req.headers, status: 404 });
+				const headersObj: { [key: string]: string } = {};
+				req.headers.forEach((value, key) => {
+					headersObj[key] = value;
+				});
+				return new DecodedResponse("Hostname not found", { headers: headersObj, status: 404 });
 			} else {
 				console.log(err.message);
 				throw err;
@@ -113,8 +125,8 @@ export default class Services {
 		if (response instanceof ErrorRequestFailed) throw response;
 
 		console.log(`Hostname: ${hostname} Mirroring response`);
-		const res = { body: await response.text(), headers: this.filterHydraHeaders(response.headers) };
+		const res = new DecodedResponse(response.body, this.filterHydraHeaders(response.headers));
 		this.cachedResponses[reqKey] = { ...res, timestamp: Date.now() };
-		return new Response(res.body, { headers: res.headers });
+		return res;
 	}
 }

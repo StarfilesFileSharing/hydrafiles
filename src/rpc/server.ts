@@ -96,8 +96,11 @@ class RPCServer {
 		console.log(`Request:  ${req.url}`);
 		const url = new URL(req.url);
 
-		const headers = new Headers();
-		// headers.set("Access-Control-Allow-Origin", "*");
+		const headers = new Headers({
+			"Access-Control-Allow-Origin": "*",
+			"Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+			"Access-Control-Allow-Headers": "Content-Type",
+		});
 
 		if ((url.pathname === "/" || url.pathname === "/docs") && req.headers.get("upgrade") !== "websocket") {
 			headers.set("Location", "/docs/");
@@ -109,10 +112,21 @@ class RPCServer {
 				const url = new URL(req.url);
 				const filePath = `./public${url.pathname.endsWith("/") ? `${url.pathname}index.html` : url.pathname}`;
 				const fileResponse = await serveFile(req, filePath);
+				// Add CORS headers to file response
+				Object.entries(headers).forEach(([key, value]) => {
+					fileResponse.headers.set(key, value);
+				});
 				return fileResponse;
 			} catch (_) {
 				const routeHandler = req.headers.get("upgrade") === "websocket" ? router.get("WS") : router.get(`/${url.pathname.split("/")[1]}`);
-				if (routeHandler) return await routeHandler(req, RPCServer._client);
+				if (routeHandler) {
+					const response = await routeHandler(req, RPCServer._client);
+					// Add CORS headers to route handler response
+					Object.entries(headers).forEach(([key, value]) => {
+						response.headers[key] = value;
+					});
+					return response.response();
+				}
 				return new Response("404 Page Not Found\n", { status: 404, headers });
 			}
 		} catch (e) {

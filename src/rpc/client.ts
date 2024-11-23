@@ -1,4 +1,5 @@
 import { ErrorRequestFailed, ErrorTimeout } from "../errors.ts";
+import type { DecodedResponse } from "../hydrafiles.ts";
 import type Hydrafiles from "../hydrafiles.ts";
 import type Wallet from "../wallet.ts";
 import HTTPPeers from "./peers/http.ts";
@@ -21,7 +22,7 @@ export default class RPCClient {
 		return rpcClient;
 	}
 
-	public async fetch(input: RequestInfo, init?: RequestInit | RequestInit & { wallet: Wallet }): Promise<Promise<Response | ErrorRequestFailed | ErrorTimeout>[]> {
+	public async fetch(input: RequestInfo, init?: RequestInit | RequestInit & { wallet: Wallet }): Promise<Promise<DecodedResponse | ErrorRequestFailed | ErrorTimeout>[]> {
 		const url = new URL(input instanceof Request ? input.url : input);
 		url.protocol = "https:";
 		url.hostname = "localhost";

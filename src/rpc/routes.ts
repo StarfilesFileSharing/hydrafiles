@@ -6,11 +6,46 @@ import Utils, { type Sha256 } from "../utils.ts";
 import type Hydrafiles from "../hydrafiles.ts";
 import { ErrorNotFound } from "../errors.ts";
 
-export const router = new Map<string, (req: Request, client: Hydrafiles) => Promise<Response> | Response>();
+export class DecodedResponse {
+	body: string | Uint8Array;
+	headers: { [key: string]: string };
+	status: number;
+	ok: boolean;
+
+	constructor(body: string | Uint8Array, init: { headers?: { [key: string]: string }; status?: number } = {}) {
+		this.body = body;
+		this.headers = init.headers ?? {};
+		this.status = init.status ?? 200;
+		this.ok = this.status >= 100 && this.status <= 400;
+	}
+
+	static async from(response: Response): Promise<DecodedResponse> {
+		const body = await response.arrayBuffer();
+		const headers: { [key: string]: string } = {};
+		response.headers.forEach((value, key) => {
+			headers[key] = value;
+		});
+		return new DecodedResponse(new Uint8Array(body), { headers, status: response.status });
+	}
+
+	response(): Response {
+		return new Response(this.body, { headers: this.headers, status: this.status });
+	}
+
+	text(): string {
+		return typeof this.body === "string" ? this.body : new TextDecoder().decode(this.body);
+	}
+
+	arrayBuffer(): ArrayBuffer {
+		return this.body instanceof Uint8Array ? this.body.buffer : new TextEncoder().encode(this.body).buffer;
+	}
+}
+
+export const router = new Map<string, (req: Request, client: Hydrafiles) => Promise<DecodedResponse> | DecodedResponse>();
 export const sockets: { id: string; socket: WebSocket }[] = [];
 
-export const pendingWSRequests = new Map<number, (response: Response) => void>();
-export const processingDownloads = new Map<string, Promise<Response | ErrorNotFound>>();
+export const pendingWSRequests = new Map<number, (response: DecodedResponse) => void>();
+export const processingDownloads = new Map<string, Promise<DecodedResponse | ErrorNotFound>>();
 
 router.set("WS", (req) => {
 	const { socket, response } = Deno.upgradeWebSocket(req);
@@ -22,8 +57,8 @@ router.set("WS", (req) => {
 		if ("response" in message) {
 			const resolve = pendingWSRequests.get(message.id);
 			if (resolve) {
-				const { status, statusText, headers, body } = message.response;
-				resolve(new Response(body, { status, statusText, headers: new Headers(headers) }));
+				const { status, headers, body } = message.response;
+				resolve(new DecodedResponse(body, { status, headers }));
 				pendingWSRequests.delete(message.id);
 			}
 		}
@@ -36,56 +71,62 @@ router.set("WS", (req) => {
 		}
 	});
 
-	return response;
+	return DecodedResponse.from(response);
 });
 
 router.set("/status", () => {
-	const headers = new Headers();
-	headers.set("Content-Type", "application/json");
-	return new Response(JSON.stringify({ status: true }), { headers });
+	const headers = {
+		"Content-Type": "application/json",
+	};
+	return new DecodedResponse(JSON.stringify({ status: true }), { headers });
 });
 
 router.set("/hydrafiles-web.esm.js", async (_, client) => {
-	const headers = new Headers();
-	headers.set("Content-Type", "application/javascript");
-	headers.set("Cache-Control", "public, max-age=300");
+	const headers = {
+		"Content-Type": "application/javascript",
+		"Cache-Control": "public, max-age=300",
+	};
 	const fileContent = await client.fs.readFile("build/hydrafiles-web.esm.js");
-	if (fileContent instanceof Error) return new Response("File gone", { status: 403 });
-	return new Response(fileContent, { headers });
+	if (fileContent instanceof Error) return new DecodedResponse("File gone", { status: 403 });
+	return new DecodedResponse(fileContent, { headers });
 });
 
 router.set("/dashboard.js", async (_, client) => {
-	const headers = new Headers();
-	headers.set("Content-Type", "application/javascript");
-	headers.set("Cache-Control", "public, max-age=300");
+	const headers = {
+		"Content-Type": "application/javascript",
+		"Cache-Control": "public, max-age=300",
+	};
 	const fileContent = await client.fs.readFile("build/dashboard.js");
-	if (fileContent instanceof Error) return new Response("File not found", { status: 404 });
-	return new Response(fileContent, { headers });
+	if (fileContent instanceof Error) return new DecodedResponse("File not found", { status: 404 });
+	return new DecodedResponse(fileContent, { headers });
 });
 
 router.set("/hydrafiles-web.esm.js.map", async (_, client) => {
-	const headers = new Headers();
-	headers.set("Content-Type", "application/json");
-	headers.set("Cache-Control", "public, max-age=300");
+	const headers = {
+		"Content-Type": "application/json",
+		"Cache-Control": "public, max-age=300",
+	};
 	const fileContent = await client.fs.readFile("build/hydrafiles-web.esm.js.map");
-	if (fileContent instanceof Error) return new Response("File not found", { status: 404 });
-	return new Response(fileContent, { headers });
+	if (fileContent instanceof Error) return new DecodedResponse("File not found", { status: 404 });
+	return new DecodedResponse(fileContent, { headers });
 });
 
 router.set("/dashboard.js.map", async (_, client) => {
-	const headers = new Headers();
-	headers.set("Content-Type", "application/json");
-	headers.set("Cache-Control", "public, max-age=300");
+	const headers = {
+		"Content-Type": "application/json",
+		"Cache-Control": "public, max-age=300",
+	};
 	const fileContent = await client.fs.readFile("build/dashboard.js.map");
-	if (fileContent instanceof Error) return new Response("File not found", { status: 404 });
-	return new Response(fileContent, { headers });
+	if (fileContent instanceof Error) return new DecodedResponse("File not found", { status: 404 });
+	return new DecodedResponse(fileContent, { headers });
 });
 
 router.set("/peers", (_, client) => {
-	const headers = new Headers();
-	headers.set("Content-Type", "application/json");
-	headers.set("Cache-Control", "public, max-age=300");
-	return new Response(
+	const headers = {
+		"Content-Type": "application/json",
+		"Cache-Control": "public, max-age=300",
+	};
+	return new DecodedResponse(
 		JSON.stringify(
 			client.rpcClient.http.getPeers().map((peer) => {
 				const outputPeer: Partial<PeerAttributes> = {};
@@ -101,20 +142,21 @@ router.set("/peers", (_, client) => {
 });
 
 router.set("/info", async () => {
-	const headers = new Headers();
-	headers.set("Content-Type", "application/json");
-	headers.set("Cache-Control", "public, max-age=300");
-	return new Response(JSON.stringify({ version: JSON.parse(await Deno.readTextFile("deno.jsonc")).version }), { headers });
+	const headers = {
+		"Content-Type": "application/json",
+		"Cache-Control": "public, max-age=300",
+	};
+	return new DecodedResponse(JSON.stringify({ version: JSON.parse(await Deno.readTextFile("deno.jsonc")).version }), { headers });
 });
 
 router.set("/announce", async (req, client) => {
 	const url = new URL(req.url);
 	const host = url.searchParams.get("host");
-	if (host === null) return new Response("No hosted given\n", { status: 401 });
+	if (host === null) return new DecodedResponse("No hosted given\n", { status: 401 });
 	const knownNodes = client.rpcClient.http.getPeers();
-	if (knownNodes.find((node) => node.host === host) !== undefined) return new Response("Already known\n");
+	if (knownNodes.find((node) => node.host === host) !== undefined) return new DecodedResponse("Already known\n");
 	await client.rpcClient.http.add(host);
-	return new Response("Announced\n");
+	return new DecodedResponse("Announced\n");
 });
 
 router.set("/download", async (req, client) => {
@@ -149,31 +191,32 @@ router.set("/download", async (req, client) => {
 		if (fileContent instanceof Error) {
 			file.found = false;
 			file.save();
-			return new Response("404 File Not Found\n", {
+			return new DecodedResponse("404 File Not Found\n", {
 				status: 404,
 			});
 		}
 
-		const headers = new Headers();
-		headers.set("Content-Type", "application/octet-stream");
-		headers.set("Cache-Control", "public, max-age=31536000");
-		headers.set("Content-Length", fileContent.file.byteLength.toString());
-		headers.set("Signal-Strength", String(fileContent.signal));
+		const headers: { [key: string]: string } = {
+			"Content-Type": "application/octet-stream",
+			"Cache-Control": "public, max-age=31536000",
+			"Content-Length": String(file.size) ?? fileContent.file.byteLength.toString(),
+			"Signal-Strength": String(fileContent.signal),
+		};
+
 		const address = client.filesWallet.address();
-		if (address) headers.set("Ethereum-Address", address);
+		if (address) headers["Ethereum-Address"] = address;
 		console.log(`File:     ${hash}  Signal Strength:`, fileContent.signal, Utils.estimateHops(fileContent.signal));
 
-		headers.set("Content-Length", String(file.size));
 		if (file.name !== undefined && file.name !== null) {
-			headers.set("Content-Disposition", `attachment; filename="${encodeURIComponent(file.name.replace(/[^a-zA-Z0-9._-]/g, "").replace(/\s+/g, " ").trim()).replace(/%20/g, " ").replace(/(\.\w+)$/, " [HYDRAFILES]$1")}"`);
+			headers["Content-Disposition"] = `attachment; filename="${encodeURIComponent(file.name.replace(/[^a-zA-Z0-9._-]/g, "").replace(/\s+/g, " ").trim()).replace(/%20/g, " ").replace(/(\.\w+)$/, " [HYDRAFILES]$1")}"`;
 		}
 
-		return new Response(fileContent.file, { headers });
+		return new DecodedResponse(fileContent.file, { headers });
 	})();
 
 	processingDownloads.set(hash, processingPromise);
 
-	let response: Response;
+	let response: DecodedResponse;
 	try {
 		response = await processingPromise;
 	} finally {
@@ -182,7 +225,7 @@ router.set("/download", async (req, client) => {
 	return response;
 });
 
-router.set("/infohash", async (req, client): Promise<Response> => {
+router.set("/infohash", async (req, client): Promise<DecodedResponse> => {
 	const url = new URL(req.url);
 	const infohash = url.pathname.split("/")[2];
 
@@ -200,34 +243,34 @@ router.set("/infohash", async (req, client): Promise<Response> => {
 		if (fileContent instanceof Error) {
 			file.found = false;
 			file.save();
-			return new Response("404 File Not Found\n", {
+			return new DecodedResponse("404 File Not Found\n", {
 				status: 404,
 			});
 		}
 
-		const headers = new Headers();
-		headers.set("Content-Type", "application/octet-stream");
-		headers.set("Cache-Control", "public, max-age=31536000");
-
-		headers.set("Signal-Strength", String(fileContent.signal));
+		const headers: { [key: string]: string } = {
+			"Content-Type": "application/octet-stream",
+			"Cache-Control": "public, max-age=31536000",
+			"Signal-Strength": String(fileContent.signal),
+			"Content-Length": String(file.size),
+		};
 		console.log(`File:     ${file.hash}  Signal Strength:`, fileContent.signal, Utils.estimateHops(fileContent.signal));
 
-		headers.set("Content-Length", String(file.size));
-		if (file.name) headers.set("Content-Disposition", `attachment; filename="${encodeURIComponent(file.name).replace(/%20/g, " ").replace(/(\.\w+)$/, " [HYDRAFILES]$1")}"`);
+		if (file.name) headers["Content-Disposition"] = `attachment; filename="${encodeURIComponent(file.name).replace(/%20/g, " ").replace(/(\.\w+)$/, " [HYDRAFILES]$1")}"`;
 
-		return new Response(fileContent.file, { headers });
+		return new DecodedResponse(fileContent.file, { headers });
 	})();
 
 	processingDownloads.set(infohash, processingPromise);
 
-	let response: Response | ErrorNotFound;
+	let response: DecodedResponse | ErrorNotFound;
 	try {
 		response = await processingPromise;
 	} finally {
 		processingDownloads.delete(infohash);
 	}
 
-	if (response instanceof ErrorNotFound) return new Response("Error Not Found", { status: 404 });
+	if (response instanceof ErrorNotFound) return new DecodedResponse("Error Not Found", { status: 404 });
 
 	return response;
 });
@@ -235,7 +278,7 @@ router.set("/infohash", async (req, client): Promise<Response> => {
 router.set("/upload", async (req, client) => {
 	const uploadSecret = req.headers.get("x-hydra-upload-secret");
 	if (uploadSecret !== client.config.uploadSecret) {
-		return new Response("401 Unauthorized\n", { status: 401 });
+		return new DecodedResponse("401 Unauthorized\n", { status: 401 });
 	}
 
 	const form = await req.formData();
@@ -244,7 +287,7 @@ router.set("/upload", async (req, client) => {
 		file: form.get("file") as globalThis.File | null,
 	};
 
-	if (typeof formData.hash === "undefined" || typeof formData.file === "undefined" || formData.file === null) return new Response("400 Bad Request\n", { status: 400 });
+	if (typeof formData.hash === "undefined" || typeof formData.file === "undefined" || formData.file === null) return new DecodedResponse("400 Bad Request\n", { status: 400 });
 
 	const hash = Utils.sha256(formData.hash[0]);
 
@@ -258,11 +301,11 @@ router.set("/upload", async (req, client) => {
 
 	console.log("Uploading", file.hash);
 
-	if (await client.fs.exists(join("files", file.hash))) return new Response("200 OK\n");
+	if (await client.fs.exists(join("files", file.hash))) return new DecodedResponse("200 OK\n");
 
 	if (!client.config.permaFiles.includes(hash)) client.config.permaFiles.push(hash);
 	await client.fs.writeFile("config.json", new TextEncoder().encode(JSON.stringify(client.config, null, 2)));
-	return new Response("200 OK\n");
+	return new DecodedResponse("200 OK\n");
 });
 
 router.set("/files", (_, client) => {
@@ -279,33 +322,35 @@ router.set("/files", (_, client) => {
 		return filteredRest;
 	});
 
-	const headers = new Headers();
-	headers.set("Content-Type", "application/json");
-	headers.set("Cache-Control", "public, max-age=10800");
-	return new Response(JSON.stringify(rows), { headers });
+	const headers = {
+		"Content-Type": "application/json",
+		"Cache-Control": "public, max-age=10800",
+	};
+	return new DecodedResponse(JSON.stringify(rows), { headers });
 });
 
 router.set("/file", (req, client) => {
 	const url = new URL(req.url);
 	const id = url.pathname.split("/")[2];
-	if (!id) return new Response("No File ID Set", { status: 401 })
+	if (!id) return new DecodedResponse("No File ID Set", { status: 401 });
 	let file: File | undefined;
 	try {
 		file = client.files.filesId.get(id);
 	} catch (e) {
 		const err = e as Error;
-		if (err.message === "File not found") return new Response("File not found", { status: 404 });
+		if (err.message === "File not found") return new DecodedResponse("File not found", { status: 404 });
 		else throw err;
 	}
 
-	const headers = new Headers();
-	headers.set("Content-Type", "application/json");
-	headers.set("Cache-Control", "public, max-age=10800");
-	if (!file) return new Response("File not found", { headers, status: 404 });
-	return new Response(JSON.stringify(file), { headers });
+	const headers = {
+		"Content-Type": "application/json",
+		"Cache-Control": "public, max-age=10800",
+	};
+	if (!file) return new DecodedResponse("File not found", { headers, status: 404 });
+	return new DecodedResponse(JSON.stringify(file), { headers });
 });
 
-router.set("/service", async (req, client): Promise<Response> => {
+router.set("/service", async (req, client) => {
 	const url = new URL(req.url);
 	url.protocol = "https:";
 	url.hostname = "localhost";
@@ -320,8 +365,9 @@ router.set("/service", async (req, client): Promise<Response> => {
 });
 
 router.set("/blocks", (_, client) => {
-	const headers = new Headers();
-	headers.set("Content-Type", "application/json");
-	headers.set("Cache-Control", "public, max-age=10800");
-	return new Response(JSON.stringify(client.nameService.blocks), { headers });
+	const headers = {
+		"Content-Type": "application/json",
+		"Cache-Control": "public, max-age=10800",
+	};
+	return new DecodedResponse(JSON.stringify(client.nameService.blocks), { headers });
 });
