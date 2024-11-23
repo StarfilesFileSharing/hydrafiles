@@ -512,11 +512,13 @@ document.addEventListener("DOMContentLoaded", async () => {
 		setTimeout(() => results.classList.add("hidden"), 3000);
 	});
 
-	const pages = ["dashboard", "statistics", "peers", "files", "services", "chat"];
+	const pages = ["documentation", "dashboard", "statistics", "peers", "files", "services", "chat"];
 	const sidebarLinks = document.querySelectorAll("#default-sidebar a");
 
 	const selectPage = (pageId: string) => {
-		pages.forEach((id) => (document.getElementById(id) as HTMLElement).classList.add("hidden"));
+		pages.forEach((id) => {
+			if (id !== "documentation") (document.getElementById(id) as HTMLElement).classList.add("hidden");
+		});
 		(document.getElementById(pageId) as HTMLElement).classList.remove("hidden");
 
 		sidebarLinks.forEach((link) => link.classList.remove("bg-gray-100", "dark:bg-gray-700"));
@@ -528,7 +530,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 		const link = sidebarLinks[i];
 		link.setAttribute("data-section", pages[i]);
 		link.addEventListener("click", (e) => {
-			e.preventDefault();
+			if (pages[i] !== "documentation") e.preventDefault();
 			selectPage(link.getAttribute("data-section") as string);
 		});
 	}
