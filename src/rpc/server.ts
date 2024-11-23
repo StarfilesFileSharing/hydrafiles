@@ -117,7 +117,7 @@ class RPCServer {
 				});
 				return fileResponse;
 			} catch (_) {
-				const routeHandler = req.headers.get("upgrade") === "websocket" ? router.get("WS") : router.get(`/${url.pathname.split("/")[1]}`);
+				const routeHandler = /* req.headers.get("upgrade") === "websocket" ? router.get("WS") : */ router.get(`/${url.pathname.split("/")[1]}`);
 				if (routeHandler) {
 					const response = await routeHandler(req, RPCServer._client);
 					// Add CORS headers to route handler response
