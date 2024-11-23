@@ -93,21 +93,20 @@ class RPCServer {
 	};
 
 	handleRequest = async (req: Request): Promise<Response> => {
-		console.log(`Request:  ${req.url}`);
-		const url = new URL(req.url);
-
 		const headers = new Headers({
 			"Access-Control-Allow-Origin": "*",
 			"Access-Control-Allow-Methods": "GET, POST, OPTIONS",
 			"Access-Control-Allow-Headers": "Content-Type",
 		});
-
-		if ((url.pathname === "/" || url.pathname === "/docs") && req.headers.get("upgrade") !== "websocket") {
-			headers.set("Location", "/docs/");
-			return new Response("", { headers: headers, status: 301 });
-		}
-
 		try {
+			console.log(`Request:  ${req.url}`);
+			const url = new URL(req.url);
+
+			if ((url.pathname === "/" || url.pathname === "/docs") && req.headers.get("upgrade") !== "websocket") {
+				headers.set("Location", "/docs/");
+				return new Response("", { headers: headers, status: 301 });
+			}
+
 			try {
 				const url = new URL(req.url);
 				const filePath = `./public${url.pathname.endsWith("/") ? `${url.pathname}index.html` : url.pathname}`;
