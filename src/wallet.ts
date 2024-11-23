@@ -44,8 +44,12 @@ class Wallet {
 	}
 
 	public async balance(): Promise<number> {
-		const balanceWei = await this.client.getBalance({ address: this.account.address });
-		return parseFloat(balanceWei.toString()) / 1e18;
+		try {
+			const balanceWei = await this.client.getBalance({ address: this.account.address });
+			return parseFloat(balanceWei.toString()) / 1e18;
+		} catch (_) {
+			return 0;
+		}
 	}
 
 	public async transfer(to: EthAddress, amount: bigint): Promise<true | ErrorInsufficientBalance> {
