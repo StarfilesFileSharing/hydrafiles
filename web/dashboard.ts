@@ -14,6 +14,36 @@ declare global {
 	}
 }
 
+function formatTSCode(code: string): string {
+	const indent = (lines: string[], level: number) => lines.map((line) => "  ".repeat(level) + line);
+	let formatted = "", depth = 0, inString = false, escape = false;
+	for (let i = 0; i < code.length; i++) {
+		const char = code[i];
+		if (inString) {
+			if (char === "\\" && !escape) escape = true;
+			else if ((char === "'" || char === '"' || char === "`") && !escape) inString = false;
+			else escape = false;
+			formatted += char;
+		} else {
+			if (char === "'" || char === '"' || char === "`") inString = true;
+			if (char === "{" || char === "[" || char === "(") {
+				formatted += char + "\n";
+				formatted += indent([""], ++depth).join("");
+			} else if (char === "}" || char === "]" || char === ")") {
+				formatted += "\n";
+				formatted += indent([""], --depth).join("") + char;
+			} else if (char === ";") {
+				formatted += char + "\n" + indent([""], depth).join("");
+			} else if (char === "\n" || char === "\r") {
+				continue;
+			} else {
+				formatted += char;
+			}
+		}
+	}
+	return formatted.split("\n").map((line) => line.trimEnd()).join("\n");
+}
+
 function loadSavedCredentials(): { email: string; password: string } | null {
 	const savedCredentials = localStorage.getItem("hydrafilesCredentials");
 	if (savedCredentials) return JSON.parse(savedCredentials);
