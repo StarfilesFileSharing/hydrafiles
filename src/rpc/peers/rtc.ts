@@ -1,6 +1,7 @@
 import type { RTCDataChannel, RTCIceCandidate, RTCPeerConnection, RTCSessionDescription } from "npm:werift";
 import RPCClient from "../client.ts";
 import type { EthAddress } from "../../wallet.ts";
+import { DecodedResponse } from "../routes.ts";
 
 export type SignallingAnnounce = { announce: true; from: EthAddress };
 export type SignallingOffer = { offer: RTCSessionDescription; from: EthAddress; to: EthAddress };
@@ -286,11 +287,11 @@ class RTCPeers {
 		if (ws.readyState === 1) ws.send(JSON.stringify(responseMessage));
 	}
 
-	public fetch(url: URL, method = "GET", headers: { [key: string]: string } = {}, body: string | undefined = undefined): Promise<Response>[] {
+	public fetch(url: URL, method = "GET", headers: { [key: string]: string } = {}, body: string | undefined = undefined): Promise<DecodedResponse>[] {
 		const requestId = Math.random();
 		const request = { method, url, headers, body: method === "GET" ? null : body, id: requestId };
 		const connIDs = Object.keys(this.peers);
-		const responses: Promise<Response>[] = [];
+		const responses: Promise<DecodedResponse>[] = [];
 		for (let i = 0; i < connIDs.length; i++) {
 			const connections = Object.values(this.peers[connIDs[i]]);
 			let connection: PeerConnection | undefined;
@@ -306,7 +307,7 @@ class RTCPeers {
 			console.log(`WebRTC:   ${connIDs[i]} Sending request`);
 			connection.channel.send(JSON.stringify(request));
 
-			const responsePromise = new Promise<Response>((resolve, reject) => {
+			const responsePromise = new Promise<DecodedResponse>((resolve, reject) => {
 				connection.channel.onmessage = (e) => {
 					const packet = JSON.parse(e.data as string);
 
@@ -321,13 +322,12 @@ class RTCPeers {
 					}
 
 					try {
-						const { id, status, statusText, headers, body } = JSON.parse(e.data as string);
+						const { id, status, headers, body } = JSON.parse(e.data as string);
 						console.log(`WebRTC:   ${id}  Received response`);
 						if (id !== requestId) return;
-						const response = new Response(body, {
+						const response = new DecodedResponse(body, {
 							status,
-							statusText,
-							headers: new Headers(headers),
+							headers,
 						});
 						resolve(response);
 					} catch (error) {

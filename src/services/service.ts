@@ -1,3 +1,4 @@
+import { DecodedResponse } from "../rpc/routes.ts";
 import type Wallet from "../wallet.ts";
 import Services from "./services.ts";
 
@@ -10,10 +11,10 @@ export default class Service {
 		this.requestHandler = requestHandler;
 	}
 
-	public async fetch(req: Request, headers: Headers): Promise<Response> {
-		const body = await (await this.requestHandler(req)).text();
-		headers.set("hydra-signature", await this.wallet.signMessage(body));
-		return new Response(body, { headers });
+	public async fetch(req: Request): Promise<DecodedResponse> {
+		const res = await DecodedResponse.from(await this.requestHandler(req));
+		res.headers["hydra-signature"] = await this.wallet.signMessage(JSON.stringify({ body: res.body, headers: res.headers, status: res.status }));
+		return res;
 	}
 
 	announce(name: string): void {

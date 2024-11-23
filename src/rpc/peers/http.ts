@@ -5,6 +5,7 @@ import RPCClient from "../client.ts";
 import type { EthAddress } from "../../wallet.ts";
 import { ErrorChecksumMismatch, ErrorDownloadFailed, ErrorMissingRequiredProperty, ErrorRequestFailed, ErrorTimeout } from "../../errors.ts";
 import { ErrorNotFound } from "../../errors.ts";
+import { DecodedResponse } from "../routes.ts";
 
 const peerModel = {
 	tableName: "peer",
@@ -199,14 +200,16 @@ export default class HTTPPeers {
 		return results;
 	}
 
-	public fetch(url: URL, method = "GET", headers: { [key: string]: string } = {}, body: string | undefined = undefined): Promise<Response | ErrorRequestFailed | ErrorTimeout>[] {
+	public fetch(url: URL, method = "GET", headers: { [key: string]: string } = {}, body: string | undefined = undefined): Promise<DecodedResponse | ErrorRequestFailed | ErrorTimeout>[] {
 		const peers = this.getPeers(true);
 		const fetchPromises = peers.map(async (peer) => {
 			try {
 				const peerUrl = new URL(peer.host);
 				url.hostname = peerUrl.hostname;
 				url.protocol = peerUrl.protocol;
-				return await Utils.promiseWithTimeout(fetch(url.toString(), { method, headers, body }), RPCClient._client.config.timeout);
+				const res = await Utils.promiseWithTimeout(fetch(url.toString(), { method, headers, body }), RPCClient._client.config.timeout);
+				if (res instanceof Error) return res;
+				return await DecodedResponse.from(res);
 			} catch (e) {
 				if (RPCClient._client.config.logLevel === "verbose") console.error(e);
 				return new ErrorRequestFailed();

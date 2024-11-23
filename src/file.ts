@@ -3,7 +3,7 @@ import Utils, { type NonEmptyString, type NonNegativeNumber, type Sha256 } from 
 import { join } from "https://deno.land/std@0.224.0/path/mod.ts";
 import type { EthAddress } from "./wallet.ts";
 import { delay } from "https://deno.land/std@0.170.0/async/delay.ts";
-import { ErrorChecksumMismatch, ErrorNotFound, ErrorNotInitialised, ErrorRequestFailed, ErrorUnreachableCodeReached } from "./errors.ts";
+import { ErrorChecksumMismatch, ErrorNotFound, ErrorNotInitialised, ErrorUnreachableCodeReached } from "./errors.ts";
 import Database, { type DatabaseModal } from "./database.ts";
 
 const seeding: string[] = [];
@@ -93,7 +93,7 @@ export class File implements FileAttributes {
 				const response = await responses[i];
 				if (response instanceof Error) continue;
 				try {
-					const body = await response.json() as { result: Metadata } | FileAttributes;
+					const body = await JSON.parse(response.text()) as { result: Metadata } | FileAttributes;
 					hash = "result" in body ? body.result.hash.sha256 : body.hash;
 				} catch (e) {
 					if (Files._client.config.logLevel === "verbose") console.error(e);
@@ -131,7 +131,7 @@ export class File implements FileAttributes {
 				try {
 					const response = await responses[i];
 					if (response instanceof Error) continue;
-					const body = await response.json();
+					const body = JSON.parse(response.text());
 					const metadata = body.result as Metadata ?? body as FileAttributes;
 					this.name = metadata.name;
 					this.size = Utils.createNonNegativeNumber(metadata.size);
@@ -393,11 +393,11 @@ export class File implements FileAttributes {
 			if (this.hash !== verifiedHash) return new ErrorChecksumMismatch();
 			console.log(`File:     ${this.hash}  Valid hash`);
 
-			const ethAddress = response.headers.get("Ethereum-Address");
+			const ethAddress = response.headers["Ethereum-Address"];
 			if (ethAddress) Files._client.filesWallet.transfer(ethAddress as EthAddress, 1_000_000n * BigInt(fileContent.byteLength));
 
 			if (!this.name) {
-				this.name = String(response.headers.get("Content-Disposition")?.split("=")[1].replace(/"/g, "").replace(" [HYDRAFILES]", ""));
+				this.name = String(response.headers["Content-Disposition"]?.split("=")[1].replace(/"/g, "").replace(" [HYDRAFILES]", ""));
 				this.save();
 			}
 		}
@@ -471,9 +471,10 @@ class Files {
 		let files: FileAttributes[] = [];
 		const responses = await Promise.all(await Files._client.rpcClient.fetch("http://localhost/files"));
 		for (let i = 0; i < responses.length; i++) {
-			if (!(responses[i] instanceof ErrorRequestFailed)) {
+			const response = responses[i];
+			if (!(response instanceof Error)) {
 				try {
-					files = files.concat((await (responses[i] as Response).json()) as FileAttributes[]);
+					files = files.concat(JSON.parse(response.text()) as FileAttributes[]);
 				} catch (e) {
 					if (Files._client.config.logLevel === "verbose") console.log(e);
 				}
