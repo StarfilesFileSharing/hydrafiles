@@ -26,6 +26,16 @@ export default class Services {
 	public processingRequests = new Map<string, Promise<Response | ErrorNotFound>>();
 	public cachedResponses: Record<string, CachedResponse> = {};
 
+	private filterHydraHeaders(headers: Headers): Headers {
+		const filteredHeaders = new Headers();
+		headers.forEach((value, key) => {
+			if (key.toLowerCase().startsWith('hydra-')) {
+				filteredHeaders.set(key, value);
+			}
+		});
+		return filteredHeaders;
+	}
+
 	public addHostname(requestHandler: (req: Request) => Promise<Response> | Response, seed: number): string {
 		const wallet = new Wallet(1000 + seed);
 		const api = new Service(wallet, requestHandler);
@@ -57,7 +67,7 @@ export default class Services {
 				delete this.cachedResponses[reqKey];
 			}
 			console.log(`Hostname: ${hostname} Serving response from cache`);
-			return new Response(this.cachedResponses[reqKey].body, { headers: this.cachedResponses[reqKey].headers });
+			return new Response(this.cachedResponses[reqKey].body, { headers: this.filterHydraHeaders(this.cachedResponses[reqKey].headers) });
 		}
 
 		const responses = await Services._client.rpcClient.fetch(req.url, { headers: req.headers });
@@ -71,7 +81,8 @@ export default class Services {
 						if (!response.ok) return;
 						const body = await response.text();
 						const signature = response.headers.get("hydra-signature") as EthAddress | null;
-						if (signature !== null && await Services._client.filesWallet.verifyMessage(body, signature, new TextDecoder().decode(decodeBase32(hostname)) as EthAddress)) resolve(new Response(body, { headers: response.headers }));
+						if (signature !== null && await Services._client.filesWallet.verifyMessage(body, signature, new TextDecoder().decode(decodeBase32(hostname)) as EthAddress)) 
+							resolve(new Response(body, { headers: this.filterHydraHeaders(response.headers) }));
 					} catch (e) {
 						const err = e as Error;
 						if (err.message !== "Hostname not found") console.error(e);
@@ -102,7 +113,7 @@ export default class Services {
 		if (response instanceof ErrorRequestFailed) throw response;
 
 		console.log(`Hostname: ${hostname} Mirroring response`);
-		const res = { body: await response.text(), headers: response.headers };
+		const res = { body: await response.text(), headers: this.filterHydraHeaders(response.headers) };
 		this.cachedResponses[reqKey] = { ...res, timestamp: Date.now() };
 		return new Response(res.body, { headers: res.headers });
 	}
