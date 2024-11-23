@@ -304,7 +304,7 @@ router.set("/file", (req, client) => {
 	return new Response(JSON.stringify(file), { headers });
 });
 
-router.set("/endpoint", async (req, client): Promise<Response> => {
+router.set("/service", async (req, client): Promise<Response> => {
 	const url = new URL(req.url);
 	url.protocol = "https:";
 	url.hostname = "localhost";
