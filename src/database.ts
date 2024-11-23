@@ -32,8 +32,8 @@ export type DatabaseModal<T extends ModelType> =
 			: never;
 	}
 	& {
-		createdAt?: NonEmptyString;
-		updatedAt?: NonEmptyString;
+		createdAt: NonEmptyString;
+		updatedAt: NonEmptyString;
 	};
 
 type DatabaseWrapperUndefined = { type: "UNDEFINED"; db: undefined };
@@ -193,7 +193,8 @@ export default class Database<T extends ModelType> {
 		const file = this.withDefaults(values);
 		if (file instanceof ErrorMissingRequiredProperty) return file;
 
-		console.log(`Database: ${this.model.tableName}  Record INSERTed`, values);
+		if (this._client.config.logLevel === "verbose") console.log(`Database: ${this.model.tableName}  Record INSERTed`, values);
+		else console.log(`Database: ${this.model.tableName}  Record INSERTed`);
 
 		if (this.db.type === "SQLITE") {
 			const columns = Object.keys(this.model.columns);
@@ -366,24 +367,3 @@ export default class Database<T extends ModelType> {
 		return result as DatabaseModal<T>;
 	}
 }
-
-// const fileModel = {
-//   tableName: "file",
-//   columns: {
-//     hash: { type: "TEXT" as const, primary: true },
-//     infohash: { type: "TEXT" as const, isNullable: true },
-//     downloadCount: { type: "INTEGER" as const, default: 0 },
-//     id: { type: "TEXT" as const, isNullable: true },
-//     name: { type: "TEXT" as const, isNullable: true },
-//     found: { type: "BOOLEAN" as const, default: 1 },
-//     size: { type: "INTEGER" as const, default: 0 },
-//     voteHash: { type: "TEXT" as const, isNullable: true },
-//     voteNonce: { type: "INTEGER" as const, default: 0 },
-//     voteDifficulty: { type: "REAL" as const, default: 0 },
-//     createdAt: { type: "DATETIME" as const, default: "CURRENT_TIMESTAMP" },
-//     updatedAt: { type: "DATETIME" as const, default: "CURRENT_TIMESTAMP" },
-//   },
-// };
-
-// const db = await Database.init<typeof fileModel>(fileModel, new Hydrafiles());
-// db.withDefaults({ hash: "test" });
