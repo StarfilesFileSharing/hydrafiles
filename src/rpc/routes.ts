@@ -48,7 +48,7 @@ export const pendingWSRequests = new Map<number, (response: DecodedResponse) => 
 export const processingDownloads = new Map<string, Promise<DecodedResponse | ErrorNotFound>>();
 
 router.set("WS", (req) => {
-	const { socket, response } = Deno.upgradeWebSocket(req);
+	const { socket } = Deno.upgradeWebSocket(req);
 	sockets.push({ socket, id: "" });
 
 	socket.addEventListener("message", ({ data }) => {
@@ -71,7 +71,14 @@ router.set("WS", (req) => {
 		}
 	});
 
-	return DecodedResponse.from(response);
+	return new DecodedResponse("", {
+		headers: {
+			"connection": "Upgrade",
+			"upgrade": "websocket",
+			"sec-websocket-accept": "<hashed-key>",
+		},
+		status: 101,
+	});
 });
 
 router.set("/status", () => {
