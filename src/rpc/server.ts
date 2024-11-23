@@ -93,37 +93,27 @@ class RPCServer {
 	};
 
 	handleRequest = async (req: Request): Promise<Response> => {
-		const headers = new Headers({
+		const headers: { [key: string]: string } = {
 			"Access-Control-Allow-Origin": "*",
-			"Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-			"Access-Control-Allow-Headers": "Content-Type",
-		});
+		};
 		try {
 			console.log(`Request:  ${req.url}`);
 			const url = new URL(req.url);
 
 			if ((url.pathname === "/" || url.pathname === "/docs") && req.headers.get("upgrade") !== "websocket") {
-				headers.set("Location", "/docs/");
+				headers["Location"] = "/docs/";
 				return new Response("", { headers: headers, status: 301 });
 			}
 
 			try {
 				const url = new URL(req.url);
 				const filePath = `./public${url.pathname.endsWith("/") ? `${url.pathname}index.html` : url.pathname}`;
-				const fileResponse = await serveFile(req, filePath);
-				// Add CORS headers to file response
-				Object.entries(headers).forEach(([key, value]) => {
-					fileResponse.headers.set(key, value);
-				});
-				return fileResponse;
+				return await serveFile(req, filePath);
 			} catch (_) {
 				const routeHandler = /* req.headers.get("upgrade") === "websocket" ? router.get("WS") : */ router.get(`/${url.pathname.split("/")[1]}`);
 				if (routeHandler) {
 					const response = await routeHandler(req, RPCServer._client);
-					// Add CORS headers to route handler response
-					Object.entries(headers).forEach(([key, value]) => {
-						response.headers[key] = value;
-					});
+					response.headers = { ...response.headers, ...headers };
 					return response.response();
 				}
 				return new Response("404 Page Not Found\n", { status: 404, headers });
