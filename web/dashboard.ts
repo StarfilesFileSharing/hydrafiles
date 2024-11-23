@@ -550,7 +550,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 			</div>
 		</div>`;
 		window.hydrafiles.rpcClient.fetch(
-			new Request(`https://localhost/endpoint/${(document.getElementById("peerAddress") as HTMLInputElement).value}?message=${encodeURIComponent(message)}&nonce=${Math.random()}`),
+			new Request(`https://localhost/service/${(document.getElementById("peerAddress") as HTMLInputElement).value}?message=${encodeURIComponent(message)}&nonce=${Math.random()}`),
 			{ wallet },
 		);
 	});
@@ -575,7 +575,7 @@ function createHostnameUI(hostname: string, initialHandler = ""): HostnameUI {
 
 	const endpoint = document.createElement("p");
 	endpoint.className = "text-sm text-gray-600 mt-1 mb-4";
-	endpoint.innerHTML = `Endpoint: <code class="bg-gray-100 px-2 py-1 rounded">https://${window.location.hostname}/endpoint/${hostname}</code>`;
+	endpoint.innerHTML = `Endpoint: <code class="bg-gray-100 px-2 py-1 rounded">https://${window.location.hostname}/service/${hostname}</code>`;
 
 	const textarea = document.createElement("textarea");
 	textarea.className = "w-full h-48 mt-2 p-4 font-mono text-sm border rounded focus:outline-none focus:border-blue-500";
