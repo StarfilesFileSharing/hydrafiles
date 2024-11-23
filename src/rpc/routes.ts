@@ -28,6 +28,10 @@ export class DecodedResponse {
 		return new DecodedResponse(new Uint8Array(body), { headers, status: response.status });
 	}
 
+	addHeaders(headers: { [key: string]: string }): void {
+		this.headers = { ...this.headers, ...headers };
+	}
+
 	response(): Response {
 		return new Response(this.body === null || this.body.length === 0 ? undefined : this.body, { headers: this.headers, status: this.status });
 	}
