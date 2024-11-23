@@ -57,7 +57,7 @@ class Hydrafiles {
 		this.services.addHostname((req: Request) => {
 			console.log(req);
 			return new Response("Hello World!");
-		});
+		}, 0);
 
 		if (this.config.s3Endpoint.length) {
 			console.log("Startup: Populating S3");
@@ -107,7 +107,7 @@ class Hydrafiles {
 			"\n| Known HTTP Peers:",
 			this.rpcClient.http.getPeers().length,
 			"\n| Known RTC Peers:",
-			Object.keys(this.rpcClient.rtc.peerConnections).length,
+			Object.keys(this.rpcClient.rtc.peers).length,
 			"\n| Known (Network) Files:",
 			await this.files.db.count(),
 			`(${Math.round((100 * (await this.files.db.sum("size"))) / 1024 / 1024 / 1024) / 100}GB)`,

@@ -11,16 +11,11 @@ export default class WSPeers {
 		this._rpcClient = rpcClient;
 	}
 
-	public fetch(input: RequestInfo, init?: RequestInit): Promise<Response | ErrorTimeout>[] {
-		const req = typeof input === "string" ? new Request(input, init) : input;
-
+	public fetch(url: URL, method = "GET", headers: { [key: string]: string } = {}, body: string | undefined = undefined): Promise<Response | ErrorTimeout>[] {
 		if (!sockets.length) return [];
 
 		const requestId = Math.random();
-		const { method, url, headers } = req;
-		const headersObj: Record<string, string> = {};
-		headers.forEach((value, key) => headersObj[key] = value);
-		const request: WSMessage = { request: { method, url, headers: headersObj, body: req.method === "GET" ? null : req.body }, id: requestId, from: this._rpcClient.rtc.peerId };
+		const request: WSMessage = { request: { method, url: url.toString(), headers, body: method === "GET" ? undefined : body }, id: requestId, from: this._rpcClient.rtc.peerId };
 
 		const responses = sockets.map(async (socket) => {
 			return await Utils.promiseWithTimeout(

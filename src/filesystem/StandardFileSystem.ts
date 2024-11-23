@@ -34,12 +34,12 @@ export default class StandardFileSystem {
 		await Deno.writeFile(path, data);
 	};
 
-	getFileSize = async (path: string): Promise<number> => {
+	getFileSize = async (path: string): Promise<number | ErrorNotFound> => {
 		try {
 			const fileInfo = await Deno.stat(path);
 			return fileInfo.size;
 		} catch (e) {
-			console.log((e as Error).message);
+			if ((e as Error).name === "NotFound") return new ErrorNotFound();
 			throw e;
 		}
 	};

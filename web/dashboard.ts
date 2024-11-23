@@ -1,14 +1,49 @@
+import { EthAddress } from "./../src/wallet.ts";
 import Hydrafiles, { FileEvent, RTCEvent } from "../src/hydrafiles.ts";
 import { type FileAttributes } from "../src/file.ts";
 import WebTorrent from "https://esm.sh/webtorrent@2.5.1";
 import { Chart } from "https://esm.sh/chart.js@4.4.6/auto";
 import { ErrorNotInitialised } from "../src/errors.ts";
 import { decodeBase32, encodeBase32 } from "https://deno.land/std@0.224.0/encoding/base32.ts";
+import { DataSet } from "npm:vis-data/esnext";
+import { Network } from "npm:vis-network/esnext";
+import Utils from "../src/utils.ts";
+import { Edge, Node } from "npm:vis-network/esnext";
 
 declare global {
 	interface Window {
 		hydrafiles: Hydrafiles;
 	}
+}
+
+function formatTSCode(code: string): string {
+	const indent = (lines: string[], level: number) => lines.map((line) => "  ".repeat(level) + line);
+	let formatted = "", depth = 0, inString = false, escape = false;
+	for (let i = 0; i < code.length; i++) {
+		const char = code[i];
+		if (inString) {
+			if (char === "\\" && !escape) escape = true;
+			else if ((char === "'" || char === '"' || char === "`") && !escape) inString = false;
+			else escape = false;
+			formatted += char;
+		} else {
+			if (char === "'" || char === '"' || char === "`") inString = true;
+			if (char === "{" || char === "[" || char === "(") {
+				formatted += char + "\n";
+				formatted += indent([""], ++depth).join("");
+			} else if (char === "}" || char === "]" || char === ")") {
+				formatted += "\n";
+				formatted += indent([""], --depth).join("") + char;
+			} else if (char === ";") {
+				formatted += char + "\n" + indent([""], depth).join("");
+			} else if (char === "\n" || char === "\r") {
+				continue;
+			} else {
+				formatted += char;
+			}
+		}
+	}
+	return formatted.split("\n").map((line) => line.trimEnd()).join("\n");
 }
 
 function loadSavedCredentials(): { email: string; password: string } | null {
@@ -64,18 +99,31 @@ document.getElementById("startHydrafilesButton")!.addEventListener("click", asyn
 	setInterval(tickHandler, 30 * 1000);
 	tickHandler();
 
+	const seenMessages = new Set<string>();
 	const messageBox = document.getElementById("messages") as HTMLElement;
 	document.getElementById("messengerAddress")!.innerText = new TextDecoder().decode(decodeBase32(window.hydrafiles.services.addHostname((req) => {
+		console.log(req);
+		const signature = req.headers.get("hydra-signature");
+		const from = req.headers.get("hydra-from");
+		if (signature === null || from === null) return new Response("Request not signed");
+		if (!window.hydrafiles.rtcWallet.verifyMessage(JSON.stringify({ method: req.method, url: req.url, headers: req.headers }), signature as `0x${string}`, from as `0x${string}`)) return new Response("Invalid signature");
+
+		const params = new URL(req.url).searchParams;
+		const message = params.get("message");
+		const nonce = params.get("nonce");
+		if (!message || !nonce) return new Response("Invalid message");
+		if (seenMessages.has(message + nonce)) return new Response("Received message");
+		seenMessages.add(message + nonce);
 		messageBox.innerHTML += `<div class="col-start-6 col-end-13 p-3 rounded-lg">
 			<div class="flex items-center justify-start">
-				<div class="flex items-center justify-center h-10 w-10 rounded-full bg-indigo-500 flex-shrink-0">A</div>
+				<div class="flex items-center justify-center h-10 w-10 rounded-full bg-indigo-500 flex-shrink-0">${from.slice(0, 4)}</div>
 				<div class="relative mr-3 text-sm bg-indigo-100 py-2 px-4 shadow rounded-xl">
-					<div>${new URL(req.url).searchParams.get("message")}</div>
+					<div>${message}</div>
 				</div>
 			</div>
 		</div>`;
 		return new Response("Received message");
-	})));
+	}, 200 + Object.keys(window.hydrafiles.services).length)));
 
 	refreshHostnameUIs();
 });
@@ -96,7 +144,7 @@ const tickHandler = async () => {
 				console.error(e);
 			}
 			try {
-				(document.getElementById("rtcPeers") as HTMLElement).innerHTML = String(Object.keys(window.hydrafiles.rpcClient.rtc.peerConnections).length);
+				(document.getElementById("rtcPeers") as HTMLElement).innerHTML = String(Object.keys(window.hydrafiles.rpcClient.rtc.peers).length);
 			} catch (e) {
 				console.error(e);
 			}
@@ -140,6 +188,11 @@ const tickHandler = async () => {
 			}
 			fetchAndPopulateCharts();
 			try {
+				populateNetworkGraph();
+			} catch (e) {
+				console.error(e);
+			}
+			try {
 				const blocks = window.hydrafiles.nameService.blocks;
 				const knownServices = document.getElementById("knownServices")!;
 				knownServices.innerHTML = "";
@@ -150,7 +203,17 @@ const tickHandler = async () => {
 					knownServices.appendChild(h3);
 					const code = document.createElement("code");
 					code.classList.add("text-sm");
-					code.innerHTML = `Address: ${blocks[i].address}<br>Name: ${blocks[i].name}<br>Signature: ${blocks[i].signature}<br>Nonce: ${blocks[i].nonce}<br>Prev: ${blocks[i].prev}`;
+					code.innerHTML = `Address or Script: ${blocks[i].content}<br>Name: ${blocks[i].name}<br>Signature or Hash: ${blocks[i].id}<br>Nonce: ${blocks[i].nonce}<br>Prev: ${blocks[i].prev}`;
+					if (!blocks[i].content.startsWith("0x")) {
+						const addService = document.createElement("button");
+						addService.innerText = "Add Service";
+						addService.classList.add("block", "px-4", "py-2", "bg-blue-600", "text-white", "rounded", "hover:bg-blue-700", "focus:outline-none", "focus:ring-2", "focus:ring-blue-500", "focus:ring-opacity-50");
+						addService.addEventListener(
+							"click",
+							() => window.hydrafiles.services.addHostname(new Function("req", `return (${blocks[i].content})(req)`) as (req: Request) => Promise<Response>, 100 + Object.keys(window.hydrafiles.services.ownedServices).length),
+						);
+						knownServices.appendChild(addService);
+					}
 					knownServices.appendChild(code);
 				}
 			} catch (e) {
@@ -269,7 +332,7 @@ async function fetchAndPopulatePeers() {
 		peersEl.appendChild(li);
 	});
 
-	const rtcPeers = Object.entries(window.hydrafiles.rpcClient.rtc.peerConnections);
+	const rtcPeers = Object.entries(window.hydrafiles.rpcClient.rtc.peers);
 	const tbody = document.getElementById("peerTable")!.querySelector("tbody") as HTMLTableSectionElement;
 
 	tbody.innerHTML = "";
@@ -325,10 +388,12 @@ function populateTable() {
 	actionsHeader.textContent = "Actions";
 	tableHeader.appendChild(actionsHeader);
 
-	files.forEach((file) => {
+	for (let i = 0; i < files.length; i++) {
+		const file = files[i];
 		const row = document.createElement("tr");
 
-		fileKeys.forEach((key) => {
+		for (let j = 0; j < fileKeys.length; j++) {
+			const key = fileKeys[j];
 			if (!(hideAdvancedColumns && advancedColumns.includes(key))) {
 				const cell = document.createElement("td");
 				let value = file[key];
@@ -336,10 +401,10 @@ function populateTable() {
 				if (key === "size") value = `${(file[key] / (1024 * 1024)).toFixed(2)} MB`;
 				if (key === "updatedAt") value = new Date(file[key]).toLocaleDateString();
 
-				cell.textContent = String(value);
+				cell.textContent = String(`${key}: ${value}`);
 				row.appendChild(cell);
 			}
-		});
+		}
 
 		const actionsCell = document.createElement("td");
 		actionsCell.className = "file-actions";
@@ -366,7 +431,7 @@ function populateTable() {
 		row.appendChild(actionsCell);
 
 		tableBody.appendChild(row);
-	});
+	}
 }
 
 let chartInstances: { [key: string]: Chart } = {};
@@ -449,11 +514,13 @@ document.addEventListener("DOMContentLoaded", async () => {
 		setTimeout(() => results.classList.add("hidden"), 3000);
 	});
 
-	const pages = ["dashboard", "statistics", "peers", "files", "services", "chat"];
+	const pages = ["documentation", "dashboard", "statistics", "peers", "files", "services", "chat"];
 	const sidebarLinks = document.querySelectorAll("#default-sidebar a");
 
 	const selectPage = (pageId: string) => {
-		pages.forEach((id) => (document.getElementById(id) as HTMLElement).classList.add("hidden"));
+		pages.forEach((id) => {
+			if (id !== "documentation") (document.getElementById(id) as HTMLElement).classList.add("hidden");
+		});
 		(document.getElementById(pageId) as HTMLElement).classList.remove("hidden");
 
 		sidebarLinks.forEach((link) => link.classList.remove("bg-gray-100", "dark:bg-gray-700"));
@@ -465,7 +532,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 		const link = sidebarLinks[i];
 		link.setAttribute("data-section", pages[i]);
 		link.addEventListener("click", (e) => {
-			e.preventDefault();
+			if (pages[i] !== "documentation") e.preventDefault();
 			selectPage(link.getAttribute("data-section") as string);
 		});
 	}
@@ -473,16 +540,20 @@ document.addEventListener("DOMContentLoaded", async () => {
 	document.getElementById("sendMessage")!.addEventListener("click", () => {
 		const message = (document.getElementById("message") as HTMLInputElement).value;
 		const messageBox = document.getElementById("messages") as HTMLElement;
+		const messengerAddress = document.getElementById("messengerAddress")!.innerText;
+		const wallet = window.hydrafiles.services.ownedServices[encodeBase32(new TextEncoder().encode(messengerAddress)).toUpperCase()].wallet;
+
 		messageBox.innerHTML += `<div class="col-start-6 col-end-13 p-3 rounded-lg">
 			<div class="flex items-center justify-start flex-row-reverse">
-				<div class="flex items-center justify-center h-10 w-10 rounded-full bg-indigo-500 flex-shrink-0">A</div>
+				<div class="flex items-center justify-center h-10 w-10 rounded-full bg-indigo-500 flex-shrink-0">${messengerAddress.slice(0, 4)}</div>
 				<div class="relative mr-3 text-sm bg-indigo-100 py-2 px-4 shadow rounded-xl">
 					<div>${message}</div>
 				</div>
 			</div>
 		</div>`;
 		window.hydrafiles.rpcClient.fetch(
-			new Request(`https://localhost/endpoint/${encodeBase32(new TextEncoder().encode((document.getElementById("peerAddress") as HTMLInputElement).value)).toUpperCase()}?message=${encodeURIComponent(message)}`),
+			new Request(`https://localhost/service/${(document.getElementById("peerAddress") as HTMLInputElement).value}?message=${encodeURIComponent(message)}&nonce=${Math.random()}`),
+			{ wallet },
 		);
 	});
 
@@ -500,20 +571,17 @@ interface HostnameUI {
 const hostnameUIs = new Map<string, HostnameUI>();
 
 // Add this function to create UI for a hostname
-function createHostnameUI(hostname: string, initialHandler = ""): HostnameUI {
+async function createHostnameUI(hostname: EthAddress): Promise<HostnameUI> {
 	const container = document.createElement("section");
 	container.className = "mb-8 p-4 border rounded-lg";
 
 	const endpoint = document.createElement("p");
 	endpoint.className = "text-sm text-gray-600 mt-1 mb-4";
-	endpoint.innerHTML = `Endpoint: <code class="bg-gray-100 px-2 py-1 rounded">https://${window.location.hostname}/endpoint/${hostname}</code>`;
+	endpoint.innerHTML = `Endpoint: <code class="bg-gray-100 px-2 py-1 rounded">https://${window.location.hostname}/service/${hostname}</code>`;
 
 	const textarea = document.createElement("textarea");
 	textarea.className = "w-full h-48 mt-2 p-4 font-mono text-sm border rounded focus:outline-none focus:border-blue-500";
-	textarea.value = initialHandler || `async (req) => {
-    // Custom request handling logic
-    return new Response("Hello World!");
-}`;
+	textarea.value = formatTSCode(window.hydrafiles.services.ownedServices[encodeBase32(hostname)].requestHandler.toString());
 
 	const nameInput = document.createElement("input");
 	nameInput.className = "w-full my-2 p-4 font-mono text-sm border rounded focus:outline-none focus:border-blue-500";
@@ -527,14 +595,18 @@ function createHostnameUI(hostname: string, initialHandler = ""): HostnameUI {
 	updateButton.className = "px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50";
 	updateButton.textContent = "Update Handler";
 
-	const announceBUtton = document.createElement("button");
-	announceBUtton.className = "px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50";
-	announceBUtton.textContent = "Announce";
+	const announceServiceButton = document.createElement("button");
+	announceServiceButton.className = "px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50";
+	announceServiceButton.textContent = "Announce Service";
+
+	const publishSourceButton = document.createElement("button");
+	publishSourceButton.className = "px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50";
+	publishSourceButton.textContent = "Publish Source";
 
 	updateButton.addEventListener("click", () => {
 		try {
 			const code = textarea.value;
-			window.hydrafiles.services.ownedServices[hostname].requestHandler = new Function("req", `return (${code})(req)`) as (req: Request) => Promise<Response>;
+			window.hydrafiles.services.ownedServices[encodeBase32(hostname)].requestHandler = new Function("req", `return (${code})(req)`) as (req: Request) => Promise<Response>;
 			results.textContent = "Handler updated successfully!";
 			results.className = "my-4 p-4 rounded-lg bg-green-50 text-green-800";
 			setTimeout(() => results.className = "hidden", 3000);
@@ -544,10 +616,22 @@ function createHostnameUI(hostname: string, initialHandler = ""): HostnameUI {
 		}
 	});
 
-	announceBUtton.addEventListener("click", () => {
+	announceServiceButton.addEventListener("click", () => {
 		try {
-			window.hydrafiles.services.ownedServices[hostname].announce(nameInput.value);
-			results.textContent = "Announced domain!";
+			window.hydrafiles.services.ownedServices[encodeBase32(hostname)].announce(nameInput.value);
+			results.textContent = "Announced Service!";
+			results.className = "my-4 p-4 rounded-lg bg-green-50 text-green-800";
+			setTimeout(() => results.className = "hidden", 3000);
+		} catch (err) {
+			results.textContent = `Error updating handler: ${(err as Error).message}`;
+			results.className = "my-4 p-4 rounded-lg bg-red-50 text-red-800";
+		}
+	});
+
+	publishSourceButton.addEventListener("click", () => {
+		try {
+			window.hydrafiles.nameService.createBlock({ script: textarea.value }, nameInput.value);
+			results.textContent = "Published Source!";
 			results.className = "my-4 p-4 rounded-lg bg-green-50 text-green-800";
 			setTimeout(() => results.className = "hidden", 3000);
 		} catch (err) {
@@ -561,7 +645,8 @@ function createHostnameUI(hostname: string, initialHandler = ""): HostnameUI {
 	container.appendChild(nameInput);
 	container.appendChild(results);
 	container.appendChild(updateButton);
-	container.appendChild(announceBUtton);
+	container.appendChild(announceServiceButton);
+	container.appendChild(publishSourceButton);
 
 	return {
 		name: hostname,
@@ -571,7 +656,7 @@ function createHostnameUI(hostname: string, initialHandler = ""): HostnameUI {
 }
 
 // Update this function to refresh hostname UIs
-function refreshHostnameUIs() {
+async function refreshHostnameUIs() {
 	const services = window.hydrafiles.services.ownedServices;
 	const servicesContainer = document.getElementById("servicesList")!;
 
@@ -581,11 +666,69 @@ function refreshHostnameUIs() {
 	if (header) servicesContainer.appendChild(header);
 
 	// Create/update UI for each hostname
-	Object.keys(services).forEach((hostname) => {
+	Object.keys(services).forEach(async (hostname) => {
 		if (!hostnameUIs.has(hostname)) {
-			const ui = createHostnameUI(hostname);
+			const ui = await createHostnameUI(new TextDecoder().decode(decodeBase32(hostname)) as EthAddress);
 			hostnameUIs.set(hostname, ui);
 		}
 		servicesContainer.appendChild(hostnameUIs.get(hostname)!.element);
 	});
+}
+
+const nodes = new DataSet<Node>([{ id: 0, label: "You" }]);
+const edges = new DataSet<Edge>([]);
+const network = new Network(document.getElementById("peerNetwork")!, { nodes: nodes as any, edges: edges as any }, {
+	nodes: {
+		shape: "dot",
+		scaling: {
+			customScalingFunction: function (min, max, total, value) {
+				console.log(min, max, total, value);
+				return (value ?? 0) / (total ?? 0);
+			},
+			min: 5,
+			max: 150,
+		},
+	},
+});
+
+async function populateNetworkGraph() {
+	const httpPeers = Array.from(window.hydrafiles.rpcClient.http.peers);
+	const rtcPeers = Object.keys(window.hydrafiles.rpcClient.rtc.peers);
+
+	const foundNodes = [
+		...httpPeers.map((peer, index) => ({ id: index + 1, label: peer[0] })),
+		...rtcPeers.map((peer, index) => ({ id: index + httpPeers.length + 1, label: peer })),
+	];
+	const foundEdges = [
+		...httpPeers.map((_, index) => ({ id: `0-${index + 1}`, from: 0, to: index + 1 })),
+		...rtcPeers.map((_, index) => ({ id: `0-${index + httpPeers.length + 1}`, from: 0, to: index + httpPeers.length + 1 })),
+	];
+
+	foundNodes.forEach((node) => {
+		if (!nodes.get(node.id)) nodes.add(node);
+	});
+	foundEdges.forEach((edge) => {
+		if (!edges.get(edge.id)) edges.add(edge);
+	});
+
+	const responses = await Promise.all(httpPeers.map((peer) => Utils.promiseWithTimeout(fetch(`${peer[0]}/peers`), 10000)));
+	for (const response of responses) {
+		if (response instanceof Error) continue;
+
+		const url = new URL(response.url);
+		const peer = `${url.protocol}//${url.hostname}`;
+
+		const body = await response.text();
+		try {
+			const peers = JSON.parse(body);
+
+			for (let i = 0; i < peers.length; i++) {
+				const fromNode = nodes.get().find((node) => node.label === peer);
+				const toNode = nodes.get().find((node) => node.label === peers[i].host);
+				if (fromNode && toNode && !edges.get(`${fromNode.id}-${toNode.id}`)) edges.add({ id: `${fromNode.id}-${toNode.id}`, from: fromNode.id, to: toNode.id });
+			}
+		} catch (_) {
+			continue;
+		}
+	}
 }

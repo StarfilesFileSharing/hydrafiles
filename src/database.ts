@@ -241,7 +241,7 @@ export default class Database<T extends ModelType> {
 		for (let i = 0; i < keys.length; i++) {
 			const key = keys[i];
 			if (newFile[key] !== undefined && newFile[key] !== null && newFile[key] !== currentFile[key] && newFile[key] !== defaultValues[key]) {
-				if (key === "name" && newFile[key] === "File") continue;
+				if (key === "_db" || (key === "name" && newFile[key] === "File")) continue;
 				updatedColumn.push(key);
 				params.push(newFile[key]);
 			}

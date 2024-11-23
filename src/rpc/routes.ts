@@ -6,7 +6,7 @@ import Utils, { type Sha256 } from "../utils.ts";
 import type Hydrafiles from "../hydrafiles.ts";
 import { ErrorNotFound } from "../errors.ts";
 
-export const router = new Map<string, (req: Request, headers: Headers, client: Hydrafiles) => Promise<Response> | Response>();
+export const router = new Map<string, (req: Request, client: Hydrafiles) => Promise<Response> | Response>();
 export const sockets: { id: string; socket: WebSocket }[] = [];
 
 export const pendingWSRequests = new Map<number, (response: Response) => void>();
@@ -39,12 +39,14 @@ router.set("WS", (req) => {
 	return response;
 });
 
-router.set("/status", (_, headers) => {
+router.set("/status", () => {
+	const headers = new Headers();
 	headers.set("Content-Type", "application/json");
 	return new Response(JSON.stringify({ status: true }), { headers });
 });
 
-router.set("/hydrafiles-web.esm.js", async (_, headers, client) => {
+router.set("/hydrafiles-web.esm.js", async (_, client) => {
+	const headers = new Headers();
 	headers.set("Content-Type", "application/javascript");
 	headers.set("Cache-Control", "public, max-age=300");
 	const fileContent = await client.fs.readFile("build/hydrafiles-web.esm.js");
@@ -52,7 +54,8 @@ router.set("/hydrafiles-web.esm.js", async (_, headers, client) => {
 	return new Response(fileContent, { headers });
 });
 
-router.set("/dashboard.js", async (_, headers, client) => {
+router.set("/dashboard.js", async (_, client) => {
+	const headers = new Headers();
 	headers.set("Content-Type", "application/javascript");
 	headers.set("Cache-Control", "public, max-age=300");
 	const fileContent = await client.fs.readFile("build/dashboard.js");
@@ -60,7 +63,8 @@ router.set("/dashboard.js", async (_, headers, client) => {
 	return new Response(fileContent, { headers });
 });
 
-router.set("/hydrafiles-web.esm.js.map", async (_, headers, client) => {
+router.set("/hydrafiles-web.esm.js.map", async (_, client) => {
+	const headers = new Headers();
 	headers.set("Content-Type", "application/json");
 	headers.set("Cache-Control", "public, max-age=300");
 	const fileContent = await client.fs.readFile("build/hydrafiles-web.esm.js.map");
@@ -68,7 +72,8 @@ router.set("/hydrafiles-web.esm.js.map", async (_, headers, client) => {
 	return new Response(fileContent, { headers });
 });
 
-router.set("/dashboard.js.map", async (_, headers, client) => {
+router.set("/dashboard.js.map", async (_, client) => {
+	const headers = new Headers();
 	headers.set("Content-Type", "application/json");
 	headers.set("Cache-Control", "public, max-age=300");
 	const fileContent = await client.fs.readFile("build/dashboard.js.map");
@@ -76,7 +81,8 @@ router.set("/dashboard.js.map", async (_, headers, client) => {
 	return new Response(fileContent, { headers });
 });
 
-router.set("/peers", (_, headers, client) => {
+router.set("/peers", (_, client) => {
+	const headers = new Headers();
 	headers.set("Content-Type", "application/json");
 	headers.set("Cache-Control", "public, max-age=300");
 	return new Response(
@@ -94,13 +100,14 @@ router.set("/peers", (_, headers, client) => {
 	);
 });
 
-router.set("/info", async (_, headers) => {
+router.set("/info", async () => {
+	const headers = new Headers();
 	headers.set("Content-Type", "application/json");
 	headers.set("Cache-Control", "public, max-age=300");
 	return new Response(JSON.stringify({ version: JSON.parse(await Deno.readTextFile("deno.jsonc")).version }), { headers });
 });
 
-router.set("/announce", async (req, _, client) => {
+router.set("/announce", async (req, client) => {
 	const url = new URL(req.url);
 	const host = url.searchParams.get("host");
 	if (host === null) return new Response("No hosted given\n", { status: 401 });
@@ -110,7 +117,7 @@ router.set("/announce", async (req, _, client) => {
 	return new Response("Announced\n");
 });
 
-router.set("/download", async (req, headers, client) => {
+router.set("/download", async (req, client) => {
 	const url = new URL(req.url);
 	const hash = Utils.sha256(url.pathname.split("/")[2]);
 	const fileId = url.pathname.split("/")[3] ?? "";
@@ -147,6 +154,7 @@ router.set("/download", async (req, headers, client) => {
 			});
 		}
 
+		const headers = new Headers();
 		headers.set("Content-Type", "application/octet-stream");
 		headers.set("Cache-Control", "public, max-age=31536000");
 		headers.set("Content-Length", fileContent.file.byteLength.toString());
@@ -174,7 +182,7 @@ router.set("/download", async (req, headers, client) => {
 	return response;
 });
 
-router.set("/infohash", async (req, headers, client): Promise<Response> => {
+router.set("/infohash", async (req, client): Promise<Response> => {
 	const url = new URL(req.url);
 	const infohash = url.pathname.split("/")[2];
 
@@ -197,6 +205,7 @@ router.set("/infohash", async (req, headers, client): Promise<Response> => {
 			});
 		}
 
+		const headers = new Headers();
 		headers.set("Content-Type", "application/octet-stream");
 		headers.set("Cache-Control", "public, max-age=31536000");
 
@@ -223,7 +232,7 @@ router.set("/infohash", async (req, headers, client): Promise<Response> => {
 	return response;
 });
 
-router.set("/upload", async (req, _, client) => {
+router.set("/upload", async (req, client) => {
 	const uploadSecret = req.headers.get("x-hydra-upload-secret");
 	if (uploadSecret !== client.config.uploadSecret) {
 		return new Response("401 Unauthorized\n", { status: 401 });
@@ -256,7 +265,7 @@ router.set("/upload", async (req, _, client) => {
 	return new Response("200 OK\n");
 });
 
-router.set("/files", (_, headers, client) => {
+router.set("/files", (_, client) => {
 	const rows = Array.from(client.files.getFiles()).map((row) => {
 		const { downloadCount, found, ...rest } = row;
 		const _ = { downloadCount, found };
@@ -269,12 +278,14 @@ router.set("/files", (_, headers, client) => {
 			}, {});
 		return filteredRest;
 	});
+
+	const headers = new Headers();
 	headers.set("Content-Type", "application/json");
 	headers.set("Cache-Control", "public, max-age=10800");
 	return new Response(JSON.stringify(rows), { headers });
 });
 
-router.set("/file", (req, headers, client) => {
+router.set("/file", (req, client) => {
 	const url = new URL(req.url);
 	const id = url.pathname.split("/")[2];
 	let file: File | undefined;
@@ -282,17 +293,18 @@ router.set("/file", (req, headers, client) => {
 		file = client.files.filesId.get(id);
 	} catch (e) {
 		const err = e as Error;
-		if (err.message === "File not found") return new Response("File not found", { headers, status: 404 });
+		if (err.message === "File not found") return new Response("File not found", { status: 404 });
 		else throw err;
 	}
 
+	const headers = new Headers();
 	headers.set("Content-Type", "application/json");
 	headers.set("Cache-Control", "public, max-age=10800");
 	if (!file) return new Response("File not found", { headers, status: 404 });
 	return new Response(JSON.stringify(file), { headers });
 });
 
-router.set("/endpoint", async (req, headers, client): Promise<Response> => {
+router.set("/service", async (req, client): Promise<Response> => {
 	const url = new URL(req.url);
 	url.protocol = "https:";
 	url.hostname = "localhost";
@@ -303,10 +315,11 @@ router.set("/endpoint", async (req, headers, client): Promise<Response> => {
 		body: req.body,
 	});
 
-	return await client.services.fetch(newRequest, headers);
+	return await client.services.fetch(newRequest);
 });
 
-router.set("/blocks", (_, headers, client) => {
+router.set("/blocks", (_, client) => {
+	const headers = new Headers();
 	headers.set("Content-Type", "application/json");
 	headers.set("Cache-Control", "public, max-age=10800");
 	return new Response(JSON.stringify(client.nameService.blocks), { headers });

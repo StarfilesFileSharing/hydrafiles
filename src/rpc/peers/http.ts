@@ -199,16 +199,14 @@ export default class HTTPPeers {
 		return results;
 	}
 
-	public fetch(input: RequestInfo, init?: RequestInit): Promise<Response | ErrorRequestFailed | ErrorTimeout>[] {
-		const req = typeof input === "string" ? new Request(input, init) : input;
+	public fetch(url: URL, method = "GET", headers: { [key: string]: string } = {}, body: string | undefined = undefined): Promise<Response | ErrorRequestFailed | ErrorTimeout>[] {
 		const peers = this.getPeers(true);
 		const fetchPromises = peers.map(async (peer) => {
 			try {
-				const url = new URL(req.url);
 				const peerUrl = new URL(peer.host);
 				url.hostname = peerUrl.hostname;
 				url.protocol = peerUrl.protocol;
-				return await Utils.promiseWithTimeout(fetch(url.toString(), init), RPCClient._client.config.timeout);
+				return await Utils.promiseWithTimeout(fetch(url.toString(), { method, headers, body }), RPCClient._client.config.timeout);
 			} catch (e) {
 				if (RPCClient._client.config.logLevel === "verbose") console.error(e);
 				return new ErrorRequestFailed();
@@ -221,7 +219,7 @@ export default class HTTPPeers {
 	// TODO: Compare list between all peers and give score based on how similar they are. 100% = all exactly the same, 0% = no items in list were shared. The lower the score, the lower the propagation times, the lower the decentralisation
 	async updatePeers(): Promise<void> {
 		console.log(`Fetching peers`);
-		const responses = await Promise.all(RPCClient._client.rpcClient.fetch("http://localhost/peers"));
+		const responses = await Promise.all(await RPCClient._client.rpcClient.fetch("http://localhost/peers"));
 		for (let i = 0; i < responses.length; i++) {
 			try {
 				if (!(responses[i] instanceof Response)) continue;
