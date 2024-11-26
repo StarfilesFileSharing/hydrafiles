@@ -361,7 +361,7 @@ export default class Database<T extends ModelType> {
 		} as Partial<DatabaseModal<T>>;
 
 		for (const [key, def] of Object.entries(this.model.columns)) {
-			if (!def.default && !def.isNullable && result[key as keyof DatabaseModal<T>] === undefined) return new ErrorMissingRequiredProperty(`Missing required property: ${key}`);
+			if (!def.default && !def.isNullable && result[key as keyof DatabaseModal<T>] === undefined) return new ErrorMissingRequiredProperty(key);
 		}
 
 		return result as DatabaseModal<T>;

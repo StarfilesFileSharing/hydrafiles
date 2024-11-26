@@ -476,7 +476,7 @@ class Files {
 				try {
 					files = files.concat(JSON.parse(response.text()) as FileAttributes[]);
 				} catch (e) {
-					if (Files._client.config.logLevel === "verbose") console.log(e);
+					if (!(e instanceof SyntaxError)) throw e;
 				}
 			}
 		}
