@@ -448,7 +448,7 @@ class Files {
 	backfillFiles = (): void => {
 		setTimeout(async () => {
 			while (true) {
-				console.log("Files:    Backfilling file");
+				console.log("Files:    Finding file to backfill");
 				const keys = Array.from(this.filesHash.keys());
 				if (keys.length === 0) {
 					await delay(500);
