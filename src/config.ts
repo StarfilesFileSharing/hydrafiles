@@ -176,6 +176,11 @@ export interface Config {
 	 * @default ""
 	 */
 	deriveKey: string;
+
+	/**
+	 * @default "./"
+	 */
+	baseDir: `${string}/`;
 }
 
 // DO NOT CHANGE DEFAULT CONFIG - Check documentation on how to set custom config.
@@ -208,6 +213,7 @@ const defaultConfig: Config = {
 	announceSpeed: 30000,
 	dontUseFileSystemAPI: false,
 	deriveKey: "",
+	baseDir: "./",
 };
 
 /** @internal */
