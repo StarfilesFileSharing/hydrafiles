@@ -178,9 +178,16 @@ export interface Config {
 	deriveKey: string;
 
 	/**
+	 * Base directory to save files to.
 	 * @default "./"
 	 */
 	baseDir: `${string}/`;
+
+	/**
+	 * Whether or not to listen for & serve requests via HTTP, WebRTC, WS. Disabling this breaks many P2P functionalities such as lowing data availability and lowering privacy. Static files (i.e. GUI and docs) are still served.
+	 * @default true
+	 */
+	listen: boolean;
 }
 
 // DO NOT CHANGE DEFAULT CONFIG - Check documentation on how to set custom config.
@@ -214,6 +221,7 @@ const defaultConfig: Config = {
 	dontUseFileSystemAPI: false,
 	deriveKey: "",
 	baseDir: "./",
+	listen: true,
 };
 
 /** @internal */

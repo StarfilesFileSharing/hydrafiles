@@ -111,7 +111,7 @@ class RPCServer {
 				const filePath = `./public${url.pathname.endsWith("/") ? `${url.pathname}index.html` : url.pathname}`;
 				return await serveFile(req, filePath);
 			} catch (_) {
-				const routeHandler = req.headers.get("upgrade") === "websocket" ? router.get("WS") : router.get(`/${url.pathname.split("/")[1]}`);
+				if (!RPCServer._client.config.listen) return new Response("Peer has peering disabled");
 				if (routeHandler) {
 					const response = await routeHandler(req, RPCServer._client);
 					if (response instanceof Response) return response;
