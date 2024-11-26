@@ -45,9 +45,8 @@ export default class DirectoryHandleFileSystem {
 			else await (await this.directoryHandle()).getFileHandle(path, { create: false });
 			return true;
 		} catch (e) {
-			const error = e as Error;
-			if (error.name === "NotFoundError") return false;
-			throw error;
+			if ((e as Error).name === "NotFoundError") return false;
+			throw e;
 		}
 	};
 
