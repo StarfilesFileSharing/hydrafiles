@@ -10,9 +10,11 @@ console.log(
 		format: "esm",
 		platform: "browser",
 		sourcemap: true,
-		minify: true,
-		treeShaking: true,
 		keepNames: true,
+		minify: false, // TODO: Toggle for dev/prod
+		treeShaking: false, // TODO: Toggle for dev/prod
+		sourcesContent: true, // TODO: Toggle for dev/prod
+		metafile: true,
 	}),
 	await esbuild.build({
 		plugins: [...denoPlugins()],
@@ -22,10 +24,12 @@ console.log(
 		format: "esm",
 		platform: "browser",
 		sourcemap: true,
-		minify: true,
-		treeShaking: true,
-		external: ["https://esm.sh/webtorrent@2.5.1"],
 		keepNames: true,
+		minify: false, // TODO: Toggle for dev/prod
+		treeShaking: false, // TODO: Toggle for dev/prod
+		sourcesContent: true, // TODO: Toggle for dev/prod
+		metafile: true,
+		external: ["https://esm.sh/webtorrent@2.5.1"],
 	}),
 );
 
