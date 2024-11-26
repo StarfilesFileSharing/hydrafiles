@@ -386,7 +386,7 @@ export class File implements FileAttributes {
 		const responses = Files._client.rpcClient.rtc.fetch(new URL(`http://localhost/download/${this.hash}`));
 		for (let i = 0; i < responses.length; i++) {
 			const response = await responses[i];
-			const fileContent = new Uint8Array(await response.arrayBuffer());
+			const fileContent = new Uint8Array(response.arrayBuffer());
 			console.log(`File:     ${this.hash}  Validating hash`);
 			const verifiedHash = await Utils.hashUint8Array(fileContent);
 			console.log(`File:     ${this.hash}  Done Validating hash`);
