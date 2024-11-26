@@ -106,18 +106,21 @@ class RPCServer {
 
 			try {
 				const url = new URL(req.url);
-				const filePath = `./public${url.pathname.endsWith("/") ? `${url.pathname}index.html` : url.pathname}`;
-				return await serveFile(req, filePath);
+				return await serveFile(req, `./public${url.pathname.endsWith("/") ? `${url.pathname}index.html` : url.pathname}`);
 			} catch (_) {
-				if (!RPCServer._client.config.listen) return new Response("Peer has peering disabled");
-				const routeHandler = req.headers.get("upgrade") === "websocket" ? RPCServer._client.rpcClient.ws.handleConnection : router.get(`/${url.pathname.split("/")[1]}`);
-				if (routeHandler) {
-					const response = await routeHandler(req, RPCServer._client);
-					if (response instanceof Response) return response;
-					response.addHeaders(headers);
-					return response.response();
+				try {
+					return await serveFile(req, `./build${(url).pathname}`);
+				} catch (_) {
+					if (!RPCServer._client.config.listen) return new Response("Peer has peering disabled");
+					const routeHandler = req.headers.get("upgrade") === "websocket" ? RPCServer._client.rpcClient.ws.handleConnection : router.get(`/${url.pathname.split("/")[1]}`);
+					if (routeHandler) {
+						const response = await routeHandler(req, RPCServer._client);
+						if (response instanceof Response) return response;
+						response.addHeaders(headers);
+						return response.response();
+					}
+					return new Response("404 Page Not Found\n", { status: 404, headers });
 				}
-				return new Response("404 Page Not Found\n", { status: 404, headers });
 			}
 		} catch (e) {
 			console.error(req.url, "Internal Server Error", e);

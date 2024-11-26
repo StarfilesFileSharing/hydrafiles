@@ -1,4 +1,3 @@
-import { join } from "https://deno.land/std@0.224.0/path/mod.ts";
 import { File } from "../file.ts";
 import type { PeerAttributes } from "./peers/http.ts";
 import Utils, { type Sha256 } from "../utils.ts";
@@ -54,46 +53,6 @@ router.set("/status", () => {
 		"Content-Type": "application/json",
 	};
 	return new DecodedResponse(JSON.stringify({ status: true }), { headers });
-});
-
-router.set("/hydrafiles-web.esm.js", async (_, client) => {
-	const headers = {
-		"Content-Type": "application/javascript",
-		"Cache-Control": "public, max-age=300",
-	};
-	const fileContent = await client.fs.readFile("build/hydrafiles-web.esm.js");
-	if (fileContent instanceof Error) return new DecodedResponse("File gone", { status: 403 });
-	return new DecodedResponse(fileContent, { headers });
-});
-
-router.set("/dashboard.js", async (_, client) => {
-	const headers = {
-		"Content-Type": "application/javascript",
-		"Cache-Control": "public, max-age=300",
-	};
-	const fileContent = await client.fs.readFile("build/dashboard.js");
-	if (fileContent instanceof Error) return new DecodedResponse("File not found", { status: 404 });
-	return new DecodedResponse(fileContent, { headers });
-});
-
-router.set("/hydrafiles-web.esm.js.map", async (_, client) => {
-	const headers = {
-		"Content-Type": "application/json",
-		"Cache-Control": "public, max-age=300",
-	};
-	const fileContent = await client.fs.readFile("build/hydrafiles-web.esm.js.map");
-	if (fileContent instanceof Error) return new DecodedResponse("File not found", { status: 404 });
-	return new DecodedResponse(fileContent, { headers });
-});
-
-router.set("/dashboard.js.map", async (_, client) => {
-	const headers = {
-		"Content-Type": "application/json",
-		"Cache-Control": "public, max-age=300",
-	};
-	const fileContent = await client.fs.readFile("build/dashboard.js.map");
-	if (fileContent instanceof Error) return new DecodedResponse("File not found", { status: 404 });
-	return new DecodedResponse(fileContent, { headers });
 });
 
 router.set("/peers", (_, client) => {
