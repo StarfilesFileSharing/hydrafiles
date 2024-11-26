@@ -54,10 +54,7 @@ class Hydrafiles {
 		this.filesWallet = new Wallet();
 		this.rtcWallet = new Wallet(1);
 		this.services = new Services();
-		this.services.addHostname((req: Request) => {
-			console.log(req);
-			return new Response("Hello World!");
-		}, 0);
+		this.services.addHostname((_req: Request) => new Response("Hello World!"), 0);
 
 		if (this.config.s3Endpoint.length) {
 			console.log("Startup: Populating S3");
