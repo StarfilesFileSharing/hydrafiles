@@ -1,5 +1,4 @@
 import { join } from "https://deno.land/std@0.224.0/path/mod.ts";
-import { WSMessage } from "./peers/rtc.ts";
 import { File } from "../file.ts";
 import type { PeerAttributes } from "./peers/http.ts";
 import Utils, { type Sha256 } from "../utils.ts";
@@ -46,38 +45,9 @@ export class DecodedResponse {
 }
 
 export const router = new Map<string, (req: Request, client: Hydrafiles) => Promise<DecodedResponse> | DecodedResponse | (Response & { ws: true })>();
-export const sockets: { id: string; socket: WebSocket }[] = [];
 
 export const pendingWSRequests = new Map<number, (response: DecodedResponse) => void>();
 export const processingDownloads = new Map<string, Promise<DecodedResponse | ErrorNotFound>>();
-
-router.set("WS", (req) => {
-	const { socket, response } = Deno.upgradeWebSocket(req);
-	sockets.push({ socket, id: "" });
-
-	socket.addEventListener("message", ({ data }) => {
-		const message = JSON.parse(data) as WSMessage | null;
-		if (message === null) return;
-		if ("response" in message) {
-			const resolve = pendingWSRequests.get(message.id);
-			if (resolve) {
-				const { status, headers, body } = message.response;
-				resolve(new DecodedResponse(body, { status, headers }));
-				pendingWSRequests.delete(message.id);
-			}
-		}
-		for (let i = 0; i < sockets.length; i++) {
-			if (sockets[i].socket !== socket && (!("to" in message) || message.to === sockets[i].id)) {
-				if (sockets[i].socket.readyState === 1) sockets[i].socket.send(data);
-			} else if ("from" in message) {
-				sockets[i].id = message.from;
-			}
-		}
-	});
-
-	(response as Response & { ws: true }).ws = true;
-	return response as Response & { ws: true };
-});
 
 router.set("/status", () => {
 	const headers = {
