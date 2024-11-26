@@ -72,6 +72,7 @@ class Hydrafiles {
 		this.rpcClient = await RPCClient.init();
 		this.rpcServer = new RPCServer();
 		console.log("Startup:  Starting HTTP Server");
+		await this.rpcServer.listenHTTP();
 		console.log("Startup:  Starting WebTorrent");
 		this.webtorrent = opts.webtorrent;
 		NameService._client = this;

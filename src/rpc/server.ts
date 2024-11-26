@@ -7,9 +7,13 @@ import { serveFile } from "https://deno.land/std@0.115.0/http/file_server.ts";
 class RPCServer {
 	static _client: Hydrafiles;
 
-	constructor() {
+	constructor() {}
+
+	async listenHTTP(): Promise<void> {
+		const rpcServer = new RPCServer();
+
 		const onListen = ({ hostname, port }: { hostname: string; port: number }): void => {
-			this.onListen(hostname, port);
+			rpcServer.onListen(hostname, port);
 		};
 
 		if (typeof window !== "undefined") return;
@@ -30,21 +34,15 @@ class RPCServer {
 				httpPort++;
 			}
 		}
-		(async () => {
+		const certFile = await RPCServer._client.fs.readFile(RPCServer._client.config.sslCertPath);
+		const keyFile = await RPCServer._client.fs.readFile(RPCServer._client.config.sslKeyPath);
+		if (certFile instanceof Error) console.error(certFile);
+		else if (keyFile instanceof Error) console.error(keyFile);
+		else {
+			const cert = new TextDecoder().decode(certFile);
+			const key = new TextDecoder().decode(keyFile);
 			while (true) {
 				try {
-					const certFile = await RPCServer._client.fs.readFile(RPCServer._client.config.sslCertPath);
-					if (certFile instanceof Error) {
-						console.error(certFile);
-						break;
-					}
-					const cert = new TextDecoder().decode(certFile);
-					const keyFile = await RPCServer._client.fs.readFile(RPCServer._client.config.sslKeyPath);
-					if (keyFile instanceof Error) {
-						console.error(keyFile);
-						break;
-					}
-					const key = new TextDecoder().decode(keyFile);
 					Deno.serve({
 						port: httpsPort,
 						cert,
@@ -60,7 +58,7 @@ class RPCServer {
 					httpsPort++;
 				}
 			}
-		})();
+		}
 	}
 
 	private onListen = async (hostname: string, port: number): Promise<void> => {
