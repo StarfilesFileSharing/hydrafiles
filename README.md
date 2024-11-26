@@ -1,5 +1,6 @@
 <h1 align="center">Hydrafiles</h1>
 <p align="center">The (P2P) web privacy layer.</p>
+<p align="center"><strong>Hydrafiles is under heavy development and is very experimental.</strong></p>
 <p align="center">
   <a href="https://github.com/StarfilesFileSharing/hydrafiles/releases">Quick Install</a>
   <br><br>
