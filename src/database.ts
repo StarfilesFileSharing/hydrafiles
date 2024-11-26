@@ -1,7 +1,8 @@
 import type { Database as SQLite } from "jsr:@db/sqlite";
 import type { indexedDB } from "https://deno.land/x/indexeddb@v1.1.0/ponyfill.ts";
 import { ErrorMissingRequiredProperty, ErrorNotFound, ErrorNotInitialised } from "./errors.ts";
-import Hydrafiles, { type NonEmptyString } from "./hydrafiles.ts";
+import Hydrafiles from "./hydrafiles.ts";
+import type { NonEmptyString } from "./utils.ts";
 
 export interface ModelType {
 	tableName: string;

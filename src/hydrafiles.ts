@@ -130,31 +130,3 @@ class Hydrafiles {
 }
 
 export default Hydrafiles;
-
-// // Re-export the main class as default
-// export { default } from "./hydrafiles.ts";
-
-// // Export types
-// export type { FileAttributes } from "./types";
-// export type { HydrafilesConfig } from "./config";
-// export type { RpcClient } from "./rpc";
-// export type { FilesDB } from "./db";
-
-// // Export utilities and constants
-// export { Utils } from "./utils";
-// export { processingRequests } from "./processing";
-
-export * from "./wallet.ts";
-export * from "./utils.ts";
-export * from "./file.ts";
-export * from "./events.ts";
-export * from "./errors.ts";
-export * from "./config.ts";
-export * from "./services/services.ts";
-export * from "./rpc/server.ts";
-export * from "./rpc/routes.ts";
-export * from "./rpc/client.ts";
-export * from "./rpc/peers/http.ts";
-export * from "./rpc/peers/rtc.ts";
-export * from "./rpc/peers/ws.ts";
-export * from "./filesystem/filesystem.ts";

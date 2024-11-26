@@ -1,10 +1,10 @@
 import { ErrorRequestFailed, ErrorTimeout } from "../errors.ts";
-import type { DecodedResponse } from "../hydrafiles.ts";
 import type Hydrafiles from "../hydrafiles.ts";
 import type Wallet from "../wallet.ts";
 import HTTPPeers from "./peers/http.ts";
 import RTCPeers from "./peers/rtc.ts";
 import WSPeers from "./peers/ws.ts";
+import type { DecodedResponse } from "./routes.ts";
 
 export default class RPCClient {
 	static _client: Hydrafiles;

@@ -1,6 +1,6 @@
 import { DecodedResponse } from "./../rpc/routes.ts";
 import type Hydrafiles from "../hydrafiles.ts";
-import { ErrorNotFound, ErrorRequestFailed } from "../hydrafiles.ts";
+import { ErrorNotFound, ErrorRequestFailed } from "../errors.ts";
 import type { EthAddress } from "../wallet.ts";
 import Wallet from "../wallet.ts";
 import { decodeBase32, encodeBase32 } from "https://deno.land/std@0.224.0/encoding/base32.ts";
