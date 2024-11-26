@@ -7,9 +7,13 @@ import { serveFile } from "https://deno.land/std@0.115.0/http/file_server.ts";
 class RPCServer {
 	static _client: Hydrafiles;
 
-	constructor() {
+	constructor() {}
+
+	async listenHTTP(): Promise<void> {
+		const rpcServer = new RPCServer();
+
 		const onListen = ({ hostname, port }: { hostname: string; port: number }): void => {
-			this.onListen(hostname, port);
+			rpcServer.onListen(hostname, port);
 		};
 
 		if (typeof window !== "undefined") return;
@@ -30,21 +34,15 @@ class RPCServer {
 				httpPort++;
 			}
 		}
-		(async () => {
+		const certFile = await RPCServer._client.fs.readFile(RPCServer._client.config.sslCertPath);
+		const keyFile = await RPCServer._client.fs.readFile(RPCServer._client.config.sslKeyPath);
+		if (certFile instanceof Error) console.error(certFile);
+		else if (keyFile instanceof Error) console.error(keyFile);
+		else {
+			const cert = new TextDecoder().decode(certFile);
+			const key = new TextDecoder().decode(keyFile);
 			while (true) {
 				try {
-					const certFile = await RPCServer._client.fs.readFile(RPCServer._client.config.sslCertPath);
-					if (certFile instanceof Error) {
-						console.error(certFile);
-						break;
-					}
-					const cert = new TextDecoder().decode(certFile);
-					const keyFile = await RPCServer._client.fs.readFile(RPCServer._client.config.sslKeyPath);
-					if (keyFile instanceof Error) {
-						console.error(keyFile);
-						break;
-					}
-					const key = new TextDecoder().decode(keyFile);
 					Deno.serve({
 						port: httpsPort,
 						cert,
@@ -60,30 +58,30 @@ class RPCServer {
 					httpsPort++;
 				}
 			}
-		})();
+		}
 	}
 
 	private onListen = async (hostname: string, port: number): Promise<void> => {
-		console.log(`Server started at ${hostname}:${port}`);
-		console.log("Testing network connection");
+		console.log(`HTTP:     Listening at ${hostname}:${port}`);
+		console.log("RPC:      Testing network connectivity");
 		const file = RPCServer._client.files.filesHash.get("04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f");
 		if (!file) return;
-		if (!(await file.download())) console.error("Download test failed, cannot connect to network");
+		if (!(await file.download())) console.error("RPC:      Download test failed, cannot connect to network");
 		else {
-			console.log("Connected to network");
+			console.log("RPC:      Connected to network");
 			if (Utils.isIp(RPCServer._client.config.publicHostname) && Utils.isPrivateIP(RPCServer._client.config.publicHostname)) console.error("Public hostname is a private IP address, cannot announce to other nodes");
 			else {
-				console.log(`Testing downloads ${RPCServer._client.config.publicHostname}/download/04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f`);
+				console.log(`HTTP:     Testing downloads ${RPCServer._client.config.publicHostname}/download/04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f`);
 				if (!file) console.error("Failed to build file");
 				else {
 					const self = RPCServer._client.rpcClient.http.getSelf();
-					if (self instanceof ErrorNotFound) console.error("Failed to find self in peers");
+					if (self instanceof ErrorNotFound) console.error("HTTP:     Failed to find self in peers");
 					else {
 						const response = await self.downloadFile(file);
-						if (response instanceof ErrorDownloadFailed) console.error("Test: Failed to download file from self");
+						if (response instanceof ErrorDownloadFailed) console.error("HTTP:      Failed to download file from self");
 						else {
-							console.log("Announcing HTTP server to nodes");
-							RPCServer._client.rpcClient.fetch(`http://localhost/announce?host=${RPCServer._client.config.publicHostname}`);
+							console.log("HTTP:     Announcing server to nodes");
+							RPCServer._client.rpcClient.fetch(`https://localhost/announce?host=${RPCServer._client.config.publicHostname}`);
 						}
 						await RPCServer._client.rpcClient.http.add(RPCServer._client.config.publicHostname);
 					}
@@ -108,17 +106,21 @@ class RPCServer {
 
 			try {
 				const url = new URL(req.url);
-				const filePath = `./public${url.pathname.endsWith("/") ? `${url.pathname}index.html` : url.pathname}`;
-				return await serveFile(req, filePath);
+				return await serveFile(req, `./public${url.pathname.endsWith("/") ? `${url.pathname}index.html` : url.pathname}`);
 			} catch (_) {
-				const routeHandler = req.headers.get("upgrade") === "websocket" ? router.get("WS") : router.get(`/${url.pathname.split("/")[1]}`);
-				if (routeHandler) {
-					const response = await routeHandler(req, RPCServer._client);
-					if (response instanceof Response) return response;
-					response.addHeaders(headers);
-					return response.response();
+				try {
+					return await serveFile(req, `./build${url.pathname}`);
+				} catch (_) {
+					if (!RPCServer._client.config.listen) return new Response("Peer has peering disabled");
+					const routeHandler = req.headers.get("upgrade") === "websocket" ? RPCServer._client.rpcClient.ws.handleConnection : router.get(`/${url.pathname.split("/")[1]}`);
+					if (routeHandler) {
+						const response = await routeHandler(req, RPCServer._client);
+						if (response instanceof Response) return response;
+						response.addHeaders(headers);
+						return response.response();
+					}
+					return new Response("404 Page Not Found\n", { status: 404, headers });
 				}
-				return new Response("404 Page Not Found\n", { status: 404, headers });
 			}
 		} catch (e) {
 			console.error(req.url, "Internal Server Error", e);

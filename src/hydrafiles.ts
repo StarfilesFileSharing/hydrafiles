@@ -54,24 +54,26 @@ class Hydrafiles {
 		this.filesWallet = new Wallet();
 		this.rtcWallet = new Wallet(1);
 		this.services = new Services();
-		this.services.addHostname((req: Request) => {
-			console.log(req);
-			return new Response("Hello World!");
-		}, 0);
+		this.services.addHostname((_req: Request) => new Response("Hello World!"), 0);
 
 		if (this.config.s3Endpoint.length) {
-			console.log("Startup: Populating S3");
+			console.log("Startup:  Populating S3");
 			this.s3 = new S3Client({ endPoint: this.config.s3Endpoint, region: "us-east-1", bucket: "uploads", accessKey: this.config.s3AccessKeyId, secretKey: this.config.s3SecretAccessKey, pathStyle: false });
 		}
 	}
 
 	public async start(opts: { onUpdateFileListProgress?: (progress: number, total: number) => void; webtorrent?: WebTorrent } = {}): Promise<void> {
-		console.log("Startup: Populating FileDB");
+		if (!await this.fs.exists("/")) await this.fs.mkdir("/"); // In case of un-initiated base dir
+		if (!await this.fs.exists("/files/")) await this.fs.mkdir("/files/");
+
+		console.log("Startup:  Populating FileDB");
 		this.files = await Files.init();
-		console.log("Startup: Populating RPC Client & Server");
+		console.log("Startup:  Populating RPC Client & Server");
 		this.rpcClient = await RPCClient.init();
 		this.rpcServer = new RPCServer();
-		console.log("Startup: Starting WebTorrent");
+		console.log("Startup:  Starting HTTP Server");
+		await this.rpcServer.listenHTTP();
+		console.log("Startup:  Starting WebTorrent");
 		this.webtorrent = opts.webtorrent;
 		NameService._client = this;
 		this.nameService = await NameService.init();
@@ -130,31 +132,3 @@ class Hydrafiles {
 }
 
 export default Hydrafiles;
-
-// // Re-export the main class as default
-// export { default } from "./hydrafiles.ts";
-
-// // Export types
-// export type { FileAttributes } from "./types";
-// export type { HydrafilesConfig } from "./config";
-// export type { RpcClient } from "./rpc";
-// export type { FilesDB } from "./db";
-
-// // Export utilities and constants
-// export { Utils } from "./utils";
-// export { processingRequests } from "./processing";
-
-export * from "./wallet.ts";
-export * from "./utils.ts";
-export * from "./file.ts";
-export * from "./events.ts";
-export * from "./errors.ts";
-export * from "./config.ts";
-export * from "./services/services.ts";
-export * from "./rpc/server.ts";
-export * from "./rpc/routes.ts";
-export * from "./rpc/client.ts";
-export * from "./rpc/peers/http.ts";
-export * from "./rpc/peers/rtc.ts";
-export * from "./rpc/peers/ws.ts";
-export * from "./filesystem/filesystem.ts";

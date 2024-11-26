@@ -1,5 +1,5 @@
 import { EthAddress } from "./../src/wallet.ts";
-import Hydrafiles, { FileEvent, RTCEvent } from "../src/hydrafiles.ts";
+import Hydrafiles from "../src/hydrafiles.ts";
 import { type FileAttributes } from "../src/file.ts";
 import WebTorrent from "https://esm.sh/webtorrent@2.5.1";
 import { Chart } from "https://esm.sh/chart.js@4.4.6/auto";
@@ -9,6 +9,7 @@ import { DataSet } from "npm:vis-data/esnext";
 import { Network } from "npm:vis-network/esnext";
 import Utils from "../src/utils.ts";
 import { Edge, Node } from "npm:vis-network/esnext";
+import type { FileEvent, RTCEvent } from "../src/events.ts";
 
 declare global {
 	interface Window {
@@ -91,7 +92,7 @@ document.getElementById("startHydrafilesButton")!.addEventListener("click", asyn
 	const buffer = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`${email}:${password}`));
 	const deriveKey = Array.from(new Uint8Array(buffer)).map((b) => b.toString(16).padStart(2, "0")).join("");
 
-	window.hydrafiles = new Hydrafiles({ deriveKey, customPeers: [`${window.location.protocol}//${window.location.hostname}`] });
+	window.hydrafiles = new Hydrafiles({ deriveKey, customPeers: [`${window.location.protocol}//${window.location.hostname}`], baseDir: "dashboard/" });
 	const webtorrent = new WebTorrent();
 
 	await window.hydrafiles.start({ onUpdateFileListProgress, webtorrent });

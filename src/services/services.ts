@@ -1,6 +1,6 @@
 import { DecodedResponse } from "./../rpc/routes.ts";
 import type Hydrafiles from "../hydrafiles.ts";
-import { ErrorNotFound, ErrorRequestFailed } from "../hydrafiles.ts";
+import { ErrorNotFound, ErrorRequestFailed } from "../errors.ts";
 import type { EthAddress } from "../wallet.ts";
 import Wallet from "../wallet.ts";
 import { decodeBase32, encodeBase32 } from "https://deno.land/std@0.224.0/encoding/base32.ts";
@@ -40,7 +40,7 @@ export default class Services {
 		const wallet = new Wallet(1000 + seed);
 		const api = new Service(wallet, requestHandler);
 		const hostname = encodeBase32(wallet.address()).toUpperCase();
-		console.log("Added hostname", hostname, api);
+		console.log(`Hostname: ${hostname} added`);
 		this.ownedServices[hostname] = api;
 		return hostname;
 	}

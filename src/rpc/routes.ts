@@ -1,5 +1,3 @@
-import { join } from "https://deno.land/std@0.224.0/path/mod.ts";
-import { WSMessage } from "./peers/rtc.ts";
 import { File } from "../file.ts";
 import type { PeerAttributes } from "./peers/http.ts";
 import Utils, { type Sha256 } from "../utils.ts";
@@ -46,84 +44,15 @@ export class DecodedResponse {
 }
 
 export const router = new Map<string, (req: Request, client: Hydrafiles) => Promise<DecodedResponse> | DecodedResponse | (Response & { ws: true })>();
-export const sockets: { id: string; socket: WebSocket }[] = [];
 
 export const pendingWSRequests = new Map<number, (response: DecodedResponse) => void>();
 export const processingDownloads = new Map<string, Promise<DecodedResponse | ErrorNotFound>>();
-
-router.set("WS", (req) => {
-	const { socket, response } = Deno.upgradeWebSocket(req);
-	sockets.push({ socket, id: "" });
-
-	socket.addEventListener("message", ({ data }) => {
-		const message = JSON.parse(data) as WSMessage | null;
-		if (message === null) return;
-		if ("response" in message) {
-			const resolve = pendingWSRequests.get(message.id);
-			if (resolve) {
-				const { status, headers, body } = message.response;
-				resolve(new DecodedResponse(body, { status, headers }));
-				pendingWSRequests.delete(message.id);
-			}
-		}
-		for (let i = 0; i < sockets.length; i++) {
-			if (sockets[i].socket !== socket && (!("to" in message) || message.to === sockets[i].id)) {
-				if (sockets[i].socket.readyState === 1) sockets[i].socket.send(data);
-			} else if ("from" in message) {
-				sockets[i].id = message.from;
-			}
-		}
-	});
-
-	(response as Response & { ws: true }).ws = true;
-	return response as Response & { ws: true };
-});
 
 router.set("/status", () => {
 	const headers = {
 		"Content-Type": "application/json",
 	};
 	return new DecodedResponse(JSON.stringify({ status: true }), { headers });
-});
-
-router.set("/hydrafiles-web.esm.js", async (_, client) => {
-	const headers = {
-		"Content-Type": "application/javascript",
-		"Cache-Control": "public, max-age=300",
-	};
-	const fileContent = await client.fs.readFile("build/hydrafiles-web.esm.js");
-	if (fileContent instanceof Error) return new DecodedResponse("File gone", { status: 403 });
-	return new DecodedResponse(fileContent, { headers });
-});
-
-router.set("/dashboard.js", async (_, client) => {
-	const headers = {
-		"Content-Type": "application/javascript",
-		"Cache-Control": "public, max-age=300",
-	};
-	const fileContent = await client.fs.readFile("build/dashboard.js");
-	if (fileContent instanceof Error) return new DecodedResponse("File not found", { status: 404 });
-	return new DecodedResponse(fileContent, { headers });
-});
-
-router.set("/hydrafiles-web.esm.js.map", async (_, client) => {
-	const headers = {
-		"Content-Type": "application/json",
-		"Cache-Control": "public, max-age=300",
-	};
-	const fileContent = await client.fs.readFile("build/hydrafiles-web.esm.js.map");
-	if (fileContent instanceof Error) return new DecodedResponse("File not found", { status: 404 });
-	return new DecodedResponse(fileContent, { headers });
-});
-
-router.set("/dashboard.js.map", async (_, client) => {
-	const headers = {
-		"Content-Type": "application/json",
-		"Cache-Control": "public, max-age=300",
-	};
-	const fileContent = await client.fs.readFile("build/dashboard.js.map");
-	if (fileContent instanceof Error) return new DecodedResponse("File not found", { status: 404 });
-	return new DecodedResponse(fileContent, { headers });
 });
 
 router.set("/peers", (_, client) => {
@@ -280,38 +209,37 @@ router.set("/infohash", async (req, client): Promise<DecodedResponse> => {
 	return response;
 });
 
-router.set("/upload", async (req, client) => {
-	const uploadSecret = req.headers.get("x-hydra-upload-secret");
-	if (uploadSecret !== client.config.uploadSecret) {
-		return new DecodedResponse("401 Unauthorized\n", { status: 401 });
-	}
+// router.set("/upload", async (req, client) => {
+// 	const uploadSecret = req.headers.get("x-hydra-upload-secret");
+// 	if (uploadSecret !== client.config.uploadSecret) {
+// 		return new DecodedResponse("401 Unauthorized\n", { status: 401 });
+// 	}
 
-	const form = await req.formData();
-	const formData = {
-		hash: form.get("hash")?.toString(),
-		file: form.get("file") as globalThis.File | null,
-	};
+// 	const form = await req.formData();
+// 	const formData = {
+// 		hash: form.get("hash")?.toString(),
+// 		file: form.get("file") as globalThis.File | null,
+// 	};
 
-	if (typeof formData.hash === "undefined" || typeof formData.file === "undefined" || formData.file === null) return new DecodedResponse("400 Bad Request\n", { status: 400 });
+// 	if (typeof formData.hash === "undefined" || typeof formData.file === "undefined" || formData.file === null) return new DecodedResponse("400 Bad Request\n", { status: 400 });
 
-	const hash = Utils.sha256(formData.hash[0]);
+// 	const hash = Utils.sha256(formData.hash[0]);
 
-	const file = await File.init({ hash }, true);
-	if (!file) throw new Error("Failed to build file");
-	if (!file.name && formData.file.name !== null) {
-		file.name = formData.file.name;
-		file.cacheFile(new Uint8Array(await formData.file.arrayBuffer()));
-		file.save();
-	}
+// 	const file = await File.init({ hash }, true);
+// 	if (!file) throw new Error("Failed to build file");
+// 	if (!file.name && formData.file.name !== null) {
+// 		file.name = formData.file.name;
+// 		file.cacheFile(new Uint8Array(await formData.file.arrayBuffer()));
+// 		file.save();
+// 	}
 
-	console.log("Uploading", file.hash);
+// 	console.log("Uploading", file.hash);
 
-	if (await client.fs.exists(join("files", file.hash))) return new DecodedResponse("200 OK\n");
+// 	if (await client.fs.exists(join("files", file.hash))) return new DecodedResponse("200 OK\n");
 
-	if (!client.config.permaFiles.includes(hash)) client.config.permaFiles.push(hash);
-	await client.fs.writeFile("config.json", new TextEncoder().encode(JSON.stringify(client.config, null, 2)));
-	return new DecodedResponse("200 OK\n");
-});
+// 	if (!client.config.permaFiles.includes(hash)) client.config.permaFiles.push(hash); // TODO: Save this
+// 	return new DecodedResponse("200 OK\n");
+// });
 
 router.set("/files", (_, client) => {
 	const rows = Array.from(client.files.getFiles()).map((row) => {

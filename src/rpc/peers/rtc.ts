@@ -45,36 +45,24 @@ function arrayBufferToUnicodeString(buffer: ArrayBuffer): string {
 const receivedPackets: Record<string, string[]> = {};
 
 class RTCPeers {
+	private _rpcClient: RPCClient;
 	peerId: EthAddress;
-	websockets: WebSocket[];
 	peers: PeerConnections = {};
-	messageQueue: WSMessage[] = [];
 	seenMessages: Set<string> = new Set();
 
 	constructor(rpcClient: RPCClient) {
-		this.websockets = [new WebSocket("wss://rooms.deno.dev/")];
-
+		this._rpcClient = rpcClient;
 		this.peerId = RPCClient._client.rtcWallet.account.address;
 
-		const peers = rpcClient.http.getPeers(true);
-		for (let i = 0; i < peers.length; i++) {
-			try {
-				this.websockets.push(new WebSocket(peers[i].host.replace("https://", "wss://").replace("http://", "ws://")));
-			} catch (e) {
-				if (RPCClient._client.config.logLevel === "verbose") console.error(e);
-				continue;
-			}
-		}
-
-		for (let i = 0; i < this.websockets.length; i++) {
-			this.websockets[i].onopen = () => {
-				console.log(`WebRTC:   Announcing to ${this.websockets[i].url}`);
+		for (let i = 0; i < rpcClient.ws.peers.length; i++) {
+			rpcClient.ws.peers[i].socket.onopen = () => {
+				console.log(`WebRTC:   Announcing to ${rpcClient.ws.peers[i].socket.url}`);
 				const message: WSMessage = { announce: true, from: this.peerId };
-				this.wsMessage(message);
-				setInterval(() => this.wsMessage(message), RPCClient._client.config.announceSpeed);
+				rpcClient.ws.send(message);
+				setInterval(() => rpcClient.ws.send(message), RPCClient._client.config.announceSpeed);
 			};
 
-			this.websockets[i].onmessage = async (event) => {
+			rpcClient.ws.peers[i].socket.onmessage = async (event) => {
 				const message = JSON.parse(event.data) as WSMessage;
 				if (message === null || message.from === this.peerId || this.seenMessages.has(event.data) || ("to" in message && message.to !== this.peerId)) return;
 				this.seenMessages.add(event.data);
@@ -82,7 +70,7 @@ class RTCPeers {
 				else if ("offer" in message) await this.handleOffer(message.from, message.offer);
 				else if ("answer" in message) await this.handleAnswer(message.from, message.answer);
 				else if ("iceCandidate" in message) this.handleIceCandidate(message.from, message.iceCandidate);
-				else if ("request" in message) this.handleWsRequest(this.websockets[i], message);
+				else if ("request" in message) this.handleWsRequest(rpcClient.ws.peers[i].socket, message);
 				else if (!("response" in message)) console.warn("WebRTC:   Unknown message type received", message);
 			};
 		}
@@ -109,7 +97,10 @@ class RTCPeers {
 		channel.onmessage = async (e) => {
 			console.log(`WebRTC:   Received request`);
 			const { id, url, ...data } = JSON.parse(e.data as string);
-			const req = new Request(url, data);
+			const newUrl = new URL(url);
+			newUrl.protocol = "rtc:";
+			newUrl.hostname = "0.0.0.0";
+			const req = new Request(newUrl, data);
 			const response = await RPCClient._client.rpcServer.handleRequest(req);
 			const headers: Record<string, string> = {};
 			response.headers.forEach((value, key) => {
@@ -148,7 +139,7 @@ class RTCPeers {
 		conn.onicecandidate = (event) => {
 			if (event.candidate) {
 				if (RPCClient._client.config.logLevel === "verbose") console.log(`WebRTC:   ${from}  Sending ICE candidate`);
-				this.wsMessage({ iceCandidate: event.candidate, to: from, from: this.peerId });
+				this._rpcClient.ws.send({ iceCandidate: event.candidate, to: from, from: this.peerId });
 			}
 		};
 		conn.onnegotiationneeded = async () => {
@@ -158,7 +149,7 @@ class RTCPeers {
 				const offer = await conn.createOffer();
 				await conn.setLocalDescription(offer);
 				console.log(`WebRTC:   ${from}  Sending offer from`, extractIPAddress(offer.sdp));
-				this.wsMessage({ offer, to: from, from: this.peerId });
+				this._rpcClient.ws.send({ offer, to: from, from: this.peerId });
 			} catch (e) {
 				console.error(e);
 			}
@@ -189,18 +180,6 @@ class RTCPeers {
 				delete peerConns.answered;
 			}
 			if (!peerConns.offered && !peerConns.answered) delete this.peers[remotePeerId];
-		}
-	}
-
-	wsMessage(message: WSMessage): void {
-		this.messageQueue.push(message);
-		for (let i = 0; i < this.websockets.length; i++) {
-			if (this.websockets[i].readyState === 1) this.websockets[i].send(JSON.stringify(message));
-			else {
-				this.websockets[i].addEventListener("open", () => {
-					this.websockets[i].send(JSON.stringify(message));
-				});
-			}
 		}
 	}
 
@@ -245,7 +224,7 @@ class RTCPeers {
 			await this.peers[from].answered.conn.setLocalDescription(answer);
 
 			console.log(`WebRTC:   ${from}  Sending answer from`, extractIPAddress(answer.sdp));
-			this.wsMessage({ answer, to: from, from: this.peerId });
+			this._rpcClient.ws.send({ answer, to: from, from: this.peerId });
 		} catch (e) {
 			console.error(e);
 		}
@@ -288,6 +267,8 @@ class RTCPeers {
 	}
 
 	public fetch(url: URL, method = "GET", headers: { [key: string]: string } = {}, body: string | undefined = undefined): Promise<DecodedResponse>[] {
+		url.protocol = "rtc:";
+		url.hostname = "0.0.0.0";
 		const requestId = Math.random();
 		const request = { method, url, headers, body: method === "GET" ? null : body, id: requestId };
 		const connIDs = Object.keys(this.peers);

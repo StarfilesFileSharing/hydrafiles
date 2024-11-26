@@ -3,7 +3,7 @@ import Database, { type DatabaseModal } from "../../database.ts";
 import { File } from "../../file.ts";
 import RPCClient from "../client.ts";
 import type { EthAddress } from "../../wallet.ts";
-import { ErrorChecksumMismatch, ErrorDownloadFailed, ErrorMissingRequiredProperty, ErrorRequestFailed, ErrorTimeout } from "../../errors.ts";
+import { ErrorChecksumMismatch, ErrorDownloadFailed, ErrorMissingRequiredProperty, ErrorRequestFailed, ErrorTimeout, ErrorUnexpectedProtocol } from "../../errors.ts";
 import { ErrorNotFound } from "../../errors.ts";
 import { DecodedResponse } from "../routes.ts";
 
@@ -55,8 +55,9 @@ class HTTPPeer implements PeerAttributes {
 	 * @returns {HTTPPeer} A new instance of HTTPPeer.
 	 * @default
 	 */
-	static async init(values: Partial<DatabaseModal<typeof peerModel>>, db: Database<typeof peerModel>): Promise<HTTPPeer | ErrorMissingRequiredProperty> {
+	static async init(values: Partial<DatabaseModal<typeof peerModel>>, db: Database<typeof peerModel>): Promise<HTTPPeer | ErrorMissingRequiredProperty | ErrorUnexpectedProtocol> {
 		if (values.host === undefined) return new ErrorMissingRequiredProperty();
+		if (values.host.startsWith("hydra:")) return new ErrorUnexpectedProtocol();
 		const result = new URL(values.host);
 		if (!result.protocol || !result.host || result.protocol === "hydra") throw new Error("Invalid URL");
 
@@ -87,7 +88,8 @@ class HTTPPeer implements PeerAttributes {
 				response = await Utils.promiseWithTimeout(fetch(`${this.host}/download/${hash}`), RPCClient._client.config.timeout);
 			} catch (e) {
 				if (RPCClient._client.config.logLevel === "verbose") console.error(e);
-				return new ErrorRequestFailed();
+				const message = e instanceof Error ? e.message : "Unknown error";
+				return new ErrorRequestFailed(message);
 			}
 			if (response instanceof ErrorTimeout) return new ErrorTimeout();
 			const fileContent = new Uint8Array(await response.arrayBuffer());
@@ -150,7 +152,7 @@ export default class HTTPPeers {
 		const httpPeers = new HTTPPeers(db);
 
 		(await Promise.all((await db.select()).map((peer) => HTTPPeer.init(peer, db)))).forEach((peer) => {
-			if (!(peer instanceof ErrorMissingRequiredProperty)) httpPeers.peers.set(peer.host, peer);
+			if (!(peer instanceof Error)) httpPeers.peers.set(peer.host, peer);
 		});
 
 		for (let i = 0; i < RPCClient._client.config.bootstrapPeers.length; i++) {
@@ -163,9 +165,9 @@ export default class HTTPPeers {
 		return httpPeers;
 	}
 
-	async add(host: string): Promise<true | ErrorMissingRequiredProperty> {
+	async add(host: string): Promise<true | ErrorMissingRequiredProperty | ErrorUnexpectedProtocol> {
 		const peer = await HTTPPeer.init({ host }, this.db);
-		if (peer instanceof ErrorMissingRequiredProperty) return peer;
+		if (peer instanceof Error) return peer;
 		if (host !== RPCClient._client.config.publicHostname) this.peers.set(peer.host, peer);
 		return true;
 	}
@@ -212,7 +214,8 @@ export default class HTTPPeers {
 				return await DecodedResponse.from(res);
 			} catch (e) {
 				if (RPCClient._client.config.logLevel === "verbose") console.error(e);
-				return new ErrorRequestFailed();
+				const message = e instanceof Error ? e.message : "Unknown error";
+				return new ErrorRequestFailed(message);
 			}
 		});
 
@@ -221,7 +224,7 @@ export default class HTTPPeers {
 
 	// TODO: Compare list between all peers and give score based on how similar they are. 100% = all exactly the same, 0% = no items in list were shared. The lower the score, the lower the propagation times, the lower the decentralisation
 	async updatePeers(): Promise<void> {
-		console.log(`Fetching peers`);
+		console.log(`HTTP:     Fetching peers`);
 		const responses = await Promise.all(await RPCClient._client.rpcClient.fetch("http://localhost/peers"));
 		for (let i = 0; i < responses.length; i++) {
 			try {

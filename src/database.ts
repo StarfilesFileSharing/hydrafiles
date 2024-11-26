@@ -1,7 +1,8 @@
 import type { Database as SQLite } from "jsr:@db/sqlite";
 import type { indexedDB } from "https://deno.land/x/indexeddb@v1.1.0/ponyfill.ts";
 import { ErrorMissingRequiredProperty, ErrorNotFound, ErrorNotInitialised } from "./errors.ts";
-import Hydrafiles, { type NonEmptyString } from "./hydrafiles.ts";
+import Hydrafiles from "./hydrafiles.ts";
+import type { NonEmptyString } from "./utils.ts";
 
 export interface ModelType {
 	tableName: string;
@@ -66,7 +67,7 @@ export default class Database<T extends ModelType> {
 
 		if (typeof window === "undefined") {
 			const SQLite = (await import("jsr:@db/sqlite")).Database;
-			const db: DatabaseWrapperSQLite = { type: "SQLITE", db: new SQLite(`${model.tableName}.db`) };
+			const db: DatabaseWrapperSQLite = { type: "SQLITE", db: new SQLite(`${client.config.baseDir}${model.tableName}.db`) };
 			database.db = db;
 
 			const columns = Object.entries(model.columns)
@@ -83,11 +84,11 @@ export default class Database<T extends ModelType> {
 			Object.entries(model.columns).forEach(([name, def]) => addColumnIfNotExists(db.db, model.tableName, name, def.type));
 		} else {
 			const db = await new Promise<IDBDatabase>((resolve, reject) => {
-				console.log(`Startup: ${model.tableName}DB: Opening IndexedDB Connection`);
+				console.log(`Database: ${model.tableName}DB: Opening IndexedDB Connection`);
 				// @ts-expect-error:
 				const request = indexedDB.open(model.tableName, 2);
 				request.onupgradeneeded = (event): void => {
-					console.log(`Startup: ${model.tableName}DB: On Upgrade Needed`);
+					console.log(`Database: ${model.tableName}DB: On Upgrade Needed`);
 					// @ts-expect-error:
 					if (!event.target.result.objectStoreNames.contains(model.tableName)) {
 						// @ts-expect-error:
@@ -102,15 +103,15 @@ export default class Database<T extends ModelType> {
 					}
 				};
 				request.onsuccess = () => {
-					console.log(`Startup: ${model.tableName}DB: On Success`);
+					console.log(`Database: ${model.tableName}DB: On Success`);
 					resolve(request.result as unknown as IDBDatabase);
 				};
 				request.onerror = () => {
-					console.error(`Startup: ${model.tableName}DB error:`, request.error);
+					console.error(`Database: ${model.tableName}DB error:`, request.error);
 					reject(request.error);
 				};
 				request.onblocked = () => {
-					console.error(`Startup: ${model.tableName}DB: Blocked. Close other tabs with this site open.`);
+					console.error(`Database: ${model.tableName}DB: Blocked. Close other tabs with this site open.`);
 				};
 			});
 			database.db = { type: "INDEXEDDB", db: db };
@@ -361,7 +362,7 @@ export default class Database<T extends ModelType> {
 		} as Partial<DatabaseModal<T>>;
 
 		for (const [key, def] of Object.entries(this.model.columns)) {
-			if (!def.default && !def.isNullable && result[key as keyof DatabaseModal<T>] === undefined) return new ErrorMissingRequiredProperty(`Missing required property: ${key}`);
+			if (!def.default && !def.isNullable && result[key as keyof DatabaseModal<T>] === undefined) return new ErrorMissingRequiredProperty(key);
 		}
 
 		return result as DatabaseModal<T>;
