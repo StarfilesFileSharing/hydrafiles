@@ -57,7 +57,7 @@ class Hydrafiles {
 		this.services.addHostname((_req: Request) => new Response("Hello World!"), 0);
 
 		if (this.config.s3Endpoint.length) {
-			console.log("Startup: Populating S3");
+			console.log("Startup:  Populating S3");
 			this.s3 = new S3Client({ endPoint: this.config.s3Endpoint, region: "us-east-1", bucket: "uploads", accessKey: this.config.s3AccessKeyId, secretKey: this.config.s3SecretAccessKey, pathStyle: false });
 		}
 	}
@@ -66,12 +66,13 @@ class Hydrafiles {
 		if (!await this.fs.exists("/")) await this.fs.mkdir("/"); // In case of un-initiated base dir
 		if (!await this.fs.exists("/files/")) await this.fs.mkdir("/files/");
 
-		console.log("Startup: Populating FileDB");
+		console.log("Startup:  Populating FileDB");
 		this.files = await Files.init();
-		console.log("Startup: Populating RPC Client & Server");
+		console.log("Startup:  Populating RPC Client & Server");
 		this.rpcClient = await RPCClient.init();
 		this.rpcServer = new RPCServer();
-		console.log("Startup: Starting WebTorrent");
+		console.log("Startup:  Starting HTTP Server");
+		console.log("Startup:  Starting WebTorrent");
 		this.webtorrent = opts.webtorrent;
 		NameService._client = this;
 		this.nameService = await NameService.init();

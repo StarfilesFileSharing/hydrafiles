@@ -4,7 +4,7 @@ import Hydrafiles from "./hydrafiles.ts";
 const configPath = Deno.args[0] ?? "config.json";
 const config = JSON.parse(existsSync(configPath) ? new TextDecoder().decode(Deno.readFileSync(configPath)) : "{}");
 const hydrafiles = new Hydrafiles(config);
-hydrafiles.start().then(() => console.log("Hydrafiles Started"));
+await hydrafiles.start()
 
 // (async () => {
 //   // Example Search

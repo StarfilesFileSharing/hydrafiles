@@ -448,7 +448,7 @@ class Files {
 	backfillFiles = (): void => {
 		setTimeout(async () => {
 			while (true) {
-				console.log("Backfilling file");
+				console.log("Files:    Backfilling file");
 				const keys = Array.from(this.filesHash.keys());
 				if (keys.length === 0) {
 					await delay(500);
@@ -467,7 +467,7 @@ class Files {
 
 	// TODO: Compare list between all peers and give score based on how similar they are. 100% = all exactly the same, 0% = no items in list were shared. The lower the score, the lower the propagation times, the lower the decentralisation
 	async updateFileList(onProgress?: (progress: number, total: number) => void): Promise<void> {
-		console.log(`Comparing file list`);
+		console.log(`Files:    Comparing file list`);
 		let files: FileAttributes[] = [];
 		const responses = await Promise.all(await Files._client.rpcClient.fetch("http://localhost/files"));
 		for (let i = 0; i < responses.length; i++) {

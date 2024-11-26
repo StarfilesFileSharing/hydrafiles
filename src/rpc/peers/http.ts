@@ -224,7 +224,7 @@ export default class HTTPPeers {
 
 	// TODO: Compare list between all peers and give score based on how similar they are. 100% = all exactly the same, 0% = no items in list were shared. The lower the score, the lower the propagation times, the lower the decentralisation
 	async updatePeers(): Promise<void> {
-		console.log(`Fetching peers`);
+		console.log(`HTTP:     Fetching peers`);
 		const responses = await Promise.all(await RPCClient._client.rpcClient.fetch("http://localhost/peers"));
 		for (let i = 0; i < responses.length; i++) {
 			try {

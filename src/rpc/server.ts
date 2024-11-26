@@ -64,25 +64,25 @@ class RPCServer {
 	}
 
 	private onListen = async (hostname: string, port: number): Promise<void> => {
-		console.log(`Server started at ${hostname}:${port}`);
-		console.log("Testing network connection");
+		console.log(`HTTP:     Listening at ${hostname}:${port}`);
+		console.log("RPC:      Testing network connectivity");
 		const file = RPCServer._client.files.filesHash.get("04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f");
 		if (!file) return;
-		if (!(await file.download())) console.error("Download test failed, cannot connect to network");
+		if (!(await file.download())) console.error("RPC:      Download test failed, cannot connect to network");
 		else {
-			console.log("Connected to network");
+			console.log("RPC:      Connected to network");
 			if (Utils.isIp(RPCServer._client.config.publicHostname) && Utils.isPrivateIP(RPCServer._client.config.publicHostname)) console.error("Public hostname is a private IP address, cannot announce to other nodes");
 			else {
-				console.log(`Testing downloads ${RPCServer._client.config.publicHostname}/download/04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f`);
+				console.log(`HTTP:     Testing downloads ${RPCServer._client.config.publicHostname}/download/04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f`);
 				if (!file) console.error("Failed to build file");
 				else {
 					const self = RPCServer._client.rpcClient.http.getSelf();
-					if (self instanceof ErrorNotFound) console.error("Failed to find self in peers");
+					if (self instanceof ErrorNotFound) console.error("HTTP:     Failed to find self in peers");
 					else {
 						const response = await self.downloadFile(file);
-						if (response instanceof ErrorDownloadFailed) console.error("Test: Failed to download file from self");
+						if (response instanceof ErrorDownloadFailed) console.error("HTTP:      Failed to download file from self");
 						else {
-							console.log("Announcing HTTP server to nodes");
+							console.log("HTTP:     Announcing server to nodes");
 							RPCServer._client.rpcClient.fetch(`https://localhost/announce?host=${RPCServer._client.config.publicHostname}`);
 						}
 						await RPCServer._client.rpcClient.http.add(RPCServer._client.config.publicHostname);

@@ -84,11 +84,11 @@ export default class Database<T extends ModelType> {
 			Object.entries(model.columns).forEach(([name, def]) => addColumnIfNotExists(db.db, model.tableName, name, def.type));
 		} else {
 			const db = await new Promise<IDBDatabase>((resolve, reject) => {
-				console.log(`Startup: ${model.tableName}DB: Opening IndexedDB Connection`);
+				console.log(`Database: ${model.tableName}DB: Opening IndexedDB Connection`);
 				// @ts-expect-error:
 				const request = indexedDB.open(model.tableName, 2);
 				request.onupgradeneeded = (event): void => {
-					console.log(`Startup: ${model.tableName}DB: On Upgrade Needed`);
+					console.log(`Database: ${model.tableName}DB: On Upgrade Needed`);
 					// @ts-expect-error:
 					if (!event.target.result.objectStoreNames.contains(model.tableName)) {
 						// @ts-expect-error:
@@ -103,15 +103,15 @@ export default class Database<T extends ModelType> {
 					}
 				};
 				request.onsuccess = () => {
-					console.log(`Startup: ${model.tableName}DB: On Success`);
+					console.log(`Database: ${model.tableName}DB: On Success`);
 					resolve(request.result as unknown as IDBDatabase);
 				};
 				request.onerror = () => {
-					console.error(`Startup: ${model.tableName}DB error:`, request.error);
+					console.error(`Database: ${model.tableName}DB error:`, request.error);
 					reject(request.error);
 				};
 				request.onblocked = () => {
-					console.error(`Startup: ${model.tableName}DB: Blocked. Close other tabs with this site open.`);
+					console.error(`Database: ${model.tableName}DB: Blocked. Close other tabs with this site open.`);
 				};
 			});
 			database.db = { type: "INDEXEDDB", db: db };
