@@ -66,6 +66,9 @@ class Hydrafiles {
 	}
 
 	public async start(opts: { onUpdateFileListProgress?: (progress: number, total: number) => void; webtorrent?: WebTorrent } = {}): Promise<void> {
+		if (!await this.fs.exists("/")) await this.fs.mkdir("/"); // In case of un-initiated base dir
+		if (!await this.fs.exists("/files/")) await this.fs.mkdir("/files/");
+
 		console.log("Startup: Populating FileDB");
 		this.files = await Files.init();
 		console.log("Startup: Populating RPC Client & Server");
