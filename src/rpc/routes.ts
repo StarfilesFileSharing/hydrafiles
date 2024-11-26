@@ -280,38 +280,37 @@ router.set("/infohash", async (req, client): Promise<DecodedResponse> => {
 	return response;
 });
 
-router.set("/upload", async (req, client) => {
-	const uploadSecret = req.headers.get("x-hydra-upload-secret");
-	if (uploadSecret !== client.config.uploadSecret) {
-		return new DecodedResponse("401 Unauthorized\n", { status: 401 });
-	}
+// router.set("/upload", async (req, client) => {
+// 	const uploadSecret = req.headers.get("x-hydra-upload-secret");
+// 	if (uploadSecret !== client.config.uploadSecret) {
+// 		return new DecodedResponse("401 Unauthorized\n", { status: 401 });
+// 	}
 
-	const form = await req.formData();
-	const formData = {
-		hash: form.get("hash")?.toString(),
-		file: form.get("file") as globalThis.File | null,
-	};
+// 	const form = await req.formData();
+// 	const formData = {
+// 		hash: form.get("hash")?.toString(),
+// 		file: form.get("file") as globalThis.File | null,
+// 	};
 
-	if (typeof formData.hash === "undefined" || typeof formData.file === "undefined" || formData.file === null) return new DecodedResponse("400 Bad Request\n", { status: 400 });
+// 	if (typeof formData.hash === "undefined" || typeof formData.file === "undefined" || formData.file === null) return new DecodedResponse("400 Bad Request\n", { status: 400 });
 
-	const hash = Utils.sha256(formData.hash[0]);
+// 	const hash = Utils.sha256(formData.hash[0]);
 
-	const file = await File.init({ hash }, true);
-	if (!file) throw new Error("Failed to build file");
-	if (!file.name && formData.file.name !== null) {
-		file.name = formData.file.name;
-		file.cacheFile(new Uint8Array(await formData.file.arrayBuffer()));
-		file.save();
-	}
+// 	const file = await File.init({ hash }, true);
+// 	if (!file) throw new Error("Failed to build file");
+// 	if (!file.name && formData.file.name !== null) {
+// 		file.name = formData.file.name;
+// 		file.cacheFile(new Uint8Array(await formData.file.arrayBuffer()));
+// 		file.save();
+// 	}
 
-	console.log("Uploading", file.hash);
+// 	console.log("Uploading", file.hash);
 
-	if (await client.fs.exists(join("files", file.hash))) return new DecodedResponse("200 OK\n");
+// 	if (await client.fs.exists(join("files", file.hash))) return new DecodedResponse("200 OK\n");
 
-	if (!client.config.permaFiles.includes(hash)) client.config.permaFiles.push(hash);
-	await client.fs.writeFile("config.json", new TextEncoder().encode(JSON.stringify(client.config, null, 2)));
-	return new DecodedResponse("200 OK\n");
-});
+// 	if (!client.config.permaFiles.includes(hash)) client.config.permaFiles.push(hash); // TODO: Save this
+// 	return new DecodedResponse("200 OK\n");
+// });
 
 router.set("/files", (_, client) => {
 	const rows = Array.from(client.files.getFiles()).map((row) => {
