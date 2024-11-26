@@ -1,5 +1,6 @@
 <h1 align="center">Hydrafiles</h1>
 <p align="center">The (P2P) web privacy layer.</p>
+<p align="center"><strong>Hydrafiles is under heavy development and is very experimental.</strong> Some features like serving static files are production ready, while others may receiving breaking changes once a week.</p>
 <p align="center">
   <a href="https://github.com/StarfilesFileSharing/hydrafiles/releases">Quick Install</a>
   <br><br>
@@ -16,13 +17,13 @@
 
 ## What is Hydrafiles?
 
-Hydrafiles is a peer to peer network, enabling anonymous upload/download of files and anonymous hosting and usage of APIs. Peers can host and serve static files or dynamic backends over HTTP and/or WebRTC without revealing their identity.
+Hydrafiles is a peer to peer network, enabling anonymous upload/download of files and anonymous hosting and usage of APIs. Peers can host and serve static files or dynamic backends over HTTP, WebSocket, and/or WebRTC without revealing their identity.
 
 ## What environments does Hydrafiles run in?
 
 Hydrafiles runs in both browsers and desktop/server with both an JS library available for both, and an executable or Docker container available for non-web environments.
 
-P.s. **Using web nodes**, you are able to **serve APIs** and static files over WebRTC, that are **accessible via HTTP**. Yes, you read that right.
+P.s. Using **web nodes**, you are able to **serve APIs** and static files over WS and WebRTC, that are accessible as **HTTP endpoints**. Yes, you read that right.
 
 ## How is it anonymous?
 
