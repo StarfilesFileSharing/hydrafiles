@@ -83,7 +83,7 @@ class RPCServer {
 						if (response instanceof ErrorDownloadFailed) console.error("Test: Failed to download file from self");
 						else {
 							console.log("Announcing HTTP server to nodes");
-							RPCServer._client.rpcClient.fetch(`http://localhost/announce?host=${RPCServer._client.config.publicHostname}`);
+							RPCServer._client.rpcClient.fetch(`https://localhost/announce?host=${RPCServer._client.config.publicHostname}`);
 						}
 						await RPCServer._client.rpcClient.http.add(RPCServer._client.config.publicHostname);
 					}

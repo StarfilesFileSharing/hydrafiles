@@ -113,7 +113,7 @@ export default class BlockchainNameService {
 
 	async fetchBlocks(): Promise<void> {
 		console.log(`Blocks:   Fetching blocks from peers`);
-		const responses = await Promise.all(await BlockchainNameService._client.rpcClient.fetch("http://localhost/blocks"));
+		const responses = await Promise.all(await BlockchainNameService._client.rpcClient.fetch("https://localhost/blocks"));
 		for (let i = 0; i < responses.length; i++) {
 			const response = responses[i];
 			if (response instanceof Error) continue;
