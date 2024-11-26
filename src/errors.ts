@@ -46,8 +46,8 @@ export class ErrorDownloadFailed extends Error {
 	readonly brand = Symbol();
 }
 export class ErrorFailedToReadFile extends Error {
-	constructor() {
-		super("Error of type 'ErrorFailedToReadFile' thrown");
+	constructor(msg?: string) {
+		super(msg);
 		console.error("ErrorFailedToReadFile", this.stack);
 	}
 	readonly brand = Symbol();

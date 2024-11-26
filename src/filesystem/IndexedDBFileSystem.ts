@@ -70,7 +70,7 @@ export default class IndexedDBFileSystem {
 			const transaction = db.transaction(this.storeName, "readonly");
 			const store = transaction.objectStore(this.storeName);
 			const request = store.get(path);
-			request.onsuccess = () => resolve(request.result ? new Uint8Array(request.result.data) : new ErrorFailedToReadFile());
+			request.onsuccess = () => resolve(request.result ? new Uint8Array(request.result.data) : new ErrorFailedToReadFile(path));
 			request.onerror = () => reject(new Error(`Error reading ${path}`));
 		});
 	}
