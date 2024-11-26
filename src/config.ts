@@ -19,14 +19,14 @@ export interface Config {
 	httpsPort: number;
 
 	/**
-	 * SSL Certificate Path.
-	 * @default "./certs/ca/localhost/localhost.crt"
+	 * SSL Certificate Path. Replace `../` with `./` if replacing the cert.
+	 * @default "../certs/ca/localhost/localhost.crt"
 	 */
 	sslCertPath: string;
 
 	/**
-	 * SSL Key Path.
-	 * @default "./certs/ca/localhost/localhost.key"
+	 * SSL Key Path. Replace `../` with `./` if replacing the cert.
+	 * @default "../certs/ca/localhost/localhost.key"
 	 */
 	sslKeyPath: string;
 
@@ -195,8 +195,8 @@ const defaultConfig: Config = {
 	hostname: "0.0.0.0",
 	httpPort: 80,
 	httpsPort: 443,
-	sslCertPath: "./certs/ca/localhost/localhost.crt",
-	sslKeyPath: "./certs/ca/localhost/localhost.key",
+	sslCertPath: "../certs/ca/localhost/localhost.crt",
+	sslKeyPath: "../certs/ca/localhost/localhost.key",
 	publicHostname: "http://127.0.0.1:80",
 	maxCache: -1,
 	permaFiles: ["04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f"],
