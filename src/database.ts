@@ -263,7 +263,7 @@ export default class Database<T extends ModelType> {
 				this._client.config.logLevel === "verbose" ? console.log(`File:     ${primaryKeyValue}`) : "",
 			);
 		} else {
-			if (this.db.type === "INDEXEDDB") this.objectStore().put(newFile).onerror = console.error;
+			if (this.db.type === "INDEXEDDB") this.objectStore().put(Object.fromEntries(Object.entries(newFile).filter(([key]) => !key.startsWith("_")))).onerror = console.error;
 			console.log(
 				`this:     ${primaryKeyValue}  File UPDATEd - Updated Columns: ${updatedColumn.join(", ")}` + (this._client.config.logLevel === "verbose" ? ` - Params: ${params.join(", ")}` : ""),
 				this._client.config.logLevel === "verbose" ? console.log(`File:     ${primaryKeyValue}`) : "",
