@@ -17,6 +17,112 @@ declare global {
 	}
 }
 
+interface HSVColor {
+	h: number; // Hue [0, 1]
+	s: number; // Saturation [0, 1]
+	v: number; // Value [0, 1]
+}
+
+interface RGBColor {
+	r: number; // Red [0, 255]
+	g: number; // Green [0, 255]
+	b: number; // Blue [0, 255]
+}
+
+class ColorGenerator {
+	private readonly GOLDEN_RATIO = 0.618033988749895;
+	private currentHue = 0.1; // Start with a vibrant base hue
+
+	/**
+	 * Converts HSV color values to RGB
+	 * Uses advanced color space transformation algorithms
+	 */
+	private hsvToRgb({ h, s, v }: HSVColor): RGBColor {
+		const i = Math.floor(h * 6);
+		const f = h * 6 - i;
+		const p = v * (1 - s);
+		const q = v * (1 - f * s);
+		const t = v * (1 - (1 - f) * s);
+
+		let r: number, g: number, b: number;
+
+		switch (i % 6) {
+			case 0:
+				[r, g, b] = [v, t, p];
+				break;
+			case 1:
+				[r, g, b] = [q, v, p];
+				break;
+			case 2:
+				[r, g, b] = [p, v, t];
+				break;
+			case 3:
+				[r, g, b] = [p, q, v];
+				break;
+			case 4:
+				[r, g, b] = [t, p, v];
+				break;
+			default: // case 5
+				[r, g, b] = [v, p, q];
+				break;
+		}
+
+		return {
+			r: Math.round(r * 255),
+			g: Math.round(g * 255),
+			b: Math.round(b * 255),
+		};
+	}
+
+	/**
+	 * Converts RGB values to hexadecimal color code
+	 */
+	private rgbToHex({ r, g, b }: RGBColor): string {
+		const toHex = (n: number): string => {
+			const hex = n.toString(16);
+			return hex.length === 1 ? "0" + hex : hex;
+		};
+
+		return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+	}
+
+	/**
+	 * Generates an array of visually distinct colors
+	 * @param count Number of colors to generate
+	 * @param options Optional parameters for customization
+	 * @returns Array of hex color codes
+	 */
+	public generateColors(
+		count: number,
+		options: {
+			saturation?: number; // Default: 0.85
+			value?: number; // Default: 0.95
+			startHue?: number; // Default: 0.1
+		} = {},
+	): string[] {
+		const {
+			saturation = 0.85,
+			value = .95,
+			startHue = this.currentHue,
+		} = options;
+
+		const colors: string[] = [];
+		let hue = startHue;
+
+		for (let i = 0; i < count; i++) {
+			const hsv: HSVColor = { h: hue, s: saturation, v: value };
+			const rgb = this.hsvToRgb(hsv);
+			colors.push(this.rgbToHex(rgb));
+
+			// Advance to next hue using golden ratio for optimal spacing
+			hue = (hue + this.GOLDEN_RATIO) % 1.0;
+		}
+
+		this.currentHue = hue; // Save the last hue for potential subsequent calls
+		return colors;
+	}
+}
+
 function formatTSCode(code: string): string {
 	const indent = (lines: string[], level: number) => lines.map((line) => "  ".repeat(level) + line);
 	let formatted = "", depth = 0, inString = false, escape = false;
@@ -140,12 +246,12 @@ const tickHandler = async () => {
 				console.error(e);
 			}
 			try {
-				(document.getElementById("httpPeersCount") as HTMLElement).innerHTML = String(window.hydrafiles.rpcClient.http.getPeers().length);
+				(document.getElementById("httpPeersCount") as HTMLElement).innerHTML = String(window.hydrafiles.rpcPeers.http.getPeers().length);
 			} catch (e) {
 				console.error(e);
 			}
 			try {
-				(document.getElementById("rtcPeers") as HTMLElement).innerHTML = String(Object.keys(window.hydrafiles.rpcClient.rtc.peers).length);
+				(document.getElementById("rtcPeers") as HTMLElement).innerHTML = String(Object.keys(window.hydrafiles.rpcPeers.rtc.peers).length);
 			} catch (e) {
 				console.error(e);
 			}
@@ -323,7 +429,7 @@ function getBackgroundColor(state: string): string {
 }
 
 async function fetchAndPopulatePeers() {
-	const peers = window.hydrafiles.rpcClient.http.getPeers();
+	const peers = window.hydrafiles.rpcPeers.http.getPeers();
 	const peersEl = document.getElementById("httpPeers") as HTMLElement;
 	peersEl.innerHTML = "";
 
@@ -333,7 +439,7 @@ async function fetchAndPopulatePeers() {
 		peersEl.appendChild(li);
 	});
 
-	const rtcPeers = Object.entries(window.hydrafiles.rpcClient.rtc.peers);
+	const rtcPeers = Object.entries(window.hydrafiles.rpcPeers.rtc.peers);
 	const tbody = document.getElementById("peerTable")!.querySelector("tbody") as HTMLTableSectionElement;
 
 	tbody.innerHTML = "";
@@ -402,7 +508,7 @@ function populateTable() {
 				if (key === "size") value = `${(file[key] / (1024 * 1024)).toFixed(2)} MB`;
 				if (key === "updatedAt") value = new Date(file[key]).toLocaleDateString();
 
-				cell.textContent = String(`${key}: ${value}`);
+				cell.textContent = String(value);
 				row.appendChild(cell);
 			}
 		}
@@ -445,12 +551,15 @@ function fetchAndPopulateCharts() {
 	}
 }
 
+const colorGen = new ColorGenerator();
+
 function populateChart(name: string, data: Record<FileEvent, number[]> | Record<RTCEvent, number[]>) {
 	const events = Object.keys(data);
-	const datasets = events.map((label) => ({
-		label,
-		data: data[label as keyof typeof data],
-		backgroundColor: getRandomColor(),
+	const defaultColors = colorGen.generateColors(events.length + 1);
+	const datasets = events.map((event, index) => ({
+		label: event,
+		data: data[event as keyof typeof data],
+		backgroundColor: defaultColors[index],
 		fill: true,
 	}));
 
@@ -482,13 +591,6 @@ function populateChart(name: string, data: Record<FileEvent, number[]> | Record<
 	}
 }
 
-function getRandomColor(opacity = 1): string {
-	const r = Math.floor(Math.random() * 255);
-	const g = Math.floor(Math.random() * 255);
-	const b = Math.floor(Math.random() * 255);
-	return `rgba(${r}, ${g}, ${b}, ${opacity})`;
-}
-
 document.addEventListener("DOMContentLoaded", async () => {
 	const savedCredentials = loadSavedCredentials();
 	if (savedCredentials) {
@@ -515,7 +617,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 		setTimeout(() => results.classList.add("hidden"), 3000);
 	});
 
-	const pages = ["documentation", "dashboard", "statistics", "peers", "files", "services", "chat"];
+	const pages = ["documentation", "statistics", "peers", "files", "services", "chat", "browser"];
 	const sidebarLinks = document.querySelectorAll("#default-sidebar a");
 
 	const selectPage = (pageId: string) => {
@@ -552,13 +654,37 @@ document.addEventListener("DOMContentLoaded", async () => {
 				</div>
 			</div>
 		</div>`;
-		window.hydrafiles.rpcClient.fetch(
+		window.hydrafiles.rpcPeers.fetch(
 			new Request(`https://localhost/service/${(document.getElementById("peerAddress") as HTMLInputElement).value}?message=${encodeURIComponent(message)}&nonce=${Math.random()}`),
 			{ wallet },
 		);
 	});
 
-	selectPage("dashboard");
+	document.getElementById("loadSite")!.addEventListener("click", async () => {
+		document.getElementById("loadSite")!.innerHTML =
+			`<svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>`;
+
+		const url = (document.getElementById("urlInput") as HTMLInputElement).value;
+		const responses = await Promise.all(await window.hydrafiles.exit.fetch(url));
+		for (let i = 0; i < responses.length; i++) {
+			const response = responses[i];
+			try {
+				if (response instanceof Error) continue;
+				const body = response.text();
+				console.log("body", body);
+				document.getElementById("urlBody")!.innerHTML = body;
+				break;
+			} catch (error) {
+				if (i === responses.length) {
+					console.error("Error loading site:", error);
+					document.getElementById("urlBody")!.innerHTML = `Error loading site: ${(error as Error).message}`;
+				}
+			}
+		}
+		document.getElementById("loadSite")!.innerHTML = "Go";
+	});
+
+	selectPage("statistics");
 });
 
 // Add this after other interface declarations
@@ -693,8 +819,8 @@ const network = new Network(document.getElementById("peerNetwork")!, { nodes: no
 });
 
 async function populateNetworkGraph() {
-	const httpPeers = Array.from(window.hydrafiles.rpcClient.http.peers);
-	const rtcPeers = Object.keys(window.hydrafiles.rpcClient.rtc.peers);
+	const httpPeers = Array.from(window.hydrafiles.rpcPeers.http.peers);
+	const rtcPeers = Object.keys(window.hydrafiles.rpcPeers.rtc.peers);
 
 	const foundNodes = [
 		...httpPeers.map((peer, index) => ({ id: index + 1, label: peer[0] })),

@@ -88,7 +88,7 @@ export class File implements FileAttributes {
 		}
 		if (!hash && values.id) {
 			console.log(`Fetching file metadata`); // TODO: Merge with getMetadata
-			const responses = await Files._client.rpcClient.fetch(`http://localhost/file/${values.id}`);
+			const responses = await Files._client.rpcPeers.fetch(`http://localhost/file/${values.id}`);
 			for (let i = 0; i < responses.length; i++) {
 				const response = await responses[i];
 				if (response instanceof Error) continue;
@@ -125,7 +125,7 @@ export class File implements FileAttributes {
 
 		const id = this.id;
 		if (id !== undefined && id !== null && id.length > 0) {
-			const responses = await Files._client.rpcClient.fetch(`http://localhost/file/${this.id}`);
+			const responses = await Files._client.rpcPeers.fetch(`http://localhost/file/${this.id}`);
 
 			for (let i = 0; i < responses.length; i++) {
 				try {
@@ -371,7 +371,7 @@ export class File implements FileAttributes {
 			});
 		}
 
-		const peers = Files._client.rpcClient.http.getPeers(true);
+		const peers = Files._client.rpcPeers.http.getPeers(true);
 		for (const peer of peers) {
 			let fileContent: { file: Uint8Array; signal: number } | Error | undefined;
 			try {
@@ -383,9 +383,10 @@ export class File implements FileAttributes {
 		}
 
 		console.log(`File:     ${this.hash}  Downloading from WebRTC`);
-		const responses = Files._client.rpcClient.rtc.fetch(new URL(`http://localhost/download/${this.hash}`));
+		const responses = Files._client.rpcPeers.rtc.fetch(new URL(`http://localhost/download/${this.hash}`));
 		for (let i = 0; i < responses.length; i++) {
 			const response = await responses[i];
+			if (response instanceof Error) continue;
 			const fileContent = new Uint8Array(response.arrayBuffer());
 			console.log(`File:     ${this.hash}  Validating hash`);
 			const verifiedHash = await Utils.hashUint8Array(fileContent);
@@ -469,7 +470,7 @@ class Files {
 	async updateFileList(onProgress?: (progress: number, total: number) => void): Promise<void> {
 		console.log(`Files:    Comparing file list`);
 		let files: FileAttributes[] = [];
-		const responses = await Promise.all(await Files._client.rpcClient.fetch("http://localhost/files"));
+		const responses = await Promise.all(await Files._client.rpcPeers.fetch("http://localhost/files"));
 		for (let i = 0; i < responses.length; i++) {
 			const response = responses[i];
 			if (!(response instanceof Error)) {

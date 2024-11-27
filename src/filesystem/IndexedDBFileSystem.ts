@@ -3,28 +3,31 @@ import { ErrorFailedToReadFile } from "../errors.ts";
 
 export default class IndexedDBFileSystem {
 	dbName = "FileSystemDB";
-	storeName = "files";
-	dbPromise!: Promise<IDBDatabase>;
+	storeName = "filesystem";
+	dbPromise!: IDBDatabase;
 
-	initDB(): Promise<IDBDatabase> {
-		return new Promise((resolve, reject) => {
+	private constructor() {}
+
+	static async init(): Promise<IndexedDBFileSystem> {
+		const fs = new IndexedDBFileSystem();
+
+		const db = new Promise<IDBDatabase>((resolve, reject) => {
 			// @ts-expect-error:
 			const request = indexedDB.open(this.dbName, 1);
 			request.onupgradeneeded = (event) => {
-				const target = event.target;
+				const target = event.target as IDBOpenDBRequest;
 				if (!target) {
 					reject(new Error("Failed to open IndexedDB"));
 					return;
 				}
-				// @ts-expect-error:
-				const db = target.result;
-				db.createObjectStore(this.storeName, { keyPath: "path" });
+				target.result.createObjectStore(fs.storeName, { keyPath: "path" });
 			};
-			// @ts-expect-error:
-			request.onsuccess = (event) => resolve(event.target.result);
-			// @ts-expect-error:
-			request.onerror = (event) => reject(event.target.error);
+			request.onsuccess = (event) => resolve((event.target as IDBOpenDBRequest).result);
+			request.onerror = (event) => reject((event.target as IDBOpenDBRequest).error);
 		});
+
+		fs.dbPromise = await db;
+		return fs;
 	}
 
 	async exists(path: string): Promise<boolean> {

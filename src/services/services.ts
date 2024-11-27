@@ -74,7 +74,7 @@ export default class Services {
 		req.headers.forEach((value, key) => {
 			headersObj[key] = value;
 		});
-		const responses = await Services._client.rpcClient.fetch(req.url, { headers: this.filterHydraHeaders(headersObj) });
+		const responses = await Services._client.rpcPeers.fetch(req.url, { headers: this.filterHydraHeaders(headersObj) });
 
 		const processingRequest = new Promise<DecodedResponse | ErrorRequestFailed>((resolve, reject) => {
 			(async () => {
