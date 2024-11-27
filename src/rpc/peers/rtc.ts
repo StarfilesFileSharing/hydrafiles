@@ -319,7 +319,7 @@ class RTCPeers {
 				};
 			});
 
-			responses.push(responsePromise);
+			responses.push(Utils.promiseWithTimeout(responsePromise, RPCPeers._client.config.timeout));
 		}
 		return responses;
 	}
