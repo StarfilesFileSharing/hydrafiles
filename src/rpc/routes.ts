@@ -304,3 +304,9 @@ router.set("/blocks", (_, client) => {
 	};
 	return new DecodedResponse(JSON.stringify(client.nameService.blocks), { headers });
 });
+
+router.set("/exit", (req) => {
+	console.log(req.body);
+	if (req.url.endsWith("/request")) return new DecodedResponse(JSON.stringify({ pubKey: "test" }));
+	return new DecodedResponse("test");
+});

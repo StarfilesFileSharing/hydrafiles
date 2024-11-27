@@ -7,6 +7,10 @@ import RTCPeers from "./peers/rtc.ts";
 import WSPeers from "./peers/ws.ts";
 import { DecodedResponse, router } from "./routes.ts";
 import { serveFile } from "https://deno.land/std@0.115.0/http/file_server.ts";
+import type { EthAddress } from "../wallet.ts";
+
+type RawPayload = { url: string };
+type EncryptedPayload = { payload: RawPayload | EncryptedPayload; to: EthAddress };
 
 export default class RPCPeers {
 	static _client: Hydrafiles;
@@ -106,12 +110,40 @@ export default class RPCPeers {
 	};
 
 	public exitFetch = async (req: Request): Promise<DecodedResponse | ErrorNotFound> => {
-		const responses = await Promise.all(await this.fetch(`https://localhost/exit/${encodeURIComponent(req.url)}`));
-		for (let i = 0; i < responses.length; i++) {
-			const response = responses[i];
+		const relays: EthAddress[] = [];
+
+		const handshakeResponses = await Promise.all(await this.fetch(`https://localhost/exit/request`));
+		for (let i = 0; i < handshakeResponses.length; i++) {
+			const response = handshakeResponses[i];
+			if (response instanceof Error || response.status !== 200) continue;
+			const body = response.text();
+			try {
+				const payload = JSON.parse(body);
+				relays.push(payload.pubKey);
+			} catch (_) {
+				continue;
+			}
+		}
+
+		const chosenRelays = relays.sort(() => Math.random() - 0.5).slice(0, 3);
+
+		const rawPayload = {
+			url: req.url,
+		};
+
+		let payload: EncryptedPayload = { payload: rawPayload, to: chosenRelays[0] };
+		for (let i = 1; i < chosenRelays.length; i++) {
+			payload = { payload, to: chosenRelays[i] };
+		}
+
+		console.log(`https://localhost/exit/${payload.to}`);
+		const responses = await Promise.all(await this.fetch(`https://localhost/exit/${payload.to}`, { method: "POST", body: JSON.stringify(payload.payload) }));
+		for (let j = 0; j < responses.length; j++) {
+			const response = responses[j];
 			if (response instanceof Error || response.status !== 200) continue;
 			return response;
 		}
+
 		return new ErrorNotFound();
 	};
 
