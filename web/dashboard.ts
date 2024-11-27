@@ -402,7 +402,7 @@ function populateTable() {
 				if (key === "size") value = `${(file[key] / (1024 * 1024)).toFixed(2)} MB`;
 				if (key === "updatedAt") value = new Date(file[key]).toLocaleDateString();
 
-				cell.textContent = String(`${key}: ${value}`);
+				cell.textContent = String(value);
 				row.appendChild(cell);
 			}
 		}
@@ -515,7 +515,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 		setTimeout(() => results.classList.add("hidden"), 3000);
 	});
 
-	const pages = ["documentation", "dashboard", "statistics", "peers", "files", "services", "chat"];
+	const pages = ["documentation", "statistics", "peers", "files", "services", "chat"];
 	const sidebarLinks = document.querySelectorAll("#default-sidebar a");
 
 	const selectPage = (pageId: string) => {
@@ -558,7 +558,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 		);
 	});
 
-	selectPage("dashboard");
+	selectPage("statistics");
 });
 
 // Add this after other interface declarations
