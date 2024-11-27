@@ -140,12 +140,12 @@ const tickHandler = async () => {
 				console.error(e);
 			}
 			try {
-				(document.getElementById("httpPeersCount") as HTMLElement).innerHTML = String(window.hydrafiles.rpcClient.http.getPeers().length);
+				(document.getElementById("httpPeersCount") as HTMLElement).innerHTML = String(window.hydrafiles.rpcPeers.http.getPeers().length);
 			} catch (e) {
 				console.error(e);
 			}
 			try {
-				(document.getElementById("rtcPeers") as HTMLElement).innerHTML = String(Object.keys(window.hydrafiles.rpcClient.rtc.peers).length);
+				(document.getElementById("rtcPeers") as HTMLElement).innerHTML = String(Object.keys(window.hydrafiles.rpcPeers.rtc.peers).length);
 			} catch (e) {
 				console.error(e);
 			}
@@ -323,7 +323,7 @@ function getBackgroundColor(state: string): string {
 }
 
 async function fetchAndPopulatePeers() {
-	const peers = window.hydrafiles.rpcClient.http.getPeers();
+	const peers = window.hydrafiles.rpcPeers.http.getPeers();
 	const peersEl = document.getElementById("httpPeers") as HTMLElement;
 	peersEl.innerHTML = "";
 
@@ -333,7 +333,7 @@ async function fetchAndPopulatePeers() {
 		peersEl.appendChild(li);
 	});
 
-	const rtcPeers = Object.entries(window.hydrafiles.rpcClient.rtc.peers);
+	const rtcPeers = Object.entries(window.hydrafiles.rpcPeers.rtc.peers);
 	const tbody = document.getElementById("peerTable")!.querySelector("tbody") as HTMLTableSectionElement;
 
 	tbody.innerHTML = "";
@@ -552,7 +552,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 				</div>
 			</div>
 		</div>`;
-		window.hydrafiles.rpcClient.fetch(
+		window.hydrafiles.rpcPeers.fetch(
 			new Request(`https://localhost/service/${(document.getElementById("peerAddress") as HTMLInputElement).value}?message=${encodeURIComponent(message)}&nonce=${Math.random()}`),
 			{ wallet },
 		);
@@ -693,8 +693,8 @@ const network = new Network(document.getElementById("peerNetwork")!, { nodes: no
 });
 
 async function populateNetworkGraph() {
-	const httpPeers = Array.from(window.hydrafiles.rpcClient.http.peers);
-	const rtcPeers = Object.keys(window.hydrafiles.rpcClient.rtc.peers);
+	const httpPeers = Array.from(window.hydrafiles.rpcPeers.http.peers);
+	const rtcPeers = Object.keys(window.hydrafiles.rpcPeers.rtc.peers);
 
 	const foundNodes = [
 		...httpPeers.map((peer, index) => ({ id: index + 1, label: peer[0] })),

@@ -62,7 +62,7 @@ router.set("/peers", (_, client) => {
 	};
 	return new DecodedResponse(
 		JSON.stringify(
-			client.rpcClient.http.getPeers().map((peer) => {
+			client.rpcPeers.http.getPeers().map((peer) => {
 				const outputPeer: Partial<PeerAttributes> = {};
 				for (const [key, value] of Object.entries(peer)) {
 					if (key.startsWith("_")) continue;
@@ -87,9 +87,9 @@ router.set("/announce", async (req, client) => {
 	const url = new URL(req.url);
 	const host = url.searchParams.get("host");
 	if (host === null) return new DecodedResponse("No hosted given\n", { status: 401 });
-	const knownNodes = client.rpcClient.http.getPeers();
+	const knownNodes = client.rpcPeers.http.getPeers();
 	if (knownNodes.find((node) => node.host === host) !== undefined) return new DecodedResponse("Already known\n");
-	await client.rpcClient.http.add(host);
+	await client.rpcPeers.http.add(host);
 	return new DecodedResponse("Announced\n");
 });
 

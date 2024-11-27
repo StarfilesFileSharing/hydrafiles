@@ -4,8 +4,7 @@ import Files from "./file.ts";
 import Utils from "./utils.ts";
 // import Blockchain, { Block } from "./block.ts";
 import { S3Client } from "https://deno.land/x/s3_lite_client@0.7.0/mod.ts";
-import RPCServer from "./rpc/server.ts";
-import RPCClient from "./rpc/client.ts";
+import RPCPeers from "./rpc/RPCPeers.ts";
 import FileSystem from "./filesystem/filesystem.ts";
 import Events from "./events.ts";
 import Wallet from "./wallet.ts";
@@ -31,8 +30,7 @@ class Hydrafiles {
 	s3: S3Client | undefined;
 	fs!: FileSystem;
 	utils!: Utils;
-	rpcServer!: RPCServer;
-	rpcClient!: RPCClient;
+	rpcPeers!: RPCPeers;
 	files!: Files;
 	filesWallet!: Wallet;
 	rtcWallet!: Wallet;
@@ -44,8 +42,8 @@ class Hydrafiles {
 		Wallet._client = this;
 		Services._client = this;
 		Files._client = this;
-		RPCClient._client = this;
-		RPCServer._client = this;
+		RPCPeers._client = this;
+		Exit._client = this;
 
 		this.config = getConfig(customConfig);
 		this.events = new Events();
@@ -69,11 +67,8 @@ class Hydrafiles {
 		this.utils = new Utils(this.config, this.fs);
 		console.log("Startup:  Initialising Files");
 		this.files = await Files.init();
-		console.log("Startup:  Initialising RPC Client & Server");
-		this.rpcClient = await RPCClient.init();
-		this.rpcServer = new RPCServer();
-		console.log("Startup:  Starting HTTP Server");
-		await this.rpcServer.listenHTTP();
+		console.log("Startup:  Initialising RPC Clients & Servers");
+		this.rpcPeers = await RPCPeers.init();
 		console.log("Startup:  Initialising WebTorrent");
 		this.webtorrent = opts.webtorrent;
 		console.log("Startup:  Initialising Name Service");
@@ -86,8 +81,8 @@ class Hydrafiles {
 	startBackgroundTasks(onUpdateFileListProgress?: (progress: number, total: number) => void): void {
 		if (this.config.summarySpeed !== -1) setInterval(() => this.logState(), this.config.summarySpeed);
 		if (this.config.comparePeersSpeed !== -1) {
-			this.rpcClient.http.updatePeers();
-			setInterval(() => this.rpcClient.http.updatePeers(), this.config.comparePeersSpeed);
+			this.rpcPeers.http.updatePeers();
+			setInterval(() => this.rpcPeers.http.updatePeers(), this.config.comparePeersSpeed);
 		}
 		if (this.config.compareFilesSpeed !== -1) {
 			this.files.updateFileList(onUpdateFileListProgress);
@@ -109,9 +104,9 @@ class Hydrafiles {
 			"\n| Uptime:",
 			Utils.convertTime(+new Date() - this.startTime),
 			"\n| Known HTTP Peers:",
-			this.rpcClient.http.getPeers().length,
+			this.rpcPeers.http.getPeers().length,
 			"\n| Known RTC Peers:",
-			Object.keys(this.rpcClient.rtc.peers).length,
+			Object.keys(this.rpcPeers.rtc.peers).length,
 			"\n| Known (Network) Files:",
 			await this.files.db.count(),
 			`(${Math.round((100 * (await this.files.db.sum("size"))) / 1024 / 1024 / 1024) / 100}GB)`,

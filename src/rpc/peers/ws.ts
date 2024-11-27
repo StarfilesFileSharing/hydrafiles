@@ -1,20 +1,20 @@
 import { ErrorTimeout } from "../../errors.ts";
 import Utils from "../../utils.ts";
-import RPCClient from "../client.ts";
 import { DecodedResponse, pendingWSRequests } from "../routes.ts";
+import RPCPeers from "../RPCPeers.ts";
 import type { WSMessage } from "./rtc.ts";
 
 export default class WSPeers {
-	private _rpcClient: RPCClient;
-	peers: { id: string; socket: WebSocket }[] = [{ id: RPCClient._client.rtcWallet.account.address, socket: new WebSocket("wss://rooms.deno.dev/") }];
+	private _rpcClient: RPCPeers;
+	peers: { id: string; socket: WebSocket }[] = [{ id: RPCPeers._client.rtcWallet.account.address, socket: new WebSocket("wss://rooms.deno.dev/") }];
 	messageQueue: WSMessage[] = [];
 
-	constructor(rpcClient: RPCClient) {
+	constructor(rpcClient: RPCPeers) {
 		this._rpcClient = rpcClient;
 
 		const peers = rpcClient.http.getPeers(true);
 		for (let i = 0; i < peers.length; i++) {
-			this.peers.push({ id: RPCClient._client.rtcWallet.account.address, socket: new WebSocket(peers[i].host.replace("https://", "wss://").replace("http://", "ws://")) });
+			this.peers.push({ id: RPCPeers._client.rtcWallet.account.address, socket: new WebSocket(peers[i].host.replace("https://", "wss://").replace("http://", "ws://")) });
 		}
 	}
 
@@ -44,7 +44,7 @@ export default class WSPeers {
 					pendingWSRequests.set(requestId, resolve);
 					if (socket.socket.readyState === 1) socket.socket.send(JSON.stringify(request));
 				}),
-				RPCClient._client.config.timeout,
+				RPCPeers._client.config.timeout,
 			);
 		});
 
