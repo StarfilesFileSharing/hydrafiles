@@ -43,7 +43,6 @@ class Hydrafiles {
 		Services._client = this;
 		Files._client = this;
 		RPCPeers._client = this;
-		Exit._client = this;
 
 		this.config = getConfig(customConfig);
 		this.events = new Events();
