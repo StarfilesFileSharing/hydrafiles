@@ -112,7 +112,11 @@ class HTTPPeer implements PeerAttributes {
 			this.hits++;
 			this.save();
 
-			await file.cacheFile(fileContent);
+			try {
+				await file.cacheFile(fileContent);
+			} catch (e) {
+				console.error(e);
+			}
 			return {
 				file: fileContent,
 				signal: Utils.interfere(Number(response.headers.get("Signal-Strength"))),
@@ -122,7 +126,7 @@ class HTTPPeer implements PeerAttributes {
 			this.rejects++;
 
 			this.save();
-			return new ErrorDownloadFailed();
+			return new ErrorDownloadFailed((e as Error).message);
 		}
 	}
 
@@ -285,22 +289,26 @@ export default class HTTPPeers {
 
 	public fetch(url: URL, method = "GET", headers: { [key: string]: string } = {}, body: string | undefined = undefined): Promise<DecodedResponse | ErrorRequestFailed | ErrorTimeout>[] {
 		const peers = this.getPeers(true);
-		const fetchPromises = peers.map(async (peer) => {
-			try {
-				const peerUrl = new URL(peer.host);
-				url.hostname = peerUrl.hostname;
-				url.protocol = peerUrl.protocol;
-				const res = await Utils.promiseWithTimeout(fetch(url.toString(), { method, headers, body }), RPCPeers._client.config.timeout);
-				if (res instanceof Error) return res;
-				return await DecodedResponse.from(res);
-			} catch (e) {
-				if (RPCPeers._client.config.logLevel === "verbose") console.error(e);
-				const message = e instanceof Error ? e.message : "Unknown error";
-				return new ErrorRequestFailed(message);
-			}
-		});
+		const promises: Promise<DecodedResponse | ErrorRequestFailed | ErrorTimeout>[] = [];
 
-		return fetchPromises;
+		for (const peer of peers) {
+			promises.push((async () => {
+				try {
+					const peerUrl = new URL(peer.host);
+					url.hostname = peerUrl.hostname;
+					url.protocol = peerUrl.protocol;
+					const res = await Utils.promiseWithTimeout(fetch(url.toString(), { method, headers, body }), RPCPeers._client.config.timeout);
+					if (res instanceof Error) return res;
+					return await DecodedResponse.from(res);
+				} catch (e) {
+					const message = e instanceof Error ? e.message : "Unknown error";
+					if (message !== "Failed to fetch") return new ErrorRequestFailed();
+					return DecodedResponse.from(new Response(message, { status: 500 }));
+				}
+			})());
+		}
+
+		return promises;
 	}
 
 	// TODO: Compare list between all peers and give score based on how similar they are. 100% = all exactly the same, 0% = no items in list were shared. The lower the score, the lower the propagation times, the lower the decentralisation

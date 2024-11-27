@@ -99,6 +99,8 @@ export default class DirectoryHandleFileSystem {
 	};
 
 	getFileSize = async (path: string): Promise<number | ErrorUnreachableCodeReached> => {
+		if (!await this.exists(path)) return new ErrorNotFound();
+
 		const fileHandle = await getFileFromPath(this.handler, path);
 		if (fileHandle instanceof ErrorUnreachableCodeReached) return fileHandle;
 
@@ -107,6 +109,8 @@ export default class DirectoryHandleFileSystem {
 	};
 
 	remove = async (path: string): Promise<true | ErrorUnreachableCodeReached> => {
+		if (!await this.exists(path)) return true;
+
 		const fileHandle = await getFileFromPath(this.handler, path);
 		if (fileHandle instanceof ErrorUnreachableCodeReached) return fileHandle;
 

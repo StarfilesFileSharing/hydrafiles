@@ -237,97 +237,89 @@ document.getElementById("startHydrafilesButton")!.addEventListener("click", asyn
 
 const tickHandler = async () => {
 	try {
+		(document.getElementById("uptime") as HTMLElement).innerHTML = convertTime(+new Date() - window.hydrafiles.startTime);
+	} catch (e) {
+		console.error(e);
+	}
+	try {
+		(document.getElementById("httpPeersCount") as HTMLElement).innerHTML = String(window.hydrafiles.rpcPeers.http.getPeers().length);
+	} catch (e) {
+		console.error(e);
+	}
+	try {
+		(document.getElementById("rtcPeers") as HTMLElement).innerHTML = String(Object.keys(window.hydrafiles.rpcPeers.rtc.peers).length);
+	} catch (e) {
+		console.error(e);
+	}
+	try {
+		(document.getElementById("knownFiles") as HTMLElement).innerHTML = `${await window.hydrafiles.files.db.count()} (${Math.round((100 * (await window.hydrafiles.files.db.sum("size"))) / 1024 / 1024 / 1024) / 100}GB)`;
+	} catch (e) {
+		console.error(e);
+	}
+	try {
+		const files = await window.hydrafiles.fs.readDir("files/");
 		const usedStorage = await window.hydrafiles.utils.calculateUsedStorage();
-		try {
-			const files = await window.hydrafiles.fs.readDir("files/");
-			try {
-				(document.getElementById("uptime") as HTMLElement).innerHTML = convertTime(+new Date() - window.hydrafiles.startTime);
-			} catch (e) {
-				console.error(e);
+		(document.getElementById("storedFiles") as HTMLElement).innerHTML = `${files instanceof ErrorNotInitialised ? 0 : files.length} (${
+			Math.round((100 * (usedStorage instanceof ErrorNotInitialised ? 0 : usedStorage)) / 1024 / 1024 / 1024) / 100
+		}GB)`, populateTable();
+	} catch (e) {
+		console.error(e, (e as Error).stack);
+	}
+	try {
+		(document.getElementById("downloadsServed") as HTMLElement).innerHTML = (await window.hydrafiles.files.db.sum("downloadCount")) +
+			` (${Math.round((((await window.hydrafiles.files.db.sum("downloadCount * size")) / 1024 / 1024 / 1024) * 100) / 100)}GB)`;
+	} catch (e) {
+		console.error(e);
+	}
+	try {
+		(document.getElementById("filesWallet") as HTMLElement).innerHTML = window.hydrafiles.filesWallet.address();
+	} catch (e) {
+		console.error(e);
+	}
+	try {
+		(document.getElementById("rtcWallet") as HTMLElement).innerHTML = window.hydrafiles.rtcWallet.address();
+	} catch (e) {
+		console.error(e);
+	}
+	try {
+		(document.getElementById("balance") as HTMLElement).innerHTML = String(await window.hydrafiles.filesWallet.balance());
+	} catch (e) {
+		console.error(e);
+	}
+	try {
+		fetchAndPopulatePeers();
+	} catch (e) {
+		console.error(e);
+	}
+	fetchAndPopulateCharts();
+	try {
+		populateNetworkGraph();
+	} catch (e) {
+		console.error(e);
+	}
+	try {
+		const blocks = window.hydrafiles.nameService.blocks;
+		const knownServices = document.getElementById("knownServices")!;
+		knownServices.innerHTML = "";
+		for (let i = 0; i < blocks.length; i++) {
+			const h3 = document.createElement("h3");
+			h3.innerText = `Block ${i}`;
+			h3.classList.add("text-lg", "font-bold");
+			knownServices.appendChild(h3);
+			const code = document.createElement("code");
+			code.classList.add("text-sm");
+			code.innerHTML = `Address or Script: ${blocks[i].content}<br>Name: ${blocks[i].name}<br>Signature or Hash: ${blocks[i].id}<br>Nonce: ${blocks[i].nonce}<br>Prev: ${blocks[i].prev}`;
+			if (!blocks[i].content.startsWith("0x")) {
+				const addService = document.createElement("button");
+				addService.innerText = "Add Service";
+				addService.classList.add("block", "px-4", "py-2", "bg-blue-600", "text-white", "rounded", "hover:bg-blue-700", "focus:outline-none", "focus:ring-2", "focus:ring-blue-500", "focus:ring-opacity-50");
+				addService.addEventListener(
+					"click",
+					() => window.hydrafiles.services.addHostname(new Function("req", `return (${blocks[i].content})(req)`) as (req: Request) => Promise<Response>, 100 + Object.keys(window.hydrafiles.services.ownedServices).length),
+				);
+				knownServices.appendChild(addService);
 			}
-			try {
-				(document.getElementById("httpPeersCount") as HTMLElement).innerHTML = String(window.hydrafiles.rpcPeers.http.getPeers().length);
-			} catch (e) {
-				console.error(e);
-			}
-			try {
-				(document.getElementById("rtcPeers") as HTMLElement).innerHTML = String(Object.keys(window.hydrafiles.rpcPeers.rtc.peers).length);
-			} catch (e) {
-				console.error(e);
-			}
-			try {
-				(document.getElementById("knownFiles") as HTMLElement).innerHTML = `${await window.hydrafiles.files.db.count()} (${Math.round((100 * (await window.hydrafiles.files.db.sum("size"))) / 1024 / 1024 / 1024) / 100}GB)`;
-			} catch (e) {
-				console.error(e);
-			}
-			try {
-				(document.getElementById("storedFiles") as HTMLElement).innerHTML = `${files instanceof ErrorNotInitialised ? 0 : files.length} (${
-					Math.round((100 * (usedStorage instanceof ErrorNotInitialised ? 0 : usedStorage)) / 1024 / 1024 / 1024) / 100
-				}GB)`, populateTable();
-			} catch (e) {
-				console.error(e);
-			}
-			try {
-				(document.getElementById("downloadsServed") as HTMLElement).innerHTML = (await window.hydrafiles.files.db.sum("downloadCount")) +
-					` (${Math.round((((await window.hydrafiles.files.db.sum("downloadCount * size")) / 1024 / 1024 / 1024) * 100) / 100)}GB)`;
-			} catch (e) {
-				console.error(e);
-			}
-			try {
-				(document.getElementById("filesWallet") as HTMLElement).innerHTML = window.hydrafiles.filesWallet.address();
-			} catch (e) {
-				console.error(e);
-			}
-			try {
-				(document.getElementById("rtcWallet") as HTMLElement).innerHTML = window.hydrafiles.rtcWallet.address();
-			} catch (e) {
-				console.error(e);
-			}
-			try {
-				(document.getElementById("balance") as HTMLElement).innerHTML = String(await window.hydrafiles.filesWallet.balance());
-			} catch (e) {
-				console.error(e);
-			}
-			try {
-				fetchAndPopulatePeers();
-			} catch (e) {
-				console.error(e);
-			}
-			fetchAndPopulateCharts();
-			try {
-				populateNetworkGraph();
-			} catch (e) {
-				console.error(e);
-			}
-			try {
-				const blocks = window.hydrafiles.nameService.blocks;
-				const knownServices = document.getElementById("knownServices")!;
-				knownServices.innerHTML = "";
-				for (let i = 0; i < blocks.length; i++) {
-					const h3 = document.createElement("h3");
-					h3.innerText = `Block ${i}`;
-					h3.classList.add("text-lg", "font-bold");
-					knownServices.appendChild(h3);
-					const code = document.createElement("code");
-					code.classList.add("text-sm");
-					code.innerHTML = `Address or Script: ${blocks[i].content}<br>Name: ${blocks[i].name}<br>Signature or Hash: ${blocks[i].id}<br>Nonce: ${blocks[i].nonce}<br>Prev: ${blocks[i].prev}`;
-					if (!blocks[i].content.startsWith("0x")) {
-						const addService = document.createElement("button");
-						addService.innerText = "Add Service";
-						addService.classList.add("block", "px-4", "py-2", "bg-blue-600", "text-white", "rounded", "hover:bg-blue-700", "focus:outline-none", "focus:ring-2", "focus:ring-blue-500", "focus:ring-opacity-50");
-						addService.addEventListener(
-							"click",
-							() => window.hydrafiles.services.addHostname(new Function("req", `return (${blocks[i].content})(req)`) as (req: Request) => Promise<Response>, 100 + Object.keys(window.hydrafiles.services.ownedServices).length),
-						);
-						knownServices.appendChild(addService);
-					}
-					knownServices.appendChild(code);
-				}
-			} catch (e) {
-				console.error(e);
-			}
-		} catch (e) {
-			console.error(e);
+			knownServices.appendChild(code);
 		}
 	} catch (e) {
 		console.error(e);
