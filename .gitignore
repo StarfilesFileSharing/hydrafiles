@@ -110,6 +110,6 @@ build/
 
 __sysdb__.sqlite
 public/docs/
-typedoc-theme/
+public/dist/
 
 sandbox/

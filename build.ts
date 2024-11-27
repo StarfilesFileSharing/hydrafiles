@@ -5,7 +5,7 @@ console.log(
 	await esbuild.build({
 		plugins: [...denoPlugins()],
 		entryPoints: ["./src/hydrafiles.ts"],
-		outfile: "./build/hydrafiles-web.esm.js",
+		outfile: "./public/dist/hydrafiles-web.esm.js",
 		bundle: true,
 		format: "esm",
 		platform: "browser",
@@ -19,7 +19,7 @@ console.log(
 	await esbuild.build({
 		plugins: [...denoPlugins()],
 		entryPoints: ["./web/dashboard.ts"],
-		outfile: "./build/dashboard.js",
+		outfile: "./public/dist/dashboard.js",
 		bundle: true,
 		format: "esm",
 		platform: "browser",
