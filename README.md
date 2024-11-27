@@ -17,7 +17,8 @@
 
 ## What is Hydrafiles?
 
-Hydrafiles is a peer to peer network, enabling anonymous upload/download of files and anonymous hosting and usage of APIs. Peers can host and serve static files or dynamic backends over HTTP, WebSocket, and/or WebRTC without revealing their identity.
+Hydrafiles is a peer to peer network, enabling anonymous upload/download of files and anonymous hosting and usage of APIs. Peers can host and serve static files or dynamic backends over HTTP, WebSocket, and/or WebRTC without revealing their
+identity.
 
 ## What environments does Hydrafiles run in?
 

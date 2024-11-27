@@ -85,7 +85,7 @@ export default class DirectoryHandleFileSystem {
 	writeFile = async (path: string, data: Uint8Array): Promise<boolean | ErrorUnreachableCodeReached> => {
 		const fileHandle = await getFileFromPath(await this.directoryHandle(), path, true);
 		if (fileHandle instanceof ErrorUnreachableCodeReached) return fileHandle;
-	
+
 		const writable = await fileHandle.createWritable();
 		await writable.write(data);
 		await writable.close();

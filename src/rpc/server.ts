@@ -106,10 +106,10 @@ class RPCServer {
 
 			try {
 				const url = new URL(req.url);
-				return await serveFile(req, `./public${url.pathname.endsWith("/") ? `${url.pathname}index.html` : url.pathname}`);
+				return await serveFile(req, `./public/${url.pathname.endsWith("/") ? `${url.pathname}index.html` : url.pathname}`);
 			} catch (_) {
 				try {
-					return await serveFile(req, `./build${url.pathname}`);
+					return await serveFile(req, `./public/dist/${url.pathname}`);
 				} catch (_) {
 					if (!RPCServer._client.config.listen) return new Response("Peer has peering disabled");
 					const routeHandler = req.headers.get("upgrade") === "websocket" ? RPCServer._client.rpcClient.ws.handleConnection : router.get(`/${url.pathname.split("/")[1]}`);
