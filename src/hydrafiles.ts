@@ -26,11 +26,11 @@ import NameService from "./services/NameService.ts";
 
 class Hydrafiles {
 	startTime: number = +new Date();
-	fs: FileSystem;
-	utils: Utils;
 	config: Config;
 	events: Events;
 	s3: S3Client | undefined;
+	fs!: FileSystem;
+	utils!: Utils;
 	rpcServer!: RPCServer;
 	rpcClient!: RPCClient;
 	files!: Files;
@@ -48,8 +48,6 @@ class Hydrafiles {
 		RPCServer._client = this;
 
 		this.config = getConfig(customConfig);
-		this.fs = new FileSystem(this);
-		this.utils = new Utils(this.config, this.fs);
 		this.events = new Events();
 		this.filesWallet = new Wallet();
 		this.rtcWallet = new Wallet(1);
@@ -57,24 +55,28 @@ class Hydrafiles {
 		this.services.addHostname((_req: Request) => new Response("Hello World!"), 0);
 
 		if (this.config.s3Endpoint.length) {
-			console.log("Startup:  Populating S3");
+			console.log("Startup:  Initialising S3");
 			this.s3 = new S3Client({ endPoint: this.config.s3Endpoint, region: "us-east-1", bucket: "uploads", accessKey: this.config.s3AccessKeyId, secretKey: this.config.s3SecretAccessKey, pathStyle: false });
 		}
 	}
 
 	public async start(opts: { onUpdateFileListProgress?: (progress: number, total: number) => void; webtorrent?: WebTorrent } = {}): Promise<void> {
+		console.log("Startup:  Initialising FileSystem");
+		this.fs = await FileSystem.init(this);
 		if (!await this.fs.exists("/")) await this.fs.mkdir("/"); // In case of un-initiated base dir
 		if (!await this.fs.exists("/files/")) await this.fs.mkdir("/files/");
 
-		console.log("Startup:  Populating FileDB");
+		this.utils = new Utils(this.config, this.fs);
+		console.log("Startup:  Initialising Files");
 		this.files = await Files.init();
-		console.log("Startup:  Populating RPC Client & Server");
+		console.log("Startup:  Initialising RPC Client & Server");
 		this.rpcClient = await RPCClient.init();
 		this.rpcServer = new RPCServer();
 		console.log("Startup:  Starting HTTP Server");
 		await this.rpcServer.listenHTTP();
-		console.log("Startup:  Starting WebTorrent");
+		console.log("Startup:  Initialising WebTorrent");
 		this.webtorrent = opts.webtorrent;
+		console.log("Startup:  Initialising Name Service");
 		NameService._client = this;
 		this.nameService = await NameService.init();
 
