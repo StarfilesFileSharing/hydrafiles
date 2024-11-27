@@ -33,7 +33,7 @@ export default class WSPeers {
 	public fetch(url: URL, method = "GET", headers: { [key: string]: string } = {}, body: string | undefined = undefined): Promise<DecodedResponse | ErrorTimeout>[] {
 		if (!this.peers.length) return [];
 
-		url.protocol = "wss:";
+		url.protocol = "wssr:";
 		url.hostname = "0.0.0.0";
 		const requestId = Math.random();
 		const request: WSMessage = { request: { method, url: url.toString(), headers, body: method === "GET" ? undefined : body }, id: requestId, from: this._rpcClient.rtc.peerId };
