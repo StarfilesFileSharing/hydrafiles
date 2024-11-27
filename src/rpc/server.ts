@@ -109,7 +109,13 @@ class RPCServer {
 				return await serveFile(req, `./public/${url.pathname.endsWith("/") ? `${url.pathname}index.html` : url.pathname}`);
 			} catch (_) {
 				try {
-					return await serveFile(req, `./public/dist/${url.pathname}`);
+					const res = await serveFile(req, `./public/dist/${url.pathname}`);
+					res.headers.append("access-control-allow-origin", "*");
+					res.headers.append(
+						"access-control-allow-headers",
+						"Origin, X-Requested-With, Content-Type, Accept, Range, Hydra-Signature",
+					);
+					return res;
 				} catch (_) {
 					if (!RPCServer._client.config.listen) return new Response("Peer has peering disabled");
 					const routeHandler = req.headers.get("upgrade") === "websocket" ? RPCServer._client.rpcClient.ws.handleConnection : router.get(`/${url.pathname.split("/")[1]}`);
