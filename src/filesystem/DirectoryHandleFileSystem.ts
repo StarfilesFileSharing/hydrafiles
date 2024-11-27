@@ -12,7 +12,7 @@ interface DirectoryHandle extends FileSystemDirectoryHandle {
 
 declare global {
 	interface Window {
-		showDirectoryPicker: () => Promise<DirectoryHandle>;
+		showDirectoryPicker: (options?: { mode?: "read" | "readwrite" }) => Promise<DirectoryHandle>;
 		handle?: DirectoryHandle;
 	}
 }
@@ -50,7 +50,7 @@ export default class DirectoryHandleFileSystem {
 	}
 
 	static async init(): Promise<DirectoryHandleFileSystem> {
-		return new DirectoryHandleFileSystem(await globalThis.window.showDirectoryPicker());
+		return new DirectoryHandleFileSystem(await globalThis.window.showDirectoryPicker({ mode: "readwrite" }));
 	}
 
 	exists = async (path: string): Promise<boolean> => {
