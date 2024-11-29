@@ -67,7 +67,7 @@ export default class Database<T extends ModelType> {
 
 		if (typeof window === "undefined") {
 			const SQLite = (await import("jsr:@db/sqlite")).Database;
-			const db: DatabaseWrapperSQLite = { type: "SQLITE", db: new SQLite(`${client.config.baseDir}${model.tableName}.db`) };
+			const db: DatabaseWrapperSQLite = { type: "SQLITE", db: new SQLite(`${model.tableName}.db`) };
 			database.db = db;
 
 			const columns = Object.entries(model.columns)

@@ -26,11 +26,11 @@ export default class FileSystem {
 		return new FileSystem(client, fs);
 	}
 
-	exists = async (path: string) => this.fs ? await this.fs.exists(`${join(this._client.config.baseDir, path)}`) : new ErrorNotInitialised();
-	mkdir = async (path: `${string}/`) => this.fs ? await this.fs.mkdir(`${join(this._client.config.baseDir, path)}/`) : new ErrorNotInitialised();
-	readFile = async (path: string) => this.fs ? await this.fs.readFile(`${join(this._client.config.baseDir, path)}`) : new ErrorNotInitialised();
-	writeFile = async (path: string, data: Uint8Array) => this.fs ? await this.fs.writeFile(`${join(this._client.config.baseDir, path)}`, data) : new ErrorNotInitialised();
-	getFileSize = async (path: string) => this.fs ? await this.fs.getFileSize(`${join(this._client.config.baseDir, path)}`) : new ErrorNotInitialised();
-	remove = async (path: string) => this.fs ? await this.fs.remove(`${join(this._client.config.baseDir, path)}`) : new ErrorNotInitialised();
-	readDir = async (path: `${string}/`) => this.fs ? (await this.fs.readDir(`${join(this._client.config.baseDir, path)}/`)).filter((path) => !path.startsWith(".")) : new ErrorNotInitialised();
+	exists = (path: string) => this.fs ? this.fs.exists(`${join("./", path)}`) : new ErrorNotInitialised();
+	mkdir = (path: `${string}/`) => this.fs ? this.fs.mkdir(`${join("./", path)}/`) : new ErrorNotInitialised();
+	readFile = (path: string) => this.fs ? this.fs.readFile(`${join("./", path)}`) : new ErrorNotInitialised();
+	writeFile = (path: string, data: Uint8Array) => this.fs ? this.fs.writeFile(`${join("./", path)}`, data) : new ErrorNotInitialised();
+	getFileSize = (path: string) => this.fs ? this.fs.getFileSize(`${join("./", path)}`) : new ErrorNotInitialised();
+	remove = (path: string) => this.fs ? this.fs.remove(`${join("./", path)}`) : new ErrorNotInitialised();
+	readDir = async (path: `${string}/`) => this.fs ? (await this.fs.readDir(`${join("./", path)}/`)).filter((path) => !path.startsWith(".")) : new ErrorNotInitialised();
 }

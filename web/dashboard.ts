@@ -198,7 +198,7 @@ document.getElementById("startHydrafilesButton")!.addEventListener("click", asyn
 	const buffer = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`${email}:${password}`));
 	const deriveKey = Array.from(new Uint8Array(buffer)).map((b) => b.toString(16).padStart(2, "0")).join("");
 
-	window.hydrafiles = new Hydrafiles({ deriveKey, customPeers: [`${window.location.protocol}//${window.location.hostname}`], baseDir: "dashboard/" });
+	window.hydrafiles = new Hydrafiles({ deriveKey, customPeers: [`${window.location.protocol}//${window.location.hostname}`] });
 	const webtorrent = new WebTorrent();
 
 	await window.hydrafiles.start({ onUpdateFileListProgress, webtorrent });
