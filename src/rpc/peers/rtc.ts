@@ -241,7 +241,7 @@ export class RTCPeer {
 		let channel: RTCDataChannel | undefined;
 		if (this.offered && this.offered.channel.readyState === "open") channel = this.offered.channel;
 		else if (this.answered && this.answered.channel.readyState === "open") channel = this.answered.channel;
-		else return Promise.reject(new ErrorRequestFailed());
+		else return new ErrorRequestFailed();
 
 		console.log(`WebRTC:   ${this.id} Sending request`);
 		channel.send(JSON.stringify(request));
