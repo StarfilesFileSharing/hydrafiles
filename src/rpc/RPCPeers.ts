@@ -65,7 +65,7 @@ export default class RPCPeers {
 			peers.push(peer);
 		}
 
-		if (values.host.startsWith("http:") || values.host.startsWith("https:")) {
+		if (values.host.startsWith("http:") || values.host.startsWith("https:") && !new URL(values.host).hostname.endsWith(".hydra")) {
 			const host = values.host.replace("http", "ws") as Host;
 			console.log("RPC:      Adding peer", host);
 			const wsPeer = await RPCPeer.init(this, { ...values, host });
@@ -90,7 +90,7 @@ export default class RPCPeers {
 	// TODO: Compare list between all peers and give score based on how similar they are. 100% = all exactly the same, 0% = no items in list were shared. The lower the score, the lower the propagation times, the lower the decentralisation
 	async discoverPeers(): Promise<void> {
 		console.log(`RPC:      Discovering peers`);
-		const responses = await Promise.all(await RPCPeers._client.rpcPeers.fetch(new URL("hydra://localhostpeers")));
+		const responses = await Promise.all(await RPCPeers._client.rpcPeers.fetch(new URL("https://localhost/peers")));
 		for (let i = 0; i < responses.length; i++) {
 			try {
 				if (!(responses[i] instanceof Response)) continue;
@@ -98,7 +98,7 @@ export default class RPCPeers {
 				if (response instanceof Response) {
 					const remotePeers = (await response.json()) as PeerAttributes[];
 					for (const remotePeer of remotePeers) {
-						if (Utils.isPrivateIP(remotePeer.host) || remotePeer.host.startsWith("hydra://")) continue;
+						if (Utils.isPrivateIP(remotePeer.host) || remotePeer.host.startsWith("https://")) continue;
 						this.add(remotePeer).catch((e) => {
 							if (RPCPeers._client.config.logLevel === "verbose") console.error(e);
 						});
@@ -114,6 +114,7 @@ export default class RPCPeers {
 	 * Sends requests to peers.
 	 */
 	public fetch = async (url: URL, init?: RequestInit | RequestInit & { wallet: Wallet }): Promise<(DecodedResponse | ErrorRequestFailed | ErrorTimeout)[]> => {
+		console.log("Fetching", url);
 		url.protocol = "https:";
 		url.hostname = "localhost";
 
@@ -170,7 +171,7 @@ export default class RPCPeers {
 				return new Response("", { headers: headers, status: 301 });
 			}
 
-			if (typeof window === "undefined") {
+			if (req.headers.get("Connection") !== "Upgrade") {
 				const possiblePaths = [join("public/dist/", url.pathname), join("public/", url.pathname.endsWith("/") ? join(url.pathname, "index.html") : url.pathname)];
 				for (let i = 0; i < possiblePaths.length; i++) {
 					try {
@@ -209,7 +210,7 @@ export default class RPCPeers {
 	public exitFetch = async (req: Request): Promise<DecodedResponse | ErrorNotFound> => {
 		const relays: EthAddress[] = [];
 
-		const handshakeResponses = await Promise.all(await this.fetch(new URL(`hydra://localhost/exit/request`)));
+		const handshakeResponses = await Promise.all(await this.fetch(new URL(`https://localhost/exit/request`)));
 		for (let i = 0; i < handshakeResponses.length; i++) {
 			const response = handshakeResponses[i];
 			if (response instanceof Error || response.status !== 200) continue;
@@ -234,7 +235,7 @@ export default class RPCPeers {
 		}
 
 		console.log(`https://localhost/exit/${payload.to}`);
-		const responses = await Promise.all(await this.fetch(new URL(`hydra://localhostexit/${payload.to}`), { method: "POST", body: JSON.stringify(payload.payload) }));
+		const responses = await Promise.all(await this.fetch(new URL(`https://localhost/exit/${payload.to}`), { method: "POST", body: JSON.stringify(payload.payload) }));
 		for (let j = 0; j < responses.length; j++) {
 			const response = responses[j];
 			if (response instanceof Error || response.status !== 200) continue;

@@ -10,6 +10,7 @@ import { Network } from "npm:vis-network/esnext";
 import Utils from "../src/utils.ts";
 import { Edge, Node } from "npm:vis-network/esnext";
 import type { FileEvent, RTCEvent } from "../src/events.ts";
+import { WSPeer } from "../src/rpc/peers/ws.ts";
 
 declare global {
 	interface Window {
@@ -816,24 +817,24 @@ async function populateNetworkGraph() {
 		if (!edges.get(edge.id)) edges.add(edge);
 	});
 
-	const responses = await Promise.all(peers.map((peer) => Utils.promiseWithTimeout(fetch(`${peer[0]}/peers`), 10000)));
-	for (const response of responses) {
-		if (response instanceof Error) continue;
+	// const responses = await Promise.all(peers.map((peer) => Utils.promiseWithTimeout(peer[1].peer instanceof WSPeer ? peer[1].peer.fetch(`https://localhost/peers`) : peer[1].peer.fetch(`https://localhost/peers`), 10000)));
+	// for (const response of responses) {
+	// 	if (response instanceof Error) continue;
 
-		const url = new URL(response.url);
-		const peer = `${url.protocol}//${url.hostname}`;
+	// 	const url = new URL(response.url);
+	// 	const peer = `${url.protocol}//${url.hostname}`;
 
-		const body = await response.text();
-		try {
-			const peers = JSON.parse(body);
+	// 	const body = await response.text();
+	// 	try {
+	// 		const peers = JSON.parse(body);
 
-			for (let i = 0; i < peers.length; i++) {
-				const fromNode = nodes.get().find((node) => node.label === peer);
-				const toNode = nodes.get().find((node) => node.label === peers[i].host);
-				if (fromNode && toNode && !edges.get(`${fromNode.id}-${toNode.id}`)) edges.add({ id: `${fromNode.id}-${toNode.id}`, from: fromNode.id, to: toNode.id });
-			}
-		} catch (_) {
-			continue;
-		}
-	}
+	// 		for (let i = 0; i < peers.length; i++) {
+	// 			const fromNode = nodes.get().find((node) => node.label === peer);
+	// 			const toNode = nodes.get().find((node) => node.label === peers[i].host);
+	// 			if (fromNode && toNode && !edges.get(`${fromNode.id}-${toNode.id}`)) edges.add({ id: `${fromNode.id}-${toNode.id}`, from: fromNode.id, to: toNode.id });
+	// 		}
+	// 	} catch (_) {
+	// 		continue;
+	// 	}
+	// }
 }

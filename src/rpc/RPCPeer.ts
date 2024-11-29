@@ -1,6 +1,6 @@
 import { WSPeer } from "./peers/ws.ts";
 import type { DatabaseModal } from "../database.ts";
-import { ErrorChecksumMismatch, ErrorDownloadFailed, ErrorMissingRequiredProperty, ErrorRequestFailed, ErrorTimeout, ErrorUnexpectedProtocol } from "../errors.ts";
+import { ErrorChecksumMismatch, ErrorDownloadFailed, ErrorMissingRequiredProperty, ErrorRequestFailed, ErrorTimeout, ErrorUnexpectedProtocol, ErrorUnreachableCodeReached } from "../errors.ts";
 import Utils, { type NonNegativeNumber } from "../utils.ts";
 import type { EthAddress } from "../wallet.ts";
 import RPCPeers from "./RPCPeers.ts";
@@ -8,7 +8,7 @@ import { File } from "../file.ts";
 import { HTTPClient } from "./peers/http.ts";
 import { RTCPeer } from "./peers/rtc.ts";
 
-export type Host = `hydra://${EthAddress}` | `${"http" | "https" | "ws" | "wss"}://${string}`;
+export type Host = `https://${EthAddress}` | `${"http" | "https" | "ws" | "wss"}://${string}`;
 
 export interface PeerAttributes {
 	host: Host;
@@ -59,7 +59,6 @@ export default class RPCPeer implements PeerAttributes {
 		rpcPeers: RPCPeers,
 		values: Partial<DatabaseModal<typeof peerModel>> & { host: Host },
 	): Promise<RPCPeer | ErrorMissingRequiredProperty | ErrorUnexpectedProtocol> {
-		if (values.host === undefined) throw new ErrorMissingRequiredProperty();
 		const result = new URL(values.host);
 		if (!result.protocol || !result.host || result.protocol === "hydra") throw new Error("Invalid URL");
 
@@ -69,10 +68,14 @@ export default class RPCPeer implements PeerAttributes {
 			peerValues = (await rpcPeers.db.select({ key: "host", value: values.host }))[0];
 		}
 
+		const peerUrl = new URL(peerValues.host);
+
 		let peer;
-		if (peerValues.host.startsWith("http:") || peerValues.host.startsWith("https:")) peer = new HTTPClient(values.host);
-		else if (peerValues.host.startsWith("ws:") || peerValues.host.startsWith("wss:")) peer = new WSPeer(values.host, rpcPeers);
-		else peer = new RTCPeer(values.host as EthAddress, rpcPeers);
+		if (peerUrl.hostname.endsWith("hydra")) peer = new RTCPeer(values.host as EthAddress, rpcPeers);
+		else if (peerUrl.protocol === "http:" || peerUrl.protocol === "https:") peer = new HTTPClient(values.host);
+		else if (peerUrl.protocol === "ws:" || peerUrl.protocol === "wss:") peer = new WSPeer(values.host, rpcPeers);
+		else if (peerUrl.protocol === "hydra:") throw new ErrorUnexpectedProtocol();
+		else throw new ErrorUnreachableCodeReached();
 
 		return new RPCPeer(rpcPeers, peer, peerValues);
 	}

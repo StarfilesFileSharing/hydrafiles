@@ -87,7 +87,7 @@ export class File implements FileAttributes {
 		}
 		if (!hash && values.id) {
 			console.log(`Fetching file metadata`); // TODO: Merge with getMetadata
-			const responses = await Files._client.rpcPeers.fetch(new URL(`hydra://localhostfile/${values.id}`));
+			const responses = await Files._client.rpcPeers.fetch(new URL(`https://localhost/file/${values.id}`));
 			for (let i = 0; i < responses.length; i++) {
 				const response = responses[i];
 				if (response instanceof Error) continue;
@@ -124,7 +124,7 @@ export class File implements FileAttributes {
 
 		const id = this.id;
 		if (id !== undefined && id !== null && id.length > 0) {
-			const responses = await Files._client.rpcPeers.fetch(new URL(`hydra://localhostfile/${this.id}`));
+			const responses = await Files._client.rpcPeers.fetch(new URL(`https://localhost/file/${this.id}`));
 
 			for (let i = 0; i < responses.length; i++) {
 				try {
@@ -361,7 +361,7 @@ export class File implements FileAttributes {
 		}
 	}
 
-	async download(): Promise<{ file: Uint8Array; signal: number } | ErrorChecksumMismatch> {
+	async download(): Promise<{ file: Uint8Array; signal: number } | ErrorChecksumMismatch | ErrorNotFound> {
 		let size = this.size;
 		if (size === 0) {
 			this.getMetadata();
@@ -387,7 +387,7 @@ export class File implements FileAttributes {
 			if (fileContent && !(fileContent instanceof Error)) return fileContent;
 		}
 
-		throw new ErrorNotFound();
+		return new ErrorNotFound();
 	}
 }
 
@@ -436,7 +436,7 @@ class Files {
 				console.log("Files:    Finding file to backfill");
 				const keys = Array.from(this.filesHash.keys());
 				if (keys.length === 0) {
-					await delay(500);
+					await delay(5000);
 					continue;
 				}
 				const randomKey = keys[Math.floor(Math.random() * keys.length)];
@@ -454,7 +454,7 @@ class Files {
 	async updateFileList(onProgress?: (progress: number, total: number) => void): Promise<void> {
 		console.log(`Files:    Comparing file list`);
 		let files: FileAttributes[] = [];
-		const responses = await Promise.all(await Files._client.rpcPeers.fetch(new URL("hydra://localhostfiles")));
+		const responses = await Promise.all(await Files._client.rpcPeers.fetch(new URL("https://localhost/files")));
 		for (let i = 0; i < responses.length; i++) {
 			const response = responses[i];
 			if (!(response instanceof Error)) {

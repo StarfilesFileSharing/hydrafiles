@@ -113,7 +113,7 @@ export default class BlockchainNameService {
 
 	async fetchBlocks(): Promise<void> {
 		console.log(`Blocks:   Fetching blocks from peers`);
-		const responses = await BlockchainNameService._client.rpcPeers.fetch(new URL("hydra://localhostblocks"));
+		const responses = await BlockchainNameService._client.rpcPeers.fetch(new URL("https://localhost/blocks"));
 
 		for await (const response of responses) {
 			try {

@@ -103,7 +103,7 @@ export default class HTTPServer {
 					if (response instanceof ErrorDownloadFailed) console.error("HTTP:      Failed to download file from self");
 					else {
 						console.log("HTTP:     Announcing server to nodes");
-						RPCPeers._client.rpcPeers.fetch(new URL(`hydra://localhostannounce?host=${RPCPeers._client.config.publicHostname}`));
+						RPCPeers._client.rpcPeers.fetch(new URL(`https://localhost/announce?host=${RPCPeers._client.config.publicHostname}`));
 					}
 					await RPCPeers._client.rpcPeers.add({ host: RPCPeers._client.config.publicHostname });
 				}

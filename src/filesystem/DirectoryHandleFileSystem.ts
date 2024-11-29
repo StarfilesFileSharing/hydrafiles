@@ -20,6 +20,7 @@ declare global {
 async function getDirectoryFromPath(rootHandle: DirectoryHandle, path: string, create = false): Promise<DirectoryHandle> {
 	let currentHandle = rootHandle;
 	for (const part of path.split("/").filter((part) => part.length > 0)) {
+		if (part === ".") continue;
 		currentHandle = await currentHandle.getDirectoryHandle(part, { create });
 	}
 	return currentHandle;
