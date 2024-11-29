@@ -642,7 +642,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 			</div>
 		</div>`;
 		window.hydrafiles.rpcPeers.fetch(
-			new Request(`https://localhost/service/${(document.getElementById("peerAddress") as HTMLInputElement).value}?message=${encodeURIComponent(message)}&nonce=${Math.random()}`),
+			new URL(`https://localhost/service/${(document.getElementById("peerAddress") as HTMLInputElement).value}?message=${encodeURIComponent(message)}&nonce=${Math.random()}`),
 			{ wallet },
 		);
 	});
@@ -654,7 +654,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 		const response = await window.hydrafiles.rpcPeers.exitFetch(new Request((document.getElementById("urlInput") as HTMLInputElement).value));
 		try {
 			if (!(response instanceof Error)) {
-				const body = response.text();
+				const body = response.body;
 				console.log("body", body);
 				document.getElementById("urlBody")!.innerHTML = body;
 			}
