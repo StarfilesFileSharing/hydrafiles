@@ -208,7 +208,7 @@ export class File implements FileAttributes {
 		if (fileContents instanceof Error) return fileContents;
 		const savedHash = await Utils.hashUint8Array(fileContents);
 		if (savedHash !== this.hash) {
-			await Files._client.fs.remove(filePath).catch(console.error);
+			await Files._client.fs.remove(filePath);
 			throw new ErrorChecksumMismatch();
 		}
 		return {

@@ -128,7 +128,7 @@ class Utils {
 			const filePath = join(filesPath, file);
 
 			const fileSize = await this._fs.getFileSize(filePath);
-			this._fs.remove(filePath).catch(console.error);
+			this._fs.remove(filePath);
 			if (typeof fileSize === "number") remainingSpace += fileSize;
 
 			const usedStorage = await this.calculateUsedStorage();

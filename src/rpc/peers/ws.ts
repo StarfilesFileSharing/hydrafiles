@@ -74,7 +74,7 @@ export class WSPeer {
 }
 
 export default class WSPeers {
-	peers: { id: string; socket: WebSocket }[] = [{ id: RPCPeers._client.rtcWallet.account.address, socket: new WebSocket("wss://rooms.deno.dev/") }];
+	// peers: { id: string; socket: WebSocket }[] = [{ id: RPCPeers._client.rtcWallet.account.address, socket: new WebSocket("wss://rooms.deno.dev/") }];
 
 	constructor(rpcPeer: RPCPeers) {
 		const peers = rpcPeer.getPeers(true);
@@ -93,7 +93,7 @@ export default class WSPeers {
 
 	send(message: WSRequest | WSResponse | SignallingMessage): void {
 		for (let i = 0; i < this.peers.length; i++) {
-			this.peers[i].socket.send(JSON.stringify(message));
+			this.peers[i].send(JSON.stringify(message));
 			if ("from" in message) this.peers[i].id = message.from;
 		}
 	}
