@@ -1,174 +1,38 @@
-import Utils, { type NonNegativeNumber } from "../../utils.ts";
-import Database, { type DatabaseModal } from "../../database.ts";
-import { File } from "../../file.ts";
-import type { EthAddress } from "../../wallet.ts";
-import { ErrorChecksumMismatch, ErrorDownloadFailed, ErrorMissingRequiredProperty, ErrorRequestFailed, ErrorTimeout, ErrorUnexpectedProtocol } from "../../errors.ts";
+import Utils from "../../utils.ts";
+import { ErrorDownloadFailed, ErrorRequestFailed, ErrorTimeout } from "../../errors.ts";
 import { ErrorNotFound } from "../../errors.ts";
-import { DecodedResponse } from "../routes.ts";
 import RPCPeers from "../RPCPeers.ts";
+import { type DecodedResponse, HydraResponse } from "../routes.ts";
+import RPCPeer from "../RPCPeer.ts";
 
-const peerModel = {
-	tableName: "peer",
-	columns: {
-		host: { type: "TEXT" as const, primary: true },
-		hits: { type: "INTEGER" as const, default: 0 },
-		rejects: { type: "INTEGER" as const, default: 0 },
-		bytes: { type: "INTEGER" as const, default: 0 },
-		duration: { type: "INTEGER" as const, default: 0 },
-		createdAt: { type: "DATETIME" as const, default: "CURRENT_TIMESTAMP" },
-		updatedAt: { type: "DATETIME" as const, default: "CURRENT_TIMESTAMP" },
-	},
-};
+export class HTTPClient {
+	private host: string;
 
-export interface PeerAttributes {
-	host: string;
-	hits: NonNegativeNumber;
-	rejects: NonNegativeNumber;
-	bytes: NonNegativeNumber;
-	duration: NonNegativeNumber;
-	updatedAt: string;
-}
-
-class HTTPPeer implements PeerAttributes {
-	host: string;
-	hits: NonNegativeNumber = 0 as NonNegativeNumber;
-	rejects: NonNegativeNumber = 0 as NonNegativeNumber;
-	bytes: NonNegativeNumber = 0 as NonNegativeNumber;
-	duration: NonNegativeNumber = 0 as NonNegativeNumber;
-	updatedAt: string = new Date().toISOString();
-	createdAt: string = new Date().toISOString();
-	private _db: Database<typeof peerModel>;
-
-	private constructor(values: DatabaseModal<typeof peerModel>, db: Database<typeof peerModel>) {
-		this._db = db;
-
-		this.host = values.host;
-
-		this.hits = Utils.createNonNegativeNumber(values.hits);
-		this.rejects = Utils.createNonNegativeNumber(values.rejects);
-		this.bytes = Utils.createNonNegativeNumber(values.bytes);
-		this.duration = Utils.createNonNegativeNumber(values.duration);
+	constructor(host: string) {
+		this.host = host;
 	}
 
-	/**
-	 * Initializes an instance of HTTPPeer.
-	 * @returns {HTTPPeer} A new instance of HTTPPeer.
-	 * @default
-	 */
-	static async init(values: Partial<DatabaseModal<typeof peerModel>>, db: Database<typeof peerModel>): Promise<HTTPPeer | ErrorMissingRequiredProperty | ErrorUnexpectedProtocol> {
-		if (values.host === undefined) return new ErrorMissingRequiredProperty();
-		if (values.host.startsWith("hydra:")) return new ErrorUnexpectedProtocol();
-		const result = new URL(values.host);
-		if (!result.protocol || !result.host || result.protocol === "hydra") throw new Error("Invalid URL");
-
-		let peer = (await db.select({ key: "host", value: values.host }))[0];
-		if (peer === undefined) {
-			db.insert({ host: values.host });
-			peer = (await db.select({ key: "host", value: values.host }))[0];
-		}
-
-		return new HTTPPeer(peer, db);
-	}
-
-	save(): void {
-		const peer: DatabaseModal<typeof peerModel> = {
-			...this,
-		};
-		this._db.update(this.host, peer);
-	}
-
-	async downloadFile(file: File): Promise<{ file: Uint8Array; signal: number } | ErrorTimeout | ErrorDownloadFailed> {
+	public async fetch(url: URL, method = "GET", headers: { [key: string]: string } = {}, body: string | undefined = undefined): Promise<DecodedResponse | ErrorRequestFailed | ErrorTimeout> {
 		try {
-			const startTime = Date.now();
-
-			const hash = file.hash;
-			console.log(`File:     ${hash}  Downloading from ${this.host}`);
-			let response;
-			try {
-				response = await Utils.promiseWithTimeout(fetch(`${this.host}/download/${hash}`), RPCPeers._client.config.timeout);
-			} catch (e) {
-				if (RPCPeers._client.config.logLevel === "verbose") console.error(e);
-				const message = e instanceof Error ? e.message : "Unknown error";
-				return new ErrorRequestFailed(message);
-			}
-			if (response instanceof ErrorTimeout) return new ErrorTimeout();
-			const fileContent = new Uint8Array(await response.arrayBuffer());
-			console.log(`File:     ${hash}  Validating hash`);
-			const verifiedHash = await Utils.hashUint8Array(fileContent);
-			console.log(`File:     ${hash}  Done Validating hash`);
-			if (hash !== verifiedHash) return new ErrorChecksumMismatch();
-			console.log(`File:     ${hash}  Valid hash`);
-
-			const ethAddress = response.headers.get("Ethereum-Address");
-			if (ethAddress) RPCPeers._client.filesWallet.transfer(ethAddress as EthAddress, 1_000_000n * BigInt(fileContent.byteLength));
-
-			if (file.name === undefined || file.name === null || file.name.length === 0) {
-				file.name = String(response.headers.get("Content-Disposition")?.split("=")[1].replace(/"/g, "").replace(" [HYDRAFILES]", ""));
-				file.save();
-			}
-
-			this.duration = Utils.createNonNegativeNumber(this.duration + Date.now() - startTime);
-			this.bytes = Utils.createNonNegativeNumber(this.bytes + fileContent.byteLength);
-			this.hits++;
-			this.save();
-
-			try {
-				await file.cacheFile(fileContent);
-			} catch (e) {
-				console.error(e);
-			}
-			return {
-				file: fileContent,
-				signal: Utils.interfere(Number(response.headers.get("Signal-Strength"))),
-			};
+			const peerUrl = new URL(this.host);
+			url.hostname = peerUrl.hostname;
+			url.protocol = peerUrl.protocol;
+			const res = await Utils.promiseWithTimeout(fetch(url.toString(), { method, headers, body }), RPCPeers._client.config.timeout);
+			if (res instanceof Error) return res;
+			return (await HydraResponse.from(res)).toDecodedResponse();
 		} catch (e) {
-			console.error(e);
-			this.rejects++;
-
-			this.save();
-			return new ErrorDownloadFailed((e as Error).message);
+			const message = e instanceof Error ? e.message : "Unknown error";
+			if (message !== "Failed to fetch") throw new ErrorRequestFailed();
+			return (await HydraResponse.from(new Response(message, { status: 500 }))).toDecodedResponse();
 		}
-	}
-
-	async validate(): Promise<boolean> {
-		const file = await File.init({ hash: "04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f" });
-		if (!file) throw new Error("Failed to build file");
-		return "file" in await this.downloadFile(file);
 	}
 }
 
-// TODO: Log common user-agents and re-use them to help anonimise non Hydrafiles peers
-export default class HTTPPeers {
-	public db: Database<typeof peerModel>;
-	public peers = new Map<string, HTTPPeer>();
-
-	private constructor(db: Database<typeof peerModel>) {
-		this.db = db;
-	}
-
-	/**
-	 * Initializes an instance of HTTPPeers.
-	 * @returns {HTTPPeers} A new instance of HTTPPeers.
-	 * @default
-	 */
-	public static async init(): Promise<HTTPPeers> {
-		const db = await Database.init(peerModel, RPCPeers._client);
-		const httpPeers = new HTTPPeers(db);
-
-		(await Promise.all((await db.select()).map((peer) => HTTPPeer.init(peer, db)))).forEach((peer) => {
-			if (!(peer instanceof Error)) httpPeers.peers.set(peer.host, peer);
-		});
-
-		for (let i = 0; i < RPCPeers._client.config.bootstrapPeers.length; i++) {
-			await httpPeers.add(RPCPeers._client.config.bootstrapPeers[i]);
-		}
-		for (let i = 0; i < RPCPeers._client.config.customPeers.length; i++) {
-			await httpPeers.add(RPCPeers._client.config.customPeers[i]);
-		}
-
-		if (typeof window === "undefined") httpPeers.listen();
-
-		return httpPeers;
+export default class HTTPServer {
+	private _rpcPeers: RPCPeers;
+	constructor(rpcPeer: RPCPeers) {
+		this._rpcPeers = rpcPeer;
+		if (typeof window === "undefined") this.listen();
 	}
 
 	private async listen(): Promise<void> {
@@ -232,111 +96,24 @@ export default class HTTPPeers {
 			if (Utils.isIp(RPCPeers._client.config.publicHostname) && Utils.isPrivateIP(RPCPeers._client.config.publicHostname)) console.error("Public hostname is a private IP address, cannot announce to other nodes");
 			else {
 				console.log(`HTTP:     Testing downloads ${RPCPeers._client.config.publicHostname}/download/04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f`);
-				if (!file) console.error("Failed to build file");
+				const self = RPCPeers._client.rpcPeers.http.getSelf();
+				if (self instanceof ErrorNotFound) console.error("HTTP:     Failed to find self in peers");
 				else {
-					const self = RPCPeers._client.rpcPeers.http.getSelf();
-					if (self instanceof ErrorNotFound) console.error("HTTP:     Failed to find self in peers");
+					const response = await self.downloadFile(file);
+					if (response instanceof ErrorDownloadFailed) console.error("HTTP:      Failed to download file from self");
 					else {
-						const response = await self.downloadFile(file);
-						if (response instanceof ErrorDownloadFailed) console.error("HTTP:      Failed to download file from self");
-						else {
-							console.log("HTTP:     Announcing server to nodes");
-							RPCPeers._client.rpcPeers.fetch(`https://localhost/announce?host=${RPCPeers._client.config.publicHostname}`);
-						}
-						await RPCPeers._client.rpcPeers.http.add(RPCPeers._client.config.publicHostname);
+						console.log("HTTP:     Announcing server to nodes");
+						RPCPeers._client.rpcPeers.fetch(new URL(`hydra://localhostannounce?host=${RPCPeers._client.config.publicHostname}`));
 					}
+					await RPCPeers._client.rpcPeers.add({ host: RPCPeers._client.config.publicHostname });
 				}
 			}
 		}
 	};
 
-	async add(host: string): Promise<true | ErrorMissingRequiredProperty | ErrorUnexpectedProtocol> {
-		const peer = await HTTPPeer.init({ host }, this.db);
-		if (peer instanceof Error) return peer;
-		if (host !== RPCPeers._client.config.publicHostname) this.peers.set(peer.host, peer);
-		return true;
-	}
-
-	public getPeers = (applicablePeers = false): HTTPPeer[] => {
-		const peers = Array.from(this.peers).filter((peer) => !applicablePeers || typeof window === "undefined" || !peer[0].startsWith("http://"));
-
-		if (RPCPeers._client.config.preferNode === "FASTEST") return peers.map(([_, peer]) => peer).sort((a, b) => a.bytes / a.duration - b.bytes / b.duration);
-		else if (RPCPeers._client.config.preferNode === "LEAST_USED") return peers.map(([_, peer]) => peer).sort((a, b) => a.hits - a.rejects - (b.hits - b.rejects));
-		else if (RPCPeers._client.config.preferNode === "HIGHEST_HITRATE") return peers.sort((a, b) => a[1].hits - a[1].rejects - (b[1].hits - b[1].rejects)).map(([_, peer]) => peer);
-		else return peers.map(([_, peer]) => peer);
-	};
-
-	async getValidPeers(): Promise<PeerAttributes[]> {
-		const peers = this.getPeers();
-		const results: PeerAttributes[] = [];
-		const executing: Array<Promise<void>> = [];
-
-		for (let i = 0; i < peers.length; i++) {
-			const peer = peers[i];
-			if (peer.host === RPCPeers._client.config.publicHostname) {
-				results.push(peer);
-				continue;
-			}
-			const promise = peer.validate().then((result) => {
-				if (result) results.push(peer);
-				executing.splice(executing.indexOf(promise), 1);
-			});
-			executing.push(promise);
-		}
-		await Promise.all(executing);
-		return results;
-	}
-
-	public fetch(url: URL, method = "GET", headers: { [key: string]: string } = {}, body: string | undefined = undefined): Promise<DecodedResponse | ErrorRequestFailed | ErrorTimeout>[] {
-		const peers = this.getPeers(true);
-		const promises: Promise<DecodedResponse | ErrorRequestFailed | ErrorTimeout>[] = [];
-
-		for (const peer of peers) {
-			promises.push((async () => {
-				try {
-					const peerUrl = new URL(peer.host);
-					url.hostname = peerUrl.hostname;
-					url.protocol = peerUrl.protocol;
-					const res = await Utils.promiseWithTimeout(fetch(url.toString(), { method, headers, body }), RPCPeers._client.config.timeout);
-					if (res instanceof Error) return res;
-					return await DecodedResponse.from(res);
-				} catch (e) {
-					const message = e instanceof Error ? e.message : "Unknown error";
-					if (message !== "Failed to fetch") return new ErrorRequestFailed();
-					return DecodedResponse.from(new Response(message, { status: 500 }));
-				}
-			})());
-		}
-
-		return promises;
-	}
-
-	// TODO: Compare list between all peers and give score based on how similar they are. 100% = all exactly the same, 0% = no items in list were shared. The lower the score, the lower the propagation times, the lower the decentralisation
-	async updatePeers(): Promise<void> {
-		console.log(`HTTP:     Fetching peers`);
-		const responses = await Promise.all(await RPCPeers._client.rpcPeers.fetch("http://localhost/peers"));
-		for (let i = 0; i < responses.length; i++) {
-			try {
-				if (!(responses[i] instanceof Response)) continue;
-				const response = responses[i];
-				if (response instanceof Response) {
-					const remotePeers = (await response.json()) as HTTPPeer[];
-					for (const remotePeer of remotePeers) {
-						if (Utils.isPrivateIP(remotePeer.host) || remotePeer.host.startsWith("hydra://")) continue;
-						this.add(remotePeer.host).catch((e) => {
-							if (RPCPeers._client.config.logLevel === "verbose") console.error(e);
-						});
-					}
-				}
-			} catch (e) {
-				if (RPCPeers._client.config.logLevel === "verbose") console.error(e);
-			}
-		}
-	}
-
-	public getSelf(): HTTPPeer | ErrorNotFound {
-		const peer = this.peers.get(RPCPeers._client.config.publicHostname);
-		if (!peer) return new ErrorNotFound();
+	public getSelf(): RPCPeer | ErrorNotFound {
+		const peer = this._rpcPeers.peers.get(RPCPeers._client.config.publicHostname);
+		if (!peer) throw new ErrorNotFound();
 		return peer;
 	}
 }

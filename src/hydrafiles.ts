@@ -80,8 +80,8 @@ class Hydrafiles {
 	startBackgroundTasks(onUpdateFileListProgress?: (progress: number, total: number) => void): void {
 		if (this.config.summarySpeed !== -1) setInterval(() => this.logState(), this.config.summarySpeed);
 		if (this.config.comparePeersSpeed !== -1) {
-			this.rpcPeers.http.updatePeers();
-			setInterval(() => this.rpcPeers.http.updatePeers(), this.config.comparePeersSpeed);
+			this.rpcPeers.discoverPeers();
+			setInterval(() => this.rpcPeers.discoverPeers(), this.config.comparePeersSpeed);
 		}
 		if (this.config.compareFilesSpeed !== -1) {
 			this.files.updateFileList(onUpdateFileListProgress);
@@ -102,10 +102,8 @@ class Hydrafiles {
 			"========\n===============================================",
 			"\n| Uptime:",
 			Utils.convertTime(+new Date() - this.startTime),
-			"\n| Known HTTP Peers:",
-			this.rpcPeers.http.getPeers().length,
-			"\n| Known RTC Peers:",
-			Object.keys(this.rpcPeers.rtc.peers).length,
+			"\n| Known Peers:",
+			Object.keys(this.rpcPeers.peers).length,
 			"\n| Known (Network) Files:",
 			await this.files.db.count(),
 			`(${Math.round((100 * (await this.files.db.sum("size"))) / 1024 / 1024 / 1024) / 100}GB)`,

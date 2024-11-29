@@ -242,12 +242,7 @@ const tickHandler = async () => {
 		console.error(e);
 	}
 	try {
-		(document.getElementById("httpPeersCount") as HTMLElement).innerHTML = String(window.hydrafiles.rpcPeers.http.getPeers().length);
-	} catch (e) {
-		console.error(e);
-	}
-	try {
-		(document.getElementById("rtcPeers") as HTMLElement).innerHTML = String(Object.keys(window.hydrafiles.rpcPeers.rtc.peers).length);
+		(document.getElementById("peersCount") as HTMLElement).innerHTML = String(window.hydrafiles.rpcPeers.getPeers().length);
 	} catch (e) {
 		console.error(e);
 	}
@@ -421,7 +416,7 @@ function getBackgroundColor(state: string): string {
 }
 
 async function fetchAndPopulatePeers() {
-	const peers = window.hydrafiles.rpcPeers.http.getPeers();
+	const peers = window.hydrafiles.rpcPeers.getPeers();
 	const peersEl = document.getElementById("httpPeers") as HTMLElement;
 	peersEl.innerHTML = "";
 
@@ -431,7 +426,7 @@ async function fetchAndPopulatePeers() {
 		peersEl.appendChild(li);
 	});
 
-	const rtcPeers = Object.entries(window.hydrafiles.rpcPeers.rtc.peers);
+	const rtcPeers = Object.entries(window.hydrafiles.rpcPeers.peers);
 	const tbody = document.getElementById("peerTable")!.querySelector("tbody") as HTMLTableSectionElement;
 
 	tbody.innerHTML = "";
@@ -805,16 +800,13 @@ const network = new Network(document.getElementById("peerNetwork")!, { nodes: no
 });
 
 async function populateNetworkGraph() {
-	const httpPeers = Array.from(window.hydrafiles.rpcPeers.http.peers);
-	const rtcPeers = Object.keys(window.hydrafiles.rpcPeers.rtc.peers);
+	const peers = Array.from(window.hydrafiles.rpcPeers.peers);
 
 	const foundNodes = [
-		...httpPeers.map((peer, index) => ({ id: index + 1, label: peer[0] })),
-		...rtcPeers.map((peer, index) => ({ id: index + httpPeers.length + 1, label: peer })),
+		...peers.map((peer, index) => ({ id: index + 1, label: peer[0] })),
 	];
 	const foundEdges = [
-		...httpPeers.map((_, index) => ({ id: `0-${index + 1}`, from: 0, to: index + 1 })),
-		...rtcPeers.map((_, index) => ({ id: `0-${index + httpPeers.length + 1}`, from: 0, to: index + httpPeers.length + 1 })),
+		...peers.map((_, index) => ({ id: `0-${index + 1}`, from: 0, to: index + 1 })),
 	];
 
 	foundNodes.forEach((node) => {
@@ -824,7 +816,7 @@ async function populateNetworkGraph() {
 		if (!edges.get(edge.id)) edges.add(edge);
 	});
 
-	const responses = await Promise.all(httpPeers.map((peer) => Utils.promiseWithTimeout(fetch(`${peer[0]}/peers`), 10000)));
+	const responses = await Promise.all(peers.map((peer) => Utils.promiseWithTimeout(fetch(`${peer[0]}/peers`), 10000)));
 	for (const response of responses) {
 		if (response instanceof Error) continue;
 

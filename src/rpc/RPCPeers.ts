@@ -1,42 +1,123 @@
 import { join } from "https://deno.land/std@0.224.0/path/join.ts";
-import { ErrorNotFound, type ErrorRequestFailed, type ErrorTimeout } from "../errors.ts";
+import { ErrorMissingRequiredProperty, ErrorNotFound, ErrorRequestFailed, ErrorTimeout } from "../errors.ts";
 import type Hydrafiles from "../hydrafiles.ts";
 import type Wallet from "../wallet.ts";
-import HTTPPeers from "./peers/http.ts";
-import RTCPeers from "./peers/rtc.ts";
-import WSPeers from "./peers/ws.ts";
-import { DecodedResponse, router } from "./routes.ts";
+import HTTPServer, { HTTPClient } from "./peers/http.ts";
+import RTCPeers, { RTCPeer } from "./peers/rtc.ts";
+import WSPeers, { WSPeer } from "./peers/ws.ts";
+import { type DecodedResponse, HydraResponse, router } from "./routes.ts";
 import { serveFile } from "https://deno.land/std@0.115.0/http/file_server.ts";
 import type { EthAddress } from "../wallet.ts";
+import Database, { type DatabaseModal } from "../database.ts";
+import Utils from "../utils.ts";
+import RPCPeer, { type Host, type PeerAttributes, peerModel } from "./RPCPeer.ts";
 
 type RawPayload = { url: string };
 type EncryptedPayload = { payload: RawPayload | EncryptedPayload; to: EthAddress };
 
 export default class RPCPeers {
 	static _client: Hydrafiles;
-	http!: HTTPPeers;
-	ws!: WSPeers;
-	rtc!: RTCPeers;
+	db: Database<typeof peerModel>;
 
-	private constructor() {}
+	peers = new Map<string, RPCPeer>();
 
-	static async init(): Promise<RPCPeers> {
-		const rpc = new RPCPeers();
-		rpc.http = await HTTPPeers.init();
-		rpc.ws = new WSPeers(rpc);
-		rpc.rtc = new RTCPeers(rpc);
-		return rpc;
+	http: HTTPServer;
+	ws: WSPeers;
+	rtc: RTCPeers;
+
+	private constructor(db: Database<typeof peerModel>, wallet: Wallet) {
+		this.db = db;
+
+		this.http = new HTTPServer(this);
+		this.ws = new WSPeers(this);
+		this.rtc = new RTCPeers(this, wallet);
+	}
+
+	static init = async () => {
+		const peers = new RPCPeers(await Database.init(peerModel, RPCPeers._client), RPCPeers._client.rtcWallet);
+
+		const peerValues = await peers.db.select() as unknown as (DatabaseModal<typeof peerModel> & { host: Host })[];
+		for (let i = 0; i < peerValues.length; i++) {
+			await peers.add(peerValues[i]);
+			// const rtcPeer = await WSPeer.init(peers.db, peerValues[i]);
+			// if (!(rtcPeer instanceof Error)) peers.peers.set(peerValues[i].host, rtcPeer);
+		}
+
+		for (let i = 0; i < RPCPeers._client.config.bootstrapPeers.length; i++) {
+			peers.add({ host: RPCPeers._client.config.bootstrapPeers[i] });
+		}
+		for (let i = 0; i < RPCPeers._client.config.customPeers.length; i++) {
+			peers.add({ host: RPCPeers._client.config.customPeers[i] });
+		}
+
+		return peers;
+	};
+
+	public add = async (values: Partial<DatabaseModal<typeof peerModel>> & { host: Host }): Promise<[RPCPeer] | [RPCPeer, RPCPeer]> => {
+		if (!values.host) throw new ErrorMissingRequiredProperty();
+
+		const peers = [];
+
+		console.log("RPC:      Adding peer", values.host);
+		const peer = await RPCPeer.init(this, values);
+		if (!(peer instanceof Error)) {
+			this.peers.set(values.host, peer);
+			peers.push(peer);
+		}
+
+		if (values.host.startsWith("http:") || values.host.startsWith("https:")) {
+			const host = values.host.replace("http", "ws") as Host;
+			console.log("RPC:      Adding peer", host);
+			const wsPeer = await RPCPeer.init(this, { ...values, host });
+			if (!(wsPeer instanceof Error)) {
+				this.peers.set(values.host, wsPeer);
+				peers.push(wsPeer);
+			}
+		}
+
+		return peers as [RPCPeer] | [RPCPeer, RPCPeer];
+	};
+
+	public getPeers = (applicablePeers = false): RPCPeer[] => {
+		const peers = Array.from(this.peers).filter((peer) => !applicablePeers || typeof window === "undefined" || !peer[0].startsWith("http://"));
+
+		if (RPCPeers._client.config.preferNode === "FASTEST") return peers.map(([_, peer]) => peer).sort((a, b) => a.bytes / a.duration - b.bytes / b.duration);
+		else if (RPCPeers._client.config.preferNode === "LEAST_USED") return peers.map(([_, peer]) => peer).sort((a, b) => a.hits - a.rejects - (b.hits - b.rejects));
+		else if (RPCPeers._client.config.preferNode === "HIGHEST_HITRATE") return peers.sort((a, b) => a[1].hits - a[1].rejects - (b[1].hits - b[1].rejects)).map(([_, peer]) => peer);
+		else return peers.map(([_, peer]) => peer);
+	};
+
+	// TODO: Compare list between all peers and give score based on how similar they are. 100% = all exactly the same, 0% = no items in list were shared. The lower the score, the lower the propagation times, the lower the decentralisation
+	async discoverPeers(): Promise<void> {
+		console.log(`RPC:      Discovering peers`);
+		const responses = await Promise.all(await RPCPeers._client.rpcPeers.fetch(new URL("hydra://localhostpeers")));
+		for (let i = 0; i < responses.length; i++) {
+			try {
+				if (!(responses[i] instanceof Response)) continue;
+				const response = responses[i];
+				if (response instanceof Response) {
+					const remotePeers = (await response.json()) as PeerAttributes[];
+					for (const remotePeer of remotePeers) {
+						if (Utils.isPrivateIP(remotePeer.host) || remotePeer.host.startsWith("hydra://")) continue;
+						this.add(remotePeer).catch((e) => {
+							if (RPCPeers._client.config.logLevel === "verbose") console.error(e);
+						});
+					}
+				}
+			} catch (e) {
+				if (RPCPeers._client.config.logLevel === "verbose") console.error(e);
+			}
+		}
 	}
 
 	/**
 	 * Sends requests to peers.
 	 */
-	public fetch = async (input: RequestInfo, init?: RequestInit | RequestInit & { wallet: Wallet }): Promise<Promise<DecodedResponse | ErrorRequestFailed | ErrorTimeout>[]> => {
-		const url = new URL(input instanceof Request ? input.url : input);
+	public fetch = async (url: URL, init?: RequestInit | RequestInit & { wallet: Wallet }): Promise<(DecodedResponse | ErrorRequestFailed | ErrorTimeout)[]> => {
 		url.protocol = "https:";
 		url.hostname = "localhost";
 
-		const method = input instanceof Request ? input.method : "GET";
+		const method = init?.method;
 		const headers: { [key: string]: string } = {};
 		let body: string | undefined;
 
@@ -53,7 +134,23 @@ export default class RPCPeers {
 			body = init.body?.toString();
 		}
 
-		return [...this.http.fetch(url, method, headers, body), ...this.rtc.fetch(url, method, headers, body), ...this.ws.fetch(url, method, headers, body)];
+		let responses: (DecodedResponse | ErrorTimeout)[] = [];
+		const peerEntries = Array.from(this.peers.entries());
+		for (let i = 0; i < peerEntries.length; i++) {
+			const peer = peerEntries[i][1];
+
+			let peerResponses: (DecodedResponse | ErrorTimeout | ErrorRequestFailed)[] = [];
+			if (peer.peer instanceof WSPeer) {
+				peerResponses = await peer.peer.fetch(url, method, headers, body);
+			} else if (peer.peer instanceof HTTPClient) {
+				peerResponses = [await peer.peer.fetch(url, method, headers, body)];
+			} else if (peer.peer instanceof RTCPeer) {
+				peerResponses = [await peer.peer.fetch(url, method, headers, body)];
+			}
+
+			responses = [...responses, ...peerResponses];
+		}
+		return responses;
 	};
 
 	/**
@@ -112,13 +209,13 @@ export default class RPCPeers {
 	public exitFetch = async (req: Request): Promise<DecodedResponse | ErrorNotFound> => {
 		const relays: EthAddress[] = [];
 
-		const handshakeResponses = await Promise.all(await this.fetch(`https://localhost/exit/request`));
+		const handshakeResponses = await Promise.all(await this.fetch(new URL(`hydra://localhost/exit/request`)));
 		for (let i = 0; i < handshakeResponses.length; i++) {
 			const response = handshakeResponses[i];
 			if (response instanceof Error || response.status !== 200) continue;
-			const body = response.text();
+			const body = response.body;
 			try {
-				const payload = JSON.parse(body);
+				const payload = JSON.parse(typeof body === "string" ? body : new TextDecoder().decode(body));
 				relays.push(payload.pubKey);
 			} catch (_) {
 				continue;
@@ -137,17 +234,17 @@ export default class RPCPeers {
 		}
 
 		console.log(`https://localhost/exit/${payload.to}`);
-		const responses = await Promise.all(await this.fetch(`https://localhost/exit/${payload.to}`, { method: "POST", body: JSON.stringify(payload.payload) }));
+		const responses = await Promise.all(await this.fetch(new URL(`hydra://localhostexit/${payload.to}`), { method: "POST", body: JSON.stringify(payload.payload) }));
 		for (let j = 0; j < responses.length; j++) {
 			const response = responses[j];
 			if (response instanceof Error || response.status !== 200) continue;
 			return response;
 		}
 
-		return new ErrorNotFound();
+		throw new ErrorNotFound();
 	};
 
-	public exitHandleRequest = async (req: Request): Promise<DecodedResponse> => {
-		return DecodedResponse.from(await fetch(req));
+	public exitHandleRequest = async (req: Request): Promise<HydraResponse> => {
+		return HydraResponse.from(await fetch(req));
 	};
 }

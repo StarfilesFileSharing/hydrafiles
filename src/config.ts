@@ -1,3 +1,5 @@
+import type { Host } from "./rpc/RPCPeer.ts";
+
 /**
  * Configuration
  *
@@ -40,7 +42,7 @@ export interface Config {
 	 * Root URL (`https://hostname[:port]`) to announce to other nodes.
 	 * @default "http://127.0.0.1:80"
 	 */
-	publicHostname: string;
+	publicHostname: Host;
 
 	/**
 	 * How often to log client state (in milliseconds).
@@ -109,13 +111,13 @@ export interface Config {
 	 * Root URLs of peers to bootstrap network connection.
 	 * @default ["https://hydrafiles.com", "https://hydra.starfiles.co", "https://api2.starfiles.co", "https://api2.starfiles.bz", "https://hydra.sts.st"]
 	 */
-	bootstrapPeers: string[];
+	bootstrapPeers: Host[];
 
 	/**
 	 * Root URLs of peers to bootstrap network connection.
 	 * @default []
 	 */
-	customPeers: string[];
+	customPeers: Host[];
 
 	/**
 	 * Node selection strategy when fetching data from the network.

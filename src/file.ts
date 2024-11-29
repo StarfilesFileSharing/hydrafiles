@@ -88,12 +88,12 @@ export class File implements FileAttributes {
 		}
 		if (!hash && values.id) {
 			console.log(`Fetching file metadata`); // TODO: Merge with getMetadata
-			const responses = await Files._client.rpcPeers.fetch(`http://localhost/file/${values.id}`);
+			const responses = await Files._client.rpcPeers.fetch(new URL(`hydra://localhostfile/${values.id}`));
 			for (let i = 0; i < responses.length; i++) {
-				const response = await responses[i];
+				const response = responses[i];
 				if (response instanceof Error) continue;
 				try {
-					const body = await JSON.parse(response.text()) as { result: Metadata } | FileAttributes;
+					const body = await JSON.parse(response.body) as { result: Metadata } | FileAttributes;
 					hash = "result" in body ? body.result.hash.sha256 : body.hash;
 				} catch (e) {
 					if (Files._client.config.logLevel === "verbose") console.error(e);
@@ -125,13 +125,13 @@ export class File implements FileAttributes {
 
 		const id = this.id;
 		if (id !== undefined && id !== null && id.length > 0) {
-			const responses = await Files._client.rpcPeers.fetch(`http://localhost/file/${this.id}`);
+			const responses = await Files._client.rpcPeers.fetch(new URL(`hydra://localhostfile/${this.id}`));
 
 			for (let i = 0; i < responses.length; i++) {
 				try {
-					const response = await responses[i];
+					const response = responses[i];
 					if (response instanceof Error) continue;
-					const body = JSON.parse(response.text());
+					const body = JSON.parse(response.body);
 					const metadata = body.result as Metadata ?? body as FileAttributes;
 					this.name = metadata.name;
 					this.size = Utils.createNonNegativeNumber(metadata.size);
@@ -167,30 +167,36 @@ export class File implements FileAttributes {
 			}
 		}
 
-		return new ErrorNotFound();
+		throw new ErrorNotFound();
 	}
 
 	async cacheFile(file: Uint8Array): Promise<true | ErrorNotInitialised | ErrorNotFound | ErrorUnreachableCodeReached> {
-		const hash = this.hash;
-		const filePath = join(FILESPATH, hash.toString());
-		if (await Files._client.fs.exists(filePath)) return true;
+		try {
+			const hash = this.hash;
+			const filePath = join(FILESPATH, hash.toString());
+			if (await Files._client.fs.exists(filePath)) return true;
 
-		let size = this.size;
-		if (size === 0) {
-			size = Utils.createNonNegativeNumber(file.byteLength);
-			this.size = size;
-			this.save();
+			let size = this.size;
+			if (size === 0) {
+				size = Utils.createNonNegativeNumber(file.byteLength);
+				this.size = size;
+				this.save();
+			}
+			const remainingSpace = await Files._client.utils.remainingStorage();
+			if (remainingSpace instanceof ErrorNotInitialised) return remainingSpace;
+			if (Files._client.config.maxCache !== -1 && size > remainingSpace) Files._client.utils.purgeCache(size, remainingSpace);
+
+			Files._client.fs.writeFile(filePath, file);
+			const fileContent = await Files._client.fs.readFile(filePath);
+			if (fileContent instanceof Error) return fileContent;
+			const savedHash = await Utils.hashUint8Array(fileContent);
+			if (savedHash !== hash) await Files._client.fs.remove(filePath); // In case of broken file
+			return true;
+		} catch (e) {
+			console.trace();
+			console.error(e, (e as Error).stack);
+			throw e;
 		}
-		const remainingSpace = await Files._client.utils.remainingStorage();
-		if (remainingSpace instanceof ErrorNotInitialised) return remainingSpace;
-		if (Files._client.config.maxCache !== -1 && size > remainingSpace) Files._client.utils.purgeCache(size, remainingSpace);
-
-		Files._client.fs.writeFile(filePath, file);
-		const fileContent = await Files._client.fs.readFile(filePath);
-		if (fileContent instanceof Error) return fileContent;
-		const savedHash = await Utils.hashUint8Array(fileContent);
-		if (savedHash !== hash) await Files._client.fs.remove(filePath); // In case of broken file
-		return true;
 	}
 
 	async fetchFromCache(): Promise<{ file: Uint8Array; signal: number } | ErrorNotFound | ErrorNotInitialised | ErrorChecksumMismatch> {
@@ -371,7 +377,7 @@ export class File implements FileAttributes {
 			});
 		}
 
-		const peers = Files._client.rpcPeers.http.getPeers(true);
+		const peers = Files._client.rpcPeers.getPeers(true);
 		for (const peer of peers) {
 			let fileContent: { file: Uint8Array; signal: number } | Error | undefined;
 			try {
@@ -470,12 +476,12 @@ class Files {
 	async updateFileList(onProgress?: (progress: number, total: number) => void): Promise<void> {
 		console.log(`Files:    Comparing file list`);
 		let files: FileAttributes[] = [];
-		const responses = await Promise.all(await Files._client.rpcPeers.fetch("http://localhost/files"));
+		const responses = await Promise.all(await Files._client.rpcPeers.fetch(new URL("hydra://localhostfiles")));
 		for (let i = 0; i < responses.length; i++) {
 			const response = responses[i];
 			if (!(response instanceof Error)) {
 				try {
-					files = files.concat(JSON.parse(response.text()) as FileAttributes[]);
+					files = files.concat(JSON.parse(response.body) as FileAttributes[]);
 				} catch (e) {
 					if (!(e instanceof SyntaxError)) throw e;
 				}
