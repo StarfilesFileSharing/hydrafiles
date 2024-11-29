@@ -26,7 +26,7 @@ export default class StandardFileSystem {
 	};
 
 	readFile = async (path: string): Promise<Uint8Array | ErrorNotFound> => {
-		if (!await this.exists(path)) return new ErrorNotFound();
+		if (!await this.exists(path)) throw new ErrorNotFound();
 		return await Deno.readFile(path);
 	};
 
@@ -39,7 +39,7 @@ export default class StandardFileSystem {
 			const fileInfo = await Deno.stat(path);
 			return fileInfo.size;
 		} catch (e) {
-			if ((e as Error).name === "NotFound") return new ErrorNotFound();
+			if ((e as Error).name === "NotFound") throw new ErrorNotFound();
 			throw e;
 		}
 	};

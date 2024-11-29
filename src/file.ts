@@ -1,7 +1,6 @@
 import type Hydrafiles from "./hydrafiles.ts";
 import Utils, { type NonEmptyString, type NonNegativeNumber, type Sha256 } from "./utils.ts";
 import { join } from "https://deno.land/std@0.224.0/path/mod.ts";
-import type { EthAddress } from "./wallet.ts";
 import { delay } from "https://deno.land/std@0.170.0/async/delay.ts";
 import { ErrorChecksumMismatch, ErrorNotFound, ErrorNotInitialised, ErrorUnreachableCodeReached } from "./errors.ts";
 import Database, { type DatabaseModal } from "./database.ts";
@@ -210,7 +209,7 @@ export class File implements FileAttributes {
 		const savedHash = await Utils.hashUint8Array(fileContents);
 		if (savedHash !== this.hash) {
 			await Files._client.fs.remove(filePath).catch(console.error);
-			return new ErrorChecksumMismatch();
+			throw new ErrorChecksumMismatch();
 		}
 		return {
 			file: fileContents,
@@ -220,11 +219,11 @@ export class File implements FileAttributes {
 
 	async fetchFromS3(): Promise<{ file: Uint8Array; signal: number } | ErrorNotInitialised | ErrorNotFound | ErrorChecksumMismatch> {
 		console.log(`File:     ${this.hash}  Checking S3`);
-		if (Files._client.s3 === undefined) return new ErrorNotInitialised();
+		if (Files._client.s3 === undefined) throw new ErrorNotInitialised();
 		const chunks: Uint8Array[] = [];
 		try {
 			const data = (await Files._client.s3.getObject(`${this.hash}.stuf`)).body;
-			if (data === null) return new ErrorNotFound();
+			if (data === null) throw new ErrorNotFound();
 			const reader = data.getReader();
 			while (true) {
 				const { done, value } = await reader.read();
@@ -232,7 +231,7 @@ export class File implements FileAttributes {
 				chunks.push(value);
 			}
 		} catch (e) {
-			if (typeof e === "object" && e !== null && "code" in e && e.code === "NoSuchKey") return new ErrorNotFound();
+			if (typeof e === "object" && e !== null && "code" in e && e.code === "NoSuchKey") throw new ErrorNotFound();
 		}
 
 		const length = chunks.reduce((acc, chunk) => acc + chunk.length, 0);
@@ -246,7 +245,7 @@ export class File implements FileAttributes {
 		if (Files._client.config.cacheS3) await this.cacheFile(file);
 
 		const hash = await Utils.hashUint8Array(file);
-		if (hash.toString() !== this.hash.toString()) return new ErrorChecksumMismatch();
+		if (hash.toString() !== this.hash.toString()) throw new ErrorChecksumMismatch();
 		return {
 			file,
 			signal: Utils.interfere(100),
@@ -273,7 +272,7 @@ export class File implements FileAttributes {
 		console.log(`File:     ${hash}  Getting file`);
 		if (!this.found && new Date(this.updatedAt) > new Date(new Date().getTime() - 5 * 60 * 1000)) {
 			console.log(`File:     ${hash}  404 cached`);
-			return new ErrorNotFound();
+			throw new ErrorNotFound();
 		}
 		if (opts.logDownloads === undefined || opts.logDownloads) this.increment("downloadCount");
 
@@ -388,28 +387,7 @@ export class File implements FileAttributes {
 			if (fileContent && !(fileContent instanceof Error)) return fileContent;
 		}
 
-		console.log(`File:     ${this.hash}  Downloading from WebRTC`);
-		const responses = Files._client.rpcPeers.rtc.fetch(new URL(`http://localhost/download/${this.hash}`));
-		for (let i = 0; i < responses.length; i++) {
-			const response = await responses[i];
-			if (response instanceof Error) continue;
-			const fileContent = new Uint8Array(response.arrayBuffer());
-			console.log(`File:     ${this.hash}  Validating hash`);
-			const verifiedHash = await Utils.hashUint8Array(fileContent);
-			console.log(`File:     ${this.hash}  Done Validating hash`);
-			if (this.hash !== verifiedHash) return new ErrorChecksumMismatch();
-			console.log(`File:     ${this.hash}  Valid hash`);
-
-			const ethAddress = response.headers["Ethereum-Address"];
-			if (ethAddress) Files._client.filesWallet.transfer(ethAddress as EthAddress, 1_000_000n * BigInt(fileContent.byteLength));
-
-			if (!this.name) {
-				this.name = String(response.headers["Content-Disposition"]?.split("=")[1].replace(/"/g, "").replace(" [HYDRAFILES]", ""));
-				this.save();
-			}
-		}
-
-		return new ErrorNotFound();
+		throw new ErrorNotFound();
 	}
 }
 

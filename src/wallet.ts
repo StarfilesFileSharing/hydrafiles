@@ -58,7 +58,7 @@ class Wallet {
 
 		if (currentBalance < amountInEth) {
 			console.log(`Insufficient balance. Current balance: ${currentBalance}, Transfer amount: ${amountInEth}`);
-			return new ErrorInsufficientBalance();
+			throw new ErrorInsufficientBalance();
 		}
 
 		console.log(`Transferring ${amount} to ${to}`);

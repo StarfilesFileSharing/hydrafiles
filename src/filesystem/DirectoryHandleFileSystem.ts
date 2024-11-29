@@ -27,14 +27,14 @@ async function getDirectoryFromPath(rootHandle: DirectoryHandle, path: string, c
 
 async function getFileFromPath(handle: DirectoryHandle, path: string, create = false): Promise<FileHandle | ErrorUnreachableCodeReached> {
 	const parts = path.split("/").filter((part) => part.length > 0);
-	if (parts.length === 0) return new ErrorUnreachableCodeReached();
+	if (parts.length === 0) throw new ErrorUnreachableCodeReached();
 
 	for (let i = 0; i < parts.length; i++) {
-		if (parts.length !== i) handle = await handle.getDirectoryHandle(parts[i], { create });
+		if (parts.length - 1 !== i) handle = await handle.getDirectoryHandle(parts[i], { create });
 	}
 
 	const fileName = parts.pop();
-	if (typeof fileName === "undefined") return new ErrorNotFound();
+	if (typeof fileName === "undefined") throw new ErrorNotFound();
 	return await handle.getFileHandle(fileName, { create });
 }
 
@@ -79,7 +79,7 @@ export default class DirectoryHandleFileSystem {
 	};
 
 	readFile = async (path: string): Promise<Uint8Array | ErrorNotFound | ErrorUnreachableCodeReached> => {
-		if (!await this.exists(path)) return new ErrorNotFound();
+		if (!await this.exists(path)) throw new ErrorNotFound();
 
 		const fileHandle = await getFileFromPath(this.handler, path);
 		if (fileHandle instanceof ErrorUnreachableCodeReached) return fileHandle;
@@ -99,7 +99,7 @@ export default class DirectoryHandleFileSystem {
 	};
 
 	getFileSize = async (path: string): Promise<number | ErrorUnreachableCodeReached> => {
-		if (!await this.exists(path)) return new ErrorNotFound();
+		if (!await this.exists(path)) throw new ErrorNotFound();
 
 		const fileHandle = await getFileFromPath(this.handler, path);
 		if (fileHandle instanceof ErrorUnreachableCodeReached) return fileHandle;
