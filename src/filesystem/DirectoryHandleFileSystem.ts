@@ -34,7 +34,7 @@ async function getFileFromPath(handle: DirectoryHandle, path: string, create = f
 	}
 
 	const fileName = parts.pop();
-	if (typeof fileName === "undefined") throw new ErrorNotFound();
+	if (typeof fileName === "undefined") return new ErrorNotFound();
 	return await handle.getFileHandle(fileName, { create });
 }
 
@@ -79,7 +79,7 @@ export default class DirectoryHandleFileSystem {
 	};
 
 	readFile = async (path: string): Promise<Uint8Array | ErrorNotFound | ErrorUnreachableCodeReached> => {
-		if (!await this.exists(path)) throw new ErrorNotFound();
+		if (!await this.exists(path)) return new ErrorNotFound();
 
 		const fileHandle = await getFileFromPath(this.handler, path);
 		if (fileHandle instanceof ErrorUnreachableCodeReached) return fileHandle;
@@ -99,7 +99,7 @@ export default class DirectoryHandleFileSystem {
 	};
 
 	getFileSize = async (path: string): Promise<number | ErrorUnreachableCodeReached> => {
-		if (!await this.exists(path)) throw new ErrorNotFound();
+		if (!await this.exists(path)) return new ErrorNotFound();
 
 		const fileHandle = await getFileFromPath(this.handler, path);
 		if (fileHandle instanceof ErrorUnreachableCodeReached) return fileHandle;
