@@ -648,7 +648,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 			</div>
 		</div>`;
 		window.hydrafiles.rpcPeers.fetch(
-			new URL(`https://localhost/service/${(document.getElementById("peerAddress") as HTMLInputElement).value}?message=${encodeURIComponent(message)}&nonce=${Math.random()}`),
+			`hydra://core/service/${(document.getElementById("peerAddress") as HTMLInputElement).value}?message=${encodeURIComponent(message)}&nonce=${Math.random()}`,
 			{ wallet },
 		);
 	});
