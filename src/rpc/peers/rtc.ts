@@ -285,8 +285,8 @@ export default class RTCPeers {
 		this._rpcPeers = rpcPeers;
 		this.address = wallet.account.address;
 
-		for (let i = 0; i < rpcPeers.ws.peers.length; i++) {
-			rpcPeers.ws.peers[i].socket.onopen = () => {
+		for (let i = 0; i < rpcPeers.peers.length; i++) {
+			rpcPeers.peers[i].socket.onopen = () => {
 				console.log(`WebRTC:   Announcing to ${rpcPeers.ws.peers[i].socket.url}`);
 				const message: SignallingAnnounce = { announce: true, from: this.address };
 				rpcPeers.ws.send(message);

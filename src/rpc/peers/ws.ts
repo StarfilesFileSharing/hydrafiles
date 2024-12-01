@@ -33,7 +33,7 @@ export class WSPeer {
 
 		pendingWSRequests.set(hash, []);
 
-		const responses = new Promise<DecodedResponse[]>((resolve) => {
+		const responses = await new Promise<DecodedResponse[]>((resolve) => {
 			setTimeout(() => {
 				const collected = pendingWSRequests.get(hash) || [];
 				pendingWSRequests.delete(hash);
@@ -63,6 +63,7 @@ export class WSPeer {
 			const responseList = pendingWSRequests.get(message.requestHash);
 			if (responseList) {
 				responseList.push(message.response);
+				pendingWSRequests.set(message.requestHash, responseList);
 			}
 		}
 	}
@@ -74,13 +75,10 @@ export class WSPeer {
 }
 
 export default class WSPeers {
-	// peers: { id: string; socket: WebSocket }[] = [{ id: RPCPeers._client.rtcWallet.account.address, socket: new WebSocket("wss://rooms.deno.dev/") }];
+	private _rpcPeers: RPCPeers;
 
-	constructor(rpcPeer: RPCPeers) {
-		const peers = rpcPeer.getPeers(true);
-		for (let i = 0; i < peers.length; i++) {
-			this.peers.push({ id: RPCPeers._client.rtcWallet.account.address, socket: new WebSocket(peers[i].host.replace("https://", "wss://").replace("http://", "ws://")) });
-		}
+	constructor(rpcPeers: RPCPeers) {
+		this._rpcPeers = rpcPeers;
 	}
 
 	handleConnection(req: Request): Response {
@@ -92,9 +90,11 @@ export default class WSPeers {
 	}
 
 	send(message: WSRequest | WSResponse | SignallingMessage): void {
-		for (let i = 0; i < this.peers.length; i++) {
-			this.peers[i].send(JSON.stringify(message));
-			if ("from" in message) this.peers[i].id = message.from;
+		const peers = Array.from(this._rpcPeers.peers.values());
+		for (let i = 0; i < peers.length; i++) {
+			if (!(peers[i].peer instanceof WSPeer)) continue;
+			peers[i].peer.send(JSON.stringify(message));
+			if ("from" in message) peers[i].id = message.from;
 		}
 	}
 }

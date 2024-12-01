@@ -10,6 +10,15 @@ import { RTCPeer } from "./peers/rtc.ts";
 
 export type Host = `https://${EthAddress}` | `${"http" | "https" | "ws" | "wss"}://${string}`;
 
+async function validateHash(body: Uint8Array, hash: string): Promise<boolean> {
+	console.log(`File:     ${hash}  Validating hash`);
+	const verifiedHash = await Utils.hashUint8Array(body);
+	console.log(`File:     ${hash}  Done Validating hash`);
+	if (hash !== verifiedHash) return false;
+	console.log(`File:     ${hash}  Valid hash`);
+	return true;
+}
+
 export interface PeerAttributes {
 	host: Host;
 	hits: NonNegativeNumber;
@@ -92,15 +101,21 @@ export default class RPCPeer implements PeerAttributes {
 			const startTime = Date.now();
 
 			const hash = file.hash;
+			let response;
 			console.log(`File:     ${hash}  Downloading from ${this.host}`);
-			const response = this.peer instanceof WSPeer ? (await this.peer.fetch(new URL(`${this.host}/download/${hash}`)))[0] : await this.peer.fetch(new URL(`${this.host}/download/${hash}`));
-			if (response instanceof ErrorTimeout || response instanceof ErrorRequestFailed) return response;
+			if (this.peer instanceof WSPeer) {
+				const wsResponse = await this.peer.fetch(new URL(`${this.host}/download/${hash}`));
+				for (let i = 0; i < wsResponse.length; i++) {
+					response = wsResponse[i];
+					if (response instanceof ErrorTimeout || response instanceof ErrorRequestFailed) continue;
+					if (await validateHash(new TextEncoder().encode(response.body), hash)) break;
+				}
+			} else response = await this.peer.fetch(new URL(`${this.host}/download/${hash}`));
+
+			if (!response) return new ErrorDownloadFailed();
+			if (response instanceof Error) return response;
+
 			const fileContent = new TextEncoder().encode(response.body);
-			console.log(`File:     ${hash}  Validating hash`);
-			const verifiedHash = await Utils.hashUint8Array(fileContent);
-			console.log(`File:     ${hash}  Done Validating hash`);
-			if (hash !== verifiedHash) return new ErrorChecksumMismatch();
-			console.log(`File:     ${hash}  Valid hash`);
 
 			const ethAddress = response.headers["Ethereum-Address"];
 			if (ethAddress) RPCPeers._client.filesWallet.transfer(ethAddress as EthAddress, 1_000_000n * BigInt(fileContent.byteLength));

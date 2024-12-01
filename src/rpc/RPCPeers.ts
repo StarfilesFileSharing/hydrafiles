@@ -29,7 +29,7 @@ export default class RPCPeers {
 		this.db = db;
 
 		this.http = new HTTPServer(this);
-		this.ws = new WSPeers(this);
+		this.ws = new WSPeers();
 		this.rtc = new RTCPeers(this, wallet);
 	}
 
@@ -49,6 +49,8 @@ export default class RPCPeers {
 		for (let i = 0; i < RPCPeers._client.config.customPeers.length; i++) {
 			peers.add({ host: RPCPeers._client.config.customPeers[i] });
 		}
+
+		peers.add({ host: "wss://rooms.deno.dev/" });
 
 		return peers;
 	};
@@ -114,7 +116,7 @@ export default class RPCPeers {
 	 * Sends requests to peers.
 	 */
 	public fetch = async (url: URL, init?: RequestInit | RequestInit & { wallet: Wallet }): Promise<(DecodedResponse | ErrorRequestFailed | ErrorTimeout)[]> => {
-		console.log("Fetching", url);
+		console.log("RPC:      Fetching", url.toString());
 		url.protocol = "https:";
 		url.hostname = "localhost";
 
