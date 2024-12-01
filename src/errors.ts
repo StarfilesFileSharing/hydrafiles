@@ -44,10 +44,6 @@ export class ErrorChecksumMismatch extends Error {
 	readonly brand = Symbol();
 }
 export class ErrorRequestFailed extends Error {
-	constructor(msg?: string) {
-		super(msg);
-		console.error("ErrorRequestFailed", this.stack);
-	}
 	readonly brand = Symbol();
 }
 export class ErrorDownloadFailed extends Error {

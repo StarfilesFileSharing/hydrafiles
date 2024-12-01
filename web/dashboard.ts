@@ -11,6 +11,7 @@ import Utils from "../src/utils.ts";
 import { Edge, Node } from "npm:vis-network/esnext";
 import type { FileEvent, RTCEvent } from "../src/events.ts";
 import { WSPeer } from "../src/rpc/peers/ws.ts";
+import { RTCPeer } from "../src/rpc/peers/rtc.ts";
 
 declare global {
 	interface Window {
@@ -427,24 +428,28 @@ async function fetchAndPopulatePeers() {
 		peersEl.appendChild(li);
 	});
 
-	const rtcPeers = Object.entries(window.hydrafiles.rpcPeers.peers);
+	const rtcPeers = Array.from(window.hydrafiles.rpcPeers.peers.entries());
 	const tbody = document.getElementById("peerTable")!.querySelector("tbody") as HTMLTableSectionElement;
 
 	tbody.innerHTML = "";
-	rtcPeers.forEach(([id, peer]) => {
-		const peerConns = Object.entries(peer);
-		peerConns.forEach(([type, peerConn]) => {
-			const conn = peerConn.conn;
+	for (let i = 0; i < rtcPeers.length; i++) {
+		const [host, peer] = rtcPeers[i];
+		if (!(peer.peer instanceof RTCPeer)) continue;
+		const peerConns = [peer.peer.answered, peer.peer.offered];
+		for (let j = 0; j < peerConns.length; j++) {
+			const conn = peerConns[j];
+			if (!conn) continue;
+			if (!(conn instanceof RTCPeerConnection)) continue;
 			const row = document.createElement("tr");
 
 			const cells = [
-				id,
-				type,
+				host,
+				"",
 				conn.signalingState,
 				conn.iceGatheringState,
 				conn.iceConnectionState,
 				conn.connectionState,
-				peerConn.channel.readyState,
+				conn.channel?.readyState || "N/A",
 				conn.connectionState || "N/A",
 			];
 
@@ -456,8 +461,8 @@ async function fetchAndPopulatePeers() {
 			});
 
 			tbody.appendChild(row);
-		});
-	});
+		}
+	}
 }
 
 function populateTable() {

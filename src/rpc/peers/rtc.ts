@@ -53,6 +53,7 @@ export class RTCPeer {
 	answered?: PeerConnection;
 
 	constructor(id: EthAddress, rpcPeers: RPCPeers) {
+		console.log("HTTP:     Adding Peer", id);
 		this._rpcPeers = rpcPeers;
 		this.id = id;
 	}
@@ -89,7 +90,7 @@ export class RTCPeer {
 		conn.onicecandidate = (event) => {
 			if (event.candidate) {
 				if (RPCPeers._client.config.logLevel === "verbose") console.log(`WebRTC:   ${from}  Sending ICE candidate`);
-				this._rpcPeers.fetch(new URL("https://localhost/iceCandidate"), { body: JSON.stringify({ iceCandidate: event.candidate, to: from, from: this._rpcPeers.rtc.address }) });
+				this._rpcPeers.fetch("hydra://core/iceCandidate", { method: "POST", body: JSON.stringify({ iceCandidate: event.candidate, to: from, from: this._rpcPeers.rtc.address }) });
 			}
 		};
 		conn.onnegotiationneeded = async () => {
@@ -99,7 +100,7 @@ export class RTCPeer {
 				const offer = await conn.createOffer();
 				await conn.setLocalDescription(offer);
 				console.log(`WebRTC:   ${from}  Sending offer from`, extractIPAddress(offer.sdp));
-				this._rpcPeers.ws.send({ offer, to: `https://${from}`, from: this._rpcPeers.rtc.address });
+				this._rpcPeers.fetch("hydra://core/offer", { method: "POST", body: JSON.stringify({ offer, to: `https://${from}`, from: this._rpcPeers.rtc.address }) });
 			} catch (e) {
 				console.error(e);
 			}
@@ -166,7 +167,7 @@ export class RTCPeer {
 			await this.answered.conn.setLocalDescription(answer);
 
 			console.log(`WebRTC:   ${this.id}  Sending answer from`, extractIPAddress(answer.sdp));
-			this._rpcPeers.ws.send({ answer, to: `https://${this.id}`, from: this._rpcPeers.rtc.address });
+			this._rpcPeers.fetch("hydra://core/answer", { method: "POST", body: JSON.stringify({ answer, to: `https://${this.id}`, from: this._rpcPeers.rtc.address }) });
 		} catch (e) {
 			console.error(e);
 		}
@@ -232,10 +233,7 @@ export class RTCPeer {
 		}
 	}
 
-	public async fetch(url: URL, method = "GET", headers: { [key: string]: string } = {}, body: string | undefined = undefined): Promise<DecodedResponse | ErrorTimeout | ErrorRequestFailed> {
-		url.protocol = "rtc:";
-		url.hostname = "0.0.0.0";
-
+	public async fetch(url: `hydra://core/${string}`, method = "GET", headers: { [key: string]: string } = {}, body: string | undefined = undefined): Promise<DecodedResponse | ErrorTimeout | ErrorRequestFailed> {
 		const request: WSRequest = { request: { method, url: url.toString(), headers, body: method === "GET" ? undefined : body } };
 
 		let channel: RTCDataChannel | undefined;
@@ -277,41 +275,29 @@ export class RTCPeer {
 }
 
 export default class RTCPeers {
-	private _rpcPeers: RPCPeers;
+	static _rpcPeers: RPCPeers;
 	address: EthAddress;
 	seenMessages: Set<string> = new Set();
 
-	constructor(rpcPeers: RPCPeers, wallet: Wallet) {
-		this._rpcPeers = rpcPeers;
+	constructor(wallet: Wallet) {
 		this.address = wallet.account.address;
 
-		for (let i = 0; i < rpcPeers.peers.length; i++) {
-			rpcPeers.peers[i].socket.onopen = () => {
-				console.log(`WebRTC:   Announcing to ${rpcPeers.ws.peers[i].socket.url}`);
-				const message: SignallingAnnounce = { announce: true, from: this.address };
-				rpcPeers.ws.send(message);
-				setInterval(() => rpcPeers.ws.send(message), RPCPeers._client.config.announceSpeed);
-			};
-
-			rpcPeers.ws.peers[i].socket.onmessage = (event) => {
-				this.handleSignallingMessage(event);
-			};
-		}
+		RTCPeers._rpcPeers.ws.onmessage((e) => this.handleSignallingMessage(e));
 	}
 
 	async handleSignallingMessage(event: MessageEvent): Promise<void> {
 		const message = JSON.parse(event.data) as SignallingMessage;
-		let peer = this._rpcPeers.peers.get(message.from);
+		let peer = RTCPeers._rpcPeers.peers.get(message.from);
 
 		if ("to" in message && message.to !== `https://${this.address}`) return;
 
 		this.seenMessages.add(event.data);
 		if ("announce" in message) {
-			if (!peer) peer = (await this._rpcPeers.add({ host: `https://${message.from}.hydra` }))[0];
+			if (!peer) peer = (await RTCPeers._rpcPeers.add({ host: `rtc://${message.from}.hydra` }))[0];
 			console.log(peer.peer);
 			await (peer.peer as RTCPeer).handleAnnounce(message.from);
 		} else if ("offer" in message) {
-			if (!peer) peer = (await this._rpcPeers.add({ host: `https://${message.from}.hydra` }))[0];
+			if (!peer) peer = (await RTCPeers._rpcPeers.add({ host: `rtc://${message.from}.hydra` }))[0];
 			console.log(peer.peer);
 			await (peer.peer as RTCPeer).handleOffer(message.offer);
 		} else if ("answer" in message) {

@@ -87,7 +87,7 @@ export class File implements FileAttributes {
 		}
 		if (!hash && values.id) {
 			console.log(`Fetching file metadata`); // TODO: Merge with getMetadata
-			const responses = await Files._client.rpcPeers.fetch(new URL(`https://localhost/file/${values.id}`));
+			const responses = await Files._client.rpcPeers.fetch(`hydra://core/file/${values.id}`);
 			for (let i = 0; i < responses.length; i++) {
 				const response = responses[i];
 				if (response instanceof Error) continue;
@@ -124,7 +124,7 @@ export class File implements FileAttributes {
 
 		const id = this.id;
 		if (id !== undefined && id !== null && id.length > 0) {
-			const responses = await Files._client.rpcPeers.fetch(new URL(`https://localhost/file/${this.id}`));
+			const responses = await Files._client.rpcPeers.fetch(`hydra://core/file/${this.id}`);
 
 			for (let i = 0; i < responses.length; i++) {
 				try {
@@ -454,7 +454,7 @@ class Files {
 	async updateFileList(onProgress?: (progress: number, total: number) => void): Promise<void> {
 		console.log(`Files:    Comparing file list`);
 		let files: FileAttributes[] = [];
-		const responses = await Promise.all(await Files._client.rpcPeers.fetch(new URL("https://localhost/files")));
+		const responses = await Promise.all(await Files._client.rpcPeers.fetch("hydra://core/files"));
 		for (let i = 0; i < responses.length; i++) {
 			const response = responses[i];
 			if (!(response instanceof Error)) {

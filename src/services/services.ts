@@ -62,11 +62,16 @@ export default class Services {
 			return this.cachedResponses[reqKey];
 		}
 
-		const headersObj: { [key: string]: string } = {};
+		const headersObj: { [key: string]: string } = {
+			"Access-Control-Allow-Origin": "*",
+			"Access-Control-Allow-Headers": "hydra-signature, hydra-from",
+		};
 		req.headers.forEach((value, key) => {
 			headersObj[key] = value;
 		});
-		const responses = await Services._client.rpcPeers.fetch(new URL(req.url), { headers: this.filterHydraHeaders(headersObj) });
+
+		const urlString = url.toString().replace(`${url.protocol}://${url.host}/`, "hydra://core/") as `hydra://core/${string}`;
+		const responses = await Services._client.rpcPeers.fetch(urlString, { headers: this.filterHydraHeaders(headersObj) });
 
 		const processingRequest = new Promise<DecodedResponse | ErrorRequestFailed>((resolve, reject) => {
 			(async () => {

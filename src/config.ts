@@ -59,7 +59,7 @@ export interface Config {
 
 	/**
 	 * How often to compare file lists with others (in milliseconds).
-	 * @default 300000
+	 * @default 30000
 	 */
 	compareFilesSpeed: number;
 
@@ -184,6 +184,12 @@ export interface Config {
 	 * @default true
 	 */
 	listen: boolean;
+
+	/**
+	 * How long to cache WebSocket messages for.
+	 * @default 60000
+	 */
+	wsMessageCacheTime: number;
 }
 
 // DO NOT CHANGE DEFAULT CONFIG - Check documentation on how to set custom config.
@@ -217,6 +223,7 @@ const defaultConfig: Config = {
 	dontUseFileSystemAPI: false,
 	deriveKey: "",
 	listen: true,
+	wsMessageCacheTime: 60000,
 };
 
 /** @internal */

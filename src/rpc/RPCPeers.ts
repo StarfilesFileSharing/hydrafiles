@@ -1,5 +1,5 @@
 import { join } from "https://deno.land/std@0.224.0/path/join.ts";
-import { ErrorMissingRequiredProperty, ErrorNotFound, ErrorRequestFailed, ErrorTimeout } from "../errors.ts";
+import { ErrorNotFound, ErrorTimeout } from "../errors.ts";
 import type Hydrafiles from "../hydrafiles.ts";
 import type Wallet from "../wallet.ts";
 import HTTPServer, { HTTPClient } from "./peers/http.ts";
@@ -17,7 +17,7 @@ type EncryptedPayload = { payload: RawPayload | EncryptedPayload; to: EthAddress
 
 export default class RPCPeers {
 	static _client: Hydrafiles;
-	db: Database<typeof peerModel>;
+	static db: Database<typeof peerModel>;
 
 	peers = new Map<string, RPCPeer>();
 
@@ -25,22 +25,22 @@ export default class RPCPeers {
 	ws: WSPeers;
 	rtc: RTCPeers;
 
-	private constructor(db: Database<typeof peerModel>, wallet: Wallet) {
-		this.db = db;
-
+	private constructor(wallet: Wallet) {
 		this.http = new HTTPServer(this);
+		WSPeers._rpcPeers = this;
 		this.ws = new WSPeers();
-		this.rtc = new RTCPeers(this, wallet);
+		RTCPeers._rpcPeers = this;
+		this.rtc = new RTCPeers(wallet);
 	}
 
 	static init = async () => {
-		const peers = new RPCPeers(await Database.init(peerModel, RPCPeers._client), RPCPeers._client.rtcWallet);
+		RPCPeers.db = await Database.init(peerModel, RPCPeers._client);
+		const peers = new RPCPeers(RPCPeers._client.rtcWallet);
 
-		const peerValues = await peers.db.select() as unknown as (DatabaseModal<typeof peerModel> & { host: Host })[];
+		const peerValues = await RPCPeers.db.select() as unknown as (DatabaseModal<typeof peerModel> & { host: Host })[];
 		for (let i = 0; i < peerValues.length; i++) {
+			if (peerValues[i].host.startsWith("wsc:")) continue;
 			await peers.add(peerValues[i]);
-			// const rtcPeer = await WSPeer.init(peers.db, peerValues[i]);
-			// if (!(rtcPeer instanceof Error)) peers.peers.set(peerValues[i].host, rtcPeer);
 		}
 
 		for (let i = 0; i < RPCPeers._client.config.bootstrapPeers.length; i++) {
@@ -55,24 +55,22 @@ export default class RPCPeers {
 		return peers;
 	};
 
-	public add = async (values: Partial<DatabaseModal<typeof peerModel>> & { host: Host }): Promise<[RPCPeer] | [RPCPeer, RPCPeer]> => {
-		if (!values.host) throw new ErrorMissingRequiredProperty();
-
+	public add = async (values: Partial<DatabaseModal<typeof peerModel>> & ({ host: Host; socket?: WebSocket })): Promise<[RPCPeer] | [RPCPeer, RPCPeer]> => {
 		const peers = [];
 
 		console.log("RPC:      Adding peer", values.host);
-		const peer = await RPCPeer.init(this, values);
+		const peer = await RPCPeer.init(values);
 		if (!(peer instanceof Error)) {
 			this.peers.set(values.host, peer);
 			peers.push(peer);
 		}
 
-		if (values.host.startsWith("http:") || values.host.startsWith("https:") && !new URL(values.host).hostname.endsWith(".hydra")) {
+		if (values.host.startsWith("http:") || values.host.startsWith("https:")) {
 			const host = values.host.replace("http", "ws") as Host;
 			console.log("RPC:      Adding peer", host);
-			const wsPeer = await RPCPeer.init(this, { ...values, host });
+			const wsPeer = await RPCPeer.init({ ...values, host });
 			if (!(wsPeer instanceof Error)) {
-				this.peers.set(values.host, wsPeer);
+				this.peers.set(host, wsPeer);
 				peers.push(wsPeer);
 			}
 		}
@@ -92,7 +90,7 @@ export default class RPCPeers {
 	// TODO: Compare list between all peers and give score based on how similar they are. 100% = all exactly the same, 0% = no items in list were shared. The lower the score, the lower the propagation times, the lower the decentralisation
 	async discoverPeers(): Promise<void> {
 		console.log(`RPC:      Discovering peers`);
-		const responses = await Promise.all(await RPCPeers._client.rpcPeers.fetch(new URL("https://localhost/peers")));
+		const responses = await Promise.all(await RPCPeers._client.rpcPeers.fetch("hydra://core/peers"));
 		for (let i = 0; i < responses.length; i++) {
 			try {
 				if (!(responses[i] instanceof Response)) continue;
@@ -115,10 +113,8 @@ export default class RPCPeers {
 	/**
 	 * Sends requests to peers.
 	 */
-	public fetch = async (url: URL, init?: RequestInit | RequestInit & { wallet: Wallet }): Promise<(DecodedResponse | ErrorRequestFailed | ErrorTimeout)[]> => {
-		console.log("RPC:      Fetching", url.toString());
-		url.protocol = "https:";
-		url.hostname = "localhost";
+	public fetch = async (url: `hydra://core/${string}`, init?: RequestInit | RequestInit & { wallet: Wallet }): Promise<DecodedResponse[]> => {
+		console.log(`RPC:      Fetching ${url.toString()}`);
 
 		const method = init?.method;
 		const headers: { [key: string]: string } = {};
@@ -137,22 +133,34 @@ export default class RPCPeers {
 			body = init.body?.toString();
 		}
 
-		let responses: (DecodedResponse | ErrorTimeout)[] = [];
+		let responses: DecodedResponse[] = [];
 		const peerEntries = Array.from(this.peers.entries());
-		for (let i = 0; i < peerEntries.length; i++) {
-			const peer = peerEntries[i][1];
+		const promises = peerEntries.map(async ([_, peer]) => {
+			try {
+				console.log(`RPC:      Fetching ${url.toString()} from ${peer.host}`);
+				let peerResponses: DecodedResponse[] = [];
 
-			let peerResponses: (DecodedResponse | ErrorTimeout | ErrorRequestFailed)[] = [];
-			if (peer.peer instanceof WSPeer) {
-				peerResponses = await peer.peer.fetch(url, method, headers, body);
-			} else if (peer.peer instanceof HTTPClient) {
-				peerResponses = [await peer.peer.fetch(url, method, headers, body)];
-			} else if (peer.peer instanceof RTCPeer) {
-				peerResponses = [await peer.peer.fetch(url, method, headers, body)];
+				if (peer.peer instanceof WSPeer) {
+					const wsResponses = await peer.peer.fetch(url, method, headers, body);
+					peerResponses = wsResponses.filter((r): r is DecodedResponse => !(r instanceof ErrorTimeout));
+				} else if (peer.peer instanceof HTTPClient) {
+					const response = await peer.peer.fetch(url, { method, headers, body });
+					if (!(response instanceof Error)) peerResponses = [response];
+				} else if (peer.peer instanceof RTCPeer) {
+					const response = await peer.peer.fetch(url, method, headers, body);
+					if (!(response instanceof Error)) peerResponses = [response];
+				}
+
+				return peerResponses;
+			} catch (e) {
+				console.error(e);
+				return [];
 			}
+		});
+		const results = await Promise.all(promises);
+		responses = responses.concat(...results);
 
-			responses = [...responses, ...peerResponses];
-		}
+		console.log(`RPC:      Fetched ${responses.length} responses for ${url.toString()}`);
 		return responses;
 	};
 
@@ -212,7 +220,7 @@ export default class RPCPeers {
 	public exitFetch = async (req: Request): Promise<DecodedResponse | ErrorNotFound> => {
 		const relays: EthAddress[] = [];
 
-		const handshakeResponses = await Promise.all(await this.fetch(new URL(`https://localhost/exit/request`)));
+		const handshakeResponses = await Promise.all(await this.fetch(`hydra://core/exit/request`));
 		for (let i = 0; i < handshakeResponses.length; i++) {
 			const response = handshakeResponses[i];
 			if (response instanceof Error || response.status !== 200) continue;
@@ -237,7 +245,7 @@ export default class RPCPeers {
 		}
 
 		console.log(`https://localhost/exit/${payload.to}`);
-		const responses = await Promise.all(await this.fetch(new URL(`https://localhost/exit/${payload.to}`), { method: "POST", body: JSON.stringify(payload.payload) }));
+		const responses = await Promise.all(await this.fetch(`hydra://core/exit/${payload.to}`, { method: "POST", body: JSON.stringify(payload.payload) }));
 		for (let j = 0; j < responses.length; j++) {
 			const response = responses[j];
 			if (response instanceof Error || response.status !== 200) continue;

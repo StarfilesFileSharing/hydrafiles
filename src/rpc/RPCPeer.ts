@@ -8,7 +8,7 @@ import { File } from "../file.ts";
 import { HTTPClient } from "./peers/http.ts";
 import { RTCPeer } from "./peers/rtc.ts";
 
-export type Host = `https://${EthAddress}` | `${"http" | "https" | "ws" | "wss"}://${string}`;
+export type Host = `https://${EthAddress}` | `${"http" | "https" | "ws" | "wss" | "wsc" | "rtc"}://${string}`;
 
 async function validateHash(body: Uint8Array, hash: string): Promise<boolean> {
 	console.log(`File:     ${hash}  Validating hash`);
@@ -42,7 +42,6 @@ const peerModel = {
 };
 
 export default class RPCPeer implements PeerAttributes {
-	private _rpcPeers: RPCPeers;
 	peer: HTTPClient | WSPeer | RTCPeer;
 
 	host!: Host;
@@ -53,8 +52,7 @@ export default class RPCPeer implements PeerAttributes {
 	updatedAt: string = new Date().toISOString();
 	createdAt: string = new Date().toISOString();
 
-	constructor(rpcPeers: RPCPeers, peer: HTTPClient | WSPeer | RTCPeer, values: DatabaseModal<typeof peerModel>) {
-		this._rpcPeers = rpcPeers;
+	constructor(peer: HTTPClient | WSPeer | RTCPeer, values: DatabaseModal<typeof peerModel>) {
 		this.peer = peer;
 
 		this.host = values.host as Host;
@@ -65,35 +63,34 @@ export default class RPCPeer implements PeerAttributes {
 	}
 
 	static async init(
-		rpcPeers: RPCPeers,
-		values: Partial<DatabaseModal<typeof peerModel>> & { host: Host },
+		values: Partial<DatabaseModal<typeof peerModel>> & ({ host: Host; socket?: WebSocket }),
 	): Promise<RPCPeer | ErrorMissingRequiredProperty | ErrorUnexpectedProtocol> {
-		const result = new URL(values.host);
-		if (!result.protocol || !result.host || result.protocol === "hydra") throw new Error("Invalid URL");
+		const url = new URL(values.host);
+		if (!url.protocol || !url.host || url.protocol === "hydra") throw new Error("Invalid URL");
 
-		let peerValues = (await rpcPeers.db.select({ key: "host", value: values.host }))[0];
+		let peerValues = (await RPCPeers.db.select({ key: "host", value: values.host }))[0];
 		if (peerValues === undefined) {
-			rpcPeers.db.insert({ host: values.host });
-			peerValues = (await rpcPeers.db.select({ key: "host", value: values.host }))[0];
+			RPCPeers.db.insert({ host: values.host });
+			peerValues = (await RPCPeers.db.select({ key: "host", value: values.host }))[0];
 		}
 
 		const peerUrl = new URL(peerValues.host);
 
 		let peer;
-		if (peerUrl.hostname.endsWith("hydra")) peer = new RTCPeer(values.host as EthAddress, rpcPeers);
+		if (peerUrl.hostname.endsWith("hydra")) peer = new RTCPeer(values.host as EthAddress, RPCPeers._client.rpcPeers);
 		else if (peerUrl.protocol === "http:" || peerUrl.protocol === "https:") peer = new HTTPClient(values.host);
-		else if (peerUrl.protocol === "ws:" || peerUrl.protocol === "wss:") peer = new WSPeer(values.host, rpcPeers);
+		else if (peerUrl.protocol === "ws:" || peerUrl.protocol === "wss:" || (peerUrl.protocol === "wsc:" && values.socket)) peer = new WSPeer(values.host, values.socket);
 		else if (peerUrl.protocol === "hydra:") throw new ErrorUnexpectedProtocol();
 		else throw new ErrorUnreachableCodeReached();
 
-		return new RPCPeer(rpcPeers, peer, peerValues);
+		return new RPCPeer(peer, peerValues);
 	}
 
 	save(): void {
 		const peer: DatabaseModal<typeof peerModel> = {
 			...this,
 		};
-		this._rpcPeers.db.update(this.host, peer);
+		RPCPeers.db.update(this.host, peer);
 	}
 
 	async downloadFile(file: File): Promise<{ file: Uint8Array; signal: number } | ErrorTimeout | ErrorDownloadFailed | ErrorChecksumMismatch> {
@@ -104,13 +101,13 @@ export default class RPCPeer implements PeerAttributes {
 			let response;
 			console.log(`File:     ${hash}  Downloading from ${this.host}`);
 			if (this.peer instanceof WSPeer) {
-				const wsResponse = await this.peer.fetch(new URL(`${this.host}/download/${hash}`));
+				const wsResponse = await this.peer.fetch(`hydra://core/download/${hash}`);
 				for (let i = 0; i < wsResponse.length; i++) {
 					response = wsResponse[i];
 					if (response instanceof ErrorTimeout || response instanceof ErrorRequestFailed) continue;
 					if (await validateHash(new TextEncoder().encode(response.body), hash)) break;
 				}
-			} else response = await this.peer.fetch(new URL(`${this.host}/download/${hash}`));
+			} else response = await this.peer.fetch(`hydra://core/download/${hash}`);
 
 			if (!response) return new ErrorDownloadFailed();
 			if (response instanceof Error) return response;

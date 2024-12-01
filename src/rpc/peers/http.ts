@@ -9,20 +9,20 @@ export class HTTPClient {
 	private host: string;
 
 	constructor(host: string) {
+		console.log("HTTP:     Adding Peer", host);
 		this.host = host;
 	}
 
-	public async fetch(url: URL, method = "GET", headers: { [key: string]: string } = {}, body: string | undefined = undefined): Promise<DecodedResponse | ErrorRequestFailed | ErrorTimeout> {
+	public async fetch(inputUrl: `hydra://core/${string}`, init: { method?: string; headers?: { [key: string]: string }; body?: string } = {}): Promise<DecodedResponse | ErrorRequestFailed | ErrorTimeout> {
 		try {
 			const peerUrl = new URL(this.host);
-			url.hostname = peerUrl.hostname;
-			url.protocol = peerUrl.protocol;
-			const res = await Utils.promiseWithTimeout(fetch(url.toString(), { method, headers, body }), RPCPeers._client.config.timeout);
+			const url = inputUrl.replace("hydra://core/", `${peerUrl.protocol}//${peerUrl.hostname}/`);
+			const res = await Utils.promiseWithTimeout(fetch(url.toString(), init), RPCPeers._client.config.timeout);
 			if (res instanceof Error) return res;
 			return (await HydraResponse.from(res)).toDecodedResponse();
 		} catch (e) {
 			const message = e instanceof Error ? e.message : "Unknown error";
-			if (message !== "Failed to fetch") throw new ErrorRequestFailed();
+			if (message !== "Failed to fetch") throw new ErrorRequestFailed(message);
 			return (await HydraResponse.from(new Response(message, { status: 500 }))).toDecodedResponse();
 		}
 	}
@@ -103,7 +103,7 @@ export default class HTTPServer {
 					if (response instanceof ErrorDownloadFailed) console.error("HTTP:      Failed to download file from self");
 					else {
 						console.log("HTTP:     Announcing server to nodes");
-						RPCPeers._client.rpcPeers.fetch(new URL(`https://localhost/announce?host=${RPCPeers._client.config.publicHostname}`));
+						RPCPeers._client.rpcPeers.fetch(`hydra://core/announce?host=${RPCPeers._client.config.publicHostname}`);
 					}
 					await RPCPeers._client.rpcPeers.add({ host: RPCPeers._client.config.publicHostname });
 				}
