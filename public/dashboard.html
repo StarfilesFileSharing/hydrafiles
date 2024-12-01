@@ -84,6 +84,12 @@
 									<span class="flex-1 ms-3 whitespace-nowrap">Chat</span>
 								</a>
 							</li>
+							<li>
+								<a href="#" class="flex items-center p-2 text-gray-900 rounded-lg dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 group">
+									<svg class="flex-shrink-0 w-5 h-5 text-gray-500 transition duration-75 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-white" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 18 20"><path d="M17 5.923A1 1 0 0 0 16 5h-3V4a4 4 0 1 0-8 0v1H2a1 1 0 0 0-1 .923L.086 17.846A2 2 0 0 0 2.08 20h13.84a2 2 0 0 0 1.994-2.153L17 5.923ZM7 9a1 1 0 0 1-2 0V7h2v2Zm0-5a2 2 0 1 1 4 0v1H7V4Zm6 5a1 1 0 1 1-2 0V7h2v2Z"></path></svg>
+									<span class="flex-1 ms-3 whitespace-nowrap">Browser</span>
+								</a>
+							</li>
 					</ul>
 				</div>
 			</aside>
@@ -108,10 +114,7 @@
 									<span id="uptime" class="text-xl tracking-tight leading-none">0 Seconds</span><span class="text-xs font-bold text-blue-100">Uptime</span>
 								</div>
 								<div class="flex-1 flex flex-col gap-1 p-2">
-									<span id="httpPeersCount" class="text-xl tracking-tight leading-none">0</span><span class="text-xs font-bold text-blue-100">HTTP Peers</span>
-								</div>
-								<div class="flex-1 flex flex-col gap-1 p-2">
-									<span id="rtcPeers" class="text-xl tracking-tight leading-none">0</span><span class="text-xs font-bold text-blue-100">RTC Peers</span>
+									<span id="peersCount" class="text-xl tracking-tight leading-none">0</span><span class="text-xs font-bold text-blue-100">HTTP Peers</span>
 								</div>
 							</div>
 							<div class="bg-blue-700 p-2 rounded-lg">
@@ -213,6 +216,87 @@
 							<textarea id="message" rows="1" class="block mx-4 p-2.5 w-full text-sm text-gray-900 bg-white rounded-lg border border-gray-300 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500" placeholder="Your message..."></textarea>
 							<button type="submit" id="sendMessage" class="inline-flex justify-center p-2 text-blue-600 rounded-full cursor-pointer hover:bg-blue-100 dark:text-blue-500 dark:hover:bg-gray-600"><svg class="w-6 h-6 rotate-90" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z"></path></svg></button>
 						</div>
+					</div>
+
+					<div class="hidden" id="browser">
+    <!-- Browser Chrome -->
+    <div class="w-full h-screen flex flex-col bg-white shadow-lg">
+        <!-- Tab Bar -->
+        <div class="flex items-center h-10 bg-gray-200 px-2">
+            <!-- Active Tab -->
+            <div class="flex items-center min-w-[200px] h-8 px-4 bg-white rounded-t-lg">
+                <div class="w-4 h-4 rounded-full bg-gray-500"></div>
+                <span class="ml-2 text-sm truncate">New Tab</span>
+                <button class="ml-auto p-1 hover:bg-gray-100 rounded-full">
+                    <span class="text-gray-600">×</span>
+                </button>
+            </div>
+
+            <!-- Inactive Tab -->
+            <div class="flex items-center min-w-[200px] h-8 px-4 bg-gray-100 rounded-t-lg ml-1">
+                <div class="w-4 h-4 rounded-full bg-gray-400"></div>
+                <span class="ml-2 text-sm text-gray-600 truncate">GitHub - Where the world builds software</span>
+                <button class="ml-auto p-1 hover:bg-gray-200 rounded-full">
+                    <span class="text-gray-500">×</span>
+                </button>
+            </div>
+
+            <!-- New Tab Button -->
+            <button class="ml-2 p-1 hover:bg-gray-300 rounded-full">
+                <span class="text-gray-600 font-bold">+</span>
+            </button>
+        </div>
+
+        <!-- Navigation Bar -->
+        <div class="flex items-center space-x-2 p-2 bg-white border-b">
+            <!-- Navigation Controls -->
+            <div class="flex space-x-1">
+                <button class="p-2 hover:bg-gray-100 rounded-full" disabled>
+                    <span class="text-gray-400">←</span>
+                </button>
+                <button class="p-2 hover:bg-gray-100 rounded-full" disabled>
+                    <span class="text-gray-400">→</span>
+                </button>
+                <button class="p-2 hover:bg-gray-100 rounded-full">
+                    <span class="text-gray-600">↻</span>
+                </button>
+            </div>
+
+            <!-- URL Bar -->
+            <div class="flex-1 flex items-center bg-gray-100 rounded-full px-4 py-2">
+                <!-- Security Icon -->
+                <span class="text-green-600 mr-2">🔒</span>
+                
+                <!-- URL Input -->
+                <input type="text" 
+                       id="urlInput"
+											 value="https://example.com/test"
+                       class="flex-1 bg-transparent outline-none text-sm">
+                
+                <!-- Load Button - class="opacity-75" -->
+                <button id="loadSite" class="ml-2 px-3 py-1 bg-blue-500 hover:bg-blue-600 text-white rounded-full text-sm transform transition-all duration-200 focus:ring-2 focus:ring-blue-300">
+                    Go
+                </button>
+                
+                <!-- Bookmark Star -->
+                <button class="ml-2 text-gray-400 hover:text-gray-600">★</button>
+            </div>
+
+            <!-- Extension Area -->
+            <div class="flex items-center space-x-2">
+                <button class="p-2 hover:bg-gray-100 rounded-full">
+                    <span class="text-gray-600">⋮</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Content Area -->
+        <div class="flex-1 bg-white p-4">
+            <div class="w-full h-full flex items-center justify-center text-gray-400">
+                <div id="urlBody"></div>
+            </div>
+        </div>
+    </div>
 					</div>
 			</div>
 		</div>

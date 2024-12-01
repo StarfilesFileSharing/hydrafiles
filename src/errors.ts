@@ -2,6 +2,10 @@ export class ErrorTimeout extends Error {
 	readonly brand = Symbol();
 }
 export class ErrorNotFound extends Error {
+	// constructor() {
+	// 	super("Error of type ErrorNotFound' thrown");
+	// 	console.error("ErrorNotFound", this.stack);
+	// }
 	readonly brand = Symbol();
 }
 export class ErrorMissingRequiredProperty extends Error {
@@ -33,15 +37,18 @@ export class ErrorWrongDatabaseType extends Error {
 	readonly brand = Symbol();
 }
 export class ErrorChecksumMismatch extends Error {
+	constructor() {
+		super("Error of type 'ErrorChecksumMismatch' thrown");
+		console.error("ErrorChecksumMismatch", this.stack);
+	}
 	readonly brand = Symbol();
 }
 export class ErrorRequestFailed extends Error {
 	readonly brand = Symbol();
 }
 export class ErrorDownloadFailed extends Error {
-	constructor() {
-		super("Error of type 'ErrorDownloadFailed' thrown");
-		console.error("ErrorDownloadFailed", this.stack);
+	constructor(msg?: string) {
+		super(msg);
 	}
 	readonly brand = Symbol();
 }
@@ -54,13 +61,13 @@ export class ErrorFailedToReadFile extends Error {
 }
 
 export class ErrorInsufficientBalance extends Error {
-	constructor() {
-		super("Error of type 'ErrorInsufficientBalance' thrown");
-		console.error("ErrorInsufficientBalance", this.stack);
-	}
 	readonly brand = Symbol();
 }
 
 export class ErrorUnexpectedProtocol extends Error {
+	constructor() {
+		super("Error of type 'ErrorUnexpectedProtocol' thrown");
+		console.error("ErrorUnexpectedProtocol", this.stack);
+	}
 	readonly brand = Symbol();
 }

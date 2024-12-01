@@ -113,16 +113,22 @@ export default class BlockchainNameService {
 
 	async fetchBlocks(): Promise<void> {
 		console.log(`Blocks:   Fetching blocks from peers`);
-		const responses = await Promise.all(await BlockchainNameService._client.rpcPeers.fetch("https://localhost/blocks"));
-		for (let i = 0; i < responses.length; i++) {
-			const response = responses[i];
-			if (response instanceof Error) continue;
+		const responses = await BlockchainNameService._client.rpcPeers.fetch("hydra://core/blocks");
+
+		for await (const response of responses) {
 			try {
-				const blocks = JSON.parse(response.text()) as BlockAttributes[];
+				if (response instanceof Error) continue;
+				const blocks = JSON.parse(response.body) as BlockAttributes[];
 				for (let j = 0; j < blocks.length; j++) {
 					if (this.blocks[j].id === blocks[j].id) continue;
-					const block = new Block(blocks[j].content, blocks[j].id as EthAddress | Sha256, blocks[j].nonce, blocks[j].prev as EthAddress, blocks[j].name);
-					if (!this.addBlock(block)) break;
+					const block = new Block(
+						blocks[j].content,
+						blocks[j].id as EthAddress | Sha256,
+						blocks[j].nonce,
+						blocks[j].prev as EthAddress,
+						blocks[j].name,
+					);
+					if (!await this.addBlock(block)) break;
 					console.log(`Blocks:   Received block`);
 				}
 			} catch (_) {

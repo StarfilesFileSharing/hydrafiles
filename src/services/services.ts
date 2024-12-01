@@ -1,18 +1,10 @@
-import { DecodedResponse } from "./../rpc/routes.ts";
+import { type DecodedResponse, HydraResponse } from "./../rpc/routes.ts";
 import type Hydrafiles from "../hydrafiles.ts";
 import { ErrorNotFound, ErrorRequestFailed } from "../errors.ts";
 import type { EthAddress } from "../wallet.ts";
 import Wallet from "../wallet.ts";
 import { decodeBase32, encodeBase32 } from "https://deno.land/std@0.224.0/encoding/base32.ts";
 import Service from "./service.ts";
-
-export interface CachedResponse {
-	timestamp: number;
-	body: string | Uint8Array;
-	headers: { [key: string]: string };
-	status: number;
-	ok: boolean;
-}
 
 export interface ServiceMetadata {
 	name: string;
@@ -27,7 +19,7 @@ export default class Services {
 	public ownedServices: { [hostname: string]: Service } = {};
 	public knownServices: { [hostname: string]: ServiceMetadata } = {};
 	public processingRequests = new Map<string, Promise<DecodedResponse | ErrorNotFound>>();
-	public cachedResponses: Record<string, CachedResponse> = {};
+	public cachedResponses: Record<string, HydraResponse> = {};
 
 	private filterHydraHeaders(headers: { [key: string]: string }): { [key: string]: string } {
 		for (const key in Object.keys(headers)) {
@@ -45,7 +37,7 @@ export default class Services {
 		return hostname;
 	}
 
-	public async fetch(req: Request): Promise<DecodedResponse> { // TODO: Refactor this
+	public async fetch(req: Request): Promise<HydraResponse> { // TODO: Refactor this
 		const now = Date.now();
 		const url = new URL(req.url);
 		const hostname = encodeBase32(url.pathname.split("/")[2]).toUpperCase();
@@ -63,24 +55,28 @@ export default class Services {
 		const reqKey = req.url;
 		if (reqKey in this.cachedResponses) {
 			const cachedEntry = this.cachedResponses[reqKey];
-			if (now - cachedEntry.timestamp > 60000) {
+			if (now - (cachedEntry.timestamp ?? 0) > 60000) {
 				delete this.cachedResponses[reqKey];
 			}
 			console.log(`Hostname: ${hostname} Serving response from cache`);
-			return new DecodedResponse(this.cachedResponses[reqKey].body, { headers: this.filterHydraHeaders(this.cachedResponses[reqKey].headers) });
+			return this.cachedResponses[reqKey];
 		}
 
-		const headersObj: { [key: string]: string } = {};
+		const headersObj: { [key: string]: string } = {
+			"Access-Control-Allow-Origin": "*",
+			"Access-Control-Allow-Headers": "hydra-signature, hydra-from",
+		};
 		req.headers.forEach((value, key) => {
 			headersObj[key] = value;
 		});
-		const responses = await Services._client.rpcPeers.fetch(req.url, { headers: this.filterHydraHeaders(headersObj) });
+
+		const urlString = url.toString().replace(`${url.protocol}://${url.host}/`, "hydra://core/") as `hydra://core/${string}`;
+		const responses = await Services._client.rpcPeers.fetch(urlString, { headers: this.filterHydraHeaders(headersObj) });
 
 		const processingRequest = new Promise<DecodedResponse | ErrorRequestFailed>((resolve, reject) => {
 			(async () => {
-				await Promise.all(responses.map(async (res) => {
+				await Promise.all(responses.map(async (response) => {
 					try {
-						const response = await res;
 						if (response instanceof Error) return response;
 						if (!response.ok) return;
 						const signature = response.headers["hydra-signature"] as EthAddress | null;
@@ -113,7 +109,7 @@ export default class Services {
 				req.headers.forEach((value, key) => {
 					headersObj[key] = value;
 				});
-				return new DecodedResponse("Hostname not found", { headers: headersObj, status: 404 });
+				return new HydraResponse("Hostname not found", { headers: headersObj, status: 404 });
 			} else {
 				console.log(err.message);
 				throw err;
@@ -125,8 +121,8 @@ export default class Services {
 		if (response instanceof ErrorRequestFailed) throw response;
 
 		console.log(`Hostname: ${hostname} Mirroring response`);
-		const res = new DecodedResponse(response.body, this.filterHydraHeaders(response.headers));
-		this.cachedResponses[reqKey] = { ...res, timestamp: Date.now() };
+		const res = new HydraResponse(response.body, { headers: this.filterHydraHeaders(response.headers), timestamp: Date.now() });
+		this.cachedResponses[reqKey] = res;
 		return res;
 	}
 }

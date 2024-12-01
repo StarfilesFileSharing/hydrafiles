@@ -67,7 +67,7 @@ export default class Database<T extends ModelType> {
 
 		if (typeof window === "undefined") {
 			const SQLite = (await import("jsr:@db/sqlite")).Database;
-			const db: DatabaseWrapperSQLite = { type: "SQLITE", db: new SQLite(`${client.config.baseDir}${model.tableName}.db`) };
+			const db: DatabaseWrapperSQLite = { type: "SQLITE", db: new SQLite(`${model.tableName}.db`) };
 			database.db = db;
 
 			const columns = Object.entries(model.columns)
@@ -190,7 +190,7 @@ export default class Database<T extends ModelType> {
 	}
 
 	insert(values: Partial<DatabaseModal<T>>): true | ErrorMissingRequiredProperty {
-		if (typeof this === "undefined") return new ErrorNotInitialised();
+		if (typeof this === "undefined") throw new ErrorNotInitialised();
 		const file = this.withDefaults(values);
 		if (file instanceof ErrorMissingRequiredProperty) return file;
 
@@ -224,26 +224,26 @@ export default class Database<T extends ModelType> {
 	async update(primaryKeyValue: DatabaseModal<T>[keyof T["columns"]] & string, updates: DatabaseModal<T>): Promise<true | ErrorNotFound | ErrorMissingRequiredProperty> {
 		const primaryKey = this.getPrimaryKey();
 		const newFile = this.withDefaults(updates);
-		if (newFile instanceof ErrorMissingRequiredProperty) return new ErrorMissingRequiredProperty();
+		if (newFile instanceof ErrorMissingRequiredProperty) throw new ErrorMissingRequiredProperty();
 		updates.updatedAt = new Date().toISOString();
 
 		// Get the current file attributes before updating
 		const currentFile = (await this.select({ key: primaryKey, value: primaryKeyValue }))[0];
 		if (!currentFile) {
 			console.error(`File:     ${primaryKeyValue}  Mot found when updating`);
-			return new ErrorNotFound();
+			throw new ErrorNotFound();
 		}
 
 		const updatedColumn = [];
 		const params = [];
 		const keys: Array<keyof typeof newFile> = Object.keys(newFile);
 		const defaultValues = this.getDefaultValues();
-		if (defaultValues instanceof ErrorMissingRequiredProperty) return new ErrorMissingRequiredProperty();
+		if (defaultValues instanceof ErrorMissingRequiredProperty) throw new ErrorMissingRequiredProperty();
 
 		for (let i = 0; i < keys.length; i++) {
 			const key = keys[i];
 			if (newFile[key] !== undefined && newFile[key] !== null && newFile[key] !== currentFile[key] && newFile[key] !== defaultValues[key]) {
-				if (key === "_db" || (key === "name" && newFile[key] === "File")) continue;
+				if (!Object.keys(defaultValues).includes(String(key)) || (key === "name" && newFile[key] === "File")) continue;
 				updatedColumn.push(key);
 				params.push(newFile[key]);
 			}
@@ -263,7 +263,7 @@ export default class Database<T extends ModelType> {
 				this._client.config.logLevel === "verbose" ? console.log(`File:     ${primaryKeyValue}`) : "",
 			);
 		} else {
-			if (this.db.type === "INDEXEDDB") this.objectStore().put(newFile).onerror = console.error;
+			if (this.db.type === "INDEXEDDB") this.objectStore().put(Object.fromEntries(Object.entries(newFile).filter(([key]) => !key.startsWith("_")))).onerror = console.error;
 			console.log(
 				`this:     ${primaryKeyValue}  File UPDATEd - Updated Columns: ${updatedColumn.join(", ")}` + (this._client.config.logLevel === "verbose" ? ` - Params: ${params.join(", ")}` : ""),
 				this._client.config.logLevel === "verbose" ? console.log(`File:     ${primaryKeyValue}`) : "",
@@ -362,7 +362,7 @@ export default class Database<T extends ModelType> {
 		} as Partial<DatabaseModal<T>>;
 
 		for (const [key, def] of Object.entries(this.model.columns)) {
-			if (!def.default && !def.isNullable && result[key as keyof DatabaseModal<T>] === undefined) return new ErrorMissingRequiredProperty(key);
+			if (!def.default && !def.isNullable && result[key as keyof DatabaseModal<T>] === undefined) throw new ErrorMissingRequiredProperty(key);
 		}
 
 		return result as DatabaseModal<T>;

@@ -12,7 +12,7 @@ interface DirectoryHandle extends FileSystemDirectoryHandle {
 
 declare global {
 	interface Window {
-		showDirectoryPicker: () => Promise<DirectoryHandle>;
+		showDirectoryPicker: (options?: { mode?: "read" | "readwrite" }) => Promise<DirectoryHandle>;
 		handle?: DirectoryHandle;
 	}
 }
@@ -20,6 +20,7 @@ declare global {
 async function getDirectoryFromPath(rootHandle: DirectoryHandle, path: string, create = false): Promise<DirectoryHandle> {
 	let currentHandle = rootHandle;
 	for (const part of path.split("/").filter((part) => part.length > 0)) {
+		if (part === ".") continue;
 		currentHandle = await currentHandle.getDirectoryHandle(part, { create });
 	}
 	return currentHandle;
@@ -27,10 +28,10 @@ async function getDirectoryFromPath(rootHandle: DirectoryHandle, path: string, c
 
 async function getFileFromPath(handle: DirectoryHandle, path: string, create = false): Promise<FileHandle | ErrorUnreachableCodeReached> {
 	const parts = path.split("/").filter((part) => part.length > 0);
-	if (parts.length === 0) return new ErrorUnreachableCodeReached();
+	if (parts.length === 0) throw new ErrorUnreachableCodeReached();
 
 	for (let i = 0; i < parts.length; i++) {
-		if (parts.length !== i) handle = await handle.getDirectoryHandle(parts[i], { create });
+		if (parts.length - 1 !== i) handle = await handle.getDirectoryHandle(parts[i], { create });
 	}
 
 	const fileName = parts.pop();
@@ -50,7 +51,7 @@ export default class DirectoryHandleFileSystem {
 	}
 
 	static async init(): Promise<DirectoryHandleFileSystem> {
-		return new DirectoryHandleFileSystem(await globalThis.window.showDirectoryPicker());
+		return new DirectoryHandleFileSystem(await globalThis.window.showDirectoryPicker({ mode: "readwrite" }));
 	}
 
 	exists = async (path: string): Promise<boolean> => {
@@ -99,6 +100,8 @@ export default class DirectoryHandleFileSystem {
 	};
 
 	getFileSize = async (path: string): Promise<number | ErrorUnreachableCodeReached> => {
+		if (!await this.exists(path)) return new ErrorNotFound();
+
 		const fileHandle = await getFileFromPath(this.handler, path);
 		if (fileHandle instanceof ErrorUnreachableCodeReached) return fileHandle;
 
@@ -107,6 +110,8 @@ export default class DirectoryHandleFileSystem {
 	};
 
 	remove = async (path: string): Promise<true | ErrorUnreachableCodeReached> => {
+		if (!await this.exists(path)) return true;
+
 		const fileHandle = await getFileFromPath(this.handler, path);
 		if (fileHandle instanceof ErrorUnreachableCodeReached) return fileHandle;
 

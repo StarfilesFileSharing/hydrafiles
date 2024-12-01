@@ -10,6 +10,8 @@ import { Network } from "npm:vis-network/esnext";
 import Utils from "../src/utils.ts";
 import { Edge, Node } from "npm:vis-network/esnext";
 import type { FileEvent, RTCEvent } from "../src/events.ts";
+import { WSPeer } from "../src/rpc/peers/ws.ts";
+import { RTCPeer } from "../src/rpc/peers/rtc.ts";
 
 declare global {
 	interface Window {
@@ -198,7 +200,7 @@ document.getElementById("startHydrafilesButton")!.addEventListener("click", asyn
 	const buffer = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`${email}:${password}`));
 	const deriveKey = Array.from(new Uint8Array(buffer)).map((b) => b.toString(16).padStart(2, "0")).join("");
 
-	window.hydrafiles = new Hydrafiles({ deriveKey, customPeers: [`${window.location.protocol}//${window.location.hostname}`], baseDir: "dashboard/" });
+	window.hydrafiles = new Hydrafiles({ deriveKey, customPeers: [`${window.location.protocol}//${window.location.hostname}`] });
 	const webtorrent = new WebTorrent();
 
 	await window.hydrafiles.start({ onUpdateFileListProgress, webtorrent });
@@ -237,97 +239,84 @@ document.getElementById("startHydrafilesButton")!.addEventListener("click", asyn
 
 const tickHandler = async () => {
 	try {
+		(document.getElementById("uptime") as HTMLElement).innerHTML = convertTime(+new Date() - window.hydrafiles.startTime);
+	} catch (e) {
+		console.error(e);
+	}
+	try {
+		(document.getElementById("peersCount") as HTMLElement).innerHTML = String(window.hydrafiles.rpcPeers.getPeers().length);
+	} catch (e) {
+		console.error(e);
+	}
+	try {
+		(document.getElementById("knownFiles") as HTMLElement).innerHTML = `${await window.hydrafiles.files.db.count()} (${Math.round((100 * (await window.hydrafiles.files.db.sum("size"))) / 1024 / 1024 / 1024) / 100}GB)`;
+	} catch (e) {
+		console.error(e);
+	}
+	try {
+		const files = await window.hydrafiles.fs.readDir("files/");
 		const usedStorage = await window.hydrafiles.utils.calculateUsedStorage();
-		try {
-			const files = await window.hydrafiles.fs.readDir("files/");
-			try {
-				(document.getElementById("uptime") as HTMLElement).innerHTML = convertTime(+new Date() - window.hydrafiles.startTime);
-			} catch (e) {
-				console.error(e);
+		(document.getElementById("storedFiles") as HTMLElement).innerHTML = `${files instanceof ErrorNotInitialised ? 0 : files.length} (${
+			Math.round((100 * (usedStorage instanceof ErrorNotInitialised ? 0 : usedStorage)) / 1024 / 1024 / 1024) / 100
+		}GB)`, populateTable();
+	} catch (e) {
+		console.error(e, (e as Error).stack);
+	}
+	try {
+		(document.getElementById("downloadsServed") as HTMLElement).innerHTML = (await window.hydrafiles.files.db.sum("downloadCount")) +
+			` (${Math.round((((await window.hydrafiles.files.db.sum("downloadCount * size")) / 1024 / 1024 / 1024) * 100) / 100)}GB)`;
+	} catch (e) {
+		console.error(e);
+	}
+	try {
+		(document.getElementById("filesWallet") as HTMLElement).innerHTML = window.hydrafiles.filesWallet.address();
+	} catch (e) {
+		console.error(e);
+	}
+	try {
+		(document.getElementById("rtcWallet") as HTMLElement).innerHTML = window.hydrafiles.rtcWallet.address();
+	} catch (e) {
+		console.error(e);
+	}
+	try {
+		(document.getElementById("balance") as HTMLElement).innerHTML = String(await window.hydrafiles.filesWallet.balance());
+	} catch (e) {
+		console.error(e);
+	}
+	try {
+		fetchAndPopulatePeers();
+	} catch (e) {
+		console.error(e);
+	}
+	fetchAndPopulateCharts();
+	try {
+		populateNetworkGraph();
+	} catch (e) {
+		console.error(e);
+	}
+	try {
+		const blocks = window.hydrafiles.nameService.blocks;
+		const knownServices = document.getElementById("knownServices")!;
+		knownServices.innerHTML = "";
+		for (let i = 0; i < blocks.length; i++) {
+			const h3 = document.createElement("h3");
+			h3.innerText = `Block ${i}`;
+			h3.classList.add("text-lg", "font-bold");
+			knownServices.appendChild(h3);
+			const code = document.createElement("code");
+			code.classList.add("text-sm");
+			code.innerHTML = `Address or Script: ${blocks[i].content}<br>Name: ${blocks[i].name}<br>Signature or Hash: ${blocks[i].id}<br>Nonce: ${blocks[i].nonce}<br>Prev: ${blocks[i].prev}`;
+			if (!blocks[i].content.startsWith("0x")) {
+				const addService = document.createElement("button");
+				addService.innerText = "Add Service";
+				addService.classList.add("block", "px-4", "py-2", "bg-blue-600", "text-white", "rounded", "hover:bg-blue-700", "focus:outline-none", "focus:ring-2", "focus:ring-blue-500", "focus:ring-opacity-50");
+				addService.addEventListener(
+					"click",
+					() => window.hydrafiles.services.addHostname(new Function("req", `return (${blocks[i].content})(req)`) as (req: Request) => Promise<Response>, 100 + Object.keys(window.hydrafiles.services.ownedServices).length),
+				);
+				knownServices.appendChild(addService);
 			}
-			try {
-				(document.getElementById("httpPeersCount") as HTMLElement).innerHTML = String(window.hydrafiles.rpcPeers.http.getPeers().length);
-			} catch (e) {
-				console.error(e);
-			}
-			try {
-				(document.getElementById("rtcPeers") as HTMLElement).innerHTML = String(Object.keys(window.hydrafiles.rpcPeers.rtc.peers).length);
-			} catch (e) {
-				console.error(e);
-			}
-			try {
-				(document.getElementById("knownFiles") as HTMLElement).innerHTML = `${await window.hydrafiles.files.db.count()} (${Math.round((100 * (await window.hydrafiles.files.db.sum("size"))) / 1024 / 1024 / 1024) / 100}GB)`;
-			} catch (e) {
-				console.error(e);
-			}
-			try {
-				(document.getElementById("storedFiles") as HTMLElement).innerHTML = `${files instanceof ErrorNotInitialised ? 0 : files.length} (${
-					Math.round((100 * (usedStorage instanceof ErrorNotInitialised ? 0 : usedStorage)) / 1024 / 1024 / 1024) / 100
-				}GB)`, populateTable();
-			} catch (e) {
-				console.error(e);
-			}
-			try {
-				(document.getElementById("downloadsServed") as HTMLElement).innerHTML = (await window.hydrafiles.files.db.sum("downloadCount")) +
-					` (${Math.round((((await window.hydrafiles.files.db.sum("downloadCount * size")) / 1024 / 1024 / 1024) * 100) / 100)}GB)`;
-			} catch (e) {
-				console.error(e);
-			}
-			try {
-				(document.getElementById("filesWallet") as HTMLElement).innerHTML = window.hydrafiles.filesWallet.address();
-			} catch (e) {
-				console.error(e);
-			}
-			try {
-				(document.getElementById("rtcWallet") as HTMLElement).innerHTML = window.hydrafiles.rtcWallet.address();
-			} catch (e) {
-				console.error(e);
-			}
-			try {
-				(document.getElementById("balance") as HTMLElement).innerHTML = String(await window.hydrafiles.filesWallet.balance());
-			} catch (e) {
-				console.error(e);
-			}
-			try {
-				fetchAndPopulatePeers();
-			} catch (e) {
-				console.error(e);
-			}
-			fetchAndPopulateCharts();
-			try {
-				populateNetworkGraph();
-			} catch (e) {
-				console.error(e);
-			}
-			try {
-				const blocks = window.hydrafiles.nameService.blocks;
-				const knownServices = document.getElementById("knownServices")!;
-				knownServices.innerHTML = "";
-				for (let i = 0; i < blocks.length; i++) {
-					const h3 = document.createElement("h3");
-					h3.innerText = `Block ${i}`;
-					h3.classList.add("text-lg", "font-bold");
-					knownServices.appendChild(h3);
-					const code = document.createElement("code");
-					code.classList.add("text-sm");
-					code.innerHTML = `Address or Script: ${blocks[i].content}<br>Name: ${blocks[i].name}<br>Signature or Hash: ${blocks[i].id}<br>Nonce: ${blocks[i].nonce}<br>Prev: ${blocks[i].prev}`;
-					if (!blocks[i].content.startsWith("0x")) {
-						const addService = document.createElement("button");
-						addService.innerText = "Add Service";
-						addService.classList.add("block", "px-4", "py-2", "bg-blue-600", "text-white", "rounded", "hover:bg-blue-700", "focus:outline-none", "focus:ring-2", "focus:ring-blue-500", "focus:ring-opacity-50");
-						addService.addEventListener(
-							"click",
-							() => window.hydrafiles.services.addHostname(new Function("req", `return (${blocks[i].content})(req)`) as (req: Request) => Promise<Response>, 100 + Object.keys(window.hydrafiles.services.ownedServices).length),
-						);
-						knownServices.appendChild(addService);
-					}
-					knownServices.appendChild(code);
-				}
-			} catch (e) {
-				console.error(e);
-			}
-		} catch (e) {
-			console.error(e);
+			knownServices.appendChild(code);
 		}
 	} catch (e) {
 		console.error(e);
@@ -429,7 +418,7 @@ function getBackgroundColor(state: string): string {
 }
 
 async function fetchAndPopulatePeers() {
-	const peers = window.hydrafiles.rpcPeers.http.getPeers();
+	const peers = window.hydrafiles.rpcPeers.getPeers();
 	const peersEl = document.getElementById("httpPeers") as HTMLElement;
 	peersEl.innerHTML = "";
 
@@ -439,24 +428,28 @@ async function fetchAndPopulatePeers() {
 		peersEl.appendChild(li);
 	});
 
-	const rtcPeers = Object.entries(window.hydrafiles.rpcPeers.rtc.peers);
+	const rtcPeers = Array.from(window.hydrafiles.rpcPeers.peers.entries());
 	const tbody = document.getElementById("peerTable")!.querySelector("tbody") as HTMLTableSectionElement;
 
 	tbody.innerHTML = "";
-	rtcPeers.forEach(([id, peer]) => {
-		const peerConns = Object.entries(peer);
-		peerConns.forEach(([type, peerConn]) => {
-			const conn = peerConn.conn;
+	for (let i = 0; i < rtcPeers.length; i++) {
+		const [host, peer] = rtcPeers[i];
+		if (!(peer.peer instanceof RTCPeer)) continue;
+		const peerConns = [peer.peer.answered, peer.peer.offered];
+		for (let j = 0; j < peerConns.length; j++) {
+			const conn = peerConns[j];
+			if (!conn) continue;
+			if (!(conn instanceof RTCPeerConnection)) continue;
 			const row = document.createElement("tr");
 
 			const cells = [
-				id,
-				type,
+				host,
+				"",
 				conn.signalingState,
 				conn.iceGatheringState,
 				conn.iceConnectionState,
 				conn.connectionState,
-				peerConn.channel.readyState,
+				conn.channel?.readyState || "N/A",
 				conn.connectionState || "N/A",
 			];
 
@@ -468,8 +461,8 @@ async function fetchAndPopulatePeers() {
 			});
 
 			tbody.appendChild(row);
-		});
-	});
+		}
+	}
 }
 
 function populateTable() {
@@ -655,7 +648,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 			</div>
 		</div>`;
 		window.hydrafiles.rpcPeers.fetch(
-			new Request(`https://localhost/service/${(document.getElementById("peerAddress") as HTMLInputElement).value}?message=${encodeURIComponent(message)}&nonce=${Math.random()}`),
+			`hydra://core/service/${(document.getElementById("peerAddress") as HTMLInputElement).value}?message=${encodeURIComponent(message)}&nonce=${Math.random()}`,
 			{ wallet },
 		);
 	});
@@ -667,7 +660,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 		const response = await window.hydrafiles.rpcPeers.exitFetch(new Request((document.getElementById("urlInput") as HTMLInputElement).value));
 		try {
 			if (!(response instanceof Error)) {
-				const body = response.text();
+				const body = response.body;
 				console.log("body", body);
 				document.getElementById("urlBody")!.innerHTML = body;
 			}
@@ -813,16 +806,13 @@ const network = new Network(document.getElementById("peerNetwork")!, { nodes: no
 });
 
 async function populateNetworkGraph() {
-	const httpPeers = Array.from(window.hydrafiles.rpcPeers.http.peers);
-	const rtcPeers = Object.keys(window.hydrafiles.rpcPeers.rtc.peers);
+	const peers = Array.from(window.hydrafiles.rpcPeers.peers);
 
 	const foundNodes = [
-		...httpPeers.map((peer, index) => ({ id: index + 1, label: peer[0] })),
-		...rtcPeers.map((peer, index) => ({ id: index + httpPeers.length + 1, label: peer })),
+		...peers.map((peer, index) => ({ id: index + 1, label: peer[0] })),
 	];
 	const foundEdges = [
-		...httpPeers.map((_, index) => ({ id: `0-${index + 1}`, from: 0, to: index + 1 })),
-		...rtcPeers.map((_, index) => ({ id: `0-${index + httpPeers.length + 1}`, from: 0, to: index + httpPeers.length + 1 })),
+		...peers.map((_, index) => ({ id: `0-${index + 1}`, from: 0, to: index + 1 })),
 	];
 
 	foundNodes.forEach((node) => {
@@ -832,24 +822,24 @@ async function populateNetworkGraph() {
 		if (!edges.get(edge.id)) edges.add(edge);
 	});
 
-	const responses = await Promise.all(httpPeers.map((peer) => Utils.promiseWithTimeout(fetch(`${peer[0]}/peers`), 10000)));
-	for (const response of responses) {
-		if (response instanceof Error) continue;
+	// const responses = await Promise.all(peers.map((peer) => Utils.promiseWithTimeout(peer[1].peer instanceof WSPeer ? peer[1].peer.fetch(`https://localhost/peers`) : peer[1].peer.fetch(`https://localhost/peers`), 10000)));
+	// for (const response of responses) {
+	// 	if (response instanceof Error) continue;
 
-		const url = new URL(response.url);
-		const peer = `${url.protocol}//${url.hostname}`;
+	// 	const url = new URL(response.url);
+	// 	const peer = `${url.protocol}//${url.hostname}`;
 
-		const body = await response.text();
-		try {
-			const peers = JSON.parse(body);
+	// 	const body = await response.text();
+	// 	try {
+	// 		const peers = JSON.parse(body);
 
-			for (let i = 0; i < peers.length; i++) {
-				const fromNode = nodes.get().find((node) => node.label === peer);
-				const toNode = nodes.get().find((node) => node.label === peers[i].host);
-				if (fromNode && toNode && !edges.get(`${fromNode.id}-${toNode.id}`)) edges.add({ id: `${fromNode.id}-${toNode.id}`, from: fromNode.id, to: toNode.id });
-			}
-		} catch (_) {
-			continue;
-		}
-	}
+	// 		for (let i = 0; i < peers.length; i++) {
+	// 			const fromNode = nodes.get().find((node) => node.label === peer);
+	// 			const toNode = nodes.get().find((node) => node.label === peers[i].host);
+	// 			if (fromNode && toNode && !edges.get(`${fromNode.id}-${toNode.id}`)) edges.add({ id: `${fromNode.id}-${toNode.id}`, from: fromNode.id, to: toNode.id });
+	// 		}
+	// 	} catch (_) {
+	// 		continue;
+	// 	}
+	// }
 }

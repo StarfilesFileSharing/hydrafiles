@@ -25,6 +25,7 @@ class Utils {
 	static isIp = (host: string): boolean => /^https?:\/\/(?:\d+\.){3}\d+(?::\d+)?$/.test(host);
 	static isPrivateIP = (ip: string): boolean => /^https?:\/\/(?:10\.|(?:172\.(?:1[6-9]|2\d|3[0-1]))\.|192\.168\.|169\.254\.|127\.|224\.0\.0\.|255\.255\.255\.255|localhost)/.test(ip);
 	static interfere = (signalStrength: number): number => signalStrength >= 95 ? this.getRandomNumber(90, 100) : Math.ceil(signalStrength * (1 - (this.getRandomNumber(0, 10) / 100)));
+	static encodeBase10 = (str: string): number => Number(Array.from(str).map((char) => char.charCodeAt(0)).join());
 
 	remainingStorage = async (): Promise<NonNegativeNumber | ErrorNotInitialised> => {
 		const usedStorage = await this.calculateUsedStorage();
@@ -127,7 +128,7 @@ class Utils {
 			const filePath = join(filesPath, file);
 
 			const fileSize = await this._fs.getFileSize(filePath);
-			this._fs.remove(filePath).catch(console.error);
+			this._fs.remove(filePath);
 			if (typeof fileSize === "number") remainingSpace += fileSize;
 
 			const usedStorage = await this.calculateUsedStorage();
