@@ -18,10 +18,10 @@
 	// },
 	"sidebarLinks": {
 		"Web Dashboard": "/dashboard.html",
-		"Source Code": "https://github.com/StarfilesFileSharing/Hydrafiles"
+		"Source Code": "https://github.com/StarfilesFileSharing/Hydrafiles",
+		"README": "./index.html"
 	},
 	"sourceLinkExternal": true,
 	"sort": ["static-first", "required-first"],
 	"excludeInternal": true
-	// "theme": "./typedoc-theme"
 }
