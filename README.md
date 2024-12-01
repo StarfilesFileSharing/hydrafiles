@@ -17,8 +17,9 @@
 
 ## What is Hydrafiles?
 
-Hydrafiles is a peer to peer network, enabling anonymous upload/download of files and anonymous hosting and usage of APIs. Peers can host and serve static files or dynamic backends over HTTP, WebSocket, and/or WebRTC without revealing their
-identity.
+Hydrafiles is a decentralised peer to peer network, anonymising the clear web by enabling anonymous internet access. Hydrafiles is accessible using normal web browsers without needing any end-user setup, accessible with HTTP, WebRTC, or WebSockets.
+
+Hydrafiles allows peers to route services (such as APIs) as well as static files through the network anonymising both the origin and destination. Unlike alternatives like Tor, it does so in a manor where not even the exit nodes know that they are the exit node for any request.
 
 ## What environments does Hydrafiles run in?
 
@@ -32,10 +33,12 @@ P.s. Using **web nodes**, you are able to **serve APIs** and static files over W
 
 TLDR: This scene ^
 
-Hydrafiles uses Spartacus Routing. Spartacus Routing routing involves a gossip network where all peers act as one, where no matter which peer you call, you will receive the same response.
+Hydrafiles uses Spartacus Routing. Spartacus Routing involves a gossip network where all peers act as one. No matter which peer you call, you will receive the same response.
 
-When someone requests a file or calls an endpoint, the request is sent to all peers. If a peer has the file or controls the requested endpoint, it will serve it. If not, it will forward the request to known peers and mirror the response. If
-no one has the file or controls the endpoint, the request will return a 404 once peers timeout. Because the request is forwarded by each peer and all peers mirror the response, it is impossible to tell which peers the request or response
+![Visualised](public/spartacus-routing.gif)
+
+When a peer receives a request, it first checks if it has a copy of the requested content. If it does, it will respond with it. If not, it will forward the request to known peers and mirror the response. If
+no peer has a copy of the requested content, the request will return a 404 once peers timeout. Because the request is forwarded by each peer and all peers mirror the response, it is impossible to tell which peers the request or response
 originated from.
 
 ## Who's in charge of Hydrafiles?
