@@ -311,7 +311,9 @@ router.set("/service", async (req, client) => {
 		body: req.body,
 	});
 
-	return await client.services.fetch(newRequest);
+	const res = await client.services.fetch(newRequest);
+	console.log(res);
+	return res;
 });
 
 router.set("/blocks", (_, client) => {

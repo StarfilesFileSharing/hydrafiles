@@ -1,13 +1,13 @@
+import { encodeBase32 } from "https://deno.land/std@0.224.0/encoding/base32.ts";
 import { ErrorTimeout } from "../../errors.ts";
-import Utils from "../../utils.ts";
 import { DecodedResponse, HydraResponse } from "../routes.ts";
 import RPCPeers from "../RPCPeers.ts";
 import type { SignallingMessage } from "./rtc.ts";
 
 export type WSRequest = { request: { method: string; url: string; headers: Record<string, string>; body?: string } };
-export type WSResponse = { response: DecodedResponse; requestHash: number };
+export type WSResponse = { response: DecodedResponse; requestHash: string };
 
-const pendingWSRequests = new Map<number, DecodedResponse[]>();
+const pendingWSRequests = new Map<string, DecodedResponse[]>();
 
 export class WSPeer {
 	host: string;
@@ -20,9 +20,10 @@ export class WSPeer {
 		this.socket = socket ?? new WebSocket(this.host.replace("https://", "wss://").replace("http://", "ws://") + "?address=" + RPCPeers._client.rtcWallet.address());
 
 		for (let i = 0; i < WSPeers._rpcPeers.ws.onopens.length; i++) this.socket.addEventListener("open", WSPeers._rpcPeers.ws.onopens[i]);
-		for (let i = 0; i < WSPeers._rpcPeers.ws.onmessages.length; i++) this.socket.addEventListener("message", WSPeers._rpcPeers.ws.onmessages[i]);
 
-		this.socket.addEventListener("message", this.handleMessage);
+		this.socket.addEventListener("message", (data) => {
+			this.handleMessage(data);
+		});
 
 		console.log(`WebRTC:   Announcing`);
 		this.send({ announce: true, from: RPCPeers._client.rtcWallet.address() });
@@ -30,10 +31,11 @@ export class WSPeer {
 	}
 
 	public async fetch(url: `hydra://core/${string}`, method = "GET", headers: { [key: string]: string } = {}, body: string | undefined = undefined): Promise<Array<DecodedResponse | ErrorTimeout>> {
+		console.log(`WS:       Fetching ${url} from ${this.host}`);
 		const request: WSRequest = { request: { method, url: url.toString(), headers, body: method === "GET" ? undefined : body } };
 		const message = JSON.stringify(request);
 
-		const hash = Utils.encodeBase10(new TextDecoder().decode(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(message))));
+		const hash = encodeBase32(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(message))));
 
 		pendingWSRequests.set(hash, []);
 
@@ -58,13 +60,13 @@ export class WSPeer {
 		if (WSPeers.seenMessages.has(t + data)) return;
 		WSPeers.seenMessages.add(t + data);
 
-		console.log("Received message", data);
-
-		WSPeers._rpcPeers.ws.send(message);
-
 		if ("request" in message) {
-			const requestHash = Utils.encodeBase10(new TextDecoder().decode(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify(message)))));
-			const response = await RPCPeers._client.rpcPeers.handleRequest(new Request(message.request.url, { body: message.request.body, headers: message.request.headers, method: message.request.method }));
+			console.log(
+				new TextDecoder().decode(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify(message)))),
+				encodeBase32(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify(message))))),
+			);
+			const requestHash = encodeBase32(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify(message)))));
+			const response = await WSPeers._rpcPeers.handleRequest(new Request(message.request.url, { body: message.request.body, headers: message.request.headers, method: message.request.method }));
 			const headersObj: Record<string, string> = {};
 			response.headers.forEach((value, key) => headersObj[key] = value);
 			const responseMessage: WSResponse = { requestHash, response: (await HydraResponse.from(response)).toDecodedResponse() };
@@ -76,9 +78,12 @@ export class WSPeer {
 				pendingWSRequests.set(message.requestHash, responseList);
 			}
 		}
+
+		for (let i = 0; i < WSPeers._rpcPeers.ws.onmessages.length; i++) WSPeers._rpcPeers.ws.onmessages[i](new MessageEvent("message", { data }));
 	}
 
 	send(message: WSRequest | WSResponse | SignallingMessage): void {
+		if ("to" in message && message.to === `rtc://${RPCPeers._client.rtcWallet.address()}.hydra`) return;
 		if (this.socket.readyState === 1) this.socket.send(JSON.stringify(message));
 		else this.socket.addEventListener("open", () => this.socket.send(JSON.stringify(message)));
 	}
@@ -102,10 +107,7 @@ export default class WSPeers {
 		const peers = Array.from(WSPeers._rpcPeers.peers.entries());
 		for (let i = 0; i < peers.length; i++) {
 			const peer = peers[i][1].peer;
-			if (peer instanceof WSPeer) {
-				peer.send(message);
-				if ("from" in message) peers[i][0] = message.from;
-			}
+			if (peer instanceof WSPeer) peer.send(message);
 		}
 	}
 
@@ -128,4 +130,3 @@ export default class WSPeers {
 		this.onmessages.push(callback);
 	}
 }
-1;

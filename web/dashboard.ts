@@ -210,7 +210,7 @@ document.getElementById("startHydrafilesButton")!.addEventListener("click", asyn
 
 	const seenMessages = new Set<string>();
 	const messageBox = document.getElementById("messages") as HTMLElement;
-	document.getElementById("messengerAddress")!.innerText = new TextDecoder().decode(decodeBase32(window.hydrafiles.services.addHostname((req) => {
+	document.getElementById("messengerAddress")!.innerText = window.hydrafiles.services.addHostname((req) => {
 		console.log(req);
 		const signature = req.headers.get("hydra-signature");
 		const from = req.headers.get("hydra-from");
@@ -232,7 +232,7 @@ document.getElementById("startHydrafilesButton")!.addEventListener("click", asyn
 			</div>
 		</div>`;
 		return new Response("Received message");
-	}, 200 + Object.keys(window.hydrafiles.services).length)));
+	}, 200 + Object.keys(window.hydrafiles.services).length);
 
 	refreshHostnameUIs();
 });
@@ -439,18 +439,17 @@ async function fetchAndPopulatePeers() {
 		for (let j = 0; j < peerConns.length; j++) {
 			const conn = peerConns[j];
 			if (!conn) continue;
-			if (!(conn instanceof RTCPeerConnection)) continue;
 			const row = document.createElement("tr");
 
 			const cells = [
 				host,
 				"",
-				conn.signalingState,
-				conn.iceGatheringState,
-				conn.iceConnectionState,
-				conn.connectionState,
+				conn.conn.signalingState,
+				conn.conn.iceGatheringState,
+				conn.conn.iceConnectionState,
+				conn.conn.connectionState,
 				conn.channel?.readyState || "N/A",
-				conn.connectionState || "N/A",
+				conn.conn.connectionState || "N/A",
 			];
 
 			cells.forEach((text) => {

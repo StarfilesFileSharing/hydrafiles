@@ -77,7 +77,7 @@ export default class RPCPeer implements PeerAttributes {
 		const peerUrl = new URL(peerValues.host);
 
 		let peer;
-		if (peerUrl.hostname.endsWith("hydra")) peer = new RTCPeer(values.host as EthAddress, RPCPeers._client.rpcPeers);
+		if (peerUrl.protocol === "rtc:") peer = new RTCPeer(values.host as `rtc://${EthAddress}.hydra`);
 		else if (peerUrl.protocol === "http:" || peerUrl.protocol === "https:") peer = new HTTPClient(values.host);
 		else if (peerUrl.protocol === "ws:" || peerUrl.protocol === "wss:" || (peerUrl.protocol === "wsc:" && values.socket)) peer = new WSPeer(values.host, values.socket);
 		else if (peerUrl.protocol === "hydra:") throw new ErrorUnexpectedProtocol();

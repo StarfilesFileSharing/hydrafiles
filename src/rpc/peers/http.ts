@@ -14,6 +14,7 @@ export class HTTPClient {
 	}
 
 	public async fetch(inputUrl: `hydra://core/${string}`, init: { method?: string; headers?: { [key: string]: string }; body?: string } = {}): Promise<DecodedResponse | ErrorRequestFailed | ErrorTimeout> {
+		console.log(`HTTP:     Fetching ${inputUrl} from ${this.host}`);
 		try {
 			const peerUrl = new URL(this.host);
 			const url = inputUrl.replace("hydra://core/", `${peerUrl.protocol}//${peerUrl.hostname}/`);

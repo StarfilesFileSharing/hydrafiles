@@ -14,12 +14,13 @@ import RPCPeer, { type Host, type PeerAttributes, peerModel } from "./RPCPeer.ts
 
 type RawPayload = { url: string };
 type EncryptedPayload = { payload: RawPayload | EncryptedPayload; to: EthAddress };
+type CoreRequest = `hydra://core/${"peers" | "file" | "files" | "blocks" | "exit" | "announce" | "service"}${string}`;
 
 export default class RPCPeers {
 	static _client: Hydrafiles;
 	static db: Database<typeof peerModel>;
 
-	peers = new Map<string, RPCPeer>();
+	peers = new Map<Host, RPCPeer>();
 
 	http: HTTPServer;
 	ws: WSPeers;
@@ -39,16 +40,12 @@ export default class RPCPeers {
 
 		const peerValues = await RPCPeers.db.select() as unknown as (DatabaseModal<typeof peerModel> & { host: Host })[];
 		for (let i = 0; i < peerValues.length; i++) {
-			if (peerValues[i].host.startsWith("wsc:")) continue;
+			if (peerValues[i].host.startsWith("hydra:") || peerValues[i].host.startsWith("wsc:")) continue;
 			await peers.add(peerValues[i]);
 		}
 
-		for (let i = 0; i < RPCPeers._client.config.bootstrapPeers.length; i++) {
-			peers.add({ host: RPCPeers._client.config.bootstrapPeers[i] });
-		}
-		for (let i = 0; i < RPCPeers._client.config.customPeers.length; i++) {
-			peers.add({ host: RPCPeers._client.config.customPeers[i] });
-		}
+		for (let i = 0; i < RPCPeers._client.config.bootstrapPeers.length; i++) peers.add({ host: RPCPeers._client.config.bootstrapPeers[i] });
+		for (let i = 0; i < RPCPeers._client.config.customPeers.length; i++) peers.add({ host: RPCPeers._client.config.customPeers[i] });
 
 		peers.add({ host: "wss://rooms.deno.dev/" });
 
@@ -57,6 +54,9 @@ export default class RPCPeers {
 
 	public add = async (values: Partial<DatabaseModal<typeof peerModel>> & ({ host: Host; socket?: WebSocket })): Promise<[RPCPeer] | [RPCPeer, RPCPeer]> => {
 		const peers = [];
+
+		const savedPeer = this.peers.get(values.host);
+		if (savedPeer) return [savedPeer];
 
 		console.log("RPC:      Adding peer", values.host);
 		const peer = await RPCPeer.init(values);
@@ -113,7 +113,7 @@ export default class RPCPeers {
 	/**
 	 * Sends requests to peers.
 	 */
-	public fetch = async (url: `hydra://core/${string}`, init?: RequestInit | RequestInit & { wallet: Wallet }): Promise<DecodedResponse[]> => {
+	public fetch = async (url: CoreRequest, init?: RequestInit | RequestInit & { wallet: Wallet }): Promise<DecodedResponse[]> => {
 		console.log(`RPC:      Fetching ${url.toString()}`);
 
 		const method = init?.method;
@@ -137,7 +137,6 @@ export default class RPCPeers {
 		const peerEntries = Array.from(this.peers.entries());
 		const promises = peerEntries.map(async ([_, peer]) => {
 			try {
-				console.log(`RPC:      Fetching ${url.toString()} from ${peer.host}`);
 				let peerResponses: DecodedResponse[] = [];
 
 				if (peer.peer instanceof WSPeer) {
@@ -234,17 +233,13 @@ export default class RPCPeers {
 		}
 
 		const chosenRelays = relays.sort(() => Math.random() - 0.5).slice(0, 3);
-
-		const rawPayload = {
-			url: req.url,
-		};
+		const rawPayload = { url: req.url };
 
 		let payload: EncryptedPayload = { payload: rawPayload, to: chosenRelays[0] };
 		for (let i = 1; i < chosenRelays.length; i++) {
 			payload = { payload, to: chosenRelays[i] };
 		}
 
-		console.log(`https://localhost/exit/${payload.to}`);
 		const responses = await Promise.all(await this.fetch(`hydra://core/exit/${payload.to}`, { method: "POST", body: JSON.stringify(payload.payload) }));
 		for (let j = 0; j < responses.length; j++) {
 			const response = responses[j];

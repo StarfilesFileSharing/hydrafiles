@@ -6,11 +6,12 @@ import Utils from "../../utils.ts";
 import { ErrorRequestFailed, type ErrorTimeout } from "../../errors.ts";
 import RPCPeers from "../RPCPeers.ts";
 import type Wallet from "../../wallet.ts";
+import { encodeBase32 } from "https://deno.land/std@0.224.0/encoding/base32.ts";
 
 export type SignallingAnnounce = { announce: true; from: EthAddress };
-export type SignallingOffer = { offer: RTCSessionDescription; from: `${EthAddress}`; to: `https://${EthAddress}` };
-export type SignallingAnswer = { answer: RTCSessionDescription; from: EthAddress; to: `https://${EthAddress}` };
-export type SignallingIceCandidate = { iceCandidate: RTCIceCandidate; from: EthAddress; to: `https://${EthAddress}` };
+export type SignallingOffer = { offer: RTCSessionDescription; from: EthAddress; to: `rtc://${EthAddress}.hydra` };
+export type SignallingAnswer = { answer: RTCSessionDescription; from: EthAddress; to: `rtc://${EthAddress}.hydra` };
+export type SignallingIceCandidate = { iceCandidate: RTCIceCandidate; from: EthAddress; to: `rtc://${EthAddress}.hydra` };
 
 export type SignallingMessage = SignallingAnnounce | SignallingOffer | SignallingAnswer | SignallingIceCandidate;
 
@@ -46,19 +47,16 @@ function arrayBufferToUnicodeString(buffer: ArrayBuffer): string {
 const receivedPackets: Record<string, string[]> = {};
 
 export class RTCPeer {
-	private _rpcPeers: RPCPeers;
-
-	id: EthAddress;
+	host: `rtc://${EthAddress}.hydra`;
 	offered?: PeerConnection;
 	answered?: PeerConnection;
 
-	constructor(id: EthAddress, rpcPeers: RPCPeers) {
-		console.log("HTTP:     Adding Peer", id);
-		this._rpcPeers = rpcPeers;
-		this.id = id;
+	constructor(host: `rtc://${EthAddress}.hydra`) {
+		console.log("HTTP:     Adding Peer", host);
+		this.host = host;
 	}
 
-	async createConnection(from: EthAddress): Promise<PeerConnection> {
+	async createConnection(from: `rtc://${EthAddress}.hydra`): Promise<PeerConnection> {
 		RPCPeers._client.events.log(RPCPeers._client.events.rtcEvents.RTCOpen);
 		const config = {
 			iceServers: [
@@ -89,8 +87,8 @@ export class RTCPeer {
 
 		conn.onicecandidate = (event) => {
 			if (event.candidate) {
-				if (RPCPeers._client.config.logLevel === "verbose") console.log(`WebRTC:   ${from}  Sending ICE candidate`);
-				this._rpcPeers.fetch("hydra://core/iceCandidate", { method: "POST", body: JSON.stringify({ iceCandidate: event.candidate, to: from, from: this._rpcPeers.rtc.address }) });
+				console.log(`WebRTC:   ${from}  Sending ICE candidate`);
+				RTCPeers._rpcPeers.ws.send({ iceCandidate: event.candidate, to: from, from: RTCPeers._rpcPeers.rtc.address });
 			}
 		};
 		conn.onnegotiationneeded = async () => {
@@ -100,7 +98,7 @@ export class RTCPeer {
 				const offer = await conn.createOffer();
 				await conn.setLocalDescription(offer);
 				console.log(`WebRTC:   ${from}  Sending offer from`, extractIPAddress(offer.sdp));
-				this._rpcPeers.fetch("hydra://core/offer", { method: "POST", body: JSON.stringify({ offer, to: `https://${from}`, from: this._rpcPeers.rtc.address }) });
+				RTCPeers._rpcPeers.ws.send({ offer, to: from, from: RTCPeers._rpcPeers.rtc.address });
 			} catch (e) {
 				console.error(e);
 			}
@@ -128,7 +126,7 @@ export class RTCPeer {
 		}
 	}
 
-	async handleAnnounce(from: EthAddress): Promise<void> {
+	async handleAnnounce(from: `rtc://${EthAddress}.hydra`): Promise<void> {
 		RPCPeers._client.events.log(RPCPeers._client.events.rtcEvents.RTCAnnounce);
 		console.log(`WebRTC:   ${from}  Received announce`);
 		if (this.offered) {
@@ -149,16 +147,16 @@ export class RTCPeer {
 			return;
 		}
 
-		console.log(`WebRTC:   ${this.id}  Received offer from`, extractIPAddress(offer.sdp));
+		console.log(`WebRTC:   ${this.host}  Received offer from`, extractIPAddress(offer.sdp));
 
-		this.answered = await this.createConnection(this.id);
+		this.answered = await this.createConnection(this.host);
 		if (this.answered.conn.signalingState !== "stable" && this.answered.conn.signalingState !== "have-remote-offer") {
-			console.warn(`WebRTC:   ${this.id}  Peer connection in unexpected state 1: ${this.answered.conn.signalingState}`);
+			console.warn(`WebRTC:   ${this.host}  Peer connection in unexpected state 1: ${this.answered.conn.signalingState}`);
 			return;
 		}
 		await this.answered.conn.setRemoteDescription(offer);
 		if (this.answered.conn.signalingState !== "have-remote-offer") {
-			console.warn(`WebRTC:   ${this.id}  Peer connection in unexpected state 2: ${this.answered.conn.signalingState}`);
+			console.warn(`WebRTC:   ${this.host}  Peer connection in unexpected state 2: ${this.answered.conn.signalingState}`);
 			return;
 		}
 		try {
@@ -166,8 +164,8 @@ export class RTCPeer {
 			if (this.answered.conn.signalingState !== "have-remote-offer") return;
 			await this.answered.conn.setLocalDescription(answer);
 
-			console.log(`WebRTC:   ${this.id}  Sending answer from`, extractIPAddress(answer.sdp));
-			this._rpcPeers.fetch("hydra://core/answer", { method: "POST", body: JSON.stringify({ answer, to: `https://${this.id}`, from: this._rpcPeers.rtc.address }) });
+			console.log(`WebRTC:   ${this.host}  Sending answer from`, extractIPAddress(answer.sdp));
+			RTCPeers._rpcPeers.ws.send({ answer, to: this.host, from: RTCPeers._rpcPeers.rtc.address });
 		} catch (e) {
 			console.error(e);
 		}
@@ -176,21 +174,21 @@ export class RTCPeer {
 	async handleAnswer(answer: RTCSessionDescription): Promise<void> {
 		RPCPeers._client.events.log(RPCPeers._client.events.rtcEvents.RTCAnswer);
 		if (!this.offered) {
-			console.warn(`WebRTC:   ${this.id}  Rejecting answer - No open handshake`);
+			console.warn(`WebRTC:   ${this.host}  Rejecting answer - No open handshake`);
 			return;
 		}
 		if (this.offered.conn.signalingState !== "have-local-offer") {
-			console.warn(`WebRTC:   ${this.id}  Rejecting answer - Bad signalling state: ${this.offered?.conn.signalingState}`);
+			console.warn(`WebRTC:   ${this.host}  Rejecting answer - Bad signalling state: ${this.offered?.conn.signalingState}`);
 			return;
 		}
-		console.log(`WebRTC:   ${this.id}  Received answer`, extractIPAddress(answer.sdp));
+		console.log(`WebRTC:   ${this.host}  Received answer`, extractIPAddress(answer.sdp));
 		await this.offered.conn.setRemoteDescription(answer);
 	}
 
 	handleIceCandidate(receivedIceCandidate: RTCIceCandidate): void {
 		const iceCandidate = receivedIceCandidate;
 		RPCPeers._client.events.log(RPCPeers._client.events.rtcEvents.RTCIce);
-		if (RPCPeers._client.config.logLevel === "verbose") console.log(`WebRTC:   ${this.id}  Received ICE candidate`);
+		console.log(`WebRTC:   ${this.host}  Received ICE candidate`);
 		// if (typeof window !== "undefined") { // TODO: Figure out why this breaks on desktop
 		if (this.answered) this.answered.conn.addIceCandidate(iceCandidate).catch(console.error);
 		if (this.offered && this.offered.conn.remoteDescription) this.offered.conn.addIceCandidate(iceCandidate).catch(console.error);
@@ -199,7 +197,9 @@ export class RTCPeer {
 
 	async handleMessage(channel: RTCDataChannel, e: MessageEvent): Promise<void> {
 		console.log(`WebRTC:   Received request`);
-		const { id, url, ...data } = JSON.parse(e.data as string);
+		const request = (JSON.parse(e.data as string) as WSRequest).request;
+		const { url, ...data } = request;
+		const requestHash = encodeBase32(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify(request)))));
 		const newUrl = new URL(url);
 		newUrl.protocol = "rtc:";
 		newUrl.hostname = "0.0.0.0";
@@ -211,10 +211,9 @@ export class RTCPeer {
 		});
 		const body = arrayBufferToUnicodeString(new Uint8Array(await response.arrayBuffer()));
 		const status = response.status;
-		const statusText = response.statusText;
 
 		console.log(`WebRTC:   Sending response`);
-		const message = JSON.stringify({ body, status, statusText, headers, id });
+		const message = JSON.stringify({ body, status, headers } as DecodedResponse);
 		channel.send(message);
 
 		const maxPacketSize = 8 * 1024;
@@ -224,7 +223,7 @@ export class RTCPeer {
 			const start = i * maxPacketSize;
 			const end = start + maxPacketSize;
 			const packet = {
-				id,
+				requestHash,
 				i,
 				total,
 				body: message.slice(start, end),
@@ -234,6 +233,7 @@ export class RTCPeer {
 	}
 
 	public async fetch(url: `hydra://core/${string}`, method = "GET", headers: { [key: string]: string } = {}, body: string | undefined = undefined): Promise<DecodedResponse | ErrorTimeout | ErrorRequestFailed> {
+		console.log(`WebRTC:   Fetching ${url} from ${this.host}`);
 		const request: WSRequest = { request: { method, url: url.toString(), headers, body: method === "GET" ? undefined : body } };
 
 		let channel: RTCDataChannel | undefined;
@@ -241,20 +241,20 @@ export class RTCPeer {
 		else if (this.answered && this.answered.channel.readyState === "open") channel = this.answered.channel;
 		else return new ErrorRequestFailed();
 
-		console.log(`WebRTC:   ${this.id} Sending request`);
+		console.log(`WebRTC:   ${this.host} Sending request`);
 		channel.send(JSON.stringify(request));
-		const requestHash = Utils.encodeBase10(new TextDecoder().decode(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify(request)))));
+		const requestHash = encodeBase32(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify(request)))));
 
 		const responsePromise = new Promise<DecodedResponse>((resolve, reject) => {
 			channel.onmessage = (e) => {
 				const packet = JSON.parse(e.data as string);
 
-				if (!receivedPackets[packet.id]) receivedPackets[packet.id] = [];
-				receivedPackets[packet.id][packet.index] = packet.body;
+				if (!receivedPackets[packet.requestHash]) receivedPackets[packet.requestHash] = [];
+				receivedPackets[packet.requestHash][packet.index] = packet.body;
 
-				if (receivedPackets[packet.id].filter(Boolean).length === packet.total) {
-					const message = receivedPackets[packet.id].join("");
-					delete receivedPackets[packet.id];
+				if (receivedPackets[packet.requestHash].filter(Boolean).length === packet.total) {
+					const message = receivedPackets[packet.requestHash].join("");
+					delete receivedPackets[packet.requestHash];
 					const fullMessage = JSON.parse(message);
 					console.log("Received full message:", fullMessage);
 				}
@@ -270,7 +270,9 @@ export class RTCPeer {
 			};
 		});
 
-		return Utils.promiseWithTimeout(responsePromise, RPCPeers._client.config.timeout);
+		const response = Utils.promiseWithTimeout(responsePromise, RPCPeers._client.config.timeout);
+		console.log(response);
+		return response;
 	}
 }
 
@@ -287,18 +289,16 @@ export default class RTCPeers {
 
 	async handleSignallingMessage(event: MessageEvent): Promise<void> {
 		const message = JSON.parse(event.data) as SignallingMessage;
-		let peer = RTCPeers._rpcPeers.peers.get(message.from);
+		let peer = RTCPeers._rpcPeers.peers.get(`rtc://${message.from}.hydra`);
 
-		if ("to" in message && message.to !== `https://${this.address}`) return;
+		if (("to" in message && message.to !== `rtc://${this.address}.hydra`) || message.from === RPCPeers._client.rtcWallet.address()) return;
 
 		this.seenMessages.add(event.data);
 		if ("announce" in message) {
 			if (!peer) peer = (await RTCPeers._rpcPeers.add({ host: `rtc://${message.from}.hydra` }))[0];
-			console.log(peer.peer);
-			await (peer.peer as RTCPeer).handleAnnounce(message.from);
+			await (peer.peer as RTCPeer).handleAnnounce(`rtc://${message.from}.hydra`);
 		} else if ("offer" in message) {
 			if (!peer) peer = (await RTCPeers._rpcPeers.add({ host: `rtc://${message.from}.hydra` }))[0];
-			console.log(peer.peer);
 			await (peer.peer as RTCPeer).handleOffer(message.offer);
 		} else if ("answer" in message) {
 			if (!peer) {
@@ -308,7 +308,7 @@ export default class RTCPeers {
 			await (peer.peer as RTCPeer).handleAnswer(message.answer);
 		} else if ("iceCandidate" in message) {
 			if (!peer) {
-				console.warn("WebRTC:   Received answer from unknown peer");
+				console.warn("WebRTC:   Received ice candidates from unknown peer");
 				return;
 			}
 			(peer.peer as RTCPeer).handleIceCandidate(message.iceCandidate);
