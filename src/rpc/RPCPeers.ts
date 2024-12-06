@@ -12,8 +12,8 @@ import Database, { type DatabaseModal } from "../database.ts";
 import Utils from "../utils.ts";
 import RPCPeer, { type Host, type PeerAttributes, peerModel } from "./RPCPeer.ts";
 
-type RawPayload = { url: string };
-type EncryptedPayload = { payload: RawPayload | EncryptedPayload; to: EthAddress };
+export type RawPayload = { url: string };
+export type EncryptedPayload = { payload: RawPayload | EncryptedPayload; to: EthAddress };
 type CoreRequest = `hydra://core/${"peers" | "file" | "files" | "blocks" | "exit" | "announce" | "service"}${string}`;
 
 export default class RPCPeers {
@@ -233,14 +233,15 @@ export default class RPCPeers {
 		}
 
 		const chosenRelays = relays.sort(() => Math.random() - 0.5).slice(0, 3);
-		const rawPayload = { url: req.url };
+
+		const rawPayload: RawPayload = { url: req.url };
 
 		let payload: EncryptedPayload = { payload: rawPayload, to: chosenRelays[0] };
 		for (let i = 1; i < chosenRelays.length; i++) {
 			payload = { payload, to: chosenRelays[i] };
 		}
 
-		const responses = await Promise.all(await this.fetch(`hydra://core/exit/${payload.to}`, { method: "POST", body: JSON.stringify(payload.payload) }));
+		const responses = await Promise.all(await this.fetch(`hydra://core/exit`, { method: "POST", body: JSON.stringify(payload.payload) }));
 		for (let j = 0; j < responses.length; j++) {
 			const response = responses[j];
 			if (response instanceof Error || response.status !== 200) continue;

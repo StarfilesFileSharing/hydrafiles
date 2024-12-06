@@ -4,13 +4,11 @@ import { type FileAttributes } from "../src/file.ts";
 import WebTorrent from "https://esm.sh/webtorrent@2.5.1";
 import { Chart } from "https://esm.sh/chart.js@4.4.6/auto";
 import { ErrorNotInitialised } from "../src/errors.ts";
-import { decodeBase32, encodeBase32 } from "https://deno.land/std@0.224.0/encoding/base32.ts";
+import { decodeBase32 } from "https://deno.land/std@0.224.0/encoding/base32.ts";
 import { DataSet } from "npm:vis-data/esnext";
 import { Network } from "npm:vis-network/esnext";
-import Utils from "../src/utils.ts";
 import { Edge, Node } from "npm:vis-network/esnext";
 import type { FileEvent, RTCEvent } from "../src/events.ts";
-import { WSPeer } from "../src/rpc/peers/ws.ts";
 import { RTCPeer } from "../src/rpc/peers/rtc.ts";
 
 declare global {
@@ -123,6 +121,18 @@ class ColorGenerator {
 		this.currentHue = hue; // Save the last hue for potential subsequent calls
 		return colors;
 	}
+}
+
+function createSandbox(htmlContent: string, query: string) {
+	const iframe = document.createElement("iframe");
+	iframe.setAttribute("sandbox", "allow-scripts");
+	iframe.className = "sandbox";
+
+	// Convert HTML to data URL
+	const dataUrl = `data:text/html;charset=utf-8,${encodeURIComponent(htmlContent)}`;
+	iframe.src = dataUrl;
+
+	document.querySelector(query)!.appendChild(iframe);
 }
 
 function formatTSCode(code: string): string {
@@ -635,8 +645,8 @@ document.addEventListener("DOMContentLoaded", async () => {
 	document.getElementById("sendMessage")!.addEventListener("click", () => {
 		const message = (document.getElementById("message") as HTMLInputElement).value;
 		const messageBox = document.getElementById("messages") as HTMLElement;
-		const messengerAddress = document.getElementById("messengerAddress")!.innerText;
-		const wallet = window.hydrafiles.services.ownedServices[encodeBase32(new TextEncoder().encode(messengerAddress)).toUpperCase()].wallet;
+		const messengerAddress = document.getElementById("messengerAddress")!.innerText as EthAddress;
+		const wallet = window.hydrafiles.services.ownedServices.get(messengerAddress)!.wallet;
 
 		messageBox.innerHTML += `<div class="col-start-6 col-end-13 p-3 rounded-lg">
 			<div class="flex items-center justify-start flex-row-reverse">
@@ -661,7 +671,8 @@ document.addEventListener("DOMContentLoaded", async () => {
 			if (!(response instanceof Error)) {
 				const body = response.body;
 				console.log("body", body);
-				document.getElementById("urlBody")!.innerHTML = body;
+				createSandbox(body, body);
+				// document.getElementById("urlBody")!.innerHTML = body;
 			}
 		} catch (error) {
 			console.error("Error loading site:", error);
@@ -694,7 +705,7 @@ async function createHostnameUI(hostname: EthAddress): Promise<HostnameUI> {
 
 	const textarea = document.createElement("textarea");
 	textarea.className = "w-full h-48 mt-2 p-4 font-mono text-sm border rounded focus:outline-none focus:border-blue-500";
-	textarea.value = formatTSCode(window.hydrafiles.services.ownedServices[encodeBase32(hostname)].requestHandler.toString());
+	textarea.value = formatTSCode(window.hydrafiles.services.ownedServices.get(hostname)!.requestHandler.toString());
 
 	const nameInput = document.createElement("input");
 	nameInput.className = "w-full my-2 p-4 font-mono text-sm border rounded focus:outline-none focus:border-blue-500";
@@ -719,7 +730,7 @@ async function createHostnameUI(hostname: EthAddress): Promise<HostnameUI> {
 	updateButton.addEventListener("click", () => {
 		try {
 			const code = textarea.value;
-			window.hydrafiles.services.ownedServices[encodeBase32(hostname)].requestHandler = new Function("req", `return (${code})(req)`) as (req: Request) => Promise<Response>;
+			window.hydrafiles.services.ownedServices.get(hostname)!.requestHandler = new Function("req", `return (${code})(req)`) as (req: Request) => Promise<Response>;
 			results.textContent = "Handler updated successfully!";
 			results.className = "my-4 p-4 rounded-lg bg-green-50 text-green-800";
 			setTimeout(() => results.className = "hidden", 3000);
@@ -731,7 +742,7 @@ async function createHostnameUI(hostname: EthAddress): Promise<HostnameUI> {
 
 	announceServiceButton.addEventListener("click", () => {
 		try {
-			window.hydrafiles.services.ownedServices[encodeBase32(hostname)].announce(nameInput.value);
+			window.hydrafiles.services.ownedServices.get(hostname)!.announce(nameInput.value);
 			results.textContent = "Announced Service!";
 			results.className = "my-4 p-4 rounded-lg bg-green-50 text-green-800";
 			setTimeout(() => results.className = "hidden", 3000);

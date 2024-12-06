@@ -3,6 +3,7 @@ import Utils, { type Sha256 } from "../utils.ts";
 import type Hydrafiles from "../hydrafiles.ts";
 import { ErrorNotFound } from "../errors.ts";
 import type { Host, PeerAttributes } from "./RPCPeer.ts";
+import type { EncryptedPayload } from "./RPCPeers.ts";
 
 export interface DecodedResponse {
 	body: string;
@@ -322,8 +323,14 @@ router.set("/blocks", (_, client) => {
 	return new HydraResponse(JSON.stringify(client.nameService.blocks), { headers });
 });
 
-router.set("/exit", (req) => {
-	console.log(req.body);
-	if (req.url.endsWith("/request")) return new HydraResponse(JSON.stringify({ pubKey: "test" }));
-	return new HydraResponse("test");
+router.set("/exit", async (req, client) => {
+	if (req.url.endsWith("/request")) return new HydraResponse(JSON.stringify({ pubKey: "0xtest" }));
+	const payload = JSON.parse(await req.text()) as EncryptedPayload;
+	if ("to" in payload && payload.to === "0xtest") {
+		if ("url" in payload.payload) return new HydraResponse(new Uint8Array(await (await fetch(payload.payload.url)).arrayBuffer()));
+		else return new HydraResponse((await client.rpcPeers.fetch(`hydra://core/exit`, { method: "POST", body: JSON.stringify(payload.payload) }))[0].body);
+	} else {
+		console.log(payload);
+	}
+	return new HydraResponse("sehzaysehzyae");
 });

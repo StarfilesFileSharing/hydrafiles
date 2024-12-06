@@ -3,7 +3,6 @@ import type Hydrafiles from "../hydrafiles.ts";
 import { ErrorNotFound, ErrorRequestFailed } from "../errors.ts";
 import type { EthAddress } from "../wallet.ts";
 import Wallet from "../wallet.ts";
-import { decodeBase32, encodeBase32 } from "https://deno.land/std@0.224.0/encoding/base32.ts";
 import Service from "./service.ts";
 
 export interface ServiceMetadata {
@@ -16,10 +15,10 @@ export interface ServiceMetadata {
 export default class Services {
 	/** @internal */
 	static _client: Hydrafiles;
-	public ownedServices: { [hostname: string]: Service } = {};
-	public knownServices: { [hostname: string]: ServiceMetadata } = {};
-	public processingRequests = new Map<string, Promise<DecodedResponse | ErrorNotFound>>();
-	public cachedResponses: Record<string, HydraResponse> = {};
+	public ownedServices = new Map<EthAddress, Service>();
+	// public knownServices: { [hostname: string]: ServiceMetadata } = {};
+	public processingRequests = new Map<EthAddress, Promise<DecodedResponse | ErrorNotFound>>();
+	public cachedResponses = new Map<string, HydraResponse>();
 
 	private filterHydraHeaders(headers: { [key: string]: string } = {}): { [key: string]: string } {
 		for (const key in Object.keys(headers)) {
@@ -31,36 +30,35 @@ export default class Services {
 	public addHostname(requestHandler: (req: Request) => Promise<Response> | Response, seed: number): EthAddress {
 		const wallet = new Wallet(1000 + seed);
 		const api = new Service(wallet, requestHandler);
-		const encodedHostname = encodeBase32(wallet.address()).toUpperCase();
 		console.log(`Service:  ${wallet.address()} added`);
-		this.ownedServices[encodedHostname] = api;
+		this.ownedServices.set(wallet.address(), api);
 		return wallet.address();
 	}
 
 	public async fetch(req: Request): Promise<HydraResponse> { // TODO: Refactor this
 		const now = Date.now();
 		const url = new URL(req.url);
-		const hostname = url.pathname.split("/")[2];
-		const encodedHostname = encodeBase32(hostname).toUpperCase();
+		const hostname = url.pathname.split("/")[2] as EthAddress;
 		console.log(`Service:  ${hostname} Received Request`);
 
-		if (encodedHostname in this.ownedServices) {
+		const service = this.ownedServices.get(hostname);
+		if (service) {
 			console.log(`Service:  ${hostname} Serving response`);
-			return this.ownedServices[encodedHostname].fetch(req);
+			return service.fetch(req);
 		}
 
-		if (this.processingRequests.has(encodedHostname)) {
-			console.log(`Service:  ${hostname} Waiting for existing request with same hostname`);
-			await this.processingRequests.get(encodedHostname);
-		}
 		const reqKey = req.url;
-		if (reqKey in this.cachedResponses) {
-			const cachedEntry = this.cachedResponses[reqKey];
-			if (now - (cachedEntry.timestamp ?? 0) > 60000) {
-				delete this.cachedResponses[reqKey];
-			}
+		const cachedEntry = this.cachedResponses.get(reqKey);
+		console.log(this.cachedResponses.entries());
+		if (cachedEntry) {
+			if (now - (cachedEntry.timestamp ?? 0) > 60000) this.cachedResponses.delete(reqKey);
 			console.log(`Service:  ${hostname} Serving response from cache`);
 			return cachedEntry;
+		}
+
+		if (this.processingRequests.has(hostname)) {
+			console.log(`Service:  ${hostname} Waiting for existing request with same hostname`);
+			await this.processingRequests.get(hostname);
 		}
 
 		const headersObj: { [key: string]: string } = {
@@ -80,8 +78,7 @@ export default class Services {
 					try {
 						if (response instanceof Error) return response;
 						if (!response.ok) return;
-						const signature = response.headers["hydra-signature"] as EthAddress | null;
-						console.log(response, new TextDecoder().decode(decodeBase32(encodedHostname)) as EthAddress, signature);
+						// const signature = response.headers["hydra-signature"] as EthAddress | null;
 						// if ( // TODO: figure out why this is false
 						// 	signature !== null &&
 						// 	await Services._client.filesWallet.verifyMessage(typeof response.body === "string" ? response.body : new TextDecoder().decode(response.body), signature, new TextDecoder().decode(decodeBase32(encodedHostname)) as EthAddress)
@@ -98,7 +95,7 @@ export default class Services {
 			})();
 		});
 
-		this.processingRequests.set(encodedHostname, processingRequest);
+		this.processingRequests.set(hostname, processingRequest);
 
 		let response: DecodedResponse | ErrorRequestFailed | undefined;
 		try {
@@ -116,15 +113,14 @@ export default class Services {
 				console.error(err.message);
 				throw err;
 			}
-		} finally {
-			this.processingRequests.delete(hostname);
 		}
 
 		if (response instanceof ErrorRequestFailed) throw response;
 
 		console.log(`Service:  ${hostname} Mirroring response`);
 		const res = new HydraResponse(response.body, { headers: this.filterHydraHeaders(response.headers), timestamp: Date.now() });
-		this.cachedResponses[reqKey] = res;
+		this.processingRequests.delete(hostname);
+		this.cachedResponses.set(reqKey, res);
 		return res;
 	}
 }
