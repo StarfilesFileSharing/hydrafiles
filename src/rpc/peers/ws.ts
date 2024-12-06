@@ -61,10 +61,6 @@ export class WSPeer {
 		WSPeers.seenMessages.add(t + data);
 
 		if ("request" in message) {
-			console.log(
-				new TextDecoder().decode(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify(message)))),
-				encodeBase32(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify(message))))),
-			);
 			const requestHash = encodeBase32(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify(message)))));
 			const response = await WSPeers._rpcPeers.handleRequest(new Request(message.request.url, { body: message.request.body, headers: message.request.headers, method: message.request.method }));
 			const headersObj: Record<string, string> = {};
