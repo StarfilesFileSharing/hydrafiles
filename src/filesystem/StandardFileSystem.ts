@@ -45,6 +45,6 @@ export default class StandardFileSystem {
 	};
 
 	remove = async (path: string) => {
-		await Deno.remove(path);
+		if (await this.exists(path)) await Deno.remove(path);
 	};
 }

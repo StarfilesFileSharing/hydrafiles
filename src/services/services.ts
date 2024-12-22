@@ -69,11 +69,10 @@ export default class Services {
 			headersObj[key] = value;
 		});
 
-		console.log(`Service:  ${hostname} Fetching response from peers`);
-		const responses = await Services._client.rpcPeers.fetch(`hydra://core${url.pathname}${url.search}` as `hydra://core/service/${EthAddress}`, { headers: this.filterHydraHeaders(headersObj) });
-
 		const processingRequest = new Promise<DecodedResponse | ErrorRequestFailed | ErrorNotFound>((resolve, _rej) => {
 			(async () => {
+				console.log(`Service:  ${hostname} Fetching response from peers`);
+				const responses = await Services._client.rpcPeers.fetch(`hydra://core${url.pathname}${url.search}` as `hydra://core/service/${EthAddress}`, { headers: this.filterHydraHeaders(headersObj) });
 				await Promise.all(responses.map((response) => {
 					try {
 						if (response instanceof Error) return response;
