@@ -43,6 +43,7 @@ class Hydrafiles {
 		Services._client = this;
 		Files._client = this;
 		RPCPeers._client = this;
+		NameService._client = this;
 
 		this.config = getConfig(customConfig);
 		this.events = new Events();
@@ -51,45 +52,27 @@ class Hydrafiles {
 		this.services = new Services();
 		this.services.addHostname((_req: Request) => new Response("Hello World!"), 0);
 
-		if (this.config.s3Endpoint.length) {
-			console.log("Startup:  Initialising S3");
-			this.s3 = new S3Client({ endPoint: this.config.s3Endpoint, region: "us-east-1", bucket: "uploads", accessKey: this.config.s3AccessKeyId, secretKey: this.config.s3SecretAccessKey, pathStyle: false });
-		}
+		if (this.config.s3Endpoint.length) this.s3 = new S3Client({ endPoint: this.config.s3Endpoint, region: "us-east-1", bucket: "uploads", accessKey: this.config.s3AccessKeyId, secretKey: this.config.s3SecretAccessKey, pathStyle: false });
 	}
 
 	public async start(opts: { onUpdateFileListProgress?: (progress: number, total: number) => void; webtorrent?: WebTorrent } = {}): Promise<void> {
-		console.log("Startup:  Initialising FileSystem");
 		this.fs = await FileSystem.init(this);
-		if (!await this.fs.exists("/")) await this.fs.mkdir("/"); // In case of un-initiated base dir
 		if (!await this.fs.exists("/files/")) await this.fs.mkdir("/files/");
 
 		this.utils = new Utils(this.config, this.fs);
-		console.log("Startup:  Initialising Files");
 		this.files = await Files.init();
-		console.log("Startup:  Initialising RPC Clients & Servers");
-		this.rpcPeers = await RPCPeers.init();
-		console.log("Startup:  Initialising WebTorrent");
 		this.webtorrent = opts.webtorrent;
-		console.log("Startup:  Initialising Name Service");
-		NameService._client = this;
 		this.nameService = await NameService.init();
+		this.rpcPeers = await RPCPeers.init();
 
 		this.startBackgroundTasks(opts.onUpdateFileListProgress);
 	}
 
 	startBackgroundTasks(onUpdateFileListProgress?: (progress: number, total: number) => void): void {
 		if (this.config.summarySpeed !== -1) setInterval(() => this.logState(), this.config.summarySpeed);
-		if (this.config.comparePeersSpeed !== -1) {
-			this.rpcPeers.discoverPeers();
-			setInterval(() => this.rpcPeers.discoverPeers(), this.config.comparePeersSpeed);
-		}
-		if (this.config.compareFilesSpeed !== -1) {
-			this.files.updateFileList(onUpdateFileListProgress);
-			setInterval(() => this.files.updateFileList(onUpdateFileListProgress), this.config.compareFilesSpeed);
-		}
+		if (this.config.comparePeersSpeed !== -1) setInterval(() => this.rpcPeers.discoverPeers(), this.config.comparePeersSpeed);
+		if (this.config.compareFilesSpeed !== -1) setInterval(() => this.files.updateFileList(onUpdateFileListProgress), this.config.compareFilesSpeed);
 		if (this.config.backfill) this.files.backfillFiles();
-
-		this.nameService.fetchBlocks();
 		setInterval(() => this.nameService.fetchBlocks(), 60000);
 	}
 

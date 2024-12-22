@@ -15,7 +15,6 @@ export class WSPeer {
 	messageQueue: (WSRequest | WSResponse)[] = [];
 
 	constructor(host: string, socket?: WebSocket) {
-		console.log("WS:       Adding Peer", host);
 		this.host = host;
 		this.socket = socket ?? new WebSocket(this.host.replace("https://", "wss://").replace("http://", "ws://") + "?address=" + RPCPeers._client.rtcWallet.address());
 
@@ -25,7 +24,7 @@ export class WSPeer {
 			this.handleMessage(data);
 		});
 
-		console.log(`WebRTC:   Announcing`);
+		console.log(`WebRTC:   Announcing to ${this.host}`);
 		this.send({ announce: true, from: RPCPeers._client.rtcWallet.address() });
 		setInterval(() => this.send({ announce: true, from: RPCPeers._client.rtcWallet.address() }), RPCPeers._client.config.announceSpeed);
 	}

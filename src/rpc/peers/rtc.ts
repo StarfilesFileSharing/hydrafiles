@@ -52,7 +52,6 @@ export class RTCPeer {
 	answered?: PeerConnection;
 
 	constructor(host: `rtc://${EthAddress}.hydra`) {
-		console.log("HTTP:     Adding Peer", host);
 		this.host = host;
 	}
 

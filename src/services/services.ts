@@ -49,13 +49,13 @@ export default class Services {
 
 		const reqKey = req.url;
 		const cachedEntry = this.cachedResponses.get(reqKey);
-		console.log(this.cachedResponses.entries());
 		if (cachedEntry) {
 			if (now - (cachedEntry.timestamp ?? 0) > 60000) this.cachedResponses.delete(reqKey);
 			console.log(`Service:  ${hostname} Serving response from cache`);
 			return cachedEntry;
 		}
 
+		console.log(this.processingRequests);
 		if (this.processingRequests.has(hostname)) {
 			console.log(`Service:  ${hostname} Waiting for existing request with same hostname`);
 			await this.processingRequests.get(hostname);

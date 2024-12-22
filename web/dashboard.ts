@@ -10,6 +10,7 @@ import { Network } from "npm:vis-network/esnext";
 import { Edge, Node } from "npm:vis-network/esnext";
 import type { FileEvent, RTCEvent } from "../src/events.ts";
 import { RTCPeer } from "../src/rpc/peers/rtc.ts";
+import type { Host } from "../src/rpc/RPCPeer.ts";
 
 declare global {
 	interface Window {
@@ -210,7 +211,7 @@ document.getElementById("startHydrafilesButton")!.addEventListener("click", asyn
 	const buffer = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`${email}:${password}`));
 	const deriveKey = Array.from(new Uint8Array(buffer)).map((b) => b.toString(16).padStart(2, "0")).join("");
 
-	window.hydrafiles = new Hydrafiles({ deriveKey, customPeers: [`${window.location.protocol}//${window.location.hostname}`] });
+	window.hydrafiles = new Hydrafiles({ deriveKey, customPeers: [`${window.location.protocol}//${window.location.hostname}` as Host] });
 	const webtorrent = new WebTorrent();
 
 	await window.hydrafiles.start({ onUpdateFileListProgress, webtorrent });
@@ -801,7 +802,7 @@ async function refreshHostnameUIs() {
 
 const nodes = new DataSet<Node>([{ id: 0, label: "You" }]);
 const edges = new DataSet<Edge>([]);
-const network = new Network(document.getElementById("peerNetwork")!, { nodes: nodes as any, edges: edges as any }, {
+new Network(document.getElementById("peerNetwork")!, { nodes: nodes as any, edges: edges as any }, {
 	nodes: {
 		shape: "dot",
 		scaling: {

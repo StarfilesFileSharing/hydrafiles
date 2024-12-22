@@ -6,10 +6,9 @@ import { type DecodedResponse, HydraResponse } from "../routes.ts";
 import RPCPeer from "../RPCPeer.ts";
 
 export class HTTPClient {
-	private host: string;
+	host: string;
 
 	constructor(host: string) {
-		console.log("HTTP:     Adding Peer", host);
 		this.host = host;
 	}
 
