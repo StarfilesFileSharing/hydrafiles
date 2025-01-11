@@ -14,6 +14,6 @@ await hydrafiles.start();
 //     // Example Download
 //     const file = new FileHandler(files[0], hydrafiles);
 //     const fileContent = await file.getFile();
-//     log(fileContent);
+//     console.log(fileContent);
 //   }
 // })().catch(console.error);

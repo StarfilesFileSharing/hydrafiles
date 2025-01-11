@@ -4,6 +4,7 @@ import { sepolia } from "npm:viem/chains";
 import type Hydrafiles from "./hydrafiles.ts";
 import { randomIntegerBetween, randomSeeded } from "jsr:@std/random";
 import { ErrorInsufficientBalance } from "./errors.ts";
+import Utils from "./utils.ts";
 
 export type EthAddress = `0x${string}`;
 
@@ -57,11 +58,11 @@ class Wallet {
 		const amountInEth = parseFloat(amount.toString()) / 1e18;
 
 		if (currentBalance < amountInEth) {
-			log(`Insufficient balance. Current balance: ${currentBalance}, Transfer amount: ${amountInEth}`);
+			Utils.log(`Insufficient balance. Current balance: ${currentBalance}, Transfer amount: ${amountInEth}`);
 			throw new ErrorInsufficientBalance();
 		}
 
-		log(`Transferring ${amount} to ${to}`);
+		Utils.log(`Transferring ${amount} to ${to}`);
 		try {
 			const hash = await this.client.sendTransaction({
 				account: this.account,
@@ -69,7 +70,7 @@ class Wallet {
 				to,
 				value: amount,
 			});
-			log("Transaction Hash:", hash);
+			Utils.log("Transaction Hash:", hash);
 		} catch (e) {
 			if (Wallet._client.config.logLevel === "verbose") console.error(e);
 		}
