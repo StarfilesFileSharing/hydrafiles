@@ -192,7 +192,6 @@ export class File implements FileAttributes {
 			if (savedHash !== hash) await Files._client.fs.remove(filePath); // In case of broken file
 			return true;
 		} catch (e) {
-			console.trace();
 			console.error(e, (e as Error).stack);
 			throw e;
 		}

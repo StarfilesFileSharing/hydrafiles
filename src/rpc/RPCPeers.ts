@@ -59,7 +59,6 @@ export default class RPCPeers {
 		if (savedPeer) return [savedPeer];
 
 		console.log("RPC:      Adding peer", values.host);
-		console.trace()
 		const peer = await RPCPeer.init(values);
 		if (!(peer instanceof Error)) {
 			this.peers.set(values.host, peer);

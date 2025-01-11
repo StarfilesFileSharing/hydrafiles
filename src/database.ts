@@ -194,6 +194,7 @@ export default class Database<T extends ModelType> {
 		const file = this.withDefaults(values);
 		if (file instanceof ErrorMissingRequiredProperty) return file;
 
+		console.trace()
 		if (this._client.config.logLevel === "verbose") console.log(`Database: ${this.model.tableName}  Record INSERTed`, values);
 		else console.log(`Database: ${this.model.tableName}  Record INSERTed`);
 
