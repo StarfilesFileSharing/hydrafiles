@@ -206,7 +206,6 @@ export default class Database<T extends ModelType> {
 				return value === null ? null : String(value);
 			});
 
-			console.trace()
 			this.db.db.exec(query, ...params);
 		} else if (this.db.type === "INDEXEDDB") {
 			const request = this.objectStore().add(file);
