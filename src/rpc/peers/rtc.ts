@@ -188,10 +188,10 @@ export class RTCPeer {
 		const iceCandidate = receivedIceCandidate;
 		RPCPeers._client.events.log(RPCPeers._client.events.rtcEvents.RTCIce);
 		console.log(`WebRTC:   ${this.host}  Received ICE candidate`);
-		// if (typeof window !== "undefined") { // TODO: Figure out why this breaks on desktop
-		if (this.answered) this.answered.conn.addIceCandidate(iceCandidate).catch(console.error);
-		if (this.offered && this.offered.conn.remoteDescription) this.offered.conn.addIceCandidate(iceCandidate).catch(console.error);
-		// }
+		if (typeof window !== "undefined") { // TODO: Figure out why this breaks on desktop
+			if (this.answered) this.answered.conn.addIceCandidate(iceCandidate).catch(console.error);
+			if (this.offered && this.offered.conn.remoteDescription) this.offered.conn.addIceCandidate(iceCandidate).catch(console.error);
+		}
 	}
 
 	async handleMessage(channel: RTCDataChannel, e: MessageEvent): Promise<void> {
