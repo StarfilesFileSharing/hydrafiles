@@ -166,7 +166,7 @@ export class File implements FileAttributes {
 			}
 		}
 
-		throw new ErrorNotFound();
+		return new ErrorNotFound();
 	}
 
 	async cacheFile(file: Uint8Array): Promise<true | ErrorNotInitialised | ErrorNotFound | ErrorUnreachableCodeReached> {
