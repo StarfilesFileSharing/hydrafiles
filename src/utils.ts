@@ -27,20 +27,30 @@ class Utils {
 	static interfere = (signalStrength: number): number => signalStrength >= 95 ? this.getRandomNumber(90, 100) : Math.ceil(signalStrength * (1 - (this.getRandomNumber(0, 10) / 100)));
 	static log = (...args: unknown[]) => {
 		const stack = new Error().stack;
-		// Get the caller's line from the stack trace
-		const callerLine = stack ? stack.split("\n")[2] : "";
-		// Extract file and line info using regex
-		const match = callerLine.match(/\((.+):(\d+):\d+\)/);
-
+		const match = (stack ? stack.split("\n")[2] : "").match(/\((.+):(\d+):\d+\)/);
 		if (match) {
 			const [, file, line] = match;
-			// Get just the filename without the path
 			const filename = file.split("/").pop();
 			console.log(`[${filename}:${line}]`, ...args);
-		} else {
-			// Fallback if we can't get the line info
-			console.log(...args);
-		}
+		} else console.log(...args);
+	};
+	static warn = (...args: unknown[]) => {
+		const stack = new Error().stack;
+		const match = (stack ? stack.split("\n")[2] : "").match(/\((.+):(\d+):\d+\)/);
+		if (match) {
+			const [, file, line] = match;
+			const filename = file.split("/").pop();
+			Utils.warn(`[${filename}:${line}]`, ...args);
+		} else Utils.warn(...args);
+	};
+	static error = (...args: unknown[]) => {
+		const stack = new Error().stack;
+		const match = (stack ? stack.split("\n")[2] : "").match(/\((.+):(\d+):\d+\)/);
+		if (match) {
+			const [, file, line] = match;
+			const filename = file.split("/").pop();
+			Utils.error(`[${filename}:${line}]`, ...args);
+		} else Utils.error(...args);
 	};
 
 	remainingStorage = async (): Promise<NonNegativeNumber | ErrorNotInitialised> => {
@@ -131,7 +141,7 @@ class Utils {
 	};
 
 	purgeCache = async (requiredSpace: number, remainingSpace: number): Promise<true | ErrorNotInitialised> => {
-		console.warn("WARNING: Your node has reached max storage, some files are getting purged. To prevent this, increase your limit at config.json or add more storage to your machine.");
+		Utils.warn("WARNING: Your node has reached max storage, some files are getting purged. To prevent this, increase your limit at config.json or add more storage to your machine.");
 
 		const filesPath = "files/";
 		const files = await this._fs.readDir(filesPath);

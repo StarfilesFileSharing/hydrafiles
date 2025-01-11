@@ -85,9 +85,9 @@ export default class Services {
 						// ) {
 						response.headers = this.filterHydraHeaders(response.headers);
 						resolve(response);
-						// } else console.warn("Inval");
+						// } else Utils.warn("Inval");
 					} catch (e) {
-						if (e instanceof ErrorNotFound) console.error(e);
+						if (e instanceof ErrorNotFound) Utils.error(e);
 						throw e;
 					}
 				}));
@@ -103,14 +103,14 @@ export default class Services {
 		} catch (e) {
 			const err = e as Error;
 			if (err.message === "Hostname not found") {
-				console.warn(`Service:  ${hostname} Not found`);
+				Utils.warn(`Service:  ${hostname} Not found`);
 				const headersObj: { [key: string]: string } = {};
 				req.headers.forEach((value, key) => {
 					headersObj[key] = value;
 				});
 				return new HydraResponse("Hostname not found", { headers: headersObj, status: 404 });
 			} else {
-				console.error(err.message);
+				Utils.error(err.message);
 				throw err;
 			}
 		}

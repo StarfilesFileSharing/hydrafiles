@@ -133,7 +133,7 @@ export default class RPCPeer implements PeerAttributes {
 				signal: Utils.interfere(Number(response.headers["Signal-Strength"])),
 			};
 		} catch (e) {
-			console.error(e);
+			Utils.error(e);
 			this.rejects++;
 
 			this.save();

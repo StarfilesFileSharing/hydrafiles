@@ -9,11 +9,11 @@ await hydrafiles.start();
 // (async () => {
 //   // Example Search
 //   const files = hydrafiles.search({ where: { key: "name", value: "i-am-spartacus-its-me.gif" } });
-//   if (files.length === 0) console.error("File not found");
+//   if (files.length === 0) Utils.error("File not found");
 //   else {
 //     // Example Download
 //     const file = new FileHandler(files[0], hydrafiles);
 //     const fileContent = await file.getFile();
 //     console.log(fileContent);
 //   }
-// })().catch(console.error);
+// })().catch(Utils.error);

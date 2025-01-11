@@ -104,12 +104,12 @@ export default class RPCPeers {
 					for (const remotePeer of remotePeers) {
 						if (Utils.isPrivateIP(remotePeer.host) || remotePeer.host.startsWith("https://")) continue;
 						this.add(remotePeer).catch((e) => {
-							if (RPCPeers._client.config.logLevel === "verbose") console.error(e);
+							if (RPCPeers._client.config.logLevel === "verbose") Utils.error(e);
 						});
 					}
 				}
 			} catch (e) {
-				if (RPCPeers._client.config.logLevel === "verbose") console.error(e);
+				if (RPCPeers._client.config.logLevel === "verbose") Utils.error(e);
 			}
 		}
 	}
@@ -156,7 +156,7 @@ export default class RPCPeers {
 
 				return peerResponses;
 			} catch (e) {
-				console.error(e);
+				Utils.error(e);
 				return [];
 			}
 		});
@@ -215,7 +215,7 @@ export default class RPCPeers {
 
 			return new Response("404 Page Not Found\n", { status: 404, headers });
 		} catch (e) {
-			console.error(req.url, "Internal Server Error", e);
+			Utils.error(req.url, "Internal Server Error", e);
 			return new Response("Internal Server Error", { status: 500, headers });
 		}
 	};
