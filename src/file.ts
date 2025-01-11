@@ -123,7 +123,7 @@ export class File implements FileAttributes {
 		console.log(`File:     ${hash}  Getting file metadata - ${typeof this.id}(${this.id})`);
 
 		const id = this.id;
-		if (id !== undefined && id !== null && id.length > 0) {
+		if (id !== undefined && id !== "undefined" && id !== null && id.length > 0) {
 			const responses = await Files._client.rpcPeers.fetch(`hydra://core/file/${this.id}`);
 
 			for (let i = 0; i < responses.length; i++) {
