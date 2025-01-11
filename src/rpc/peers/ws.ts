@@ -92,6 +92,8 @@ export default class WSPeers {
 
 	handleConnection(req: Request): Response {
 		const { socket, response } = Deno.upgradeWebSocket(req);
+		console.log(WSPeers._rpcPeers.getPeers())
+		console.trace()
 		WSPeers._rpcPeers.add({ host: `wsc://${new URL(req.url).searchParams.get("address")}`, socket });
 
 		(response as Response & { ws: true }).ws = true;
