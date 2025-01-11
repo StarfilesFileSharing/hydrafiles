@@ -89,10 +89,15 @@ export default class WSPeers {
 	static seenMessages: Set<string> = new Set();
 	onopens: Array<() => void> = [];
 	onmessages: Array<(event: MessageEvent) => void> = [];
+	private seenPeers: `wsc://${string}`[] = []
 
 	handleConnection(req: Request): Response {
 		const { socket, response } = Deno.upgradeWebSocket(req);
-		WSPeers._rpcPeers.add({ host: `wsc://${new URL(req.url).searchParams.get("address")}`, socket });
+		const host: `wsc://${string}` = `wsc://${new URL(req.url).searchParams.get("address")}`
+		if (!this.seenPeers.includes(host)) {
+			WSPeers._rpcPeers.add({ host, socket });
+			this.seenPeers.push(host)
+		}
 
 		(response as Response & { ws: true }).ws = true;
 		return response as Response & { ws: true };
