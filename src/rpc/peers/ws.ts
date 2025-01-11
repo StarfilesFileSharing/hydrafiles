@@ -104,27 +104,27 @@ export default class WSPeers {
 	}
 
 	send(message: WSRequest | WSResponse | SignallingMessage): void {
-		const peers = Array.from(WSPeers._rpcPeers.peers.entries());
+		const peers = WSPeers._rpcPeers.getPeers();
 		for (let i = 0; i < peers.length; i++) {
-			const peer = peers[i][1].peer;
+			const peer = peers[i];
 			if (peer instanceof WSPeer) peer.send(message);
 		}
 	}
 
 	onopen(callback: () => void): void {
 		console.log("onopen", callback);
-		const peers = Array.from(WSPeers._rpcPeers.peers);
+		const peers = WSPeers._rpcPeers.getPeers();
 		for (let i = 0; i < peers.length; i++) {
-			const peer = peers[i][1].peer;
+			const peer = peers[i];
 			if (peer instanceof WSPeer) peer.socket.addEventListener("open", callback);
 		}
 		this.onopens.push(callback);
 	}
 
 	onmessage(callback: (event: MessageEvent) => void): void {
-		const peers = Array.from(WSPeers._rpcPeers.peers);
+		const peers = WSPeers._rpcPeers.getPeers();
 		for (let i = 0; i < peers.length; i++) {
-			const peer = peers[i][1].peer;
+			const peer = peers[i];
 			if (peer instanceof WSPeer) peer.socket.addEventListener("message", callback);
 		}
 		this.onmessages.push(callback);

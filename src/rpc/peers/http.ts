@@ -112,7 +112,7 @@ export default class HTTPServer {
 	};
 
 	public getSelf(): RPCPeer | ErrorNotFound {
-		const peer = this._rpcPeers.peers.get(RPCPeers._client.config.publicHostname);
+		const peer = this._rpcPeers.getPeer(RPCPeers._client.config.publicHostname);
 		if (!peer) throw new ErrorNotFound();
 		return peer;
 	}

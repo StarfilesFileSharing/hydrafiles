@@ -65,7 +65,6 @@ export default class RPCPeer implements PeerAttributes {
 	static async init(
 		values: Partial<DatabaseModal<typeof peerModel>> & ({ host: Host; socket?: WebSocket }),
 	): Promise<RPCPeer | ErrorMissingRequiredProperty | ErrorUnexpectedProtocol> {
-		console.log(`RPC:      Init`, values)
 		const url = new URL(values.host);
 		if (!url.protocol || !url.host || url.protocol === "hydra") throw new Error("Invalid URL");
 

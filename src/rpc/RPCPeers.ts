@@ -20,7 +20,7 @@ export default class RPCPeers {
 	static _client: Hydrafiles;
 	static db: Database<typeof peerModel>;
 
-	peers = new Map<Host, RPCPeer>();
+	private peers = new Map<Host, RPCPeer>();
 
 	http: HTTPServer;
 	ws: WSPeers;
@@ -85,6 +85,10 @@ export default class RPCPeers {
 		else if (RPCPeers._client.config.preferNode === "LEAST_USED") return peers.map(([_, peer]) => peer).sort((a, b) => a.hits - a.rejects - (b.hits - b.rejects));
 		else if (RPCPeers._client.config.preferNode === "HIGHEST_HITRATE") return peers.sort((a, b) => a[1].hits - a[1].rejects - (b[1].hits - b[1].rejects)).map(([_, peer]) => peer);
 		else return peers.map(([_, peer]) => peer);
+	};
+
+	public getPeer = (host: Host): RPCPeer => {
+		return this.getPeers().filter(peer => peer.host === host)[0]
 	};
 
 	// TODO: Compare list between all peers and give score based on how similar they are. 100% = all exactly the same, 0% = no items in list were shared. The lower the score, the lower the propagation times, the lower the decentralisation

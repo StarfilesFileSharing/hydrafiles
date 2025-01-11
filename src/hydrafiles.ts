@@ -86,7 +86,7 @@ class Hydrafiles {
 			"\n| Uptime:",
 			Utils.convertTime(+new Date() - this.startTime),
 			"\n| Known Peers:",
-			Object.keys(this.rpcPeers.peers).length,
+			this.rpcPeers.getPeers().length,
 			"\n| Known (Network) Files:",
 			await this.files.db.count(),
 			`(${Math.round((100 * (await this.files.db.sum("size"))) / 1024 / 1024 / 1024) / 100}GB)`,

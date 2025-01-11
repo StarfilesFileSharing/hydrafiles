@@ -439,12 +439,12 @@ async function fetchAndPopulatePeers() {
 		peersEl.appendChild(li);
 	});
 
-	const rtcPeers = Array.from(window.hydrafiles.rpcPeers.peers.entries());
+	const rpcPeers = window.hydrafiles.rpcPeers.getPeers();
 	const tbody = document.getElementById("peerTable")!.querySelector("tbody") as HTMLTableSectionElement;
 
 	tbody.innerHTML = "";
-	for (let i = 0; i < rtcPeers.length; i++) {
-		const [host, peer] = rtcPeers[i];
+	for (let i = 0; i < rpcPeers.length; i++) {
+		const peer = rpcPeers[i];
 		if (!(peer.peer instanceof RTCPeer)) continue;
 		const peerConns = [peer.peer.answered, peer.peer.offered];
 		for (let j = 0; j < peerConns.length; j++) {
@@ -453,7 +453,7 @@ async function fetchAndPopulatePeers() {
 			const row = document.createElement("tr");
 
 			const cells = [
-				host,
+				peer.host,
 				"",
 				conn.conn.signalingState,
 				conn.conn.iceGatheringState,
@@ -817,10 +817,10 @@ new Network(document.getElementById("peerNetwork")!, { nodes: nodes as any, edge
 });
 
 async function populateNetworkGraph() {
-	const peers = Array.from(window.hydrafiles.rpcPeers.peers);
+	const peers = window.hydrafiles.rpcPeers.getPeers();
 
 	const foundNodes = [
-		...peers.map((peer, index) => ({ id: index + 1, label: peer[0] })),
+		...peers.map((peer, index) => ({ id: index + 1, label: peer.host })),
 	];
 	const foundEdges = [
 		...peers.map((_, index) => ({ id: `0-${index + 1}`, from: 0, to: index + 1 })),

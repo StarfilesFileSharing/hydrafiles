@@ -288,7 +288,7 @@ export default class RTCPeers {
 
 	async handleSignallingMessage(event: MessageEvent): Promise<void> {
 		const message = JSON.parse(event.data) as SignallingMessage;
-		let peer = RTCPeers._rpcPeers.peers.get(`rtc://${message.from}.hydra`);
+		let peer = RTCPeers._rpcPeers.getPeer(`rtc://${message.from}.hydra`);
 
 		if (("to" in message && message.to !== `rtc://${this.address}.hydra`) || message.from === RPCPeers._client.rtcWallet.address()) return;
 
