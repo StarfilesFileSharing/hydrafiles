@@ -194,8 +194,8 @@ export default class Database<T extends ModelType> {
 		const file = this.withDefaults(values);
 		if (file instanceof ErrorMissingRequiredProperty) return file;
 
-		if (this._client.config.logLevel === "verbose") console.log(`Database: ${this.model.tableName}  Record INSERTed`, values);
-		else console.log(`Database: ${this.model.tableName}  Record INSERTed`);
+		if (this._client.config.logLevel === "verbose") console.log(`Database: ${this.model.tableName}  INSERTing Record`, values);
+		else console.log(`Database: ${this.model.tableName}  INSERTing Record`);
 
 		if (this.db.type === "SQLITE") {
 			const columns = Object.keys(this.model.columns);
@@ -206,6 +206,7 @@ export default class Database<T extends ModelType> {
 				return value === null ? null : String(value);
 			});
 
+			console.trace()
 			this.db.db.exec(query, ...params);
 		} else if (this.db.type === "INDEXEDDB") {
 			const request = this.objectStore().add(file);
