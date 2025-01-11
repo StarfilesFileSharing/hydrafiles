@@ -475,6 +475,8 @@ class Files {
 			return false;
 		});
 
+		const uniqueHashNonces = new Set<string>();
+
 		for (let i = 0; i < files.length; i++) {
 			if (onProgress) onProgress(i, files.length);
 			const newFile = files[i];
@@ -495,9 +497,10 @@ class Files {
 						currentFile[key] = newFile[key];
 						updated = true;
 					}
-					if (newFile.voteNonce !== 0 && newFile.voteDifficulty > currentFile.voteDifficulty && newFile["voteNonce"] > 0) {
-						console.log(`File:     ${newFile.hash}  Checking vote nonce ${newFile["voteNonce"]}`);
-						currentFile.checkVoteNonce(newFile["voteNonce"]);
+					if (newFile.voteNonce !== 0 && newFile.voteDifficulty > currentFile.voteDifficulty && newFile.voteNonce > 0 && !uniqueHashNonces.has(newFile.hash + newFile.voteNonce)) {
+						console.log(`File:     ${newFile.hash}  Checking vote nonce ${newFile.voteNonce}`);
+						currentFile.checkVoteNonce(newFile.voteNonce);
+						uniqueHashNonces.add(newFile.hash + newFile.voteNonce)
 					}
 				}
 				if (updated) currentFile.save();
