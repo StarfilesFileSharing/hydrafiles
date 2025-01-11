@@ -129,7 +129,7 @@ export class RTCPeer {
 		RPCPeers._client.events.log(RPCPeers._client.events.rtcEvents.RTCAnnounce);
 		console.log(`WebRTC:   ${from}  Received announce`);
 		if (this.offered) {
-			console.warn(`WebRTC:   ${from} Already offered to peer`);
+			console.warn(`WebRTC:   ${from}  Already offered to peer`);
 			return;
 		}
 		this.offered = await this.createConnection(from);
