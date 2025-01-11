@@ -8,6 +8,7 @@ export type WSRequest = { request: { method: string; url: string; headers: Recor
 export type WSResponse = { response: DecodedResponse; requestHash: string };
 
 const pendingWSRequests = new Map<string, DecodedResponse[]>();
+const seenPeers: `wsc://${string}`[] = []
 
 export class WSPeer {
 	host: string;
@@ -89,14 +90,13 @@ export default class WSPeers {
 	static seenMessages: Set<string> = new Set();
 	onopens: Array<() => void> = [];
 	onmessages: Array<(event: MessageEvent) => void> = [];
-	seenPeers: `wsc://${string}`[] = []
 
 	handleConnection(req: Request): Response {
 		const { socket, response } = Deno.upgradeWebSocket(req);
 		const host: `wsc://${string}` = `wsc://${new URL(req.url).searchParams.get("address")}`
-		if (!this.seenPeers.includes(host)) {
+		if (!seenPeers.includes(host)) {
 			WSPeers._rpcPeers.add({ host, socket });
-			this.seenPeers.push(host)
+			seenPeers.push(host)
 		}
 
 		(response as Response & { ws: true }).ws = true;
