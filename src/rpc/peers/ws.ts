@@ -89,7 +89,7 @@ export default class WSPeers {
 	static seenMessages: Set<string> = new Set();
 	onopens: Array<() => void> = [];
 	onmessages: Array<(event: MessageEvent) => void> = [];
-	private seenPeers: `wsc://${string}`[] = []
+	seenPeers: `wsc://${string}`[] = []
 
 	handleConnection(req: Request): Response {
 		const { socket, response } = Deno.upgradeWebSocket(req);
