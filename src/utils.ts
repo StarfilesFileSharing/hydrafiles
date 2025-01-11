@@ -27,7 +27,13 @@ class Utils {
 	static interfere = (signalStrength: number): number => signalStrength >= 95 ? this.getRandomNumber(90, 100) : Math.ceil(signalStrength * (1 - (this.getRandomNumber(0, 10) / 100)));
 	static log = (...args: unknown[]) => {
 		const stack = new Error().stack;
-		const match = (stack ? stack.split("\n")[2] : "").match(/\((.+):(\d+):\d+\)/);
+    let match;
+    if (stack) {
+        const lines = stack.split('\n');
+        if (lines.length > 2) {
+            match = lines[2].match(/\((.+):(\d+):\d+\)/);
+        }
+    }
 		if (match) {
 			const [, file, line] = match;
 			const filename = file.split("/").pop();
@@ -36,7 +42,13 @@ class Utils {
 	};
 	static warn = (...args: unknown[]) => {
 		const stack = new Error().stack;
-		const match = (stack ? stack.split("\n")[2] : "").match(/\((.+):(\d+):\d+\)/);
+    let match;
+    if (stack) {
+        const lines = stack.split('\n');
+        if (lines.length > 2) {
+            match = lines[2].match(/\((.+):(\d+):\d+\)/);
+        }
+    }
 		if (match) {
 			const [, file, line] = match;
 			const filename = file.split("/").pop();
@@ -45,7 +57,13 @@ class Utils {
 	};
 	static error = (...args: unknown[]) => {
 		const stack = new Error().stack;
-		const match = (stack ? stack.split("\n")[2] : "").match(/\((.+):(\d+):\d+\)/);
+    let match;
+    if (stack) {
+        const lines = stack.split('\n');
+        if (lines.length > 2) {
+            match = lines[2].match(/\((.+):(\d+):\d+\)/);
+        }
+    }
 		if (match) {
 			const [, file, line] = match;
 			const filename = file.split("/").pop();
