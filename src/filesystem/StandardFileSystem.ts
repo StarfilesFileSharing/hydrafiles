@@ -7,7 +7,7 @@ export default class StandardFileSystem {
 			return true;
 		} catch (e) {
 			if (e instanceof Deno.errors.NotFound) return false;
-			console.error((e as Error).message);
+			Utils.error((e as Error).message);
 			throw e;
 		}
 	};
@@ -49,7 +49,7 @@ export default class StandardFileSystem {
 			try {
 				await Deno.remove(path);
 			} catch (error) {
-				console.error("Error removing file:", error);
+				Utils.error("Error removing file:", error);
 			}
 		}
 	};

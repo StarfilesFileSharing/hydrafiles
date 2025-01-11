@@ -95,7 +95,7 @@ export class File implements FileAttributes {
 					const body = await JSON.parse(response.body) as { result: Metadata } | FileAttributes;
 					hash = "result" in body ? body.result.hash.sha256 : body.hash;
 				} catch (e) {
-					if (Files._client.config.logLevel === "verbose") console.error(e);
+					if (Files._client.config.logLevel === "verbose") Utils.error(e);
 				}
 			}
 			throw new Error("No hash found for the provided id");
@@ -162,7 +162,7 @@ export class File implements FileAttributes {
 					return this;
 				}
 			} catch (error) {
-				console.error(error);
+				Utils.error(error);
 			}
 		}
 
@@ -192,7 +192,7 @@ export class File implements FileAttributes {
 			if (savedHash !== hash) await Files._client.fs.remove(filePath); // In case of broken file
 			return true;
 		} catch (e) {
-			console.error(e, (e as Error).stack);
+			Utils.error(e, (e as Error).stack);
 			throw e;
 		}
 	}
@@ -381,7 +381,7 @@ export class File implements FileAttributes {
 			try {
 				fileContent = await peer.downloadFile(this);
 			} catch (e) {
-				console.error(e);
+				Utils.error(e);
 			}
 			if (fileContent && !(fileContent instanceof Error)) return fileContent;
 		}
@@ -505,7 +505,7 @@ class Files {
 				}
 				if (updated) currentFile.save();
 			} catch (e) {
-				console.error(e);
+				Utils.error(e);
 			}
 		}
 		if (onProgress) onProgress(files.length, files.length);

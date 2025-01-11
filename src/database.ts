@@ -108,11 +108,11 @@ export default class Database<T extends ModelType> {
 					resolve(request.result as unknown as IDBDatabase);
 				};
 				request.onerror = () => {
-					console.error(`Database: ${model.tableName}DB error:`, request.error);
+					Utils.error(`Database: ${model.tableName}DB error:`, request.error);
 					reject(request.error);
 				};
 				request.onblocked = () => {
-					console.error(`Database: ${model.tableName}DB: Blocked. Close other tabs with this site open.`);
+					Utils.error(`Database: ${model.tableName}DB: Blocked. Close other tabs with this site open.`);
 				};
 			});
 			database.db = { type: "INDEXEDDB", db: db };
@@ -231,7 +231,7 @@ export default class Database<T extends ModelType> {
 		// Get the current file attributes before updating
 		const currentFile = (await this.select({ key: primaryKey, value: primaryKeyValue }))[0];
 		if (!currentFile) {
-			console.error(`File:     ${primaryKeyValue}  Mot found when updating`);
+			Utils.error(`File:     ${primaryKeyValue}  Mot found when updating`);
 			throw new ErrorNotFound();
 		}
 
@@ -251,7 +251,7 @@ export default class Database<T extends ModelType> {
 		}
 
 		if (updatedColumn.length <= 1) {
-			console.warn("Unnecessary DB update");
+			Utils.warn("Unnecessary DB update");
 			return true;
 		}
 
@@ -264,7 +264,7 @@ export default class Database<T extends ModelType> {
 				this._client.config.logLevel === "verbose" ? Utils.log(`File:     ${primaryKeyValue}`) : "",
 			);
 		} else {
-			if (this.db.type === "INDEXEDDB") this.objectStore().put(Object.fromEntries(Object.entries(newFile).filter(([key]) => !key.startsWith("_")))).onerror = console.error;
+			if (this.db.type === "INDEXEDDB") this.objectStore().put(Object.fromEntries(Object.entries(newFile).filter(([key]) => !key.startsWith("_")))).onerror = Utils.error;
 			Utils.log(
 				`this:     ${primaryKeyValue}  File UPDATEd - Updated Columns: ${updatedColumn.join(", ")}` + (this._client.config.logLevel === "verbose" ? ` - Params: ${params.join(", ")}` : ""),
 				this._client.config.logLevel === "verbose" ? Utils.log(`File:     ${primaryKeyValue}`) : "",
@@ -279,7 +279,7 @@ export default class Database<T extends ModelType> {
 
 		if (this.db.type === "SQLITE") {
 			this.db.db.exec(query, primaryKeyValue.toString());
-		} else if (this.db.type === "INDEXEDDB") this.objectStore().delete(primaryKeyValue.toString()).onerror = console.error;
+		} else if (this.db.type === "INDEXEDDB") this.objectStore().delete(primaryKeyValue.toString()).onerror = Utils.error;
 		Utils.log(`File:     ${primaryKeyValue}  File DELETEd`);
 	}
 

@@ -253,17 +253,17 @@ const tickHandler = async () => {
 	try {
 		(document.getElementById("uptime") as HTMLElement).innerHTML = convertTime(+new Date() - window.hydrafiles.startTime);
 	} catch (e) {
-		console.error(e);
+		Utils.error(e);
 	}
 	try {
 		(document.getElementById("peersCount") as HTMLElement).innerHTML = String(window.hydrafiles.rpcPeers.getPeers().length);
 	} catch (e) {
-		console.error(e);
+		Utils.error(e);
 	}
 	try {
 		(document.getElementById("knownFiles") as HTMLElement).innerHTML = `${await window.hydrafiles.files.db.count()} (${Math.round((100 * (await window.hydrafiles.files.db.sum("size"))) / 1024 / 1024 / 1024) / 100}GB)`;
 	} catch (e) {
-		console.error(e);
+		Utils.error(e);
 	}
 	try {
 		const files = await window.hydrafiles.fs.readDir("files/");
@@ -272,39 +272,39 @@ const tickHandler = async () => {
 			Math.round((100 * (usedStorage instanceof ErrorNotInitialised ? 0 : usedStorage)) / 1024 / 1024 / 1024) / 100
 		}GB)`, populateTable();
 	} catch (e) {
-		console.error(e, (e as Error).stack);
+		Utils.error(e, (e as Error).stack);
 	}
 	try {
 		(document.getElementById("downloadsServed") as HTMLElement).innerHTML = (await window.hydrafiles.files.db.sum("downloadCount")) +
 			` (${Math.round((((await window.hydrafiles.files.db.sum("downloadCount * size")) / 1024 / 1024 / 1024) * 100) / 100)}GB)`;
 	} catch (e) {
-		console.error(e);
+		Utils.error(e);
 	}
 	try {
 		(document.getElementById("filesWallet") as HTMLElement).innerHTML = window.hydrafiles.filesWallet.address();
 	} catch (e) {
-		console.error(e);
+		Utils.error(e);
 	}
 	try {
 		(document.getElementById("rtcWallet") as HTMLElement).innerHTML = window.hydrafiles.rtcWallet.address();
 	} catch (e) {
-		console.error(e);
+		Utils.error(e);
 	}
 	try {
 		(document.getElementById("balance") as HTMLElement).innerHTML = String(await window.hydrafiles.filesWallet.balance());
 	} catch (e) {
-		console.error(e);
+		Utils.error(e);
 	}
 	try {
 		fetchAndPopulatePeers();
 	} catch (e) {
-		console.error(e);
+		Utils.error(e);
 	}
 	fetchAndPopulateCharts();
 	try {
 		populateNetworkGraph();
 	} catch (e) {
-		console.error(e);
+		Utils.error(e);
 	}
 	try {
 		const blocks = window.hydrafiles.nameService.blocks;
@@ -331,12 +331,12 @@ const tickHandler = async () => {
 			knownServices.appendChild(code);
 		}
 	} catch (e) {
-		console.error(e);
+		Utils.error(e);
 	}
 	try {
 		refreshHostnameUIs();
 	} catch (e) {
-		console.error(e);
+		Utils.error(e);
 	}
 };
 
@@ -525,7 +525,7 @@ function populateTable() {
 			Utils.log("Downloading file:", file);
 			const fileContent = await file.getFile({ logDownloads: true });
 			if (!fileContent) {
-				console.error("Failed to download file");
+				Utils.error("Failed to download file");
 				return;
 			}
 			if (fileContent instanceof Error) return;
@@ -677,7 +677,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 				// document.getElementById("urlBody")!.innerHTML = body;
 			}
 		} catch (error) {
-			console.error("Error loading site:", error);
+			Utils.error("Error loading site:", error);
 			document.getElementById("urlBody")!.innerHTML = `Error loading site: ${(error as Error).message}`;
 		}
 		document.getElementById("loadSite")!.innerHTML = "Go";

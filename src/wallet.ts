@@ -72,7 +72,7 @@ class Wallet {
 			});
 			Utils.log("Transaction Hash:", hash);
 		} catch (e) {
-			if (Wallet._client.config.logLevel === "verbose") console.error(e);
+			if (Wallet._client.config.logLevel === "verbose") Utils.error(e);
 		}
 		return true;
 	}
@@ -86,7 +86,7 @@ class Wallet {
 			const signature = await this.client.signMessage({ account: this.account, message });
 			return signature;
 		} catch (e) {
-			if (Wallet._client.config.logLevel === "verbose") console.error(e);
+			if (Wallet._client.config.logLevel === "verbose") Utils.error(e);
 			throw new Error("Failed to sign message");
 		}
 	}
@@ -96,7 +96,7 @@ class Wallet {
 			const recoveredAddress = await this.client.verifyMessage({ address, message, signature });
 			return recoveredAddress;
 		} catch (e) {
-			if (Wallet._client.config.logLevel === "verbose") console.error(e);
+			if (Wallet._client.config.logLevel === "verbose") Utils.error(e);
 			return false;
 		}
 	}
