@@ -79,7 +79,7 @@ class Hydrafiles {
 	async logState(): Promise<void> {
 		const files = await this.fs.readDir("files/");
 		const usedStorage = await this.utils.calculateUsedStorage();
-		console.log(
+		Utils.log(
 			"\n===============================================\n========",
 			new Date().toUTCString(),
 			"========\n===============================================",

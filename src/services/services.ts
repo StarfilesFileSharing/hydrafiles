@@ -30,7 +30,7 @@ export default class Services {
 	public addHostname(requestHandler: (req: Request) => Promise<Response> | Response, seed: number): EthAddress {
 		const wallet = new Wallet(1000 + seed);
 		const api = new Service(wallet, requestHandler);
-		console.log(`Service:  ${wallet.address()} added`);
+		log(`Service:  ${wallet.address()} added`);
 		this.ownedServices.set(wallet.address(), api);
 		return wallet.address();
 	}
@@ -39,11 +39,11 @@ export default class Services {
 		const now = Date.now();
 		const url = new URL(req.url);
 		const hostname = url.pathname.split("/")[2] as EthAddress;
-		console.log(`Service:  ${hostname} Received Request`);
+		log(`Service:  ${hostname} Received Request`);
 
 		const service = this.ownedServices.get(hostname);
 		if (service) {
-			console.log(`Service:  ${hostname} Serving response`);
+			log(`Service:  ${hostname} Serving response`);
 			return service.fetch(req);
 		}
 
@@ -51,13 +51,13 @@ export default class Services {
 		const cachedEntry = this.cachedResponses.get(reqKey);
 		if (cachedEntry) {
 			if (now - (cachedEntry.timestamp ?? 0) > 60000) this.cachedResponses.delete(reqKey);
-			console.log(`Service:  ${hostname} Serving response from cache`);
+			log(`Service:  ${hostname} Serving response from cache`);
 			return cachedEntry;
 		}
 
-		console.log(this.processingRequests);
+		log(this.processingRequests);
 		if (this.processingRequests.has(hostname)) {
-			console.log(`Service:  ${hostname} Waiting for existing request with same hostname`);
+			log(`Service:  ${hostname} Waiting for existing request with same hostname`);
 			await this.processingRequests.get(hostname);
 		}
 
@@ -71,7 +71,7 @@ export default class Services {
 
 		const processingRequest = new Promise<DecodedResponse | ErrorRequestFailed | ErrorNotFound>((resolve, _rej) => {
 			(async () => {
-				console.log(`Service:  ${hostname} Fetching response from peers`);
+				log(`Service:  ${hostname} Fetching response from peers`);
 				const responses = await Services._client.rpcPeers.fetch(`hydra://core${url.pathname}${url.search}` as `hydra://core/service/${EthAddress}`, { headers: this.filterHydraHeaders(headersObj) });
 				await Promise.all(responses.map((response) => {
 					try {
@@ -116,7 +116,7 @@ export default class Services {
 
 		if (response instanceof ErrorRequestFailed) throw response;
 
-		console.log(`Service:  ${hostname} Mirroring response`);
+		log(`Service:  ${hostname} Mirroring response`);
 		const res = new HydraResponse(response.body, { headers: this.filterHydraHeaders(response.headers), timestamp: Date.now() });
 		this.processingRequests.delete(hostname);
 		this.cachedResponses.set(reqKey, res);

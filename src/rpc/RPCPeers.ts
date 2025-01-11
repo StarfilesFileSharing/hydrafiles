@@ -58,7 +58,7 @@ export default class RPCPeers {
 		const savedPeer = this.peers.get(values.host);
 		if (savedPeer) return [savedPeer];
 
-		console.log("RPC:      Adding peer", values.host);
+		Utils.log("RPC:      Adding peer", values.host);
 		const peer = await RPCPeer.init(values);
 		if (!(peer instanceof Error)) {
 			this.peers.set(values.host, peer);
@@ -67,7 +67,7 @@ export default class RPCPeers {
 
 		if (values.host.startsWith("http:") || values.host.startsWith("https:")) {
 			const host = values.host.replace("http", "ws") as Host;
-			console.log("RPC:      Adding peer", host);
+			Utils.log("RPC:      Adding peer", host);
 			const wsPeer = await RPCPeer.init({ ...values, host });
 			if (!(wsPeer instanceof Error)) {
 				this.peers.set(host, wsPeer);
@@ -88,12 +88,12 @@ export default class RPCPeers {
 	};
 
 	public getPeer = (host: Host): RPCPeer => {
-		return this.getPeers().filter(peer => peer.host === host)[0]
+		return this.getPeers().filter((peer) => peer.host === host)[0];
 	};
 
 	// TODO: Compare list between all peers and give score based on how similar they are. 100% = all exactly the same, 0% = no items in list were shared. The lower the score, the lower the propagation times, the lower the decentralisation
 	async discoverPeers(): Promise<void> {
-		console.log(`RPC:      Discovering peers`);
+		Utils.log(`RPC:      Discovering peers`);
 		const responses = await Promise.all(await RPCPeers._client.rpcPeers.fetch("hydra://core/peers"));
 		for (let i = 0; i < responses.length; i++) {
 			try {
@@ -118,7 +118,7 @@ export default class RPCPeers {
 	 * Sends requests to peers.
 	 */
 	public fetch = async (url: CoreRequest, init?: RequestInit | RequestInit & { wallet: Wallet }): Promise<DecodedResponse[]> => {
-		console.log(`RPC:      Fetching ${url.toString()}`);
+		Utils.log(`RPC:      Fetching ${url.toString()}`);
 
 		const method = init?.method;
 		const headers: { [key: string]: string } = {};
@@ -163,7 +163,7 @@ export default class RPCPeers {
 		const results = await Promise.all(promises);
 		responses = responses.concat(...results);
 
-		console.log(`RPC:      Fetched ${responses.length} responses for ${url.toString()}`);
+		Utils.log(`RPC:      Fetched ${responses.length} responses for ${url.toString()}`);
 		return responses;
 	};
 
@@ -176,7 +176,7 @@ export default class RPCPeers {
 			"Access-Control-Allow-Headers": "hydra-signature, hydra-from",
 		};
 		try {
-			console.log(`RPC:      Received request ${req.url}`);
+			Utils.log(`RPC:      Received request ${req.url}`);
 			const url = new URL(req.url);
 
 			if ((url.pathname === "/" || url.pathname === "/docs") && req.headers.get("upgrade") !== "websocket") {

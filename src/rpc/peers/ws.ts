@@ -3,12 +3,13 @@ import { ErrorTimeout } from "../../errors.ts";
 import { DecodedResponse, HydraResponse } from "../routes.ts";
 import RPCPeers from "../RPCPeers.ts";
 import type { SignallingMessage } from "./rtc.ts";
+import Utils from "../../utils.ts";
 
 export type WSRequest = { request: { method: string; url: string; headers: Record<string, string>; body?: string } };
 export type WSResponse = { response: DecodedResponse; requestHash: string };
 
 const pendingWSRequests = new Map<string, DecodedResponse[]>();
-const seenPeers: `wsc://${string}`[] = []
+const seenPeers: `wsc://${string}`[] = [];
 
 export class WSPeer {
 	host: string;
@@ -25,13 +26,13 @@ export class WSPeer {
 			this.handleMessage(data);
 		});
 
-		console.log(`WebRTC:   Announcing to ${this.host}`);
+		Utils.log(`WebRTC:   Announcing to ${this.host}`);
 		this.send({ announce: true, from: RPCPeers._client.rtcWallet.address() });
 		setInterval(() => this.send({ announce: true, from: RPCPeers._client.rtcWallet.address() }), RPCPeers._client.config.announceSpeed);
 	}
 
 	public async fetch(url: `hydra://core/${string}`, method = "GET", headers: { [key: string]: string } = {}, body: string | undefined = undefined): Promise<Array<DecodedResponse | ErrorTimeout>> {
-		console.log(`WS:       Fetching ${url} from ${this.host}`);
+		Utils.log(`WS:       Fetching ${url} from ${this.host}`);
 		const request: WSRequest = { request: { method, url: url.toString(), headers, body: method === "GET" ? undefined : body } };
 		const message = JSON.stringify(request);
 
@@ -93,10 +94,10 @@ export default class WSPeers {
 
 	handleConnection(req: Request): Response {
 		const { socket, response } = Deno.upgradeWebSocket(req);
-		const host: `wsc://${string}` = `wsc://${new URL(req.url).searchParams.get("address")}`
+		const host: `wsc://${string}` = `wsc://${new URL(req.url).searchParams.get("address")}`;
 		if (!seenPeers.includes(host)) {
 			WSPeers._rpcPeers.add({ host, socket });
-			seenPeers.push(host)
+			seenPeers.push(host);
 		}
 
 		(response as Response & { ws: true }).ws = true;
@@ -112,7 +113,7 @@ export default class WSPeers {
 	}
 
 	onopen(callback: () => void): void {
-		console.log("onopen", callback);
+		Utils.log("onopen", callback);
 		const peers = WSPeers._rpcPeers.getPeers();
 		for (let i = 0; i < peers.length; i++) {
 			const peer = peers[i];

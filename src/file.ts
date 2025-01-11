@@ -69,7 +69,7 @@ export class File implements FileAttributes {
 		this.hash = hash;
 
 		if (vote) {
-			console.log(`File:     ${this.hash}  Voting for file`);
+			Utils.log(`File:     ${this.hash}  Voting for file`);
 			this.checkVoteNonce();
 		}
 	}
@@ -86,7 +86,7 @@ export class File implements FileAttributes {
 			hash = files[0].hash;
 		}
 		if (!hash && values.id) {
-			console.log(`Fetching file metadata`); // TODO: Merge with getMetadata
+			Utils.log(`Fetching file metadata`); // TODO: Merge with getMetadata
 			const responses = await Files._client.rpcPeers.fetch(`hydra://core/file/${values.id}`);
 			for (let i = 0; i < responses.length; i++) {
 				const response = responses[i];
@@ -120,7 +120,7 @@ export class File implements FileAttributes {
 
 		const hash = this.hash;
 
-		console.log(`File:     ${hash}  Getting file metadata`);
+		Utils.log(`File:     ${hash}  Getting file metadata`);
 
 		const id = this.id;
 		if (id !== undefined && id !== "undefined" && id !== null && id.length > 0) {
@@ -138,7 +138,7 @@ export class File implements FileAttributes {
 					this.save();
 					return this;
 				} catch (e) {
-					if (Files._client.config.logLevel === "verbose") console.log(e);
+					if (Files._client.config.logLevel === "verbose") Utils.log(e);
 				}
 			}
 		}
@@ -199,7 +199,7 @@ export class File implements FileAttributes {
 
 	async fetchFromCache(): Promise<{ file: Uint8Array; signal: number } | ErrorNotFound | ErrorNotInitialised | ErrorChecksumMismatch> {
 		const hash = this.hash;
-		console.log(`File:     ${hash}  Checking Cache`);
+		Utils.log(`File:     ${hash}  Checking Cache`);
 		const filePath = join(FILESPATH, hash.toString());
 		this.seed();
 		if (!await Files._client.fs.exists(filePath)) return new ErrorNotFound();
@@ -217,7 +217,7 @@ export class File implements FileAttributes {
 	}
 
 	async fetchFromS3(): Promise<{ file: Uint8Array; signal: number } | ErrorNotInitialised | ErrorNotFound | ErrorChecksumMismatch> {
-		console.log(`File:     ${this.hash}  Checking S3`);
+		Utils.log(`File:     ${this.hash}  Checking S3`);
 		if (Files._client.s3 === undefined) throw new ErrorNotInitialised();
 		const chunks: Uint8Array[] = [];
 		try {
@@ -262,26 +262,26 @@ export class File implements FileAttributes {
 		//   await Files._client.keyPair,
 		// );
 		// await Files._client.blockchain.mempoolBlock.addReceipt(receipt);
-		// console.log(
+		// Utils.log(
 		//   Files._client.blockchain.blocks.length,
 		//   Files._client.blockchain.mempoolBlock.receipts.length,
 		// );
 
 		const hash = this.hash;
-		console.log(`File:     ${hash}  Getting file`);
+		Utils.log(`File:     ${hash}  Getting file`);
 		if (!this.found && new Date(this.updatedAt) > new Date(new Date().getTime() - 5 * 60 * 1000)) {
-			console.log(`File:     ${hash}  404 cached`);
+			Utils.log(`File:     ${hash}  404 cached`);
 			throw new ErrorNotFound();
 		}
 		if (opts.logDownloads === undefined || opts.logDownloads) this.increment("downloadCount");
 
-		// console.log(` ${this.hash}  Checking memory usage`);
+		// Utils.log(` ${this.hash}  Checking memory usage`);
 		// if (this.size !== 0 && !Utils.hasSufficientMemory(this.size)) {
-		// 	console.log(`File:     ${hash}  Reached memory limit, waiting`, this.size);
+		// 	Utils.log(`File:     ${hash}  Reached memory limit, waiting`, this.size);
 		// 	await Utils.promiseWithTimeout(
 		// 		new Promise(() => {
 		// 			const intervalId = setInterval(() => {
-		// 				if (Files._client.config.logLevel === "verbose") console.log(`File:     ${hash}  Reached memory limit, waiting`, this.size);
+		// 				if (Files._client.config.logLevel === "verbose") Utils.log(`File:     ${hash}  Reached memory limit, waiting`, this.size);
 		// 				if (this.size === 0 || Utils.hasSufficientMemory(this.size)) clearInterval(intervalId);
 		// 			}, Files._client.config.memoryThresholdReachedWait);
 		// 		}),
@@ -290,10 +290,10 @@ export class File implements FileAttributes {
 		// }
 
 		let file: { file: Uint8Array; signal: number } | ErrorNotFound | ErrorNotInitialised | ErrorChecksumMismatch = await this.fetchFromCache();
-		if (!(file instanceof Error)) console.log(`File:     ${hash}  Serving ${this.size !== undefined ? Math.round(this.size / 1024 / 1024) : 0}MB from cache`);
+		if (!(file instanceof Error)) Utils.log(`File:     ${hash}  Serving ${this.size !== undefined ? Math.round(this.size / 1024 / 1024) : 0}MB from cache`);
 		else {
 			if (Files._client.config.s3Endpoint.length > 0) file = await this.fetchFromS3();
-			if (!(file instanceof Error)) console.log(`File:     ${hash}  Serving ${this.size !== undefined ? Math.round(this.size / 1024 / 1024) : 0}MB from S3`);
+			if (!(file instanceof Error)) Utils.log(`File:     ${hash}  Serving ${this.size !== undefined ? Math.round(this.size / 1024 / 1024) : 0}MB from S3`);
 			else {
 				file = await this.download();
 				if (file instanceof Error) {
@@ -335,7 +335,7 @@ export class File implements FileAttributes {
 			addUID: true,
 			comment: "Anonymously seeded with Hydrafiles",
 		}, (torrent: { infoHash: string }) => {
-			console.log(`File:     ${this.hash}  Seeding with infohash ${torrent.infoHash}`);
+			Utils.log(`File:     ${this.hash}  Seeding with infohash ${torrent.infoHash}`);
 			this.infohash = torrent.infoHash;
 			this.save();
 		});
@@ -352,7 +352,7 @@ export class File implements FileAttributes {
 		const decimalValue = BigInt("0x" + voteHash).toString(10);
 		const difficulty = Number(decimalValue) / Number(BigInt("0x" + "f".repeat(64)));
 		if (difficulty > this.voteDifficulty) {
-			console.log(`File:     ${this.hash}  ${nonce ? "Received" : "Mined"} Difficulty ${difficulty} - Prev: ${this.voteDifficulty}`);
+			Utils.log(`File:     ${this.hash}  ${nonce ? "Received" : "Mined"} Difficulty ${difficulty} - Prev: ${this.voteDifficulty}`);
 			this.voteNonce = voteNonce;
 			this.voteHash = voteHash;
 			this.voteDifficulty = difficulty;
@@ -367,7 +367,7 @@ export class File implements FileAttributes {
 			size = this.size;
 		}
 		if (!Files._client.utils.hasSufficientMemory(size)) {
-			console.log("Reached memory limit, waiting");
+			Utils.log("Reached memory limit, waiting");
 			await new Promise(() => {
 				const intervalId = setInterval(async () => {
 					if (await Files._client.utils.hasSufficientMemory(size)) clearInterval(intervalId);
@@ -432,7 +432,7 @@ class Files {
 	backfillFiles = (): void => {
 		setTimeout(async () => {
 			while (true) {
-				console.log("Files:    Finding file to backfill");
+				Utils.log("Files:    Finding file to backfill");
 				const keys = Array.from(this.filesHash.keys());
 				if (keys.length === 0) {
 					await delay(5000);
@@ -442,7 +442,7 @@ class Files {
 				const file = this.filesHash.get(randomKey);
 				if (!file) continue;
 				if (file) {
-					console.log(`File:     ${file.hash}  Backfilling file`);
+					Utils.log(`File:     ${file.hash}  Backfilling file`);
 					await file.getFile({ logDownloads: false });
 				}
 			}
@@ -451,7 +451,7 @@ class Files {
 
 	// TODO: Compare list between all peers and give score based on how similar they are. 100% = all exactly the same, 0% = no items in list were shared. The lower the score, the lower the propagation times, the lower the decentralisation
 	async updateFileList(onProgress?: (progress: number, total: number) => void): Promise<void> {
-		console.log(`Files:    Comparing file list`);
+		Utils.log(`Files:    Comparing file list`);
 		let files: FileAttributes[] = [];
 		const responses = await Promise.all(await Files._client.rpcPeers.fetch("hydra://core/files"));
 		for (let i = 0; i < responses.length; i++) {
@@ -498,9 +498,9 @@ class Files {
 						updated = true;
 					}
 					if (newFile.voteNonce !== 0 && newFile.voteDifficulty > currentFile.voteDifficulty && newFile.voteNonce > 0 && !uniqueHashNonces.has(newFile.hash + newFile.voteNonce)) {
-						console.log(`File:     ${newFile.hash}  Checking vote nonce ${newFile.voteNonce}`);
+						Utils.log(`File:     ${newFile.hash}  Checking vote nonce ${newFile.voteNonce}`);
 						currentFile.checkVoteNonce(newFile.voteNonce);
-						uniqueHashNonces.add(newFile.hash + newFile.voteNonce)
+						uniqueHashNonces.add(newFile.hash + newFile.voteNonce);
 					}
 				}
 				if (updated) currentFile.save();

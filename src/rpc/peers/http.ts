@@ -13,7 +13,7 @@ export class HTTPClient {
 	}
 
 	public async fetch(inputUrl: `hydra://core/${string}`, init: { method?: string; headers?: { [key: string]: string }; body?: string } = {}): Promise<DecodedResponse | ErrorRequestFailed | ErrorTimeout> {
-		console.log(`HTTP:     Fetching ${inputUrl} from ${this.host}`);
+		Utils.log(`HTTP:     Fetching ${inputUrl} from ${this.host}`);
 		try {
 			const peerUrl = new URL(this.host);
 			const url = inputUrl.replace("hydra://core/", `${peerUrl.protocol}//${peerUrl.hostname}/`);
@@ -86,23 +86,23 @@ export default class HTTPServer {
 	}
 
 	private onListen = async (hostname: string, port: number): Promise<void> => {
-		console.log(`HTTP:     Listening at ${hostname}:${port}`);
-		console.log("RPC:      Testing network connectivity");
+		Utils.log(`HTTP:     Listening at ${hostname}:${port}`);
+		Utils.log("RPC:      Testing network connectivity");
 		const file = RPCPeers._client.files.filesHash.get("04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f");
 		if (!file) return;
 		if (!(await file.download())) console.error("RPC:      Download test failed, cannot connect to network");
 		else {
-			console.log("RPC:      Connected to network");
+			Utils.log("RPC:      Connected to network");
 			if (Utils.isIp(RPCPeers._client.config.publicHostname) && Utils.isPrivateIP(RPCPeers._client.config.publicHostname)) console.error("Public hostname is a private IP address, cannot announce to other nodes");
 			else {
-				console.log(`HTTP:     Testing downloads ${RPCPeers._client.config.publicHostname}/download/04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f`);
+				Utils.log(`HTTP:     Testing downloads ${RPCPeers._client.config.publicHostname}/download/04aa07009174edc6f03224f003a435bcdc9033d2c52348f3a35fbb342ea82f6f`);
 				const self = RPCPeers._client.rpcPeers.http.getSelf();
 				if (self instanceof ErrorNotFound) console.error("HTTP:     Failed to find self in peers");
 				else {
 					const response = await self.downloadFile(file);
 					if (response instanceof ErrorDownloadFailed) console.error("HTTP:      Failed to download file from self");
 					else {
-						console.log("HTTP:     Announcing server to nodes");
+						Utils.log("HTTP:     Announcing server to nodes");
 						RPCPeers._client.rpcPeers.fetch(`hydra://core/announce?host=${RPCPeers._client.config.publicHostname}`);
 					}
 					await RPCPeers._client.rpcPeers.add({ host: RPCPeers._client.config.publicHostname });

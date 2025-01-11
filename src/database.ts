@@ -3,6 +3,7 @@ import type { indexedDB } from "https://deno.land/x/indexeddb@v1.1.0/ponyfill.ts
 import { ErrorMissingRequiredProperty, ErrorNotFound, ErrorNotInitialised } from "./errors.ts";
 import Hydrafiles from "./hydrafiles.ts";
 import type { NonEmptyString } from "./utils.ts";
+import Utils from "./utils.ts";
 
 export interface ModelType {
 	tableName: string;
@@ -48,7 +49,7 @@ function addColumnIfNotExists(db: SQLite, tableName: string, columnName: string,
 
 	if (!columnExists) {
 		if (db !== undefined) db.exec(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${columnDefinition}`);
-		console.log(`Column '${columnName}' added to table '${tableName}'.`);
+		Utils.log(`Column '${columnName}' added to table '${tableName}'.`);
 	}
 }
 
@@ -84,11 +85,11 @@ export default class Database<T extends ModelType> {
 			Object.entries(model.columns).forEach(([name, def]) => addColumnIfNotExists(db.db, model.tableName, name, def.type));
 		} else {
 			const db = await new Promise<IDBDatabase>((resolve, reject) => {
-				console.log(`Database: ${model.tableName}DB: Opening IndexedDB Connection`);
+				Utils.log(`Database: ${model.tableName}DB: Opening IndexedDB Connection`);
 				// @ts-expect-error:
 				const request = indexedDB.open(model.tableName, 2);
 				request.onupgradeneeded = (event): void => {
-					console.log(`Database: ${model.tableName}DB: On Upgrade Needed`);
+					Utils.log(`Database: ${model.tableName}DB: On Upgrade Needed`);
 					// @ts-expect-error:
 					if (!event.target.result.objectStoreNames.contains(model.tableName)) {
 						// @ts-expect-error:
@@ -103,7 +104,7 @@ export default class Database<T extends ModelType> {
 					}
 				};
 				request.onsuccess = () => {
-					console.log(`Database: ${model.tableName}DB: On Success`);
+					Utils.log(`Database: ${model.tableName}DB: On Success`);
 					resolve(request.result as unknown as IDBDatabase);
 				};
 				request.onerror = () => {
@@ -194,8 +195,8 @@ export default class Database<T extends ModelType> {
 		const file = this.withDefaults(values);
 		if (file instanceof ErrorMissingRequiredProperty) return file;
 
-		if (this._client.config.logLevel === "verbose") console.log(`Database: ${this.model.tableName}  INSERTing Record`, values);
-		else console.log(`Database: ${this.model.tableName}  INSERTing Record`);
+		if (this._client.config.logLevel === "verbose") Utils.log(`Database: ${this.model.tableName}  INSERTing Record`, values);
+		else Utils.log(`Database: ${this.model.tableName}  INSERTing Record`);
 
 		if (this.db.type === "SQLITE") {
 			const columns = Object.keys(this.model.columns);
@@ -258,15 +259,15 @@ export default class Database<T extends ModelType> {
 			params.push(primaryKeyValue);
 			const query = `UPDATE ${this.model.tableName} SET ${updatedColumn.map((column) => `${String(column)} = ?`).join(", ")} WHERE ${primaryKey} = ?`;
 			this.db.db.prepare(query).values(params);
-			console.log(
+			Utils.log(
 				`File:     ${primaryKeyValue}  File UPDATEd - Updated Columns: ${updatedColumn.join(", ")}` + (this._client.config.logLevel === "verbose" ? ` - Params: ${params.join(", ")}  - Query: ${query}` : ""),
-				this._client.config.logLevel === "verbose" ? console.log(`File:     ${primaryKeyValue}`) : "",
+				this._client.config.logLevel === "verbose" ? Utils.log(`File:     ${primaryKeyValue}`) : "",
 			);
 		} else {
 			if (this.db.type === "INDEXEDDB") this.objectStore().put(Object.fromEntries(Object.entries(newFile).filter(([key]) => !key.startsWith("_")))).onerror = console.error;
-			console.log(
+			Utils.log(
 				`this:     ${primaryKeyValue}  File UPDATEd - Updated Columns: ${updatedColumn.join(", ")}` + (this._client.config.logLevel === "verbose" ? ` - Params: ${params.join(", ")}` : ""),
-				this._client.config.logLevel === "verbose" ? console.log(`File:     ${primaryKeyValue}`) : "",
+				this._client.config.logLevel === "verbose" ? Utils.log(`File:     ${primaryKeyValue}`) : "",
 			);
 		}
 		return true;
@@ -279,7 +280,7 @@ export default class Database<T extends ModelType> {
 		if (this.db.type === "SQLITE") {
 			this.db.db.exec(query, primaryKeyValue.toString());
 		} else if (this.db.type === "INDEXEDDB") this.objectStore().delete(primaryKeyValue.toString()).onerror = console.error;
-		console.log(`File:     ${primaryKeyValue}  File DELETEd`);
+		Utils.log(`File:     ${primaryKeyValue}  File DELETEd`);
 	}
 
 	increment(primaryKeyValue: string, column: string): void {
@@ -293,7 +294,7 @@ export default class Database<T extends ModelType> {
 				const file = (target as IDBRequest).result;
 				if (file && this.db.type === "INDEXEDDB") {
 					file[column] = (file[column] || 0) + 1;
-					this.objectStore().put(file).onsuccess = () => console.log(`File:     ${primaryKeyValue}  Incremented ${column}`);
+					this.objectStore().put(file).onsuccess = () => Utils.log(`File:     ${primaryKeyValue}  Incremented ${column}`);
 				}
 			};
 		}

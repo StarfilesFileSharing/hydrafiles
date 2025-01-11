@@ -11,6 +11,7 @@ import { Edge, Node } from "npm:vis-network/esnext";
 import type { FileEvent, RTCEvent } from "../src/events.ts";
 import { RTCPeer } from "../src/rpc/peers/rtc.ts";
 import type { Host } from "../src/rpc/RPCPeer.ts";
+import Utils from "../src/utils.ts";
 
 declare global {
 	interface Window {
@@ -215,14 +216,14 @@ document.getElementById("startHydrafilesButton")!.addEventListener("click", asyn
 	const webtorrent = new WebTorrent();
 
 	await window.hydrafiles.start({ onUpdateFileListProgress, webtorrent });
-	console.log("Hydrafiles web node is running", window.hydrafiles);
+	Utils.log("Hydrafiles web node is running", window.hydrafiles);
 	setInterval(tickHandler, 30 * 1000);
 	tickHandler();
 
 	const seenMessages = new Set<string>();
 	const messageBox = document.getElementById("messages") as HTMLElement;
 	document.getElementById("messengerAddress")!.innerText = window.hydrafiles.services.addHostname((req) => {
-		console.log(req);
+		Utils.log(req);
 		const signature = req.headers.get("hydra-signature");
 		const from = req.headers.get("hydra-from");
 		if (signature === null || from === null) return new Response("Request not signed");
@@ -400,7 +401,7 @@ const onUpdateFileListProgress = (progress: number, total: number) => {
 
 document.getElementById("toggleColumnsButton")!.addEventListener("click", () => {
 	hideAdvancedColumns = !hideAdvancedColumns;
-	console.log("Hide Advanced Columns:", hideAdvancedColumns);
+	Utils.log("Hide Advanced Columns:", hideAdvancedColumns);
 	populateTable();
 });
 
@@ -521,7 +522,7 @@ function populateTable() {
 		const button = document.createElement("button");
 		button.textContent = "Download";
 		button.addEventListener("click", async () => {
-			console.log("Downloading file:", file);
+			Utils.log("Downloading file:", file);
 			const fileContent = await file.getFile({ logDownloads: true });
 			if (!fileContent) {
 				console.error("Failed to download file");
@@ -671,7 +672,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 		try {
 			if (!(response instanceof Error)) {
 				const body = response.body;
-				console.log("body", body);
+				Utils.log("body", body);
 				createSandbox(body, body);
 				// document.getElementById("urlBody")!.innerHTML = body;
 			}
@@ -807,7 +808,7 @@ new Network(document.getElementById("peerNetwork")!, { nodes: nodes as any, edge
 		shape: "dot",
 		scaling: {
 			customScalingFunction: function (min, max, total, value) {
-				console.log(min, max, total, value);
+				Utils.log(min, max, total, value);
 				return (value ?? 0) / (total ?? 0);
 			},
 			min: 5,

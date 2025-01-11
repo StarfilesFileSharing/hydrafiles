@@ -1,4 +1,4 @@
-import { type NonEmptyString, Sha256 } from "./../utils.ts";
+import Utils, { type NonEmptyString, Sha256 } from "./../utils.ts";
 import Wallet, { EthAddress } from "../wallet.ts";
 import Hydrafiles from "../hydrafiles.ts";
 import Database from "../database.ts";
@@ -78,7 +78,7 @@ export default class BlockchainNameService {
 					content = data.wallet.address();
 					break;
 				}
-				if (nonce % 100 === 0) console.log(`${nonce} attempts to find block`);
+				if (nonce % 100 === 0) Utils.log(`${nonce} attempts to find block`);
 			}
 		} else {
 			for (nonce = 0; true; nonce++) {
@@ -87,7 +87,7 @@ export default class BlockchainNameService {
 					content = data.script;
 					break;
 				}
-				if (nonce % 100 === 0) console.log(`${nonce} attempts to find block`);
+				if (nonce % 100 === 0) Utils.log(`${nonce} attempts to find block`);
 			}
 		}
 		const block = new Block(content, id, nonce, prev.id, name);
@@ -112,7 +112,7 @@ export default class BlockchainNameService {
 	}
 
 	async fetchBlocks(): Promise<void> {
-		console.log(`Blocks:   Fetching blocks from peers`);
+		Utils.log(`Blocks:   Fetching blocks from peers`);
 		const responses = await BlockchainNameService._client.rpcPeers.fetch("hydra://core/blocks");
 
 		for await (const response of responses) {
@@ -129,7 +129,7 @@ export default class BlockchainNameService {
 						blocks[j].name,
 					);
 					if (!await this.addBlock(block)) break;
-					console.log(`Blocks:   Received block`);
+					Utils.log(`Blocks:   Received block`);
 				}
 			} catch (_) {
 				continue;

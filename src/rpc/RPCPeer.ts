@@ -11,11 +11,11 @@ import { RTCPeer } from "./peers/rtc.ts";
 export type Host = `https://${EthAddress}` | `${"http" | "https" | "ws" | "wss" | "wsc" | "rtc"}://${string}`;
 
 async function validateHash(body: Uint8Array, hash: string): Promise<boolean> {
-	console.log(`File:     ${hash}  Validating hash`);
+	Utils.log(`File:     ${hash}  Validating hash`);
 	const verifiedHash = await Utils.hashUint8Array(body);
-	console.log(`File:     ${hash}  Done Validating hash`);
+	Utils.log(`File:     ${hash}  Done Validating hash`);
 	if (hash !== verifiedHash) return false;
-	console.log(`File:     ${hash}  Valid hash`);
+	Utils.log(`File:     ${hash}  Valid hash`);
 	return true;
 }
 
@@ -99,7 +99,7 @@ export default class RPCPeer implements PeerAttributes {
 
 			const hash = file.hash;
 			let response;
-			console.log(`File:     ${hash}  Downloading from ${this.host}`);
+			Utils.log(`File:     ${hash}  Downloading from ${this.host}`);
 			if (this.peer instanceof WSPeer) {
 				const wsResponse = await this.peer.fetch(`hydra://core/download/${hash}`);
 				for (let i = 0; i < wsResponse.length; i++) {

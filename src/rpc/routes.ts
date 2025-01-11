@@ -86,7 +86,7 @@ router.set("/peers", (_, client) => {
 					if (key.startsWith("_")) continue;
 					outputPeer[key as keyof PeerAttributes] = value;
 				}
-				console.log(outputPeer);
+				Utils.log(outputPeer);
 				return outputPeer;
 			}),
 		),
@@ -119,7 +119,7 @@ router.set("/download", async (req, client) => {
 	const infohash = Array.from(decodeURIComponent(url.searchParams.get("info_hash") ?? "")).map((char) => char.charCodeAt(0).toString(16).padStart(2, "0")).join("");
 
 	if (processingDownloads.has(hash)) {
-		if (client.config.logLevel === "verbose") console.log(`  ${hash}  Waiting for existing request with same hash`);
+		if (client.config.logLevel === "verbose") Utils.log(`  ${hash}  Waiting for existing request with same hash`);
 		await processingDownloads.get(hash);
 	}
 	const processingPromise = (async () => {
@@ -158,7 +158,7 @@ router.set("/download", async (req, client) => {
 
 		const address = client.filesWallet.address();
 		if (address) headers["Ethereum-Address"] = address;
-		console.log(`File:     ${hash}  Signal Strength:`, fileContent.signal, Utils.estimateHops(fileContent.signal));
+		Utils.log(`File:     ${hash}  Signal Strength:`, fileContent.signal, Utils.estimateHops(fileContent.signal));
 
 		if (file.name !== undefined && file.name !== null) {
 			headers["Content-Disposition"] = `attachment; filename="${encodeURIComponent(file.name.replace(/[^a-zA-Z0-9._-]/g, "").replace(/\s+/g, " ").trim()).replace(/%20/g, " ").replace(/(\.\w+)$/, " [HYDRAFILES]$1")}"`;
@@ -183,7 +183,7 @@ router.set("/infohash", async (req, client): Promise<HydraResponse> => {
 	const infohash = url.pathname.split("/")[2];
 
 	if (processingDownloads.has(infohash)) {
-		console.log(`  ${infohash}  Waiting for existing request with same infohash`);
+		Utils.log(`  ${infohash}  Waiting for existing request with same infohash`);
 		await processingDownloads.get(infohash);
 	}
 	const processingPromise = (async () => {
@@ -207,7 +207,7 @@ router.set("/infohash", async (req, client): Promise<HydraResponse> => {
 			"Signal-Strength": String(fileContent.signal),
 			"Content-Length": String(file.size),
 		};
-		console.log(`File:     ${file.hash}  Signal Strength:`, fileContent.signal, Utils.estimateHops(fileContent.signal));
+		Utils.log(`File:     ${file.hash}  Signal Strength:`, fileContent.signal, Utils.estimateHops(fileContent.signal));
 
 		if (file.name) headers["Content-Disposition"] = `attachment; filename="${encodeURIComponent(file.name).replace(/%20/g, " ").replace(/(\.\w+)$/, " [HYDRAFILES]$1")}"`;
 
@@ -252,7 +252,7 @@ router.set("/infohash", async (req, client): Promise<HydraResponse> => {
 // 		file.save();
 // 	}
 
-// 	console.log("Uploading", file.hash);
+// 	Utils.log("Uploading", file.hash);
 
 // 	if (await client.fs.exists(join("files", file.hash))) return new HydraResponse("200 OK\n");
 
@@ -331,7 +331,7 @@ router.set("/exit", async (req, client) => {
 		if ("url" in payload.payload) return new HydraResponse(new Uint8Array(await (await fetch(payload.payload.url)).arrayBuffer()));
 		else return new HydraResponse((await client.rpcPeers.fetch(`hydra://core/exit`, { method: "POST", body: JSON.stringify(payload.payload) }))[0].body);
 	} else {
-		console.log(payload);
+		Utils.log(payload);
 	}
 	return new HydraResponse("sehzaysehzyae");
 });

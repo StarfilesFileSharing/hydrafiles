@@ -25,6 +25,23 @@ class Utils {
 	static isIp = (host: string): boolean => /^https?:\/\/(?:\d+\.){3}\d+(?::\d+)?$/.test(host);
 	static isPrivateIP = (ip: string): boolean => /^https?:\/\/(?:10\.|(?:172\.(?:1[6-9]|2\d|3[0-1]))\.|192\.168\.|169\.254\.|127\.|224\.0\.0\.|255\.255\.255\.255|localhost)/.test(ip);
 	static interfere = (signalStrength: number): number => signalStrength >= 95 ? this.getRandomNumber(90, 100) : Math.ceil(signalStrength * (1 - (this.getRandomNumber(0, 10) / 100)));
+	static log = (...args: unknown[]) => {
+		const stack = new Error().stack;
+		// Get the caller's line from the stack trace
+		const callerLine = stack ? stack.split("\n")[2] : "";
+		// Extract file and line info using regex
+		const match = callerLine.match(/\((.+):(\d+):\d+\)/);
+
+		if (match) {
+			const [, file, line] = match;
+			// Get just the filename without the path
+			const filename = file.split("/").pop();
+			console.log(`[${filename}:${line}]`, ...args);
+		} else {
+			// Fallback if we can't get the line info
+			console.log(...args);
+		}
+	};
 
 	remainingStorage = async (): Promise<NonNegativeNumber | ErrorNotInitialised> => {
 		const usedStorage = await this.calculateUsedStorage();

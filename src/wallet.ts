@@ -57,11 +57,11 @@ class Wallet {
 		const amountInEth = parseFloat(amount.toString()) / 1e18;
 
 		if (currentBalance < amountInEth) {
-			console.log(`Insufficient balance. Current balance: ${currentBalance}, Transfer amount: ${amountInEth}`);
+			log(`Insufficient balance. Current balance: ${currentBalance}, Transfer amount: ${amountInEth}`);
 			throw new ErrorInsufficientBalance();
 		}
 
-		console.log(`Transferring ${amount} to ${to}`);
+		log(`Transferring ${amount} to ${to}`);
 		try {
 			const hash = await this.client.sendTransaction({
 				account: this.account,
@@ -69,7 +69,7 @@ class Wallet {
 				to,
 				value: amount,
 			});
-			console.log("Transaction Hash:", hash);
+			log("Transaction Hash:", hash);
 		} catch (e) {
 			if (Wallet._client.config.logLevel === "verbose") console.error(e);
 		}

@@ -86,7 +86,7 @@ export class RTCPeer {
 
 		conn.onicecandidate = (event) => {
 			if (event.candidate) {
-				console.log(`WebRTC:   ${from}  Sending ICE candidate`);
+				Utils.log(`WebRTC:   ${from}  Sending ICE candidate`);
 				RTCPeers._rpcPeers.ws.send({ iceCandidate: event.candidate, to: from, from: RTCPeers._rpcPeers.rtc.address });
 			}
 		};
@@ -96,7 +96,7 @@ export class RTCPeer {
 
 				const offer = await conn.createOffer();
 				await conn.setLocalDescription(offer);
-				console.log(`WebRTC:   ${from}  Sending offer from`, extractIPAddress(offer.sdp));
+				Utils.log(`WebRTC:   ${from}  Sending offer from`, extractIPAddress(offer.sdp));
 				RTCPeers._rpcPeers.ws.send({ offer, to: from, from: RTCPeers._rpcPeers.rtc.address });
 			} catch (e) {
 				console.error(e);
@@ -127,7 +127,7 @@ export class RTCPeer {
 
 	async handleAnnounce(from: `rtc://${EthAddress}.hydra`): Promise<void> {
 		RPCPeers._client.events.log(RPCPeers._client.events.rtcEvents.RTCAnnounce);
-		console.log(`WebRTC:   ${from}  Received announce`);
+		Utils.log(`WebRTC:   ${from}  Received announce`);
 		if (this.offered) {
 			console.warn(`WebRTC:   ${from}  Already offered to peer`);
 			return;
@@ -146,7 +146,7 @@ export class RTCPeer {
 			return;
 		}
 
-		console.log(`WebRTC:   ${this.host}  Received offer from`, extractIPAddress(offer.sdp));
+		Utils.log(`WebRTC:   ${this.host}  Received offer from`, extractIPAddress(offer.sdp));
 
 		this.answered = await this.createConnection(this.host);
 		if (this.answered.conn.signalingState !== "stable" && this.answered.conn.signalingState !== "have-remote-offer") {
@@ -163,7 +163,7 @@ export class RTCPeer {
 			if (this.answered.conn.signalingState !== "have-remote-offer") return;
 			await this.answered.conn.setLocalDescription(answer);
 
-			console.log(`WebRTC:   ${this.host}  Sending answer from`, extractIPAddress(answer.sdp));
+			Utils.log(`WebRTC:   ${this.host}  Sending answer from`, extractIPAddress(answer.sdp));
 			RTCPeers._rpcPeers.ws.send({ answer, to: this.host, from: RTCPeers._rpcPeers.rtc.address });
 		} catch (e) {
 			console.error(e);
@@ -180,14 +180,14 @@ export class RTCPeer {
 			console.warn(`WebRTC:   ${this.host}  Rejecting answer - Bad signalling state: ${this.offered?.conn.signalingState}`);
 			return;
 		}
-		console.log(`WebRTC:   ${this.host}  Received answer`, extractIPAddress(answer.sdp));
+		Utils.log(`WebRTC:   ${this.host}  Received answer`, extractIPAddress(answer.sdp));
 		await this.offered.conn.setRemoteDescription(answer);
 	}
 
 	handleIceCandidate(receivedIceCandidate: RTCIceCandidate): void {
 		const iceCandidate = receivedIceCandidate;
 		RPCPeers._client.events.log(RPCPeers._client.events.rtcEvents.RTCIce);
-		console.log(`WebRTC:   ${this.host}  Received ICE candidate`);
+		Utils.log(`WebRTC:   ${this.host}  Received ICE candidate`);
 		if (typeof window !== "undefined") { // TODO: Figure out why this breaks on desktop
 			if (this.answered) this.answered.conn.addIceCandidate(iceCandidate).catch(console.error);
 			if (this.offered && this.offered.conn.remoteDescription) this.offered.conn.addIceCandidate(iceCandidate).catch(console.error);
@@ -195,7 +195,7 @@ export class RTCPeer {
 	}
 
 	async handleMessage(channel: RTCDataChannel, e: MessageEvent): Promise<void> {
-		console.log(`WebRTC:   Received request`);
+		Utils.log(`WebRTC:   Received request`);
 		const request = (JSON.parse(e.data as string) as WSRequest).request;
 		const { url, ...data } = request;
 		const requestHash = encodeBase32(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify(request)))));
@@ -211,7 +211,7 @@ export class RTCPeer {
 		const body = arrayBufferToUnicodeString(new Uint8Array(await response.arrayBuffer()));
 		const status = response.status;
 
-		console.log(`WebRTC:   Sending response`);
+		Utils.log(`WebRTC:   Sending response`);
 		const message = JSON.stringify({ body, status, headers } as DecodedResponse);
 		channel.send(message);
 
@@ -232,7 +232,7 @@ export class RTCPeer {
 	}
 
 	public async fetch(url: `hydra://core/${string}`, method = "GET", headers: { [key: string]: string } = {}, body: string | undefined = undefined): Promise<DecodedResponse | ErrorTimeout | ErrorRequestFailed> {
-		console.log(`WebRTC:   Fetching ${url} from ${this.host}`);
+		Utils.log(`WebRTC:   Fetching ${url} from ${this.host}`);
 		const request: WSRequest = { request: { method, url: url.toString(), headers, body: method === "GET" ? undefined : body } };
 
 		let channel: RTCDataChannel | undefined;
@@ -240,7 +240,7 @@ export class RTCPeer {
 		else if (this.answered && this.answered.channel.readyState === "open") channel = this.answered.channel;
 		else return new ErrorRequestFailed();
 
-		console.log(`WebRTC:   ${this.host} Sending request`);
+		Utils.log(`WebRTC:   ${this.host} Sending request`);
 		channel.send(JSON.stringify(request));
 		const requestHash = encodeBase32(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify(request)))));
 
@@ -255,12 +255,12 @@ export class RTCPeer {
 					const message = receivedPackets[packet.requestHash].join("");
 					delete receivedPackets[packet.requestHash];
 					const fullMessage = JSON.parse(message);
-					console.log("Received full message:", fullMessage);
+					Utils.log("Received full message:", fullMessage);
 				}
 
 				try {
 					const response = JSON.parse(e.data as string) as WSResponse;
-					console.log(`WebRTC:   Received response`);
+					Utils.log(`WebRTC:   Received response`);
 					if (response.requestHash !== requestHash) return;
 					resolve(response.response);
 				} catch (error) {
@@ -270,7 +270,7 @@ export class RTCPeer {
 		});
 
 		const response = Utils.promiseWithTimeout(responsePromise, RPCPeers._client.config.timeout);
-		console.log(response);
+		Utils.log(response);
 		return response;
 	}
 }
