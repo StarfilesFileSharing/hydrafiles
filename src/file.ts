@@ -120,7 +120,7 @@ export class File implements FileAttributes {
 
 		const hash = this.hash;
 
-		console.log(`File:     ${hash}  Getting file metadata`);
+		console.log(`File:     ${hash}  Getting file metadata - ${typeof this.id}(${this.id})`);
 
 		const id = this.id;
 		if (id !== undefined && id !== null && id.length > 0) {
