@@ -37,8 +37,8 @@ class Utils {
 		if (match) {
 			const [, file, line] = match;
 			const filename = file.split("/").pop();
-			console.log(`[${filename}:${line}]`, String(group).padEnd(8, " "), ...args);
-		} else console.log(String(group).padEnd(8, " "), ...args);
+			console.log(`[${filename}:${line}]`, group.padEnd(8, " "), ...args);
+		} else console.log(group.padEnd(8, " "), ...args);
 	};
 	static warn = (...args: unknown[]) => {
 		const stack = new Error().stack;
