@@ -86,7 +86,7 @@ router.set("/peers", (_, client) => {
 					if (key.startsWith("_")) continue;
 					outputPeer[key as keyof PeerAttributes] = value;
 				}
-				Utils.log("peer", outputPeer);
+				Utils.log(outputPeer);
 				JSON.stringify(outputPeer);
 				return outputPeer;
 			}),
