@@ -42,7 +42,7 @@ const peerModel = {
 };
 
 export default class RPCPeer implements PeerAttributes {
-	peer: HTTPClient | WSPeer | RTCPeer;
+	_peer: HTTPClient | WSPeer | RTCPeer;
 
 	host!: Host;
 	hits: NonNegativeNumber = 0 as NonNegativeNumber;
@@ -53,7 +53,7 @@ export default class RPCPeer implements PeerAttributes {
 	createdAt: string = new Date().toISOString();
 
 	constructor(peer: HTTPClient | WSPeer | RTCPeer, values: DatabaseModal<typeof peerModel>) {
-		this.peer = peer;
+		this._peer = peer;
 
 		this.host = values.host as Host;
 		this.hits = Utils.createNonNegativeNumber(values.hits);
@@ -114,14 +114,14 @@ export default class RPCPeer implements PeerAttributes {
 			const hash = file.hash;
 			let response;
 			Utils.log(`File:     ${hash}  Downloading from ${this.host}`);
-			if (this.peer instanceof WSPeer) {
-				const wsResponse = await this.peer.fetch(`hydra://core/download/${hash}`);
+			if (this._peer instanceof WSPeer) {
+				const wsResponse = await this._peer.fetch(`hydra://core/download/${hash}`);
 				for (let i = 0; i < wsResponse.length; i++) {
 					response = wsResponse[i];
 					if (response instanceof ErrorTimeout || response instanceof ErrorRequestFailed) continue;
 					if (await validateHash(new TextEncoder().encode(response.body), hash)) break;
 				}
-			} else response = await this.peer.fetch(`hydra://core/download/${hash}`);
+			} else response = await this._peer.fetch(`hydra://core/download/${hash}`);
 
 			if (!response) return new ErrorDownloadFailed();
 			if (response instanceof Error) return response;

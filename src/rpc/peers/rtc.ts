@@ -295,22 +295,22 @@ export default class RTCPeers {
 		this.seenMessages.add(event.data);
 		if ("announce" in message) {
 			if (!peer) peer = (await RTCPeers._rpcPeers.add({ host: `rtc://${message.from}.hydra` }))[0];
-			await (peer.peer as RTCPeer).handleAnnounce(`rtc://${message.from}.hydra`);
+			await (peer._peer as RTCPeer).handleAnnounce(`rtc://${message.from}.hydra`);
 		} else if ("offer" in message) {
 			if (!peer) peer = (await RTCPeers._rpcPeers.add({ host: `rtc://${message.from}.hydra` }))[0];
-			await (peer.peer as RTCPeer).handleOffer(message.offer);
+			await (peer._peer as RTCPeer).handleOffer(message.offer);
 		} else if ("answer" in message) {
 			if (!peer) {
 				Utils.warn("WebRTC:   Received answer from unknown peer");
 				return;
 			}
-			await (peer.peer as RTCPeer).handleAnswer(message.answer);
+			await (peer._peer as RTCPeer).handleAnswer(message.answer);
 		} else if ("iceCandidate" in message) {
 			if (!peer) {
 				Utils.warn("WebRTC:   Received ice candidates from unknown peer");
 				return;
 			}
-			(peer.peer as RTCPeer).handleIceCandidate(message.iceCandidate);
+			(peer._peer as RTCPeer).handleIceCandidate(message.iceCandidate);
 		} else if (!("request" in message) && !("response" in message)) Utils.warn("WebRTC:   Unknown message type received", message);
 	}
 }
