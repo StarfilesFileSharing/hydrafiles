@@ -138,7 +138,7 @@ export class File implements FileAttributes {
 					this.save();
 					return this;
 				} catch (e) {
-					if (Files._client.config.logLevel === "verbose") Utils.log(e);
+					if (Files._client.config.logLevel === "verbose") Utils.log("Error", e);
 				}
 			}
 		}

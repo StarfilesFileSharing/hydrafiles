@@ -25,7 +25,7 @@ class Utils {
 	static isIp = (host: string): boolean => /^https?:\/\/(?:\d+\.){3}\d+(?::\d+)?$/.test(host);
 	static isPrivateIP = (ip: string): boolean => /^https?:\/\/(?:10\.|(?:172\.(?:1[6-9]|2\d|3[0-1]))\.|192\.168\.|169\.254\.|127\.|224\.0\.0\.|255\.255\.255\.255|localhost)/.test(ip);
 	static interfere = (signalStrength: number): number => signalStrength >= 95 ? this.getRandomNumber(90, 100) : Math.ceil(signalStrength * (1 - (this.getRandomNumber(0, 10) / 100)));
-	static log = (group: MinLength<MaxLength<string, 8>, 1>, ...args: unknown[]) => {
+	static log = (group: string, ...args: unknown[]) => {
 		const stack = new Error().stack;
 		let match;
 		if (stack) {
