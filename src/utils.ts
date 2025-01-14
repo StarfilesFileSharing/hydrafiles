@@ -25,30 +25,30 @@ class Utils {
 	static isIp = (host: string): boolean => /^https?:\/\/(?:\d+\.){3}\d+(?::\d+)?$/.test(host);
 	static isPrivateIP = (ip: string): boolean => /^https?:\/\/(?:10\.|(?:172\.(?:1[6-9]|2\d|3[0-1]))\.|192\.168\.|169\.254\.|127\.|224\.0\.0\.|255\.255\.255\.255|localhost)/.test(ip);
 	static interfere = (signalStrength: number): number => signalStrength >= 95 ? this.getRandomNumber(90, 100) : Math.ceil(signalStrength * (1 - (this.getRandomNumber(0, 10) / 100)));
-	static log = (...args: unknown[]) => {
+	static log = (group: MinLength<MaxLength<string, 8>, 1>, ...args: unknown[]) => {
 		const stack = new Error().stack;
-    let match;
-    if (stack) {
-        const lines = stack.split('\n');
-        if (lines.length > 2) {
-            match = lines[2].match(/\((.+):(\d+):\d+\)/);
-        }
-    }
+		let match;
+		if (stack) {
+			const lines = stack.split("\n");
+			if (lines.length > 2) {
+				match = lines[2].match(/\((.+):(\d+):\d+\)/);
+			}
+		}
 		if (match) {
 			const [, file, line] = match;
 			const filename = file.split("/").pop();
-			console.log(`[${filename}:${line}]`, ...args);
-		} else console.log(...args);
+			console.log(`[${filename}:${line}]`, group.padEnd(8, " "), ...args);
+		} else console.log(group.padEnd(8, " "), ...args);
 	};
 	static warn = (...args: unknown[]) => {
 		const stack = new Error().stack;
-    let match;
-    if (stack) {
-        const lines = stack.split('\n');
-        if (lines.length > 2) {
-            match = lines[2].match(/\((.+):(\d+):\d+\)/);
-        }
-    }
+		let match;
+		if (stack) {
+			const lines = stack.split("\n");
+			if (lines.length > 2) {
+				match = lines[2].match(/\((.+):(\d+):\d+\)/);
+			}
+		}
 		if (match) {
 			const [, file, line] = match;
 			const filename = file.split("/").pop();
@@ -57,13 +57,13 @@ class Utils {
 	};
 	static error = (...args: unknown[]) => {
 		const stack = new Error().stack;
-    let match;
-    if (stack) {
-        const lines = stack.split('\n');
-        if (lines.length > 2) {
-            match = lines[2].match(/\((.+):(\d+):\d+\)/);
-        }
-    }
+		let match;
+		if (stack) {
+			const lines = stack.split("\n");
+			if (lines.length > 2) {
+				match = lines[2].match(/\((.+):(\d+):\d+\)/);
+			}
+		}
 		if (match) {
 			const [, file, line] = match;
 			const filename = file.split("/").pop();

@@ -68,10 +68,24 @@ export default class RPCPeer implements PeerAttributes {
 		const url = new URL(values.host);
 		if (!url.protocol || !url.host || url.protocol === "hydra") throw new Error("Invalid URL");
 
-		let peerValues = (await RPCPeers.db.select({ key: "host", value: values.host }))[0];
-		if (peerValues === undefined) {
-			RPCPeers.db.insert({ host: values.host });
-			peerValues = (await RPCPeers.db.select({ key: "host", value: values.host }))[0];
+		let peerValues: DatabaseModal<typeof peerModel> = {
+			hits: 0,
+			rejects: 0,
+			bytes: 0,
+			duration: 0,
+			createdAt: new Date().toISOString(),
+			updatedAt: new Date().toISOString(),
+			...values,
+		};
+		
+		if (!values.host.startsWith("rtc:")) {
+			const dbValues = (await RPCPeers.db.select({ key: "host", value: values.host }))[0];
+			if (dbValues === undefined) {
+				RPCPeers.db.insert({ host: values.host });
+				peerValues = (await RPCPeers.db.select({ key: "host", value: values.host }))[0];
+			} else {
+				peerValues = dbValues;
+			}
 		}
 
 		const peerUrl = new URL(peerValues.host);
